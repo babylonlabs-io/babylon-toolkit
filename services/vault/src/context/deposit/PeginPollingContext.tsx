@@ -69,6 +69,7 @@ import {
 } from "./daemonTerminalEvents";
 import {
   getOptimisticDepositState,
+  markActivationReturned,
   setOptimisticDepositStatus,
   subscribeToOptimisticDepositState,
 } from "./optimisticDepositState";
@@ -225,11 +226,26 @@ export function PeginPollingProvider({
     statuses: optimisticStatuses,
     refundBroadcastAt: optimisticRefundBroadcastAt,
     wotsSubmittedAt,
+    activationReturnedIds,
   } = useSyncExternalStore(
     subscribeToOptimisticDepositState,
     getOptimisticDepositState,
     getOptimisticDepositState,
   );
+
+  // A returned outcome read from a deposit record — stored by another tab, or
+  // by this one before a reload — is copied into the session set. Cleanup
+  // deletes the record once the indexer reports the vault REDEEMED, and the
+  // outcome must outlive it for the rest of this session; otherwise an open
+  // continuation drops from the returned screen to the processing view. A
+  // reload after that cleanup has nothing left to read.
+  useEffect(() => {
+    for (const pegin of pendingPegins) {
+      if (pegin.activationOutcome === "returned") {
+        markActivationReturned(pegin.id);
+      }
+    }
+  }, [pendingPegins]);
 
   // Use the polling query hook
   const {
@@ -667,6 +683,7 @@ export function PeginPollingProvider({
         optimisticStatuses,
         optimisticRefundBroadcastAt,
         wotsSubmittedAt,
+        activationReturnedIds,
         btcPublicKey,
       });
     },
@@ -695,6 +712,7 @@ export function PeginPollingProvider({
       optimisticStatuses,
       optimisticRefundBroadcastAt,
       wotsSubmittedAt,
+      activationReturnedIds,
       btcPublicKey,
     ],
   );
@@ -710,6 +728,11 @@ export function PeginPollingProvider({
       refetch: () => refetch(),
       setOptimisticStatus,
       addConfirmedRefund,
+      // App-scoped like the optimistic CONFIRMED it qualifies, not provider
+      // state like the refund set above: a provider remount (geo-block branch,
+      // wallet churn) keeps that status, so a provider-local mark would be lost
+      // and the returned vault would read as activated again.
+      markActivationReturned,
       refreshHtlcSpends,
     }),
     [

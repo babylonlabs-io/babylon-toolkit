@@ -36,6 +36,9 @@
  *    callout, or to the can't-complete callout when the ack window has no
  *    room; the gate's own chain-read failures map to the window-unavailable
  *    callout, by body).
+ *  - Position capacity — the resume broadcast's typed refusals when the
+ *    application says the depositor's position cannot take the batch, or the
+ *    check could not reach a verdict. Both fire before any wallet prompt.
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -104,6 +107,10 @@ import {
   mapVpRpcError,
   sanitizeErrorMessage,
 } from "./formatting";
+import {
+  isPositionCapacityExceededError,
+  isPositionCapacityUnavailableError,
+} from "./positionCapacityError";
 import {
   isTypedUserRejectionFrame,
   isUserCancellation,
@@ -320,6 +327,19 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return err.reason === "vault-count"
       ? ERRORS.vaultCountLimitChanged
       : ERRORS.depositLimitsChanged;
+  }
+
+  // 3a''''. The other limit a deposit can run into: the depositor's own
+  // position, checked by the resume broadcast before any wallet prompt. A
+  // refusal and a check with no verdict need different instructions (free
+  // room, or just try again), hence two callouts. Checked ahead of the
+  // cause-walking buckets below, so the read failure kept as `cause` cannot
+  // classify the refusal as something else.
+  if (isPositionCapacityExceededError(err)) {
+    return ERRORS.positionCapacityExceeded;
+  }
+  if (isPositionCapacityUnavailableError(err)) {
+    return ERRORS.positionCapacityUnavailable;
   }
 
   // 3b. RFC-006 participant key drift. Distinct from the version mismatch

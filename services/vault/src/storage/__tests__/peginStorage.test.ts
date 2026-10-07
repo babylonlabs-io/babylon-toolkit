@@ -723,6 +723,37 @@ describe("getPendingPegins integrity validation", () => {
     expect(stored.id).toBe(VALID_VAULT_ID);
     expect(stored.payoutSignedAt).toBeUndefined();
   });
+
+  it("loads a CONFIRMED entry written before the activation outcome existed, with no outcome", () => {
+    const legacy = { ...validPegin, status: LocalStorageStatus.CONFIRMED };
+    localStorage.setItem(storageKey, JSON.stringify([legacy]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.CONFIRMED);
+    expect(stored.activationOutcome).toBeUndefined();
+  });
+
+  it("filters an entry whose activation outcome is not a known value", () => {
+    const tampered = {
+      ...validPegin,
+      status: LocalStorageStatus.CONFIRMED,
+      activationOutcome: "activated",
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("filters an entry that pairs the returned outcome with a status other than CONFIRMED", () => {
+    const tampered = {
+      ...validPegin,
+      status: LocalStorageStatus.CONFIRMING,
+      activationOutcome: "returned",
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
 });
 
 describe("updatePendingPeginStatus", () => {
@@ -812,6 +843,62 @@ describe("updatePendingPeginStatus", () => {
     const [stored] = getPendingPegins(ETH_ADDRESS);
     expect(stored.status).toBe(LocalStorageStatus.CONFIRMING);
     expect(stored.payoutSignedAt).toBeUndefined();
+  });
+
+  it("stores the returned activation outcome with CONFIRMED in one write and reads both back", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    try {
+      updatePendingPeginStatus(
+        ETH_ADDRESS,
+        VALID_VAULT_ID,
+        LocalStorageStatus.CONFIRMED,
+        "returned",
+      );
+
+      expect(setItem).toHaveBeenCalledTimes(1);
+    } finally {
+      setItem.mockRestore();
+    }
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.CONFIRMED);
+    expect(stored.activationOutcome).toBe("returned");
+  });
+
+  it("clears a stored activation outcome when a status is written without one", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          ...validPegin,
+          status: LocalStorageStatus.CONFIRMED,
+          activationOutcome: "returned",
+        },
+      ]),
+    );
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.CONFIRMED,
+    );
+
+    expect(getPendingPegins(ETH_ADDRESS)[0].activationOutcome).toBeUndefined();
+  });
+
+  it("throws and leaves the record untouched when an activation outcome comes with a status other than CONFIRMED", () => {
+    const raw = JSON.stringify([validPegin]);
+    localStorage.setItem(storageKey, raw);
+
+    expect(() =>
+      updatePendingPeginStatus(
+        ETH_ADDRESS,
+        VALID_VAULT_ID,
+        LocalStorageStatus.CONFIRMING,
+        "returned",
+      ),
+    ).toThrow(/can only be stored with status "confirmed"/);
+    expect(localStorage.getItem(storageKey)).toBe(raw);
   });
 
   it("writes back hidden siblings when a status is updated", () => {
@@ -1243,6 +1330,25 @@ describe("markRefundBroadcast", () => {
     expect(stored[0].status).toBe(LocalStorageStatus.REFUND_BROADCAST);
     expect(stored[0].refundBroadcastAt).toBe(1700000000000);
     expect(stored[1]).toEqual(legacySibling);
+  });
+
+  it("drops a stored activation outcome so the refund record stays readable", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          ...validPegin,
+          status: LocalStorageStatus.CONFIRMED,
+          activationOutcome: "returned",
+        },
+      ]),
+    );
+
+    markRefundBroadcast(ETH_ADDRESS, VALID_VAULT_ID, 1700000000000);
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.REFUND_BROADCAST);
+    expect(stored.activationOutcome).toBeUndefined();
   });
 });
 

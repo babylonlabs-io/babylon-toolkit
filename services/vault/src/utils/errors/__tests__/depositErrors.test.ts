@@ -31,6 +31,10 @@ import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
 } from "../depositorWalletMismatch";
+import {
+  PositionCapacityExceededError,
+  PositionCapacityUnavailableError,
+} from "../positionCapacityError";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 const ERRORS = COPY.deposit.errors;
@@ -733,6 +737,23 @@ describe("mapDepositError", () => {
       connectedBtcPubkey: "22".repeat(32),
     });
     expect(mapDepositError(err)).toEqual(ERRORS.wrongDepositorBtcWallet);
+  });
+
+  it("maps the typed position-capacity refusal to the position-limit callout", () => {
+    const err = new PositionCapacityExceededError({
+      vaultId: "0xabc",
+      vaultCount: 2,
+      amount: 150_000n,
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.positionCapacityExceeded);
+  });
+
+  it("maps a position-capacity check with no verdict to the couldn't-check callout", () => {
+    const err = new PositionCapacityUnavailableError(
+      "Could not read allowedToDeposit for vault 0xabc",
+      { vaultId: "0xabc", cause: new Error("execution reverted") },
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.positionCapacityUnavailable);
   });
 
   it("classifies a coded-only rejection preserved as a wrapper's cause as a signing rejection", () => {

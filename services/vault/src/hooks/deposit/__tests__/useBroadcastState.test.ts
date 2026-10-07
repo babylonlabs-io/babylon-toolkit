@@ -142,4 +142,57 @@ describe("useBroadcastState — batched broadcast", () => {
     expect(mockVaultHandleBroadcast).toHaveBeenCalledTimes(1);
     expect(mockVaultHandleBroadcast.mock.calls[0][0].vaultId).toBe("0xa");
   });
+
+  it("hands every batch vault to the broadcast so the capacity check sizes the whole batch", async () => {
+    mockVaultHandleBroadcast.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useBroadcastState({
+        activity: activity("0xa"),
+        batchVaultIds: ["0xa", "0xb"],
+        depositorEthAddress: "0xdepositor",
+        onSuccess: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleBroadcast();
+    });
+
+    expect(mockVaultHandleBroadcast.mock.calls[0][0].batchVaultIds).toEqual([
+      "0xa",
+      "0xb",
+    ]);
+  });
+
+  it("retries with the batch from the latest props, not the first attempt's", async () => {
+    mockVaultHandleBroadcast.mockResolvedValue(undefined);
+
+    const { result, rerender } = renderHook(
+      ({ batchVaultIds }) =>
+        useBroadcastState({
+          activity: activity("0xa"),
+          batchVaultIds,
+          depositorEthAddress: "0xdepositor",
+          onSuccess: vi.fn(),
+        }),
+      { initialProps: { batchVaultIds: ["0xa"] } },
+    );
+
+    await act(async () => {
+      await result.current.handleBroadcast();
+    });
+    rerender({ batchVaultIds: ["0xa", "0xb"] });
+    await act(async () => {
+      await result.current.handleBroadcast();
+    });
+
+    expect(mockVaultHandleBroadcast.mock.calls[0][0].batchVaultIds).toEqual([
+      "0xa",
+    ]);
+    expect(mockVaultHandleBroadcast.mock.calls[1][0].batchVaultIds).toEqual([
+      "0xa",
+      "0xb",
+    ]);
+  });
 });

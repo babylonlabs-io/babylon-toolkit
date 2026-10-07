@@ -54,6 +54,24 @@ function resolvePayoutSignedAt(
   return pendingPegins.find((p) => p.id === depositId)?.payoutSignedAt;
 }
 
+/**
+ * Either source proves the activation returned the BTCVault: this session's
+ * mark, or the outcome stored with the deposit record's CONFIRMED status. The
+ * stored outcome is what a reload or another tab reads; the session mark is
+ * what a cross-device resume has, since it holds no record to store it on.
+ */
+function resolveActivationReturned(
+  depositId: string,
+  activationReturnedIds: ReadonlySet<string>,
+  pendingPegins: PendingPeginRequest[],
+): boolean {
+  return (
+    activationReturnedIds.has(depositId) ||
+    pendingPegins.find((p) => p.id === depositId)?.activationOutcome ===
+      "returned"
+  );
+}
+
 export interface DepositPollingInputs {
   activity: VaultActivity;
   pendingPegins: PendingPeginRequest[];
@@ -147,6 +165,15 @@ export interface DepositPollingInputs {
    * submission. The suppression expires; see `isWotsSubmissionWithinTtl`.
    */
   wotsSubmittedAt: ReadonlyMap<string, number>;
+  /**
+   * Deposits whose normal activation landed without the BTCVault being added
+   * to the position — the registry redeemed it for the depositor. Marked from
+   * the receipt this session saw, or copied by the polling provider from a
+   * deposit record's stored outcome. Keyed like `optimisticStatuses`, whose
+   * CONFIRMED it qualifies. OR'd with the outcome stored on the deposit record
+   * in `pendingPegins`.
+   */
+  activationReturnedIds: ReadonlySet<string>;
   btcPublicKey: string | undefined;
   /**
    * Override `Date.now()` for every suppression TTL this compute touches
@@ -187,6 +214,7 @@ export function computeDepositPollingResult(
     optimisticStatuses,
     optimisticRefundBroadcastAt,
     wotsSubmittedAt,
+    activationReturnedIds,
     btcPublicKey,
     now,
   } = inputs;
@@ -204,6 +232,11 @@ export function computeDepositPollingResult(
     pendingPegins,
   );
   const payoutSignedAt = resolvePayoutSignedAt(depositId, pendingPegins);
+  const activationReturned = resolveActivationReturned(
+    depositId,
+    activationReturnedIds,
+    pendingPegins,
+  );
 
   const depositError = errors?.get(depositId);
   const vpTerminalError =
@@ -397,6 +430,7 @@ export function computeDepositPollingResult(
     vpTerminalError,
     refundBroadcastAt,
     payoutSignedAt,
+    activationReturned,
     now,
   });
 

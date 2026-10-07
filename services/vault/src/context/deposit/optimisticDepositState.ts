@@ -10,11 +10,14 @@
  * reasoning as the tracking stores in `terminalMilestones.ts` and
  * `daemonTerminalEvents.ts`.
  *
- * This changes the SCOPE of the signal, not the trust model. It records only
- * outcomes this session watched resolve — it is never persisted, so a reload
- * drops it and the vault provider's polled status is ground truth again. The
- * anti-tamper reconciliation in `applyTrackingOverrides`, which distrusts a
- * localStorage status the VP contradicts, is deliberately left untouched.
+ * This changes the SCOPE of the signal, not the trust model. It records
+ * outcomes this session watched resolve, plus the returned-activation outcome
+ * the polling provider copies from a browser-local deposit record. The store
+ * itself is never persisted, so a reload drops it: the vault provider's polled
+ * status is ground truth again, and only what a deposit record still holds
+ * comes back. The anti-tamper reconciliation in `applyTrackingOverrides`,
+ * which distrusts a localStorage status the VP contradicts, is deliberately
+ * left untouched.
  */
 
 import type { LocalStorageStatus } from "../../models/peginStateMachine";
@@ -40,6 +43,19 @@ export interface OptimisticDepositState {
    * converts an auto-run into a re-offer, so staying set is harmless.
    */
   payoutSignCanceledIds: ReadonlySet<string>;
+  /**
+   * Deposits whose normal activation receipt proved the registry redeemed the
+   * BTCVault for the depositor instead of handing it to the application (an
+   * application cap was exceeded, or the application rejected the vault).
+   * The optimistic CONFIRMED status alone reads as "activated", so this tells
+   * the two outcomes apart until the indexer reports the vault redeemed — and
+   * after, since a redeemed status does not say why. No TTL: an outcome, not a
+   * suppression. The deposit record, when this browser holds one, stores the
+   * same outcome for a reload or another tab
+   * (`PendingPeginRequest.activationOutcome`); this mark is what a
+   * cross-device resume, which holds no record, has.
+   */
+  activationReturnedIds: ReadonlySet<string>;
 }
 
 /**
@@ -79,6 +95,7 @@ const EMPTY_STATE: OptimisticDepositState = {
   refundBroadcastAt: new Map(),
   wotsSubmittedAt: new Map(),
   payoutSignCanceledIds: new Set(),
+  activationReturnedIds: new Set(),
 };
 
 let currentState: OptimisticDepositState = EMPTY_STATE;
@@ -138,6 +155,7 @@ export function setOptimisticDepositStatus(
           ),
     wotsSubmittedAt: currentState.wotsSubmittedAt,
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
+    activationReturnedIds: currentState.activationReturnedIds,
   });
 }
 
@@ -161,6 +179,7 @@ export function markWotsSubmitted(depositId: string): void {
       Date.now(),
     ),
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
+    activationReturnedIds: currentState.activationReturnedIds,
   });
 }
 
@@ -180,6 +199,31 @@ export function markPayoutSignCanceled(depositId: string): void {
     refundBroadcastAt: currentState.refundBroadcastAt,
     wotsSubmittedAt: currentState.wotsSubmittedAt,
     payoutSignCanceledIds: new Set(currentState.payoutSignCanceledIds).add(
+      depositId,
+    ),
+    activationReturnedIds: currentState.activationReturnedIds,
+  });
+}
+
+/**
+ * Record that this deposit's normal activation receipt proved the registry
+ * redeemed the BTCVault for the depositor, so the BTC is being returned.
+ * Written by `useActivationState` from the receipt, and by the polling
+ * provider from a deposit record's stored outcome so it outlives that record's
+ * cleanup; read through the poll result, where it keeps the vault from reading
+ * as activated.
+ */
+export function markActivationReturned(depositId: string): void {
+  // Repeat writes must not publish — same discipline as the setters above.
+  if (currentState.activationReturnedIds.has(depositId)) {
+    return;
+  }
+  publish({
+    statuses: currentState.statuses,
+    refundBroadcastAt: currentState.refundBroadcastAt,
+    wotsSubmittedAt: currentState.wotsSubmittedAt,
+    payoutSignCanceledIds: currentState.payoutSignCanceledIds,
+    activationReturnedIds: new Set(currentState.activationReturnedIds).add(
       depositId,
     ),
   });

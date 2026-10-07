@@ -3,14 +3,18 @@ import type { PropsWithChildren } from "react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { STORAGE_KEY_PREFIX } from "../../../constants";
 import { COPY } from "../../../copy";
 import {
   ContractStatus,
+  isVaultActivated,
+  isVaultActivationReturned,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
 } from "../../../models/peginStateMachine";
 import { loadRefundedHtlcVaultIds } from "../../../storage/refundedHtlcCache";
+import { usePeginStorage } from "../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../types/activity";
 import type { PeginPollingContextValue } from "../../../types/peginPolling";
 import {
@@ -385,6 +389,210 @@ describe("PeginPollingContext", () => {
     expect(
       result.current.getPollingResult(OTHER_ID)?.peginState.availableActions,
     ).toContain(PeginAction.SUBMIT_WOTS_KEY);
+  });
+
+  it("reads a submitted activation as returned, not activated, once its activation is marked returned", () => {
+    const VERIFIED_ACTIVITY: VaultActivity = {
+      ...ACTIVITY,
+      contractStatus: ContractStatus.VERIFIED,
+    };
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[VERIFIED_ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    const { result } = renderHook(() => usePeginPolling(), { wrapper });
+
+    act(() => {
+      result.current.markActivationReturned(ACTIVITY_ID);
+      result.current.setOptimisticStatus(
+        ACTIVITY_ID,
+        LocalStorageStatus.CONFIRMED,
+      );
+    });
+
+    const state = result.current.getPollingResult(ACTIVITY_ID)?.peginState;
+    expect(isVaultActivationReturned(state)).toBe(true);
+    expect(isVaultActivated(state)).toBe(false);
+  });
+
+  it("reads a returned activation another tab recorded as returned, with nothing in this tab's session store", async () => {
+    // The other tab wrote CONFIRMED and the returned outcome to the shared
+    // record. This tab learns of it only through the storage event; its own
+    // session store never saw the receipt (reset in beforeEach).
+    const ETH_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+    const storageKey = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const STORED_VAULT_ID = `0x${"5".repeat(64)}` as Hex;
+    const NO_CONFIRMED_PEGINS: VaultActivity[] = [];
+    const record = {
+      id: STORED_VAULT_ID,
+      peginTxHash: `0x${"6".repeat(64)}`,
+      timestamp: 1_700_000_000_000,
+      status: LocalStorageStatus.CONFIRMING,
+      unsignedTxHex: "0xdeadbeef",
+      buildOffchainParamsVersion: 1,
+      buildAppVaultKeepersVersion: 1,
+      buildUniversalChallengersVersion: 1,
+      buildVaultCoreVersion: 1,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([record]));
+    const VERIFIED_ACTIVITY: VaultActivity = {
+      ...ACTIVITY,
+      id: STORED_VAULT_ID,
+      contractStatus: ContractStatus.VERIFIED,
+    };
+    // Feeds the provider from browser storage, as the app's single mount does.
+    function StorageBackedProvider({ children }: PropsWithChildren) {
+      const { pendingPegins } = usePeginStorage({
+        ethAddress: ETH_ADDRESS,
+        confirmedPegins: NO_CONFIRMED_PEGINS,
+      });
+      return (
+        <PeginPollingProvider
+          activities={[VERIFIED_ACTIVITY]}
+          pendingPegins={pendingPegins}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          {children}
+        </PeginPollingProvider>
+      );
+    }
+    const { result } = renderHook(() => usePeginPolling(), {
+      wrapper: StorageBackedProvider,
+    });
+    expect(
+      isVaultActivationReturned(
+        result.current.getPollingResult(STORED_VAULT_ID)?.peginState,
+      ),
+    ).toBe(false);
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          ...record,
+          status: LocalStorageStatus.CONFIRMED,
+          activationOutcome: "returned",
+        },
+      ]),
+    );
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: storageKey }));
+    });
+
+    await waitFor(() => {
+      const state =
+        result.current.getPollingResult(STORED_VAULT_ID)?.peginState;
+      expect(isVaultActivationReturned(state)).toBe(true);
+      expect(isVaultActivated(state)).toBe(false);
+    });
+  });
+
+  it("keeps a returned activation read from the record after cleanup deletes that record once the vault reads REDEEMED", async () => {
+    // Another tab (or this one before a reload) stored CONFIRMED with the
+    // returned outcome; this tab's session store never saw the receipt.
+    // Cleanup deletes the record once the indexer reports REDEEMED, and the
+    // outcome must still be known for the rest of the session.
+    const ETH_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+    const storageKey = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const STORED_VAULT_ID = `0x${"7".repeat(64)}` as Hex;
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          id: STORED_VAULT_ID,
+          peginTxHash: `0x${"8".repeat(64)}`,
+          timestamp: 1_700_000_000_000,
+          status: LocalStorageStatus.CONFIRMED,
+          activationOutcome: "returned",
+          unsignedTxHex: "0xdeadbeef",
+          buildOffchainParamsVersion: 1,
+          buildAppVaultKeepersVersion: 1,
+          buildUniversalChallengersVersion: 1,
+          buildVaultCoreVersion: 1,
+        },
+      ]),
+    );
+    let contractStatus = ContractStatus.VERIFIED;
+    // Feeds the provider from browser storage, as the app's single mount does,
+    // with the indexer's view of the vault driving the storage cleanup.
+    function StorageBackedProvider({ children }: PropsWithChildren) {
+      const activity: VaultActivity = {
+        ...ACTIVITY,
+        id: STORED_VAULT_ID,
+        contractStatus,
+      };
+      const { pendingPegins } = usePeginStorage({
+        ethAddress: ETH_ADDRESS,
+        confirmedPegins: [activity],
+      });
+      return (
+        <PeginPollingProvider
+          activities={[activity]}
+          pendingPegins={pendingPegins}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          {children}
+        </PeginPollingProvider>
+      );
+    }
+    const { result, rerender } = renderHook(() => usePeginPolling(), {
+      wrapper: StorageBackedProvider,
+    });
+    expect(
+      isVaultActivationReturned(
+        result.current.getPollingResult(STORED_VAULT_ID)?.peginState,
+      ),
+    ).toBe(true);
+
+    contractStatus = ContractStatus.REDEEMED;
+    rerender();
+
+    await waitFor(() => {
+      // The last record removed drops the key altogether.
+      expect(localStorage.getItem(storageKey)).toBeNull();
+    });
+    rerender();
+    const state = result.current.getPollingResult(STORED_VAULT_ID)?.peginState;
+    expect(isVaultActivationReturned(state)).toBe(true);
+    expect(isVaultActivated(state)).toBe(false);
+  });
+
+  it("keeps a returned activation across a provider remount", () => {
+    // The optimistic CONFIRMED survives a remount (geo-block branch, wallet
+    // churn), so the mark must too, or the vault reads as activated again.
+    const VERIFIED_ACTIVITY: VaultActivity = {
+      ...ACTIVITY,
+      contractStatus: ContractStatus.VERIFIED,
+    };
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[VERIFIED_ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    const first = renderHook(() => usePeginPolling(), { wrapper });
+    act(() => {
+      first.result.current.markActivationReturned(ACTIVITY_ID);
+      first.result.current.setOptimisticStatus(
+        ACTIVITY_ID,
+        LocalStorageStatus.CONFIRMED,
+      );
+    });
+    first.unmount();
+
+    const { result } = renderHook(() => usePeginPolling(), { wrapper });
+
+    const state = result.current.getPollingResult(ACTIVITY_ID)?.peginState;
+    expect(isVaultActivationReturned(state)).toBe(true);
+    expect(isVaultActivated(state)).toBe(false);
   });
 
   it("recomputes Submit WOTS Key as available once the suppression window has elapsed and the vault provider is still asking", () => {

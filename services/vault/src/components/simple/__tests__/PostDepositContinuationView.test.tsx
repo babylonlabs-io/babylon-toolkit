@@ -72,13 +72,21 @@ vi.mock("@/models/peginStateMachine", () => {
     "ACTIVATE_VAULT",
   ]);
   const isVaultPastActivation = (
-    state: { contractStatus: number; localStatus?: string } | undefined,
+    state:
+      | {
+          contractStatus: number;
+          localStatus?: string;
+          activationReturned?: boolean;
+        }
+      | undefined,
   ) => {
     if (!state) return false;
     // VERIFIED + CONFIRMED is the optimistic post-activation state.
     if (state.contractStatus === 1 && state.localStatus === "confirmed") {
       return true;
     }
+    // A receipt-proven return is terminal without a local CONFIRMED.
+    if (state.activationReturned === true) return true;
     // ACTIVE, REDEEMED, LIQUIDATED, DEPOSITOR_WITHDRAWN.
     return [2, 3, 4, 6].includes(state.contractStatus);
   };
@@ -146,14 +154,28 @@ vi.mock("@/models/peginStateMachine", () => {
     USER_ACTIONABLE_PEGIN_ACTIONS,
     isVaultPastActivation,
     // Narrower than isVaultPastActivation: only ACTIVE or optimistic
-    // VERIFIED+CONFIRMED count as "activated".
+    // VERIFIED+CONFIRMED count as "activated", and the optimistic state not
+    // once the activation is known to have returned the BTC.
     isVaultActivated: (
-      state: { contractStatus: number; localStatus?: string } | undefined,
+      state:
+        | {
+            contractStatus: number;
+            localStatus?: string;
+            activationReturned?: boolean;
+          }
+        | undefined,
     ) => {
       if (!state) return false;
       if (state.contractStatus === 2) return true; // ACTIVE
-      return state.contractStatus === 1 && state.localStatus === "confirmed";
+      return (
+        state.contractStatus === 1 &&
+        state.localStatus === "confirmed" &&
+        state.activationReturned !== true
+      );
     },
+    isVaultActivationReturned: (
+      state: { activationReturned?: boolean } | undefined,
+    ) => state?.activationReturned === true,
     isCandidateVault,
     isActionablePeginAction,
     hasActionableStep,
@@ -166,6 +188,17 @@ vi.mock("@/copy", () => ({
       vaultActivatedSuccess: {
         heading: "Vault activated",
         body: "Your vault is now active and ready for borrowing.",
+        goToDashboard: "Go to Dashboard",
+      },
+      vaultReturnedSuccess: {
+        full: {
+          heading: "Your BTC is being returned",
+          body: "Your deposit could not be added.",
+        },
+        partial: {
+          heading: "Part of your deposit is being returned",
+          body: "Not every BTCVault could be added.",
+        },
         goToDashboard: "Go to Dashboard",
       },
       errors: {
@@ -328,6 +361,7 @@ function resultWith(opts: {
   displayVariant?: "pending" | "active" | "inactive" | "warning";
   message?: string;
   depositorBtcPubkey?: string;
+  activationReturned?: boolean;
 }) {
   return {
     depositId: "x",
@@ -340,6 +374,7 @@ function resultWith(opts: {
       displayVariant: opts.displayVariant ?? "pending",
       displayLabel: "x",
       message: opts.message,
+      activationReturned: opts.activationReturned,
     },
     isOwnedByCurrentWallet: true,
     // The on-chain depositor key that decides payout actionability. Pass
@@ -595,7 +630,7 @@ describe("PostDepositContinuationView", () => {
     ]);
     mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
-    const { getByText, queryByTestId } = renderView({
+    const { getByText, queryByText, queryByTestId } = renderView({
       vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
       activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
     });
@@ -603,7 +638,182 @@ describe("PostDepositContinuationView", () => {
     // No candidate vault remains → the single activated success screen shows.
     expect(getByText("Vault activated")).toBeInTheDocument();
     expect(getByText("Go to Dashboard")).toBeInTheDocument();
+    expect(queryByText("Your BTC is being returned")).toBeNull();
     expect(queryByTestId("step")).toBeNull();
+  });
+
+  it("shows the returned screen, not the activated one, when the activation returned the BTC", () => {
+    const VERIFIED = 1;
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+        activationReturned: true,
+      }),
+    );
+
+    const { getByText, queryByText, queryByTestId } = renderView();
+
+    expect(getByText("Your BTC is being returned")).toBeInTheDocument();
+    expect(getByText("Go to Dashboard")).toBeInTheDocument();
+    expect(queryByText("Vault activated")).toBeNull();
+    expect(queryByTestId("step")).toBeNull();
+  });
+
+  it("keeps the returned screen once the indexer reports the returned vault REDEEMED", () => {
+    // REDEEMED is past activation but never activated: without the returned
+    // evidence this lands on the processing view and stays there.
+    const REDEEMED = 3;
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: REDEEMED,
+        activationReturned: true,
+      }),
+    );
+
+    const { getByText, queryByTestId } = renderView();
+
+    expect(getByText("Your BTC is being returned")).toBeInTheDocument();
+    expect(queryByTestId("progress-view")).toBeNull();
+  });
+
+  it("says only part of the deposit is returned when a split sibling activated", () => {
+    const VERIFIED = 1;
+    const ACTIVE = 2;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: ACTIVE,
+          displayVariant: "active",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          activationReturned: true,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByText, queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(
+      getByText("Part of your deposit is being returned"),
+    ).toBeInTheDocument();
+    expect(queryByText("Your BTC is being returned")).toBeNull();
+    expect(queryByText("Vault activated")).toBeNull();
+    expect(getByText("Go to Dashboard")).toBeInTheDocument();
+  });
+
+  it("says the BTC is being returned when every vault of a split batch was returned", () => {
+    const VERIFIED = 1;
+    const REDEEMED = 3;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: REDEEMED,
+          activationReturned: true,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          activationReturned: true,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByText, queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(getByText("Your BTC is being returned")).toBeInTheDocument();
+    expect(queryByText("Part of your deposit is being returned")).toBeNull();
+  });
+
+  it("says only part of the deposit is returned when a sibling was activated and later withdrawn", () => {
+    // The withdrawn sibling reads REDEEMED with no returned mark: it is not
+    // being returned by a failed activation, so the screen must not say the
+    // whole deposit is.
+    const VERIFIED = 1;
+    const REDEEMED = 3;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: REDEEMED,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          activationReturned: true,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByText, queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(
+      getByText("Part of your deposit is being returned"),
+    ).toBeInTheDocument();
+    expect(queryByText("Your BTC is being returned")).toBeNull();
+  });
+
+  it("does not read an unmarked REDEEMED sibling as returned", () => {
+    // A sibling activated and later withdrawn reads REDEEMED too; only the
+    // returned evidence (session mark or stored outcome) says an activation
+    // returned the BTC.
+    const ACTIVE = 2;
+    const REDEEMED = 3;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: REDEEMED,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: ACTIVE,
+          displayVariant: "active",
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(queryByText("Your BTC is being returned")).toBeNull();
+    expect(queryByText("Part of your deposit is being returned")).toBeNull();
   });
 
   it("advances to the next vault once the current vault finishes activating", () => {

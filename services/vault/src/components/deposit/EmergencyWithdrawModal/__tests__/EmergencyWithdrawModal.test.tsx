@@ -34,11 +34,13 @@ vi.mock("@/services/vault/htlcSecretDerivation", () => ({
 }));
 
 const handleActivation = vi.hoisted(() => vi.fn(async () => {}));
-const activationState = vi.hoisted(() => ({ activated: false }));
+const activationState = vi.hoisted(() => ({
+  outcome: null as "activated" | "returned" | null,
+}));
 vi.mock("@/hooks/deposit/useActivationState", () => ({
   useActivationState: () => ({
     activating: false,
-    activated: activationState.activated,
+    outcome: activationState.outcome,
     error: null,
     errorTerminal: false,
     handleActivation,
@@ -133,7 +135,7 @@ function renderModal(client?: QueryClient) {
 }
 
 beforeEach(() => {
-  activationState.activated = false;
+  activationState.outcome = null;
   btcActionWallet.connected = true;
   ledgerDevice.isLedgerVault = false;
   vi.clearAllMocks();
@@ -155,7 +157,8 @@ describe("EmergencyWithdrawModal — success", () => {
     const { rerender } = render(modal());
     expect(screen.getByTestId("emergency-withdraw-button")).toBeInTheDocument();
 
-    activationState.activated = true;
+    // The escape hatch always redeems, so its outcome is `returned`.
+    activationState.outcome = "returned";
     rerender(modal());
 
     expect(

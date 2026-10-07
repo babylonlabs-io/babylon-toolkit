@@ -22,6 +22,7 @@ import {
   hasActionableStep,
   isCandidateVault,
   isVaultActivated,
+  isVaultActivationReturned,
   isVaultPastActivation,
   PeginAction,
 } from "@/models/peginStateMachine";
@@ -40,6 +41,7 @@ import {
   ResumeWotsContent,
 } from "./ResumeDepositContent";
 import { VaultActivatedView } from "./VaultActivatedView";
+import { VaultReturnedView } from "./VaultReturnedView";
 
 // God-mode only: simulated activation content for demo vault ids. Lazy +
 // import.meta.env.DEV so the module (and the demo store it pulls in) is
@@ -269,11 +271,38 @@ export function PostDepositContinuationView({
     const hasMissingOrLoadingVault = pollingResults.some(
       (result) => !result || result.loading,
     );
+    const states = pollingResults.map((result) => result?.peginState);
+    const settled = !hasMissingOrLoadingVault && states.length > 0;
+    // A vault whose activation landed without it joining the position is
+    // past activation but never activated, so without this the batch would
+    // park on the processing view below — for good once it reads REDEEMED.
+    // One such vault decides the screen for the whole batch: the depositor
+    // must not read "activated" while some of their BTC is on its way back.
+    // Only receipt evidence counts — this session's mark or the outcome stored
+    // with the deposit record: a sibling activated and later withdrawn also
+    // reads REDEEMED, and is not being returned. The whole deposit is coming
+    // back only when every vault was returned; otherwise the screen says only
+    // part of it is, without claiming what became of the rest.
+    const showReturned =
+      settled &&
+      states.some((state) => isVaultActivationReturned(state)) &&
+      states.every((state) => isVaultPastActivation(state));
+    if (showReturned) {
+      return (
+        <VaultReturnedView
+          variant={
+            states.every((state) => isVaultActivationReturned(state))
+              ? "full"
+              : "partial"
+          }
+          onGoToDashboard={handleGoToDashboard}
+        />
+      );
+    }
     const allVaultsActivated =
-      pollingResults.length > 0 &&
-      pollingResults.every((result) => isVaultActivated(result?.peginState));
+      settled && states.every((state) => isVaultActivated(state));
 
-    if (hasMissingOrLoadingVault || !allVaultsActivated) {
+    if (!allVaultsActivated) {
       // Batch siblings share their registration-time params version (one
       // registration tx for the whole batch), so any sibling is representative.
       const batchParamsVersion = activities.find(

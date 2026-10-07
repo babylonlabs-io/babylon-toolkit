@@ -34,15 +34,29 @@ export interface UseActivationStateProps {
    * `CollateralAdded` log and the optimistic Collateral-section row is
    * skipped — the optimistic CONFIRMED status still
    * applies (the reveal was submitted; the indexer flips to REDEEMED next).
+   * The outcome is `returned`, but the vault is not marked returned in the
+   * polling context: the escape hatch has its own success screen.
    */
   redeemImmediately?: boolean;
 }
 
+/**
+ * How a completed activation ended for the depositor's BTC, read from the
+ * receipt's positive evidence (see `activationRedeemedForDepositor`).
+ * - `activated` — the application took the BTCVault: the receipt shows no
+ *                 redemption.
+ * - `returned`  — the registry redeemed the BTCVault for the depositor
+ *                 instead: the escape hatch, or a normal activation the
+ *                 application did not accept (a cap exceeded, or its
+ *                 `activateVault` reverted).
+ */
+export type ActivationOutcome = "activated" | "returned";
+
 export interface UseActivationStateResult {
   /** Whether activation is in progress */
   activating: boolean;
-  /** Whether activation has completed successfully */
-  activated: boolean;
+  /** How the activation ended; `null` until it completes. */
+  outcome: ActivationOutcome | null;
   /** Error message if activation failed */
   error: string | null;
   /** True when the error is terminal (activation deadline passed) — no Retry. */
@@ -64,12 +78,13 @@ export function useActivationState({
     handleActivation: vaultHandleActivation,
   } = useVaultActions();
   const [localActivating, setLocalActivating] = useState(false);
-  const [activated, setActivated] = useState(false);
+  const [outcome, setOutcome] = useState<ActivationOutcome | null>(null);
 
   // Track mount: `handleActivation` awaits an on-chain tx, so the consumer
   // can unmount (modal closed) before the success/catch callbacks run.
-  // Without this guard, `setLocalActivating`/`setActivated` and the
-  // `setOptimisticStatus` context update fire on an unmounted tree.
+  // Without this guard, `setLocalActivating`/`setOutcome` fire on an
+  // unmounted tree. Only this hook's own state sits behind it: the success
+  // callback's app-scoped writes describe the vault and must land regardless.
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true; // reset on remount (StrictMode setup→cleanup→setup)
@@ -78,7 +93,7 @@ export function useActivationState({
     };
   }, []);
 
-  const { setOptimisticStatus } = usePeginPolling();
+  const { setOptimisticStatus, markActivationReturned } = usePeginPolling();
   const { addActivatingVault } = useActivatingVaults();
   const queryClient = useQueryClient();
   const { pendingPegins, updatePendingPeginStatus } = usePeginStorage({
@@ -108,8 +123,21 @@ export function useActivationState({
               queryKey: [ACTIVITIES_QUERY_KEY],
             });
           },
-          onShowSuccessModal: ({ collateralAdded }) => {
-            if (!mountedRef.current) return;
+          onShowSuccessModal: ({ collateralAdded, redeemed }) => {
+            // Ahead of the mount guard, for both outcomes. The mark and the
+            // optimistic CONFIRMED live in the app-scoped store and describe
+            // the vault, not this consumer, which may have unmounted
+            // mid-flight. A cross-device resume holds no deposit record, so
+            // the store is the only place the reveal is recorded: behind the
+            // guard, an unmounted consumer would leave the vault VERIFIED with
+            // nothing local, and the continuation view would offer Activate
+            // again for a reveal that already landed. Mark first, in the
+            // same synchronous block as CONFIRMED (and as the record write
+            // `vaultHandleActivation` just made), so no render sees CONFIRMED
+            // without the mark — which reads as activated.
+            if (redeemed && !redeemImmediately) {
+              markActivationReturned(activity.id);
+            }
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
             // Optimistically surface the just-activated vault in the dashboard
             // Collateral section while the Aave indexer catches up (~15s gap).
@@ -118,7 +146,9 @@ export function useActivationState({
             // Only when the receipt shows the adapter added the vault as
             // collateral: the registry can confirm an activation and redeem the
             // vault instead (a cap exceeded, or escape-hatch mode), and the
-            // indexer then never lists it to clear the row.
+            // indexer then never lists it to clear the row. Also ahead of the
+            // guard: the row lives in the app-level provider in RootLayout,
+            // not in this consumer.
             const amountBtc = parseFloat(
               activity.collateral.amount.replace(/,/g, ""),
             );
@@ -134,8 +164,9 @@ export function useActivationState({
                 providerAddress: activity.providers[0]?.id,
               });
             }
+            if (!mountedRef.current) return;
             setLocalActivating(false);
-            setActivated(true);
+            setOutcome(redeemed ? "returned" : "activated");
           },
         });
       } catch {
@@ -155,6 +186,7 @@ export function useActivationState({
       updatePendingPeginStatus,
       vaultHandleActivation,
       setOptimisticStatus,
+      markActivationReturned,
       addActivatingVault,
       queryClient,
     ],
@@ -164,7 +196,7 @@ export function useActivationState({
 
   return {
     activating: isActivating,
-    activated,
+    outcome,
     error: activationError,
     errorTerminal: activationErrorTerminal,
     handleActivation,

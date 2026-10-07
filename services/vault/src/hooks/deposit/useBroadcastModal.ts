@@ -4,6 +4,14 @@ import type { VaultActivity } from "../../types/activity";
 import { getBatchSiblings } from "../../utils/batchedPegin";
 import { formatBtcValue } from "../../utils/formatting";
 
+/** What the broadcast modal was opened on. */
+interface OpenBroadcast {
+  /** The vault driving the resume UI. Fixed while the modal is open. */
+  representative: VaultActivity;
+  /** Every sibling as listed when the modal opened. */
+  batchAtOpen: VaultActivity[];
+}
+
 /**
  * Hook to manage broadcast modal state and actions
  *
@@ -21,9 +29,9 @@ export function useBroadcastModal(options: {
 }) {
   const { allActivities, onSuccess } = options;
 
-  const [broadcastingBatch, setBroadcastingBatch] = useState<
-    VaultActivity[] | null
-  >(null);
+  const [openBroadcast, setOpenBroadcast] = useState<OpenBroadcast | null>(
+    null,
+  );
   const [successOpen, setSuccessOpen] = useState(false);
   const [successAmount, setSuccessAmount] = useState("");
 
@@ -34,14 +42,37 @@ export function useBroadcastModal(options: {
       if (!activity) return;
       // Resolve every sibling sharing this Pre-PegIn tx — broadcasting it
       // commits all of them. A standalone deposit resolves to one vault.
-      setBroadcastingBatch(getBatchSiblings(allActivities, activity));
+      const batch = getBatchSiblings(allActivities, activity);
+      setOpenBroadcast({ representative: batch[0], batchAtOpen: batch });
     },
     [allActivities],
   );
 
+  // Re-read the batch from the latest list on every update, so each attempt
+  // (Retry included) sends the siblings known now: the broadcast refuses a
+  // batch the list has not caught up with yet, and a list frozen at open
+  // would keep failing after it has. A vault seen at open that a refetch
+  // drops for a moment stays in the batch, the representative included, so
+  // the modal never closes or switches to another deposit. The
+  // representative's latest row is the one that groups it; its row from open
+  // stands in while it is dropped.
+  const broadcastingBatch = useMemo(() => {
+    if (!openBroadcast) return null;
+    const { representative, batchAtOpen } = openBroadcast;
+    const listedIds = new Set(allActivities.map((a) => a.id));
+    const unlisted = batchAtOpen.filter((a) => !listedIds.has(a.id));
+    const latestRepresentative = allActivities.find(
+      (a) => a.id === representative.id,
+    );
+    return getBatchSiblings(
+      [...allActivities, ...unlisted],
+      latestRepresentative ?? representative,
+    );
+  }, [allActivities, openBroadcast]);
+
   // Handle broadcast modal close
   const handleClose = useCallback(() => {
-    setBroadcastingBatch(null);
+    setOpenBroadcast(null);
   }, []);
 
   // Handle broadcast success
@@ -51,7 +82,7 @@ export function useBroadcastModal(options: {
       0,
     );
     setSuccessAmount(formatBtcValue(totalBtc));
-    setBroadcastingBatch(null);
+    setOpenBroadcast(null);
     setSuccessOpen(true);
     onSuccess();
   }, [broadcastingBatch, onSuccess]);
@@ -67,9 +98,9 @@ export function useBroadcastModal(options: {
   );
 
   return {
-    broadcastingActivity: broadcastingBatch?.[0] ?? null,
+    broadcastingActivity: openBroadcast?.representative ?? null,
     broadcastingBatchIds,
-    isOpen: !!broadcastingBatch,
+    isOpen: !!openBroadcast,
     successOpen,
     successAmount,
     handleBroadcastClick,

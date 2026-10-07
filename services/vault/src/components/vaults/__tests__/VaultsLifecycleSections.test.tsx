@@ -101,7 +101,11 @@ vi.mock("@/components/simple/PendingDepositModals", () => ({
 }));
 
 vi.mock("@/components/simple/PostDepositContinuationContent", () => ({
-  PostDepositContinuationContent: () => null,
+  PostDepositContinuationContent: ({
+    vaultIds,
+  }: {
+    vaultIds: readonly string[];
+  }) => <div data-testid="continuation-vault-ids">{vaultIds.join(",")}</div>,
 }));
 
 const ACTIVITY_ID = "0xdeposit" as Hex;
@@ -329,6 +333,25 @@ describe("VaultsLifecycleSections pending row", () => {
       pollingResult(PROCESSING_STATE, { prePeginConfirmations: null }),
     );
 
+    expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
+  });
+
+  it("shows the returned message, not an activation estimate, on a returned vault's row", () => {
+    const RETURNED_STATE: PeginState = {
+      contractStatus: ContractStatus.VERIFIED,
+      displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+      displayVariant: "pending",
+      availableActions: [PeginAction.NONE],
+      message: COPY.pegin.messages.activationReturned,
+      activationReturned: true,
+    };
+    renderPendingRow(
+      pollingResult(RETURNED_STATE, { prePeginConfirmations: 6 }),
+    );
+
+    expect(
+      screen.getByText(COPY.pegin.messages.activationReturned),
+    ).toBeInTheDocument();
     expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
   });
 });
@@ -626,6 +649,46 @@ describe("VaultsLifecycleSections dismiss control", () => {
       ).toBeInTheDocument();
     },
   );
+});
+
+describe("VaultsLifecycleSections deposit view", () => {
+  it("adds a sibling listed after the view opened to the batch it shows", () => {
+    const { rerenderWith } = renderPendingRow(pollingResult(PROCESSING_STATE), {
+      activities: [BATCH_A],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.vaults.actions.viewDetails }),
+    );
+    expect(screen.getByTestId("continuation-vault-ids").textContent).toBe(
+      BATCH_A.id,
+    );
+
+    rerenderWith({ activities: [BATCH_A, BATCH_B] });
+
+    expect(screen.getByTestId("continuation-vault-ids").textContent).toBe(
+      `${BATCH_A.id},${BATCH_B.id}`,
+    );
+  });
+
+  it("keeps a vault in the batch it shows while a refetch drops that vault", () => {
+    const first = { ...BATCH_A, constructionIndex: 0 };
+    const second = { ...BATCH_B, constructionIndex: 1 };
+    const { rerenderWith } = renderPendingRow(pollingResult(PROCESSING_STATE), {
+      activities: [first, second],
+    });
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: COPY.vaults.actions.viewDetails,
+      })[0],
+    );
+    rerenderWith({ activities: [second] });
+
+    expect(screen.getByTestId("continuation-vault-ids").textContent).toBe(
+      `${first.id},${second.id}`,
+    );
+  });
 });
 
 describe("VaultsLifecycleSections reclaim connection", () => {

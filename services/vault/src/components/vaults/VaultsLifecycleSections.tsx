@@ -67,6 +67,7 @@ import {
   canPerformAction,
   getPeginProgressStep,
   hasActionableStep,
+  isVaultActivationReturned,
   LocalStorageStatus,
   PeginAction,
   type PeginState,
@@ -173,8 +174,11 @@ function PendingRow({
     ? getActionStatus(result)
     : { type: "noAction" };
 
+  // No estimate for a returned activation: the vault will never activate, and
+  // an estimate would hide the message saying the BTC is being returned.
   const estimateMinutes =
     peginState?.displayVariant === "pending" &&
+    !isVaultActivationReturned(peginState) &&
     !hasActionableStep(peginState, result?.depositorBtcPubkey) &&
     result?.requiredPrePeginDepth !== undefined
       ? pendingActivationEstimateMinutes(
@@ -585,6 +589,15 @@ function InactiveRow({
   );
 }
 
+/**
+ * The batch the multistepper view modal opened on. A real batch keeps its
+ * vaults as listed then; a demo batch keeps ids only, as its vaults are never
+ * in the real list.
+ */
+type ViewingBatch =
+  | { kind: "real"; batchAtOpen: VaultActivity[] }
+  | { kind: "demo"; vaultIds: Hex[] };
+
 export function VaultsLifecycleSections({
   deposits,
   children,
@@ -593,9 +606,9 @@ export function VaultsLifecycleSections({
   deposits: ReturnType<typeof usePendingDeposits>;
   children?: ReactNode;
 }) {
-  // Vault IDs whose multistepper view modal is open — the full batch for a
-  // split pegin, null when closed (same contract as PendingDepositSection).
-  const [viewingBatch, setViewingBatch] = useState<Hex[] | null>(null);
+  // The batch whose multistepper view modal is open — the full batch for a
+  // split pegin — or null when closed. It shows `viewingVaultIds`.
+  const [viewingBatch, setViewingBatch] = useState<ViewingBatch | null>(null);
   // The batch the open confirmation would remove, snapshotted when it opened
   // so the dialog keeps naming the same records while polling continues.
   const [dismissBatch, setDismissBatch] = useState<VaultActivity[] | null>(
@@ -641,11 +654,13 @@ export function VaultsLifecycleSections({
         // the whole flow can be walked. `getDemoStepperBatch` is null-safe
         // and gated at source, so this is a no-op in production.
         const demoBatch = getDemoStepperBatch(demo, depositId);
-        if (demoBatch) setViewingBatch(demoBatch);
+        if (demoBatch) setViewingBatch({ kind: "demo", vaultIds: demoBatch });
         return;
       }
-      const siblings = getBatchSiblings(allActivities, activity);
-      setViewingBatch(siblings.map((s) => s.id as Hex));
+      setViewingBatch({
+        kind: "real",
+        batchAtOpen: getBatchSiblings(allActivities, activity),
+      });
     },
     [allActivities, demo],
   );
@@ -710,6 +725,26 @@ export function VaultsLifecycleSections({
     () => new Set(allActivities.map((a) => a.id)),
     [allActivities],
   );
+
+  // The multistepper reads a real batch from the latest list, so a sibling
+  // listed after it opened joins every step, including a broadcast, which
+  // refuses a batch the list has not caught up with yet. A vault seen at open
+  // that a refetch drops for a moment stays in the batch, so the view never
+  // closes or switches to another vault. The first vault's latest row is the
+  // one that groups the batch; its row from open stands in while it is
+  // dropped.
+  const viewingVaultIds = useMemo(() => {
+    if (!viewingBatch) return null;
+    if (viewingBatch.kind === "demo") return viewingBatch.vaultIds;
+    const { batchAtOpen } = viewingBatch;
+    const [first] = batchAtOpen;
+    const unlisted = batchAtOpen.filter((a) => !realActivityIds.has(a.id));
+    const latestFirst = allActivities.find((a) => a.id === first.id);
+    return getBatchSiblings(
+      [...allActivities, ...unlisted],
+      latestFirst ?? first,
+    ).map((s) => s.id as Hex);
+  }, [allActivities, realActivityIds, viewingBatch]);
 
   /**
    * A deposit may be discarded only on positive evidence that it is the
@@ -907,11 +942,11 @@ export function VaultsLifecycleSections({
         ethAddress={ethAddress}
       />
 
-      {viewingBatch && ethAddress && (
+      {viewingVaultIds && ethAddress && (
         <V3ModalShell open onClose={handleViewingClose}>
           <div className={`mx-auto w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS}`}>
             <PostDepositContinuationContent
-              vaultIds={viewingBatch}
+              vaultIds={viewingVaultIds}
               depositorEthAddress={ethAddress as Address}
               onClose={handleViewingClose}
             />

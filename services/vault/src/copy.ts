@@ -206,6 +206,12 @@ export const COPY = {
         "Waiting for vault provider to prepare claim and payout transactions...",
       activationSubmitted:
         "BTCVault activation submitted. Waiting for on-chain confirmation...",
+      // The activation landed but the registry redeemed the BTCVault for the
+      // depositor instead of adding it to the position. Shown until the
+      // indexer reports it REDEEMED. No day count, for the reason given at
+      // `deposit.emergencyWithdraw.bodyStuck`.
+      activationReturned:
+        "This BTCVault could not be added to your position, so it was redeemed instead of activated. The vault provider will send your BTC to your payout address.",
       readyToActivate:
         "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTCVault.",
       // Deliberately reassuring: this state looks alarming but the BTC is
@@ -897,6 +903,28 @@ export const COPY = {
       body: "Your BTCVault is now active and ready for borrowing.",
       goToDashboard: "Go to Dashboard",
     },
+    // Replaces the activated screen when an activation landed but the registry
+    // redeemed a BTCVault for the depositor instead of adding it to the
+    // position (an application cap was exceeded, or the application rejected
+    // it). `full` when every BTCVault of the deposit was returned, and on the
+    // per-vault activation screen, which knows only its own BTCVault;
+    // `partial` when only some were, whatever became of the others (active,
+    // or since withdrawn or liquidated), so it says nothing about them.
+    // Neither names a count, so each reads for one BTCVault or several. No day
+    // count, for the reason given at `emergencyWithdraw.bodyStuck`.
+    vaultReturnedSuccess: {
+      full: {
+        heading: "Your BTC is being returned",
+        body: "Your deposit could not be added to your position, so it was redeemed instead of activated. The vault provider will send your BTC to your payout address, which takes several days.",
+      },
+      partial: {
+        heading: "Part of your deposit is being returned",
+        body: "Not every BTCVault in this deposit could be added to your position. Any that could not were redeemed instead of activated, and the vault provider will send their BTC to your payout address, which takes several days.",
+      },
+      // Same label as the activated screen: the real-wallet E2E
+      // (e2e/real/actions/stepMachine.ts) detects the end of a deposit by it.
+      goToDashboard: "Go to Dashboard",
+    },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
       cardSubtitle: "Encrypted backup files",
@@ -1304,6 +1332,29 @@ export const COPY = {
       broadcastAckWindowUnavailable: {
         title: "Couldn't check the deposit window",
         body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast — please try again in a moment. If this keeps happening, check that this device's date and time are correct.",
+      },
+      // Resume broadcast refused because the application says the depositor's
+      // position cannot take this batch: activating would fail and redeem the
+      // BTCVaults instead. Refused before any wallet prompt, so this attempt
+      // broadcast nothing. It does not say the BTC has not moved: the check
+      // runs while the vault reads PENDING on chain, which includes a
+      // Pre-Pegin already broadcast from another device and not yet
+      // acknowledged, which has already sent the BTC to the HTLC. Not "has
+      // reached its limit": a lowered limit can be exceeded by this deposit
+      // alone. Recoverable by the depositor (free a slot or BTC headroom) or
+      // by a limit change, and the resume modal offers Retry.
+      positionCapacityExceeded: {
+        title: "Not enough room in your position",
+        body: "Your Aave position doesn't have room for this deposit under its BTCVault count or BTC limit. This attempt didn't broadcast anything. Free up room in your position, for example by withdrawing a BTCVault, or wait for the limit to change, then try again.",
+      },
+      // The same check had no verdict, so it refused rather than assume room:
+      // a chain read failed, or not every BTCVault this deposit funds could be
+      // found on chain yet (the deposit list can lag). This attempt broadcast
+      // nothing, with the same limit on what that says as the entry above; a
+      // later attempt can succeed.
+      positionCapacityUnavailable: {
+        title: "Couldn't check your position",
+        body: "We couldn't confirm that your Aave position has room for this deposit. This attempt didn't broadcast anything. Please try again in a few minutes.",
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,

@@ -93,8 +93,9 @@ interface StatusBearingActivity {
  * REDEEMED without activating: an expired vault redeemed with
  * `claimExpiredVault`; `collectTerminalMilestones` excludes it by the EXPIRED
  * status or the indexed `expiredAt` the redeemed vault keeps. Mirrors the contract statuses of
- * `isVaultPastActivation`, minus its optimistic localStorage branch: an
- * on-chain milestone must be decided from chain truth alone.
+ * `isVaultPastActivation`, minus its local branches (the optimistic CONFIRMED
+ * status and the returned-activation mark): an on-chain milestone must be
+ * decided from chain truth alone.
  */
 function hasReachedActive(status: ContractStatus): boolean {
   return (

@@ -167,6 +167,13 @@ export interface PeginState {
    */
   claimExpiredWindow?: ClaimExpiredWindow;
   payoutSignedAt?: number;
+  /**
+   * Set ONLY when a receipt of the vault's normal activation proved the
+   * registry redeemed it for the depositor — seen this session, or stored with
+   * the browser-local deposit record — and the contract status does not
+   * contradict that. Read through {@link isVaultActivationReturned}.
+   */
+  activationReturned?: boolean;
 }
 
 export interface GetPeginStateOptions {
@@ -290,9 +297,35 @@ export interface GetPeginStateOptions {
    */
   refundBroadcastAt?: number;
   payoutSignedAt?: number;
+  /**
+   * The vault's activation receipt carried the registry's `VaultClaimableBy`
+   * log making it claimable by the depositor's key: the registry redeemed it
+   * for the depositor instead of handing it to the application. Known from
+   * this session's mark (`markActivationReturned`) or from the outcome stored
+   * with the browser-local deposit record's CONFIRMED status. A device holding
+   * neither cannot tell, and the contract status alone decides.
+   */
+  activationReturned?: boolean;
   /** Override `Date.now()` used for the TTL check (testing only). */
   now?: number;
 }
+
+/**
+ * Contract statuses that agree with a returned activation, or have not caught
+ * up with it: VERIFIED while the indexer lags behind the receipt, then
+ * REDEEMED, then DEPOSITOR_WITHDRAWN once the payout lands. The mark, in the
+ * session store or on the deposit record, is only written from the receipt's
+ * proof that the registry redeemed the vault, a terminal transition, so no
+ * other status should ever pair with it — ACTIVE in particular. Kept as a
+ * guard anyway: while the chain reports any other status, the mark is ignored
+ * here (it stays where it was written) and the chain decides.
+ */
+const ACTIVATION_RETURNED_CONTRACT_STATUSES: ReadonlySet<ContractStatus> =
+  new Set([
+    ContractStatus.VERIFIED,
+    ContractStatus.REDEEMED,
+    ContractStatus.DEPOSITOR_WITHDRAWN,
+  ]);
 
 /**
  * How long to keep suppressing the refund action after a broadcast while the
@@ -538,8 +571,25 @@ export function getPeginState(
           (a) => a !== SdkPeginAction.ACTIVATE_VAULT,
         )
       : deadlineAdjustedActions;
-  const actions = mapActions(floorAdjustedActions);
-  const display = getDisplay(contractStatus, actions, options);
+  const activationReturned =
+    options.activationReturned === true &&
+    ACTIVATION_RETURNED_CONTRACT_STATUSES.has(contractStatus);
+  // The reveal already landed and the registry redeemed the vault, so neither
+  // activation can run again. Normally CONFIRMED, written alongside the mark,
+  // has stripped them already (see `applyTrackingOverrides`); this holds even
+  // when it is missing, so the mark alone never leaves Activate on offer.
+  const returnedAdjustedActions = activationReturned
+    ? floorAdjustedActions.filter(
+        (a) =>
+          a !== SdkPeginAction.ACTIVATE_VAULT &&
+          a !== SdkPeginAction.ACTIVATE_AND_REDEEM,
+      )
+    : floorAdjustedActions;
+  const actions = mapActions(returnedAdjustedActions);
+  const display = getDisplay(contractStatus, actions, {
+    ...options,
+    activationReturned,
+  });
 
   return {
     contractStatus,
@@ -549,6 +599,7 @@ export function getPeginState(
     // `activationFloorBlocksRemaining` rides in on `display` — set by the floor
     // branch alone, so it marks that branch rather than every VERIFIED vault.
     ...display,
+    ...(activationReturned ? { activationReturned: true } : {}),
   };
 }
 
@@ -748,6 +799,19 @@ function getDisplay(
   }
 
   if (contractStatus === ContractStatus.VERIFIED) {
+    // A returned activation is final: the receipt proved the registry
+    // redeemed the vault for the depositor, so it reads as the redemption the
+    // indexer reports next, not as an activation still confirming. Ahead of
+    // the CONFIRMED case, which a returned activation also carries, and it
+    // holds without CONFIRMED too, which would otherwise read as ready to
+    // activate with no action to take.
+    if (options.activationReturned === true) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+        displayVariant: "pending",
+        message: COPY.pegin.messages.activationReturned,
+      };
+    }
     if (localStatus === LocalStorageStatus.CONFIRMED) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PROCESSING,
@@ -1141,7 +1205,10 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
   }
 
   if (contractStatus === ContractStatus.VERIFIED) {
-    if (localStatus === LocalStorageStatus.CONFIRMED) {
+    if (
+      localStatus === LocalStorageStatus.CONFIRMED ||
+      isVaultActivationReturned(state)
+    ) {
       return DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
     }
     return DepositFlowStep.RETRIEVE_SECRET;
@@ -1233,7 +1300,11 @@ export function getNextLocalStatus(
  * post-deposit continuation should no longer pick it up.
  *
  * `VERIFIED + CONFIRMED` is the optimistic post-activation state used while
- * the indexer catches up; the rest are terminal contract states.
+ * the indexer catches up; the rest are terminal contract states. A receipt
+ * that proved the activation returned the BTC ({@link isVaultActivationReturned})
+ * counts on its own: it is terminal, and it must hold even if the CONFIRMED
+ * written with it is missing, or the vault would be offered for activation
+ * again.
  */
 export function isVaultPastActivation(state: PeginState | undefined): boolean {
   if (!state) return false;
@@ -1244,6 +1315,7 @@ export function isVaultPastActivation(state: PeginState | undefined): boolean {
   ) {
     return true;
   }
+  if (isVaultActivationReturned(state)) return true;
   return (
     contractStatus === ContractStatus.ACTIVE ||
     contractStatus === ContractStatus.REDEEMED ||
@@ -1259,6 +1331,10 @@ export function isVaultPastActivation(state: PeginState | undefined): boolean {
  * Narrower than {@link isVaultPastActivation}, which also counts terminal
  * REDEEMED/LIQUIDATED/WITHDRAWN states. Use this for the activation-success
  * messaging so a liquidated/redeemed sibling can never read as "activated".
+ * The optimistic state does not count once the activation is known to have
+ * returned the BTC — this session's mark or the outcome stored with the
+ * deposit record ({@link isVaultActivationReturned}): CONFIRMED only says the
+ * reveal landed, not that the application took the vault.
  */
 export function isVaultActivated(state: PeginState | undefined): boolean {
   if (!state) return false;
@@ -1266,8 +1342,25 @@ export function isVaultActivated(state: PeginState | undefined): boolean {
   if (contractStatus === ContractStatus.ACTIVE) return true;
   return (
     contractStatus === ContractStatus.VERIFIED &&
-    localStatus === LocalStorageStatus.CONFIRMED
+    localStatus === LocalStorageStatus.CONFIRMED &&
+    !isVaultActivationReturned(state)
   );
+}
+
+/**
+ * True when a receipt of the vault's normal activation proved the registry
+ * redeemed it for the depositor instead of handing it to the application, so
+ * the BTC is on its way back to the depositor.
+ *
+ * Known only from that receipt — this session's mark, or the outcome stored
+ * with the browser-local deposit record. A REDEEMED status on its own is not
+ * evidence of this, because a vault the depositor activated and later withdrew
+ * reads REDEEMED too.
+ */
+export function isVaultActivationReturned(
+  state: PeginState | undefined,
+): boolean {
+  return state?.activationReturned === true;
 }
 
 export function shouldRemoveFromLocalStorage(

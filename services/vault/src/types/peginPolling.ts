@@ -80,6 +80,15 @@ export interface PeginPollingContextValue {
    */
   addConfirmedRefund: (depositId: string) => void;
   /**
+   * Record that a normal activation landed but the registry redeemed the
+   * BTCVault for the depositor instead of adding it to the position: the poll
+   * result then reports the vault as returned rather than activated (see
+   * `isVaultActivationReturned`). The mark itself is session only; a browser
+   * holding the deposit record also stores the outcome on it
+   * (`PendingPeginRequest.activationOutcome`), which survives a reload.
+   */
+  markActivationReturned: (depositId: string) => void;
+  /**
    * Re-probe the HTLC spends now rather than on the next poll tick — after a
    * refund attempt learns the PegIn swept the deposit, so the row trades its
    * Withdraw for the redeem without waiting a minute.

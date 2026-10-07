@@ -191,7 +191,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps/wotsSubmission", () => ({
 vi.mock("@/hooks/deposit/useActivationState", () => ({
   useActivationState: vi.fn(() => ({
     activating: false,
-    activated: false,
+    outcome: null,
     error: null,
     errorTerminal: false,
     handleActivation: mockHandleActivation,
@@ -317,6 +317,10 @@ vi.mock("../DepositProgressView", () => ({
 
 vi.mock("../VaultActivatedView", () => ({
   VaultActivatedView: () => <div data-testid="vault-activated-view" />,
+}));
+
+vi.mock("../VaultReturnedView", () => ({
+  VaultReturnedView: () => <div data-testid="vault-returned-view" />,
 }));
 
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
@@ -769,7 +773,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
     // state keeps that error until the next hand-off.
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
-      activated: false,
+      outcome: null,
       error: "User rejected the request.",
       errorTerminal: false,
       handleActivation: mockHandleActivation,
@@ -806,7 +810,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
       vi.mocked(useChainConnector).mockReturnValue(connector);
       vi.mocked(useActivationState).mockReturnValue({
         activating: false,
-        activated: false,
+        outcome: null,
         error: null,
         errorTerminal: false,
         handleActivation: mockHandleActivation,
@@ -1328,7 +1332,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
   it("shows the activated success screen (not the completed stepper) once activation is submitted", async () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
-      activated: true,
+      outcome: "activated",
       error: null,
       errorTerminal: false,
       handleActivation: mockHandleActivation,
@@ -1345,10 +1349,52 @@ describe("ResumeActivationContent — activated success terminal", () => {
     expect(queryByTestId("progress-view")).toBeNull();
   });
 
+  it("shows the returned screen, not the activated one, when the activation returned the BTC", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      outcome: "returned",
+      error: null,
+      errorTerminal: false,
+      handleActivation: mockHandleActivation,
+    });
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 1 }, // VERIFIED — indexer not caught up
+    } as never);
+
+    const { getByTestId, queryByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("vault-returned-view")).toBeTruthy(),
+    );
+    expect(queryByTestId("vault-activated-view")).toBeNull();
+    expect(queryByTestId("progress-view")).toBeNull();
+  });
+
+  it("shows the activated screen when the contract reports ACTIVE even though the receipt read as returned", async () => {
+    // The chain outranks this session's reading of the receipt.
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      outcome: "returned",
+      error: null,
+      errorTerminal: false,
+      handleActivation: mockHandleActivation,
+    });
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: { contractStatus: 2 }, // ACTIVE
+    } as never);
+
+    const { getByTestId, queryByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("vault-activated-view")).toBeTruthy(),
+    );
+    expect(queryByTestId("vault-returned-view")).toBeNull();
+  });
+
   it("shows the activated success screen when the contract reports ACTIVE without a local activation", async () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
-      activated: false,
+      outcome: null,
       error: null,
       errorTerminal: false,
       handleActivation: mockHandleActivation,
@@ -1368,7 +1414,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
   it("keeps the activation stepper while activation is still in flight", async () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: true,
-      activated: false,
+      outcome: null,
       error: null,
       errorTerminal: false,
       handleActivation: mockHandleActivation,
@@ -1387,7 +1433,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
   it("shows the deadline-passed copy and suppresses Retry on a terminal failure", async () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
-      activated: false,
+      outcome: null,
       error: "The activation deadline has passed.",
       errorTerminal: true,
       handleActivation: mockHandleActivation,
@@ -1409,7 +1455,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
   it("shows the split-order message, not the deadline copy, when the order data is inconsistent", async () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
-      activated: false,
+      outcome: null,
       error: COPY.pegin.messages.activationOrderInconsistent,
       errorTerminal: true,
       handleActivation: mockHandleActivation,
@@ -1431,7 +1477,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
   it("keeps Retry and the generic mapping for a non-terminal failure", async () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
-      activated: false,
+      outcome: null,
       error: "Some transient RPC error",
       errorTerminal: false,
       handleActivation: mockHandleActivation,
