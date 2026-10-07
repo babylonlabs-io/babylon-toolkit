@@ -13,12 +13,14 @@ export type VaultLifecycleStage = "broadcast" | "presign";
 export type VaultLifecycleRole = "target" | "sibling";
 
 /**
- * Typed refusal from the DepositTerms rebuild's lifecycle gate.
+ * Typed refusal from a lifecycle gate: the DepositTerms rebuild's status and
+ * presign ack-window gates, and the Pre-PegIn broadcast ack-window gate.
  *
  * Thrown instead of a bare `Error` so the UI mappers can branch on the
  * machine-readable fields rather than the message: a presign-stage EXPIRED
- * target needs refund-path copy, while the broadcast-stage refusal maps to
- * the terminal batch callout. `status` always carries the ACTUAL on-chain status — an
+ * target needs refund-path copy, while a broadcast-stage refusal maps to the
+ * terminal batch callout (`invalid-status`) or the can't-complete callout
+ * (`ack-window-elapsed`). `status` always carries the ACTUAL on-chain status — an
  * ack-window refusal reports `reason: "ack-window-elapsed"` with the still-
  * PENDING status, never a fabricated EXPIRED.
  */
@@ -49,7 +51,7 @@ export class VaultLifecycleStateError extends Error {
   }
 }
 
-/** True when `err` is the rebuild's typed lifecycle refusal. */
+/** True when `err` is a lifecycle gate's typed refusal. */
 export function isVaultLifecycleStateError(
   err: unknown,
 ): err is VaultLifecycleStateError {

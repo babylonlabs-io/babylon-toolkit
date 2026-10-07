@@ -31,8 +31,11 @@
  *    required confirmation depth, or disappeared from chain state entirely.
  *  - Deposit-terms rejection — the signing device's envelope refused the
  *    terms before approval (typed SDK error; can be terminal).
- *  - Lifecycle refusal — the DepositTerms rebuild's typed status gate
- *    (broadcast stage maps to the terminal batch callout).
+ *  - Lifecycle refusal — the DepositTerms rebuild's typed status gate and the
+ *    broadcast ack-window gate (broadcast stage maps to the terminal batch
+ *    callout, or to the can't-complete callout when the ack window has no
+ *    room; the gate's own chain-read failures map to the window-unavailable
+ *    callout, by body).
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -139,6 +142,9 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   ERRORS.signingRejected,
   // Nothing was broadcast; the software-wallet twin of deviceLocked.
   ERRORS.signingFailed,
+  // Nothing was broadcast: the ack-window gate failed closed on a chain read
+  // before any wallet prompt, and a later read can succeed.
+  ERRORS.broadcastAckWindowUnavailable,
 ]);
 
 const STAGE_FAILED = ERRORS.prePeginStageFailed;
@@ -370,11 +376,14 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.depositTermsRejected;
   }
 
-  // 3e. Typed lifecycle refusal from the DepositTerms rebuild: a batch
-  // member left PENDING. The shared Pre-Pegin may already be on Bitcoin, so
-  // the callout neither claims what was sent nor invites a retry.
+  // 3e. Typed broadcast-stage lifecycle refusals. An ack window with no room
+  // left: nothing was signed, so the callout says this attempt sent no BTC. A
+  // batch member that left PENDING: the shared Pre-Pegin may already be on
+  // Bitcoin, so that callout neither claims what was sent nor invites a retry.
   if (isVaultLifecycleStateError(err) && err.stage === "broadcast") {
-    return ERRORS.batchNoLongerPending;
+    return err.reason === "ack-window-elapsed"
+      ? ERRORS.broadcastAckWindowElapsed
+      : ERRORS.batchNoLongerPending;
   }
 
   // 3f. Typed depositor-wallet refusal from the DepositTerms rebuild or the
@@ -463,6 +472,14 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     msg.includes(ERRORS.appVersionUnsupported.body.toLowerCase())
   ) {
     return ERRORS.appVersionUnsupported;
+  }
+
+  // 4c''. The broadcast ack-window gate could not read the chain (head
+  // unreadable, or a parameter read failed). It throws the copy body as its
+  // message, with the node's text as the cause, so a surface that stringifies
+  // still classifies it; nothing was sent, so it is resumable.
+  if (msg.includes(ERRORS.broadcastAckWindowUnavailable.body.toLowerCase())) {
+    return ERRORS.broadcastAckWindowUnavailable;
   }
 
   // 4c. VP commission drift / unavailability. The SDK throws "...commission

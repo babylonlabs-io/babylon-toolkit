@@ -124,6 +124,7 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
       // default pairs with a far-ahead tip so the common case (a deposit
       // registered long ago) takes the no-wait fast path.
       createdAt: 1_000n,
+      offchainParamsVersion: 7,
     }),
   ),
 }));
@@ -196,17 +197,27 @@ vi.mock("@/services/vault", () => ({
 const mockGetPeginActivationDelay = vi.hoisted(() =>
   vi.fn().mockResolvedValue(0n),
 );
-// Activation ceiling. Default is a wide window so every pre-existing
-// activation test clears the inclusion margin unchanged; the deadline tests
-// drive it directly.
+// Activation ceiling and ack window. Defaults are wide windows so every
+// pre-existing activation and broadcast test clears its margin unchanged; the
+// deadline and ack-window tests drive them directly.
+const WIDE_PROTOCOL_PARAMS = vi.hoisted(() => ({
+  pegInActivationTimeout: 10_000n,
+  pegInAckTimeout: 10_000n,
+}));
 const mockGetTBVProtocolParams = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({ pegInActivationTimeout: 10_000n }),
+  vi.fn().mockResolvedValue(WIDE_PROTOCOL_PARAMS),
+);
+// The vault's stamped offchain params: `minPrepeginDepth` sizes the ack
+// window's broadcast margin (depth 6 → 425 blocks).
+const mockGetOffchainParamsByVersion = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ minPrepeginDepth: 6 }),
 );
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
   getProtocolParamsReader: vi.fn().mockResolvedValue({
     getPeginActivationDelay: mockGetPeginActivationDelay,
     getTBVProtocolParams: mockGetTBVProtocolParams,
+    getOffchainParamsByVersion: mockGetOffchainParamsByVersion,
   }),
 }));
 
@@ -351,6 +362,9 @@ const MATCHING_BASIC_INFO = {
   status: OnChainBtcVaultStatus.PENDING,
   depositor: baseBroadcastParams.depositorEthAddress,
   depositorBtcPubKey: `0x${DEPOSITOR_BTC_KEY}`,
+  // Registration block, as the finality gate's final observation reports it.
+  // Equal to the default head, so the ack window is wide open.
+  createdAt: 1_000n,
 };
 
 // Re-assert the default connector before EVERY test so a describe that
@@ -371,6 +385,13 @@ beforeEach(() => {
   vi.mocked(useChainConnector).mockImplementation(
     makeDefaultChainConnector as never,
   );
+  // The chain-head and protocol-parameter reads feed the broadcast ack-window
+  // gate as well as the activation gates, so a describe that narrows them
+  // must not leak into the broadcast tests that follow it.
+  mockGetBlockNumber.mockResolvedValue(1_000n);
+  mockHeadAgeSeconds.value = 0n;
+  mockGetTBVProtocolParams.mockResolvedValue(WIDE_PROTOCOL_PARAMS);
+  mockGetOffchainParamsByVersion.mockResolvedValue({ minPrepeginDepth: 6 });
 });
 
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
@@ -2768,5 +2789,170 @@ describe("useVaultActions — activation deadline margin", () => {
     });
 
     expect(mockLoggerError).toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// Ack window on the resume broadcast. A Pre-PegIn that cannot reach the vault
+// provider's confirmation depth and be acknowledged before
+// `createdAt + pegInAckTimeout` locks BTC into an HTLC only the refund path
+// releases, so the broadcast is refused before any wallet prompt once less
+// than that margin remains.
+// ============================================================================
+describe("useVaultActions — handleBroadcast ack window", () => {
+  // createdAt 1000 + timeout 1000: the contract accepts an ACK mined at block
+  // 2000 or earlier. At depth 6 the margin is 425 blocks, so head 1574 (426
+  // left) is the last that broadcasts and head 1575 (425 left) the first that
+  // refuses.
+  const CREATED_AT = 1_000n;
+  const PEGIN_ACK_TIMEOUT = 1_000n;
+  const LAST_BROADCASTING_HEAD = 1_574n;
+  const FIRST_REFUSING_HEAD = 1_575n;
+
+  function broadcastParams() {
+    return { ...baseBroadcastParams, pendingPegin: { ...basePendingPegin } };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.PENDING,
+      createdAt: CREATED_AT,
+      offchainParamsVersion: basePendingPegin.buildOffchainParamsVersion,
+    } as never);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockWaitForEthRegistrationDepth.mockResolvedValue({
+      confirmations: 8,
+      basicInfo: { ...MATCHING_BASIC_INFO, createdAt: CREATED_AT },
+    } as never);
+    mockGetTBVProtocolParams.mockResolvedValue({
+      ...WIDE_PROTOCOL_PARAMS,
+      pegInAckTimeout: PEGIN_ACK_TIMEOUT,
+    });
+    // The mocked head and the head reader each read the clock. Freeze it, so
+    // a second that ticks over between the two reads cannot add a block of
+    // lag and move these tests off the edge they pin.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("broadcasts on the last head that still clears the margin", async () => {
+    mockGetBlockNumber.mockResolvedValue(LAST_BROADCASTING_HEAD);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(broadcastParams()));
+
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(result.current.broadcastError).toBeNull();
+  });
+
+  it("refuses at the first head that leaves only the margin, before any wallet prompt", async () => {
+    mockGetBlockNumber.mockResolvedValue(FIRST_REFUSING_HEAD);
+    // "unisat" is a probe-safe wallet, so a liveness probe would call
+    // connectWallet(); none may happen for a broadcast that is refused.
+    const connector = makeDefaultChainConnector();
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: { ...connector.connectedWallet, id: "unisat" },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(broadcastParams()));
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.broadcastAckWindowElapsed,
+    );
+    expect(
+      connector.connectedWallet.provider.connectWallet,
+    ).not.toHaveBeenCalled();
+    expect(mockGetPublicKeyHex).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses an intent wallet before resolving inputs, rebuilding terms or any device I/O", async () => {
+    mockGetBlockNumber.mockResolvedValue(FIRST_REFUSING_HEAD);
+    const connector = makeDefaultChainConnector();
+    const approveDepositTerms = vi.fn().mockResolvedValue(undefined);
+    Object.assign(connector.connectedWallet.provider, {
+      deriveContextHash: vi.fn().mockResolvedValue("ab".repeat(32)),
+      approveDepositTerms,
+      getChangeAddress: vi.fn().mockResolvedValue("tb1pledgerchange"),
+    });
+    vi.mocked(useChainConnector).mockReturnValue(connector as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(broadcastParams()));
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.broadcastAckWindowElapsed,
+    );
+    expect(resolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
+    expect(rebuildDepositTerms).not.toHaveBeenCalled();
+    expect(approveDepositTerms).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("measures the window from the post-finality registration block, not the pre-wait read", async () => {
+    // The pre-wait read says block 1000 (deadline 2000, 600 left at head
+    // 1400); the gate's final observation says 500 (deadline 1500, 100 left).
+    // Only the latter refuses.
+    mockGetBlockNumber.mockResolvedValue(1_400n);
+    mockWaitForEthRegistrationDepth.mockResolvedValue({
+      confirmations: 8,
+      basicInfo: { ...MATCHING_BASIC_INFO, createdAt: 500n },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(broadcastParams()));
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.broadcastAckWindowElapsed,
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pending entry when the ack window refuses", async () => {
+    // Nothing was broadcast and the record is still the only local copy of
+    // the build stamps; removing it would not make the deposit resumable.
+    mockGetBlockNumber.mockResolvedValue(FIRST_REFUSING_HEAD);
+    const removePendingPegin = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...broadcastParams(),
+        removePendingPegin,
+      }),
+    );
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.broadcastAckWindowElapsed,
+    );
+    expect(removePendingPegin).not.toHaveBeenCalled();
+  });
+
+  it("refuses with the window-unavailable callout when the window cannot be measured", async () => {
+    // A head too old to use is unreadable, not "plenty of room" — and the
+    // depositor is told that in copy, not in the node's words.
+    mockGetBlockNumber.mockResolvedValue(CREATED_AT);
+    mockHeadAgeSeconds.value = 121n;
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(broadcastParams()));
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.broadcastAckWindowUnavailable,
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });

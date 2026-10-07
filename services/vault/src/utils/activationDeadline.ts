@@ -1,7 +1,10 @@
 // Ethereum L1 consensus slot time; missed slots only make real intervals >= 12s, so 12s yields a safe UPPER bound on elapsed blocks.
 // Exported for the activation-floor waiting text, which converts a remaining
-// block count into an approximate duration. That direction is display-only —
-// the floor gate itself compares block numbers, never elapsed wall-clock time.
+// block count into an approximate duration (display only — the floor gate
+// compares block numbers, never wall-clock time), and for the Pre-PegIn
+// broadcast margin (`utils/ackDeadline.ts`), which converts the pipeline's
+// minutes into the blocks that must remain — a decision, in the same safe
+// direction as `headBlockLagBlocks` below.
 export const ETH_SLOT_SECONDS = 12;
 
 const MILLISECONDS_PER_SECOND = 1000;

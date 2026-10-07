@@ -299,7 +299,8 @@ async function discoverSiblings(
  * Presign only: refuse before the device ceremony when the target's ack window
  * has elapsed — report-lag can leave an ack-expired deposit reading PENDING for
  * hours, and past the window `submitACK` reverts, so signing is futile.
- * Any read failure propagates (fail closed).
+ * Any read failure propagates (fail closed). The broadcast paths run their
+ * own, margin-bearing gate instead (`prePeginBroadcastAckWindow.ts`).
  */
 async function assertAckWindowOpen(
   vaultId: Hex,

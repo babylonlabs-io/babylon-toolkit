@@ -8,12 +8,10 @@
  * the card renders — no countdown, since block arrivals are not schedulable.
  */
 
-import { BTC_BLOCK_TIME_MINS } from "@/constants";
-
-// Machine-paced pegin overhead beyond BTC confirmations: ACK round, two ETH
-// txs, indexer surfacing, and poll quantization. BTC depth accrues in
-// parallel with the VP pipeline, so it is an additive allowance, not a sum.
-const DEPOSIT_PIPELINE_OVERHEAD_MINS = 10;
+import {
+  BTC_BLOCK_TIME_MINS,
+  DEPOSIT_PIPELINE_OVERHEAD_MINS,
+} from "@/constants";
 
 /**
  * Confirmation count for a transaction given the current chain tip.
