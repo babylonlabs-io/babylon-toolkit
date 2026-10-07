@@ -27,8 +27,16 @@ export interface LoanContextValue {
   totalDebtValueUsd: number;
   /** Current health factor (null if no debt) */
   healthFactor: number | null;
-  /** Liquidation threshold in BPS (e.g., 8000 = 80%) */
+  /**
+   * Liquidation threshold in BPS (e.g., 8000 = 80%) under the position's
+   * stored `dynamicConfigKey`. Repay uses it.
+   */
   liquidationThresholdBps: number;
+  /**
+   * Liquidation threshold in BPS under the reserve's current
+   * `dynamicConfigKey`. Borrow uses it: `borrow()` applies the current key.
+   */
+  borrowLiquidationThresholdBps: number;
   /**
    * Selected reserve to borrow from.
    *
@@ -70,11 +78,14 @@ export interface LoanContextValue {
   /** Refetch position data — returns fresh position (or null if unavailable) */
   refetchPosition: () => Promise<AavePositionWithLiveData | null>;
   /**
-   * Force a fresh contract round-trip for vault split params (CF / LB).
-   * Used by borrow and repay pre-sign validation to recompute the projected
-   * health factor against current on-chain values rather than the cached ones.
+   * Force a fresh contract round-trip for vault split params (CF / LB) under
+   * the position's stored key. Used by repay pre-sign validation to recompute
+   * the projected health factor against current on-chain values rather than
+   * the cached ones.
    */
   refetchSplitParams: () => Promise<VaultSplitParams | null>;
+  /** Same as `refetchSplitParams`, under the reserve's current key. Used by borrow pre-sign validation. */
+  refetchBorrowSplitParams: () => Promise<VaultSplitParams | null>;
   /** Callback when borrow succeeds */
   onBorrowSuccess: (borrowAmount: number) => void;
   /** Callback when repay succeeds */

@@ -60,6 +60,7 @@ export function ReserveDetailPanel({
     assetConfig,
     vbtcReserve,
     liquidationThresholdBps,
+    borrowLiquidationThresholdBps,
     proxyContract,
     collateralValueUsd,
     currentDebtAmount,
@@ -76,6 +77,7 @@ export function ReserveDetailPanel({
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
+    refetchBorrowSplitParams,
   } = useAaveReserveDetail({ reserveId, address });
 
   // One narrowing point for everything that depends on a proven identity, so
@@ -166,6 +168,7 @@ export function ReserveDetailPanel({
     totalDebtValueUsd,
     healthFactor,
     liquidationThresholdBps,
+    borrowLiquidationThresholdBps,
     selectedReserve: verified.selectedReserve,
     tokenIdentity: verified.tokenIdentity,
     assetConfig: verified.assetConfig,
@@ -177,6 +180,7 @@ export function ReserveDetailPanel({
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
+    refetchBorrowSplitParams,
     onBorrowSuccess: (amount: number) => onSuccess(settled("borrow", amount)),
     onRepaySuccess: (repayAmount: number) =>
       onSuccess(settled("repay", repayAmount)),
