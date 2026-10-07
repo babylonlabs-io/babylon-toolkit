@@ -85,6 +85,21 @@ export const PEGIN_POLL_INTERVAL_MS = 3_000;
  */
 export const PEGIN_TX_FAILURE_RETRY_LIMIT = 3;
 /**
+ * How many times to click the Activate modal's "Check again" while it reports the vault provider as
+ * unconfirmed. The modal probes the provider when it opens and, until a result comes back, offers
+ * neither "Continue without" nor Activate — so without this the walk would idle to the step-machine
+ * budget. A short outage clears within a few clicks; a provider that is down, or a proxy that does not
+ * allow-list the probe method, exhausts them and the run aborts with the reason.
+ */
+export const VP_PROBE_CHECK_AGAIN_LIMIT = 3;
+/**
+ * How long after clicking "Check again" the Activate modal's re-probe is treated as settled: the probe's
+ * 15 s overall deadline plus its 5 s `/health` budget (services/vault/src/services/vpLiveness/probeVpLiveness.ts).
+ * The button unmounts only while the re-probe is in flight, and a proxy that refuses the method answers in
+ * well under one poll tick, so the walk re-arms on elapsed time rather than on ever seeing the button hidden.
+ */
+export const VP_PROBE_VERDICT_WINDOW_MS = 20_000;
+/**
  * The activated vault to surface as an active-vault row on /vaults after "Go to Dashboard" — it
  * appears optimistically ("Activating collateral…") but can lag the indexer catching up.
  */

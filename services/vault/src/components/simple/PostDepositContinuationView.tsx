@@ -318,6 +318,7 @@ export function PostDepositContinuationView({
           key={`gate-${currentVaultId}`}
           activity={activity}
           onClose={onClose}
+          simulatedProvider
         >
           <Suspense fallback={null}>
             <DemoActivationContent

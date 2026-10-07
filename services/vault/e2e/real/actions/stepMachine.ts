@@ -26,6 +26,8 @@ import {
   PEGIN_STEP_MACHINE_BUDGET_MS,
   PEGIN_TX_FAILURE_RETRY_LIMIT,
   STEP_TIMEOUT_MS,
+  VP_PROBE_CHECK_AGAIN_LIMIT,
+  VP_PROBE_VERDICT_WINDOW_MS,
 } from "../timing";
 
 import { sweepApprovals } from "./approver";
@@ -60,6 +62,21 @@ const RETRY_BUTTON_RX = /^retry$/i; // COPY.deposit.progress.buttons.retry
 function retryButton(page: Page): Locator {
   return page.getByRole("button", { name: RETRY_BUTTON_RX }).first();
 }
+// The Activate modal's liveness-gate button, shown with Cancel while the vault provider is unconfirmed
+// (COPY.deposit.activateConfirmation.checkAgainButton). Deliberately not "Retry", so RETRY_BUTTON_RX
+// never matches it.
+const CHECK_AGAIN_TESTID = '[data-testid="retry-vp-probe-button"]';
+const CHECK_AGAIN_LABEL = "Check again";
+function checkAgainButton(page: Page): Locator {
+  return firstByTestid(
+    page,
+    CHECK_AGAIN_TESTID,
+    page.getByRole("button", { name: CHECK_AGAIN_LABEL, exact: true }),
+  );
+}
+// The Activate modal's incomplete-details block (COPY.deposit.activateConfirmation.dataIncompleteTitle):
+// Cancel only, so no gate in the walk can progress past it.
+const DATA_INCOMPLETE_TITLE = "Deposit details incomplete";
 // Finish-line matchers are tolerant regexes, NOT exact strings: the deployed build's copy can drift
 // from local source (e.g. the heading renders "Vault activated" on devnet vs "BTC Vault activated" in
 // copy.ts), and we key on the stable actionable control (the "Go to Dashboard" button) rather than the
@@ -257,6 +274,11 @@ export async function walkStepMachine(
   // and capped at PEGIN_TX_FAILURE_RETRY_LIMIT total so a genuinely-failing tx aborts instead of looping.
   let retryClickedThisCallout = false;
   let txRetryCount = 0;
+  // The Activate modal's liveness gate: "Check again" is re-armed once a probe window has elapsed since the
+  // last click (the button hides only while the re-probe is in flight, often for less than one poll tick)
+  // and capped at VP_PROBE_CHECK_AGAIN_LIMIT, since an unconfirmed provider leaves no route to Activate.
+  let lastCheckAgainClickAt = 0;
+  let vpCheckAgainCount = 0;
   // Count the activations we've driven; the finish gate needs `expectedVaults` of them (see below).
   let activationCount = 0;
   let prePeginTxid: string | undefined;
@@ -286,6 +308,19 @@ export async function walkStepMachine(
           `Pre-PegIn is already broadcast, so the deposit can be resumed later rather than re-pegged.`,
       );
 
+    // Fast-fail on the Activate modal's incomplete-details block: the indexer record lacks the provider
+    // address, peg-in txid or depositor key (or the address is malformed), the modal offers only Cancel,
+    // and refreshing is the user's remedy — nothing in this loop can progress, so abort at once.
+    const dataIncompleteVisible = await page
+      .getByText(DATA_INCOMPLETE_TITLE, { exact: true })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (dataIncompleteVisible)
+      throw new Error(
+        `The Activate modal reports "${DATA_INCOMPLETE_TITLE}": the deposit's indexer record lacks its provider address, peg-in txid or depositor key, so the walk cannot activate it (an indexer data issue, not the CLI). The Pre-PegIn is already broadcast, so the deposit can be resumed once the record is complete. trace.zip + the failure screenshot are captured.`,
+      );
+
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
     await sweepApprovals(context, page, log);
 
@@ -306,6 +341,35 @@ export async function walkStepMachine(
       }
     } else {
       activateClickedThisModal = false;
+    }
+
+    // While the vault provider is unconfirmed the Activate modal offers only Cancel + "Check again": no
+    // "Continue without", no Activate, so the gate above cannot fire. Click "Check again" for a transient
+    // outage; past the cap, abort with the cause instead of idling to the step-machine budget. With
+    // artifacts saved the modal shows "Check again" next to an enabled Activate — that case belongs to
+    // the gate above, hence `!activateVisible`. A button still visible one probe window after the last
+    // click is a fresh verdict, not the same appearance: the re-probe can settle between two polls.
+    const checkAgainVisible =
+      !activateVisible &&
+      (await checkAgainButton(page)
+        .isVisible()
+        .catch(() => false));
+    if (
+      checkAgainVisible &&
+      Date.now() - lastCheckAgainClickAt >= VP_PROBE_VERDICT_WINDOW_MS
+    ) {
+      if (vpCheckAgainCount >= VP_PROBE_CHECK_AGAIN_LIMIT)
+        throw new Error(
+          `The Activate modal kept reporting the vault provider as unconfirmed after ${VP_PROBE_CHECK_AGAIN_LIMIT} "Check again" clicks — the provider is down, or the proxy does not allow-list vaultProvider_getPeginStatusByVaultId (a provider/proxy availability issue, not the CLI). The Pre-PegIn is already broadcast, so the deposit can be resumed later. trace.zip + the failure screenshot are captured.`,
+        );
+      vpCheckAgainCount += 1;
+      log(
+        `⚠️ Vault provider unconfirmed at the Activate gate — clicking "Check again" (${vpCheckAgainCount}/${VP_PROBE_CHECK_AGAIN_LIMIT})`,
+      );
+      await checkAgainButton(page)
+        .click({ timeout: STEP_TIMEOUT_MS })
+        .catch(() => {});
+      lastCheckAgainClickAt = Date.now();
     }
 
     const skipVisible = await page

@@ -9,6 +9,11 @@ interface ActivationGateProps {
   onClose: () => void;
   /** The activation step, rendered only once the user confirms. */
   children: ReactNode;
+  /**
+   * God-mode demo vaults only: their synthetic provider can never answer the
+   * modal's liveness probe, so the verdict is simulated as reachable.
+   */
+  simulatedProvider?: boolean;
 }
 
 /**
@@ -21,16 +26,16 @@ export function ActivationGate({
   activity,
   onClose,
   children,
+  simulatedProvider = false,
 }: ActivationGateProps) {
   const [confirmed, setConfirmed] = useState(false);
 
   if (confirmed) return <>{children}</>;
 
-  // Always render the confirmation gate (even when the activity is missing
-  // any of providerAddress / peginTxid / depositorPk) so the user still
-  // sees the risk-acknowledgement checkbox before activating without
-  // artifacts. The modal hides the recovery-artifacts card when those
-  // fields aren't present and falls back to the acknowledgement-only path.
+  // Always render the confirmation gate, even when the activity is missing
+  // any of providerAddress / peginTxid / depositorPk: the modal then shows
+  // "Deposit details incomplete" with Cancel only, so the user learns why
+  // activation is held instead of silently getting no gate at all.
   return (
     <ActivateConfirmationModal
       open
@@ -39,6 +44,7 @@ export function ActivationGate({
       peginTxid={activity.peginTxHash}
       depositorPk={activity.depositorBtcPubkey}
       unsignedPrePeginTxHex={activity.unsignedPrePeginTx}
+      simulateProviderLiveness={simulatedProvider}
       onClose={onClose}
       onConfirm={() => setConfirmed(true)}
     />

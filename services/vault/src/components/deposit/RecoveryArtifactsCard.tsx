@@ -61,6 +61,8 @@ export interface ArtifactDownloadProgress {
   totalBytes: number;
   /** The hook's status line while the total is still unknown. */
   status: string;
+  /** The card's current error line, or null; lets the modal re-probe after a failed download. */
+  error: string | null;
 }
 
 interface RecoveryArtifactsCardProps {
@@ -195,8 +197,14 @@ export const RecoveryArtifactsCard = forwardRef<
   }, [delivered, onDelivered]);
 
   useEffect(() => {
-    onStateChange?.({ loading, receivedBytes, totalBytes, status: progress });
-  }, [loading, receivedBytes, totalBytes, progress, onStateChange]);
+    onStateChange?.({
+      loading,
+      receivedBytes,
+      totalBytes,
+      status: progress,
+      error,
+    });
+  }, [loading, receivedBytes, totalBytes, progress, error, onStateChange]);
 
   const mismatchNotifiedRef = useRef(false);
   useEffect(() => {

@@ -21,17 +21,20 @@ import {
 } from "@/components/deposit/RecoveryArtifactsCard";
 import { isActivationBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
+import { useVpLiveness } from "@/hooks/deposit/useVpLiveness";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import {
   hasArtifactsDownloaded,
   hasGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
+import { ETH_ADDRESS_PATTERN } from "@/utils/validation";
 
 const IDLE_DOWNLOAD_STATE: ArtifactDownloadProgress = {
   loading: false,
   receivedBytes: 0,
   totalBytes: 0,
   status: "",
+  error: null,
 };
 
 interface ActivateConfirmationModalProps {
@@ -39,14 +42,22 @@ interface ActivateConfirmationModalProps {
   vaultId: Hex;
   /**
    * Artifact-download inputs. All three are required for the recovery card
-   * to attempt a download; if any are missing the card is hidden and the
-   * user can only proceed by acknowledging the risk and activating without
-   * artifacts.
+   * to attempt a download; if any are missing, or the provider address is
+   * not one a proxy URL can be built from, the modal shows "Deposit details
+   * incomplete" and offers only Cancel (decision D3 in the activation VP
+   * liveness gate spec): a deposit the app cannot check or download for is
+   * not activated from here.
    */
   providerAddress?: string;
   peginTxid?: string;
   depositorPk?: string;
   unsignedPrePeginTxHex?: string;
+  /**
+   * God-mode demo vaults carry a synthetic provider that no probe can
+   * confirm; the dev-only demo path sets this so the modal takes a
+   * "reachable" verdict without a network call. Never set for real deposits.
+   */
+  simulateProviderLiveness?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -58,6 +69,7 @@ export function ActivateConfirmationModal({
   peginTxid,
   depositorPk,
   unsignedPrePeginTxHex,
+  simulateProviderLiveness = false,
   onClose,
   onConfirm,
 }: ActivateConfirmationModalProps) {
@@ -117,10 +129,83 @@ export function ActivateConfirmationModal({
   // exactly one of the two renders at every width.
   const isMobile = useIsMobile(WINDOW_BREAKPOINT);
 
-  const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
+  // A malformed address is a data problem too: no proxy URL can be built
+  // from it, so neither the probe nor the download could ever run.
+  const canRenderCard = Boolean(
+    providerAddress &&
+      ETH_ADDRESS_PATTERN.test(providerAddress) &&
+      peginTxid &&
+      depositorPk,
+  );
+  // A deposit the app cannot check or download for must not be activated
+  // (decision D3); the indexer record is what is incomplete, not the vault.
+  const dataIncomplete = !canRenderCard;
   const gate = useProtocolGateState();
   const activationBlocked = isActivationBlocked(gate);
-  const isConfirmSkip = !downloaded && step === "confirmSkip" && !graphMismatch;
+
+  // Activation is irreversible, so the modal asks the provider one question
+  // before offering anything (pegin.md: read the status before revealing s).
+  // An incomplete deposit is blocked without asking.
+  const liveness = useVpLiveness(
+    providerAddress,
+    vaultId,
+    open && !simulateProviderLiveness && canRenderCard,
+  );
+  const livenessStatus = simulateProviderLiveness
+    ? "reachable"
+    : liveness.status;
+  const vpReachable = livenessStatus === "reachable";
+  const vpUnconfirmed = livenessStatus === "vp-unconfirmed";
+  const proxyUnreachable = livenessStatus === "proxy-unreachable";
+  // `idle` and `probing` both mean "no verdict yet"; nothing opens on either.
+  const probeSettled = vpReachable || vpUnconfirmed || proxyUnreachable;
+
+  // A failed download may mean the provider went away mid-transfer, so the
+  // provider is asked again.
+  const downloadError = downloadState.error;
+  const { retry: retryProbe } = liveness;
+  useEffect(() => {
+    if (downloadError !== null) retryProbe();
+  }, [downloadError, retryProbe]);
+
+  const isConfirmSkip =
+    !downloaded &&
+    step === "confirmSkip" &&
+    !graphMismatch &&
+    vpReachable &&
+    !dataIncomplete;
+
+  // Losing confirmation, or the deposit's details, while on the confirm-skip
+  // step sends the user back: the acknowledgement was given against a
+  // provider that answered for a deposit the app could check.
+  useEffect(() => {
+    if (step === "confirmSkip" && (!vpReachable || dataIncomplete)) {
+      setStep("download");
+      setAcknowledged(false);
+    }
+  }, [step, vpReachable, dataIncomplete]);
+
+  const blockedByProbe = vpUnconfirmed || proxyUnreachable;
+
+  // With artifacts saved, a graph mismatch or a protocol pause already
+  // withholds Activate, so the saved-artifacts warning (and its Check again)
+  // must not say the user can still activate. The card stays visible: it
+  // carries the mismatch reason; a pause is announced by the page banner.
+  const activateWithheld = graphMismatch || activationBlocked;
+  const showUnconfirmedDownloadedWarning =
+    downloaded && vpUnconfirmed && !activateWithheld;
+
+  // The card unmounts with its inputs; drop the mirrored download state so the
+  // footer does not offer a cancel that would reach a null ref.
+  useEffect(() => {
+    if (dataIncomplete) setDownloadState(IDLE_DOWNLOAD_STATE);
+  }, [dataIncomplete]);
+
+  // Download may start before the verdict; a verdict that blocks ends it.
+  const downloadInFlight = downloadState.loading;
+  useEffect(() => {
+    if (blockedByProbe && downloadInFlight) cardRef.current?.cancel();
+  }, [blockedByProbe, downloadInFlight]);
 
   const handleBackToDownload = () => {
     setAcknowledged(false);
@@ -159,7 +244,7 @@ export function ActivateConfirmationModal({
           isMobile && "px-6 pb-2 pt-10",
         )}
       >
-        {isDownloading ? (
+        {isDownloading && !dataIncomplete ? (
           <ArtifactDownloadContent
             receivedBytes={downloadState.receivedBytes}
             totalBytes={downloadState.totalBytes}
@@ -167,7 +252,7 @@ export function ActivateConfirmationModal({
           />
         ) : (
           <div className="flex flex-col items-center gap-6">
-            {downloaded ? (
+            {downloaded && !dataIncomplete ? (
               <ArtifactModalIcon variant="downloaded" />
             ) : (
               !isConfirmSkip && (
@@ -191,38 +276,67 @@ export function ActivateConfirmationModal({
             )}
             <div className="flex w-full flex-col items-center gap-6">
               <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
-                {downloaded
-                  ? COPY.deposit.activateConfirmation.titleDownloaded
-                  : isConfirmSkip
-                    ? COPY.deposit.activateConfirmation.confirmSkipTitle
-                    : COPY.deposit.activateConfirmation.title}
+                {dataIncomplete
+                  ? COPY.deposit.activateConfirmation.dataIncompleteTitle
+                  : downloaded
+                    ? COPY.deposit.activateConfirmation.titleDownloaded
+                    : isConfirmSkip
+                      ? COPY.deposit.activateConfirmation.confirmSkipTitle
+                      : vpUnconfirmed
+                        ? COPY.deposit.activateConfirmation.vpUnconfirmedTitle
+                        : proxyUnreachable
+                          ? COPY.deposit.activateConfirmation
+                              .proxyUnreachableTitle
+                          : COPY.deposit.activateConfirmation.title}
               </h2>
               <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-                {downloaded
-                  ? COPY.deposit.activateConfirmation.bodyDownloaded
-                  : isConfirmSkip
-                    ? COPY.deposit.activateConfirmation.confirmSkipBody
-                    : COPY.deposit.activateConfirmation.body.map(
-                        (segment, index) => (
-                          <span
-                            key={index}
-                            className={
-                              segment.emphasis
-                                ? "text-accent-primary"
-                                : undefined
-                            }
-                          >
-                            {segment.text}
-                          </span>
-                        ),
-                      )}
+                {dataIncomplete
+                  ? COPY.deposit.activateConfirmation.dataIncompleteBody
+                  : downloaded
+                    ? showUnconfirmedDownloadedWarning
+                      ? COPY.deposit.activateConfirmation
+                          .vpUnconfirmedBodyDownloaded
+                      : COPY.deposit.activateConfirmation.bodyDownloaded
+                    : isConfirmSkip
+                      ? COPY.deposit.activateConfirmation.confirmSkipBody
+                      : vpUnconfirmed
+                        ? COPY.deposit.activateConfirmation.vpUnconfirmedBody
+                        : proxyUnreachable
+                          ? COPY.deposit.activateConfirmation
+                              .proxyUnreachableBody
+                          : COPY.deposit.activateConfirmation.body.map(
+                              (segment, index) => (
+                                <span
+                                  key={index}
+                                  className={
+                                    segment.emphasis
+                                      ? "text-accent-primary"
+                                      : undefined
+                                  }
+                                >
+                                  {segment.text}
+                                </span>
+                              ),
+                            )}
               </p>
+              {!dataIncomplete && !probeSettled && (
+                <p className="text-center text-sm leading-[1.5] tracking-[0.15px] text-accent-secondary">
+                  {COPY.deposit.activateConfirmation.probingVaultProvider}
+                </p>
+              )}
             </div>
           </div>
         )}
 
         {canRenderCard && (
-          <div hidden={isConfirmSkip || isDownloading}>
+          <div
+            hidden={
+              isConfirmSkip ||
+              isDownloading ||
+              showUnconfirmedDownloadedWarning ||
+              (blockedByProbe && !downloaded)
+            }
+          >
             <RecoveryArtifactsCard
               ref={cardRef}
               providerAddress={providerAddress as string}
@@ -267,7 +381,16 @@ export function ActivateConfirmationModal({
           isMobile && "px-6 pb-6",
         )}
       >
-        {isDownloading ? (
+        {dataIncomplete ? (
+          <Button
+            variant="outlined"
+            size="medium"
+            className="h-10 flex-1 rounded-lg"
+            onClick={handleClose}
+          >
+            {COPY.deposit.activateConfirmation.cancelButton}
+          </Button>
+        ) : isDownloading ? (
           <Button
             variant="outlined"
             size="medium"
@@ -278,21 +401,34 @@ export function ActivateConfirmationModal({
           </Button>
         ) : downloaded ? (
           <>
-            <Button
-              variant="outlined"
-              size="medium"
-              className="h-10 flex-1 rounded-lg"
-              onClick={handleClose}
-            >
-              {COPY.deposit.activateConfirmation.cancelButton}
-            </Button>
+            {showUnconfirmedDownloadedWarning ? (
+              // data-testid is a real-wallet E2E hook (e2e/real/actions/stepMachine.ts) — carry it over if you move or rename the element.
+              <Button
+                variant="outlined"
+                size="medium"
+                className="h-10 flex-1 rounded-lg"
+                onClick={liveness.retry}
+                data-testid="retry-vp-probe-button"
+              >
+                {COPY.deposit.activateConfirmation.checkAgainButton}
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                size="medium"
+                className="h-10 flex-1 rounded-lg"
+                onClick={handleClose}
+              >
+                {COPY.deposit.activateConfirmation.cancelButton}
+              </Button>
+            )}
             <Button
               variant="contained"
               color="secondary"
               size="medium"
               className="h-10 flex-1 rounded-lg"
               onClick={onConfirm}
-              disabled={graphMismatch || activationBlocked}
+              disabled={graphMismatch || activationBlocked || !probeSettled}
               data-testid="activate-vault-button"
             >
               {COPY.deposit.activateConfirmation.activateButton}
@@ -320,9 +456,31 @@ export function ActivateConfirmationModal({
               {COPY.deposit.activateConfirmation.activateButton}
             </Button>
           </>
+        ) : blockedByProbe ? (
+          <>
+            <Button
+              variant="outlined"
+              size="medium"
+              className="h-10 flex-1 rounded-lg"
+              onClick={handleClose}
+            >
+              {COPY.deposit.activateConfirmation.cancelButton}
+            </Button>
+            {/* data-testid is a real-wallet E2E hook (e2e/real/actions/stepMachine.ts) — carry it over if you move or rename the element. */}
+            <Button
+              variant="contained"
+              color="secondary"
+              size="medium"
+              className="h-10 flex-1 rounded-lg"
+              onClick={liveness.retry}
+              data-testid="retry-vp-probe-button"
+            >
+              {COPY.deposit.activateConfirmation.checkAgainButton}
+            </Button>
+          </>
         ) : (
           <>
-            {!graphMismatch && (
+            {!graphMismatch && vpReachable && (
               <Button
                 variant="outlined"
                 size="medium"
@@ -338,7 +496,6 @@ export function ActivateConfirmationModal({
               size="medium"
               className="h-10 flex-1 rounded-lg"
               onClick={() => cardRef.current?.download()}
-              disabled={!canRenderCard}
               data-testid="download-artifacts-button"
             >
               {COPY.deposit.activateConfirmation.downloadButton}

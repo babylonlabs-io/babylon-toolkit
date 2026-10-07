@@ -39,7 +39,21 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
 }));
 
 vi.mock("../ActivationGate", () => ({
-  ActivationGate: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ActivationGate: ({
+    children,
+    simulatedProvider,
+  }: {
+    children: ReactNode;
+    simulatedProvider?: boolean;
+  }) => (
+    <>
+      <div
+        data-testid="activation-gate"
+        data-simulated={String(simulatedProvider === true)}
+      />
+      {children}
+    </>
+  ),
 }));
 
 vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
@@ -451,7 +465,13 @@ describe("PostDepositContinuationView", () => {
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.ACTIVATE_VAULT] }),
     );
-    expect(renderView().getByTestId("activate")).toBeTruthy();
+    const view = renderView();
+    expect(view.getByTestId("activate")).toBeTruthy();
+    // A real vault's provider is probed for real.
+    expect(view.getByTestId("activation-gate")).toHaveAttribute(
+      "data-simulated",
+      "false",
+    );
   });
 
   it("runs the simulated activation for a god-mode demo vault", async () => {
@@ -461,7 +481,7 @@ describe("PostDepositContinuationView", () => {
         contractStatus: 1,
       }),
     );
-    const { findByTestId, queryByTestId } = render(
+    const { findByTestId, getByTestId, queryByTestId } = render(
       <PostDepositContinuationView
         vaultIds={["0xvault0" as Hex]}
         activities={[activityWithId("0xvault0")]}
@@ -476,6 +496,12 @@ describe("PostDepositContinuationView", () => {
     // mount would auto-fire wallet signing and the on-chain submission).
     expect(await findByTestId("demo-activate")).toBeTruthy();
     expect(queryByTestId("activate")).toBeNull();
+    // Its synthetic provider can never answer a real probe, so the gate is
+    // told to simulate the verdict.
+    expect(getByTestId("activation-gate")).toHaveAttribute(
+      "data-simulated",
+      "true",
+    );
   });
 
   it("renders a read-only progress view for a non-activation god-mode demo step", () => {
