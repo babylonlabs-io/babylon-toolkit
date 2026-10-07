@@ -366,9 +366,16 @@ export async function walkStepMachine(
       log(
         `⚠️ Vault provider unconfirmed at the Activate gate — clicking "Check again" (${vpCheckAgainCount}/${VP_PROBE_CHECK_AGAIN_LIMIT})`,
       );
-      await checkAgainButton(page)
-        .click({ timeout: STEP_TIMEOUT_MS })
-        .catch(() => {});
+      // A click that fails is a UI or automation fault, not the provider: stop with that cause rather
+      // than charge the probe budget for it and blame the provider three clicks later.
+      try {
+        await checkAgainButton(page).click({ timeout: STEP_TIMEOUT_MS });
+      } catch (error) {
+        throw new Error(
+          `Could not click "Check again" on the Activate modal (a UI/automation issue, not a vault provider outage). trace.zip + the failure screenshot are captured.`,
+          { cause: error },
+        );
+      }
       lastCheckAgainClickAt = Date.now();
     }
 
