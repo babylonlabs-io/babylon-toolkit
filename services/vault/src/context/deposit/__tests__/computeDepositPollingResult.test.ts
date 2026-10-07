@@ -13,6 +13,8 @@ import {
   PEGIN_DISPLAY_LABELS,
   PeginAction,
   getPeginProgressStep,
+  isVaultActivated,
+  isVaultActivationReturned,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -68,6 +70,7 @@ function makeInputs(
     optimisticStatuses: new Map(),
     optimisticRefundBroadcastAt: new Map(),
     wotsSubmittedAt: new Map(),
+    activationReturnedIds: new Set(),
     btcPublicKey: PUBKEY,
     ...overrides,
   };
@@ -879,5 +882,83 @@ describe("computeDepositPollingResult — expired-vault redeem", () => {
     expect(result.peginState.availableActions).not.toContain(
       PeginAction.CLAIM_EXPIRED_VAULT,
     );
+  });
+});
+
+describe("computeDepositPollingResult — activation returned", () => {
+  function makeSubmittedActivationInputs(
+    overrides: Partial<DepositPollingInputs> = {},
+  ): DepositPollingInputs {
+    return makeInputs({
+      activity: {
+        ...makeExpiredActivity(),
+        displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+        contractStatus: ContractStatus.VERIFIED,
+        peginTxHash: PEGIN_TX,
+      },
+      matureRefundTxids: new Set(),
+      optimisticStatuses: new Map([[VAULT_ID, LocalStorageStatus.CONFIRMED]]),
+      ...overrides,
+    });
+  }
+
+  it("reports a submitted activation the session saw return the BTC as returned, not activated", () => {
+    const result = computeDepositPollingResult(
+      makeSubmittedActivationInputs({
+        activationReturnedIds: new Set([VAULT_ID]),
+      }),
+    );
+
+    expect(isVaultActivationReturned(result.peginState)).toBe(true);
+    expect(isVaultActivated(result.peginState)).toBe(false);
+  });
+
+  it("keeps a submitted activation without the mark reading as activated", () => {
+    const result = computeDepositPollingResult(makeSubmittedActivationInputs());
+
+    expect(isVaultActivationReturned(result.peginState)).toBe(false);
+    expect(isVaultActivated(result.peginState)).toBe(true);
+  });
+
+  it("reports a stored CONFIRMED record carrying the returned outcome as returned after a reload empties the session store", () => {
+    const result = computeDepositPollingResult(
+      makeSubmittedActivationInputs({
+        optimisticStatuses: new Map(),
+        activationReturnedIds: new Set(),
+        pendingPegins: [
+          {
+            id: VAULT_ID,
+            peginTxHash: PEGIN_TX,
+            timestamp: 1_700_000_000_000,
+            status: LocalStorageStatus.CONFIRMED,
+            activationOutcome: "returned",
+            unsignedTxHex: "0x00",
+          },
+        ],
+      }),
+    );
+
+    expect(isVaultActivationReturned(result.peginState)).toBe(true);
+    expect(isVaultActivated(result.peginState)).toBe(false);
+  });
+
+  it("keeps a stored CONFIRMED record without an outcome reading as activated", () => {
+    const result = computeDepositPollingResult(
+      makeSubmittedActivationInputs({
+        optimisticStatuses: new Map(),
+        pendingPegins: [
+          {
+            id: VAULT_ID,
+            peginTxHash: PEGIN_TX,
+            timestamp: 1_700_000_000_000,
+            status: LocalStorageStatus.CONFIRMED,
+            unsignedTxHex: "0x00",
+          },
+        ],
+      }),
+    );
+
+    expect(isVaultActivationReturned(result.peginState)).toBe(false);
+    expect(isVaultActivated(result.peginState)).toBe(true);
   });
 });

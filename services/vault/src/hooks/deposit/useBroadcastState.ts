@@ -9,6 +9,7 @@
  * so there is no isComplete state — the BroadcastSuccessModal takes over.
  */
 
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useCallback, useState } from "react";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
@@ -81,6 +82,9 @@ export function useBroadcastState({
     try {
       await vaultHandleBroadcast({
         vaultId: activity.id,
+        // The ids are vault ids widened to string by the props; this only
+        // restores the Hex type the capacity check reads them with.
+        batchVaultIds: batchVaultIds.map((id) => ensureHexPrefix(id)),
         depositorEthAddress,
         pendingPegin,
         updatePendingPeginStatus,

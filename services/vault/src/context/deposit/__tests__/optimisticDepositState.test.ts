@@ -6,6 +6,7 @@ import {
   getOptimisticDepositState,
   hasWotsSubmissionRecord,
   isWotsSubmissionWithinTtl,
+  markActivationReturned,
   markWotsSubmitted,
   resetOptimisticDepositState,
   setOptimisticDepositStatus,
@@ -82,6 +83,28 @@ describe("optimisticDepositState", () => {
     const after = getOptimisticDepositState();
     markWotsSubmitted(DEPOSIT_ID);
     expect(getOptimisticDepositState()).toBe(after);
+  });
+
+  it("records an activation that returned the BTC", () => {
+    markActivationReturned(DEPOSIT_ID);
+    expect(
+      getOptimisticDepositState().activationReturnedIds.has(DEPOSIT_ID),
+    ).toBe(true);
+  });
+
+  it("keeps the snapshot reference stable when the same returned activation is recorded twice", () => {
+    markActivationReturned(DEPOSIT_ID);
+    const after = getOptimisticDepositState();
+    markActivationReturned(DEPOSIT_ID);
+    expect(getOptimisticDepositState()).toBe(after);
+  });
+
+  it("keeps a returned activation when a status is set afterwards", () => {
+    markActivationReturned(DEPOSIT_ID);
+    setOptimisticDepositStatus(DEPOSIT_ID, LocalStorageStatus.CONFIRMED);
+    expect(
+      getOptimisticDepositState().activationReturnedIds.has(DEPOSIT_ID),
+    ).toBe(true);
   });
 
   it("keeps the snapshot reference stable when the same status is set twice", () => {

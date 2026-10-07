@@ -40,6 +40,17 @@ export interface PendingPeginRequest {
   refundBroadcastAt?: number;
   payoutSignedAt?: number;
   /**
+   * `"returned"` when this browser's normal activation landed but its receipt
+   * proved the registry redeemed the BTCVault for the depositor instead of
+   * handing it to the application (see `activationRedeemedForDepositor`).
+   * Written in the same write as the CONFIRMED status it qualifies and only
+   * alongside it: CONFIRMED alone reads as activated, so a reload or another
+   * tab must never see one without the other. Absent for an activation the
+   * application took, for the escape hatch (it has its own success screen),
+   * and on records written before this field existed.
+   */
+  activationOutcome?: "returned";
+  /**
    * Fingerprint of the canonical transaction set the depositor signed at
    * presign, hex, no prefix. `btc-vault/docs/specifications/pegin.md` §5.9 makes this the
    * depositor's binding between signing and activation: the artifact bundle
@@ -217,6 +228,17 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     ) {
       return false;
     }
+  }
+
+  // Keeps a vault from reading as activated, so an unknown value must not
+  // pass for a known one. Only ever written together with CONFIRMED, so any
+  // other pairing is not a record this app wrote.
+  if (
+    pegin.activationOutcome !== undefined &&
+    (pegin.activationOutcome !== "returned" ||
+      pegin.status !== LocalStorageStatus.CONFIRMED)
+  ) {
+    return false;
   }
 
   // The activation gate compares this against the returned graph, so a
@@ -699,14 +721,31 @@ export function addPendingPegin(
  * Update status of a pending peg-in
  * Used to track user actions through the peg-in flow
  *
+ * `activationOutcome` qualifies a CONFIRMED status and lands in the same
+ * write, so no reader ever sees one without the other. A status write without
+ * it clears a stored outcome, the way any status but PAYOUT_SIGNED clears
+ * `payoutSignedAt`.
+ *
  * Operates on the raw stored array so entries the read filter hides are written
  * back untouched.
+ *
+ * @throws when `activationOutcome` comes with any status but CONFIRMED: the
+ * read filter rejects that pairing, so the write would hide the record.
  */
 export function updatePendingPeginStatus(
   ethAddress: string,
   vaultId: string,
   status: LocalStorageStatus,
+  activationOutcome?: PendingPeginRequest["activationOutcome"],
 ): void {
+  if (
+    activationOutcome !== undefined &&
+    status !== LocalStorageStatus.CONFIRMED
+  ) {
+    throw new Error(
+      `Activation outcome "${activationOutcome}" for vault ${vaultId} can only be stored with status "${LocalStorageStatus.CONFIRMED}", not "${status}"`,
+    );
+  }
   if (!ethAddress) return;
 
   const read = readStoredEntries(ethAddress);
@@ -722,6 +761,7 @@ export function updatePendingPeginStatus(
             status === LocalStorageStatus.PAYOUT_SIGNED
               ? Date.now()
               : undefined,
+          activationOutcome,
         }
       : entry,
   );
@@ -945,6 +985,9 @@ export function markRefundBroadcast(
           ...(entry as object),
           status: LocalStorageStatus.REFUND_BROADCAST,
           refundBroadcastAt,
+          // Qualifies CONFIRMED only; the read filter rejects it on any other
+          // status, which would hide this record and its refund marker.
+          activationOutcome: undefined,
         }
       : entry,
   );

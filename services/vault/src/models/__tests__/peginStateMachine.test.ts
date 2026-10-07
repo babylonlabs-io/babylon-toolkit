@@ -14,6 +14,8 @@ import {
   isCandidateVault,
   isRefundInFlightOrSettled,
   isVaultActivated,
+  isVaultActivationReturned,
+  isVaultPastActivation,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
@@ -1134,6 +1136,140 @@ describe("peginStateMachine", () => {
       expect(isVaultActivated(getPeginState(ContractStatus.REDEEMED))).toBe(
         false,
       );
+    });
+
+    it("is false for the optimistic VERIFIED + CONFIRMED state once the activation returned the BTC", () => {
+      expect(
+        isVaultActivated(
+          getPeginState(ContractStatus.VERIFIED, {
+            localStatus: LocalStorageStatus.CONFIRMED,
+            activationReturned: true,
+          }),
+        ),
+      ).toBe(false);
+    });
+
+    it("stays true for an ACTIVE vault even when the session marked its activation returned", () => {
+      // The chain says the application took the vault; the receipt reading
+      // that suggested otherwise loses.
+      expect(
+        isVaultActivated(
+          getPeginState(ContractStatus.ACTIVE, { activationReturned: true }),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("isVaultActivationReturned", () => {
+    it("is true for the optimistic VERIFIED + CONFIRMED state the session marked returned", () => {
+      expect(
+        isVaultActivationReturned(
+          getPeginState(ContractStatus.VERIFIED, {
+            localStatus: LocalStorageStatus.CONFIRMED,
+            activationReturned: true,
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("stays true once the indexer reports the marked vault REDEEMED", () => {
+      expect(
+        isVaultActivationReturned(
+          getPeginState(ContractStatus.REDEEMED, { activationReturned: true }),
+        ),
+      ).toBe(true);
+    });
+
+    it("stays true once the payout to the depositor lands", () => {
+      expect(
+        isVaultActivationReturned(
+          getPeginState(ContractStatus.DEPOSITOR_WITHDRAWN, {
+            activationReturned: true,
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("is false for a REDEEMED vault the session did not mark", () => {
+      // A vault activated and later withdrawn by the depositor reads REDEEMED
+      // too, and its BTC is not being returned by a failed activation.
+      expect(
+        isVaultActivationReturned(getPeginState(ContractStatus.REDEEMED)),
+      ).toBe(false);
+    });
+
+    it("is false when the chain reports the marked vault ACTIVE", () => {
+      expect(
+        isVaultActivationReturned(
+          getPeginState(ContractStatus.ACTIVE, { activationReturned: true }),
+        ),
+      ).toBe(false);
+    });
+
+    it("is false for undefined", () => {
+      expect(isVaultActivationReturned(undefined)).toBe(false);
+    });
+  });
+
+  // The mark is written alongside CONFIRMED, but must hold on its own: the
+  // registry already redeemed the vault, so it can never be activated again.
+  describe("a returned activation whose CONFIRMED status is missing", () => {
+    it("is past activation", () => {
+      expect(
+        isVaultPastActivation(
+          getPeginState(ContractStatus.VERIFIED, { activationReturned: true }),
+        ),
+      ).toBe(true);
+    });
+
+    it("is not a continuation candidate", () => {
+      expect(
+        isCandidateVault(
+          getPeginState(ContractStatus.VERIFIED, { activationReturned: true }),
+        ),
+      ).toBe(false);
+    });
+
+    it("offers no activation action", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        activationReturned: true,
+      });
+
+      expect(state.availableActions).not.toContain(PeginAction.ACTIVATE_VAULT);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("reads as a redemption with the returned message, not one ready to activate", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        activationReturned: true,
+      });
+
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS);
+      expect(state.message).toBe(COPY.pegin.messages.activationReturned);
+      expect(getPeginDisplayStep(state)).toBe(
+        DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+      );
+    });
+  });
+
+  describe("display of a VERIFIED vault whose activation was submitted", () => {
+    it("reads as a redemption with the returned message once the activation is known to have returned the BTC", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.CONFIRMED,
+        activationReturned: true,
+      });
+
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS);
+      expect(state.message).toBe(COPY.pegin.messages.activationReturned);
+    });
+
+    it("reads as an activation still confirming when nothing says it returned", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.CONFIRMED,
+      });
+
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
+      expect(state.message).toBe(COPY.pegin.messages.activationSubmitted);
     });
   });
 });

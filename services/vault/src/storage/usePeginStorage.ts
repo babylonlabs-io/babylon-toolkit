@@ -60,10 +60,14 @@ export interface UsePeginStorageResult {
       status?: LocalStorageStatus;
     },
   ) => void;
-  /** Update status of a pending peg-in */
+  /**
+   * Update status of a pending peg-in. `activationOutcome` qualifies a
+   * CONFIRMED status and is stored in the same write.
+   */
   updatePendingPeginStatus: (
     vaultId: string,
     status: LocalStorageStatus,
+    activationOutcome?: PendingPeginRequest["activationOutcome"],
   ) => void;
   /**
    * Remove a single pending peg-in by vault id. Used by the resume
@@ -345,9 +349,18 @@ export function usePeginStorage({
 
   // Update pending peg-in status - storage function will dispatch event
   const updatePendingPeginStatus = useCallback(
-    (vaultId: string, status: LocalStorageStatus) => {
+    (
+      vaultId: string,
+      status: LocalStorageStatus,
+      activationOutcome?: PendingPeginRequest["activationOutcome"],
+    ) => {
       if (!ethAddress) return;
-      updatePendingPeginStatusInStorage(ethAddress, vaultId, status);
+      updatePendingPeginStatusInStorage(
+        ethAddress,
+        vaultId,
+        status,
+        activationOutcome,
+      );
       // Event will be dispatched by storage function - no manual state update needed
     },
     [ethAddress],

@@ -100,7 +100,7 @@ export function EmergencyWithdrawModal({
 
   const {
     activating,
-    activated,
+    outcome,
     error: activationError,
     errorTerminal,
     handleActivation,
@@ -289,8 +289,9 @@ export function EmergencyWithdrawModal({
   );
 
   // Fire onSuccess only after the user acknowledges the result so the parent
-  // refetch doesn't race the success modal.
-  if (activated) {
+  // refetch doesn't race the success modal. Any outcome lands here: the escape
+  // hatch always redeems, and this screen already says so.
+  if (outcome !== null) {
     const handleDone = () => {
       onSuccess();
       onClose();

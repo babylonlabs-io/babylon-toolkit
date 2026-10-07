@@ -13,6 +13,10 @@
  */
 
 import {
+  BTCVaultRegistryABI,
+  canonicalizeBtcPubkey,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
   activateVault,
   activateVaultAndRedeem,
   claimExpiredVault,
@@ -185,6 +189,9 @@ export async function claimExpiredVaultWithSecret(
  * `CollateralAdded` log for this vault. The registry can confirm an
  * activation and still add no collateral (for example, it redeems the vault
  * when a cap is exceeded), so a confirmed receipt alone does not prove it.
+ * A vault activated into another application never carries this log either,
+ * so its absence does not prove a redemption: see
+ * {@link activationRedeemedForDepositor}.
  */
 export function activationAddedCollateral(
   { receipt }: TransactionResult,
@@ -198,5 +205,61 @@ export function activationAddedCollateral(
     (log) =>
       isAddressEqual(log.address, CONTRACTS.AAVE_ADAPTER) &&
       log.args.vaultId.toLowerCase() === vaultId.toLowerCase(),
+  );
+}
+
+/**
+ * True when the activation receipt carries the registry's `VaultClaimableBy`
+ * log making this vault claimable by the depositor's own BTC key: the
+ * activation landed, but the registry redeemed the vault for the depositor
+ * instead of handing it to the application.
+ *
+ * Positive evidence, not an inference from a missing log. Both depositor
+ * redeem paths emit one log for the vault provider's key and one for
+ * `vBasic.depositorBtcPubKey`:
+ * `RedeemLogic.redeemFreshlyActivatedForDepositor`
+ * (vault-contracts-aave-v4@06f46477:src/protocol/lib/RedeemLogic.sol:82-83),
+ * which an activation reaches when the application cap is exceeded or the
+ * application's `activateVault` reverts
+ * (vault-contracts-aave-v4@06f46477:src/protocol/BTCVaultRegistry.sol:742-743,
+ * vault-contracts-aave-v4@06f46477:src/protocol/BTCVaultRegistry.sol:754-759)
+ * and the escape hatch always reaches
+ * (vault-contracts-aave-v4@06f46477:src/protocol/BTCVaultRegistry.sol:771-773);
+ * and `RedeemLogic.redeemForDepositor`
+ * (vault-contracts-aave-v4@06f46477:src/protocol/lib/RedeemLogic.sol:42-43).
+ *
+ * The claimer key is what makes it the depositor's, not the vault id alone.
+ * `redeemVaultForAVK` is not `nonReentrant`
+ * (vault-contracts-aave-v4@06f46477:src/protocol/BTCVaultRegistry.sol:1140),
+ * so an application whose `activateVault` calls back into it emits a
+ * `VaultClaimableBy` for this vault inside the activation transaction, but
+ * only for the keeper's key
+ * (vault-contracts-aave-v4@06f46477:src/protocol/lib/RedeemLogic.sol:63): the
+ * BTC goes to the keeper, not back to the depositor.
+ *
+ * RedeemLogic is a linked library run by DELEGATECALL, so the log's address is
+ * the registry. Event signature:
+ * vault-contracts-aave-v4@06f46477:src/protocol/lib/types/Events.sol:41-50,
+ * matched by the SDK registry ABI.
+ *
+ * @param depositorBtcPubKey - The vault's depositor BTC key as the registry
+ *   records it (x-only, `0x` optional). Compared in canonical form, since the
+ *   log's indexed `claimerPK` is the same bytes32 the registry stores.
+ */
+export function activationRedeemedForDepositor(
+  { receipt }: TransactionResult,
+  vaultId: Hex,
+  depositorBtcPubKey: string,
+): boolean {
+  const expectedClaimer = canonicalizeBtcPubkey(depositorBtcPubKey);
+  return parseEventLogs({
+    abi: BTCVaultRegistryABI,
+    logs: receipt.logs,
+    eventName: "VaultClaimableBy",
+  }).some(
+    (log) =>
+      isAddressEqual(log.address, CONTRACTS.BTC_VAULT_REGISTRY) &&
+      log.args.vaultId.toLowerCase() === vaultId.toLowerCase() &&
+      canonicalizeBtcPubkey(log.args.claimerPK) === expectedClaimer,
   );
 }

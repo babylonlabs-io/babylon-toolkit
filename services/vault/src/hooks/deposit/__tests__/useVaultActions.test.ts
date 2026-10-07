@@ -19,7 +19,7 @@ import {
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
-import { ContractStatus } from "@/models/peginStateMachine";
+import { ContractStatus, getNextLocalStatus } from "@/models/peginStateMachine";
 import {
   assertUtxosAvailable,
   broadcastPrePeginTransaction,
@@ -32,11 +32,14 @@ import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
   activationAddedCollateral,
+  activationRedeemedForDepositor,
 } from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
+  PositionCapacityExceededError,
+  PositionCapacityUnavailableError,
 } from "@/utils/errors";
 
 import { useVaultActions } from "../useVaultActions";
@@ -84,6 +87,16 @@ const mockVerifyResumeParticipantKeys = vi.hoisted(() =>
 );
 vi.mock("@/services/vault/verifyResumeParticipantKeys", () => ({
   verifyResumeParticipantKeys: mockVerifyResumeParticipantKeys,
+}));
+
+// Position-capacity gate. Default: the position has room, so the pre-existing
+// broadcast tests are unaffected. The gate's own reads are covered by
+// assertResumePositionCapacity.test.ts.
+const mockAssertResumePositionCapacity = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
+vi.mock("@/services/vault/assertResumePositionCapacity", () => ({
+  assertResumePositionCapacity: mockAssertResumePositionCapacity,
 }));
 
 // `captureFunnelFailure` reaches the logger through this barrel, so mocking it
@@ -242,6 +255,7 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
   activateVaultWithSecretAndRedeem: vi.fn(),
   activationAddedCollateral: vi.fn(() => true),
+  activationRedeemedForDepositor: vi.fn(() => false),
 }));
 
 vi.mock("@/services/vault/rebuildDepositTerms", () => ({
@@ -291,7 +305,9 @@ const mockActivateVaultWithSecretAndRedeem = vi.mocked(
  * Build a fake reader that returns a combined basic+protocol payload from
  * `getVaultData` (the single read used by `handleActivation`).
  * Defaults `basicInfo` to `status: VERIFIED` so existing happy-path tests
- * pass the on-chain status precondition unchanged.
+ * pass the on-chain status precondition unchanged. The on-chain depositor BTC
+ * key is filled in unless a test sets it, since the activation reads it before
+ * every reveal.
  */
 function readerReturning(
   protocolInfo: Record<string, unknown>,
@@ -303,12 +319,17 @@ function readerReturning(
   },
 ): ReturnType<typeof getVaultRegistryReader> {
   const completeProtocolInfo = { htlcVout: 0, ...protocolInfo };
+  const completeBasicInfo = {
+    depositorBtcPubKey: `0x${DEPOSITOR_BTC_KEY}`,
+    ...basicInfo,
+  };
   return {
-    getVaultData: vi
-      .fn()
-      .mockResolvedValue({ basic: basicInfo, protocol: completeProtocolInfo }),
+    getVaultData: vi.fn().mockResolvedValue({
+      basic: completeBasicInfo,
+      protocol: completeProtocolInfo,
+    }),
     getVaultProtocolInfo: vi.fn().mockResolvedValue(completeProtocolInfo),
-    getVaultBasicInfo: vi.fn().mockResolvedValue(basicInfo),
+    getVaultBasicInfo: vi.fn().mockResolvedValue(completeBasicInfo),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;
 }
 
@@ -354,6 +375,7 @@ function makeMatchingProtocolInfoBatch() {
 
 const baseBroadcastParams = {
   vaultId: "0xvaultId" as Hex,
+  batchVaultIds: ["0xvaultId" as Hex],
   depositorEthAddress: "0xconnected_depositor",
   onRefetchActivities: vi.fn(),
   onShowSuccessModal: vi.fn(),
@@ -365,6 +387,9 @@ const MATCHING_BASIC_INFO = {
   // Registration block, as the finality gate's final observation reports it.
   // Equal to the default head, so the ack window is wide open.
   createdAt: 1_000n,
+  // Read by the position-capacity gate.
+  amount: 100_000n,
+  applicationEntryPoint: "0xaave_adapter",
 };
 
 // Re-assert the default connector before EVERY test so a describe that
@@ -392,6 +417,7 @@ beforeEach(() => {
   mockHeadAgeSeconds.value = 0n;
   mockGetTBVProtocolParams.mockResolvedValue(WIDE_PROTOCOL_PARAMS);
   mockGetOffchainParamsByVersion.mockResolvedValue({ minPrepeginDepth: 6 });
+  mockAssertResumePositionCapacity.mockResolvedValue(undefined);
 });
 
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
@@ -1527,7 +1553,270 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     );
     expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
       collateralAdded: false,
+      redeemed: false,
     });
+  });
+
+  it("reports to onShowSuccessModal that the registry redeemed the vault when the receipt proves it", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const revealResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecret.mockResolvedValue(revealResult as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(activationRedeemedForDepositor).toHaveBeenCalledWith(
+      revealResult,
+      "0xvaultId",
+      DEPOSITOR_BTC_KEY,
+    );
+    expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
+      collateralAdded: false,
+      redeemed: true,
+    });
+  });
+
+  it("matches the receipt against the on-chain depositor key in canonical form", async () => {
+    const reader = readerReturning(
+      { depositorSignedPeginTx: "0xdeadbeef", hashlock: ON_CHAIN_HASHLOCK },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        depositorBtcPubKey: `0x${DEPOSITOR_BTC_KEY.toUpperCase()}`,
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const revealResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecret.mockResolvedValue(revealResult as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(activationRedeemedForDepositor).toHaveBeenCalledWith(
+      revealResult,
+      "0xvaultId",
+      DEPOSITOR_BTC_KEY,
+    );
+  });
+
+  it("refuses to reveal the secret when the on-chain record has no depositor BTC key", async () => {
+    // Without the key the receipt's returned-to-depositor evidence cannot be
+    // read, so the record must fail before the secret is public.
+    const reader = readerReturning(
+      { depositorSignedPeginTx: "0xdeadbeef", hashlock: ON_CHAIN_HASHLOCK },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        depositorBtcPubKey: "0x",
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(baseActivationParams.onShowSuccessModal).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.deposit.errors.depositorBtcKeyMissing,
+    );
+  });
+
+  it("stores the returned outcome in the same write as CONFIRMED when the registry redeemed a normal activation", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+    // Stubbed file-wide; an activation's next status is CONFIRMED.
+    vi.mocked(getNextLocalStatus).mockReturnValueOnce("confirmed" as never);
+    const updatePendingPeginStatus = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        pendingPegin: { ...basePendingPegin },
+        updatePendingPeginStatus,
+      });
+    });
+
+    expect(updatePendingPeginStatus).toHaveBeenCalledTimes(1);
+    expect(updatePendingPeginStatus).toHaveBeenCalledWith(
+      "0xvaultId",
+      "confirmed",
+      "returned",
+    );
+  });
+
+  it("stores CONFIRMED with no outcome for an activation the application accepted", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+    // Stubbed file-wide; an activation's next status is CONFIRMED.
+    vi.mocked(getNextLocalStatus).mockReturnValueOnce("confirmed" as never);
+    const updatePendingPeginStatus = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        pendingPegin: { ...basePendingPegin },
+        updatePendingPeginStatus,
+      });
+    });
+
+    expect(updatePendingPeginStatus).toHaveBeenCalledWith(
+      "0xvaultId",
+      "confirmed",
+      undefined,
+    );
+  });
+
+  it("stores CONFIRMED with no outcome for the escape hatch, which has its own success screen", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+    // Stubbed file-wide; an activation's next status is CONFIRMED.
+    vi.mocked(getNextLocalStatus).mockReturnValueOnce("confirmed" as never);
+    const updatePendingPeginStatus = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+        pendingPegin: { ...basePendingPegin },
+        updatePendingPeginStatus,
+      });
+    });
+
+    expect(updatePendingPeginStatus).toHaveBeenCalledWith(
+      "0xvaultId",
+      "confirmed",
+      undefined,
+    );
+  });
+
+  it("tags the activation event as returned when the registry redeemed a normal activation", async () => {
+    const { logger } = await import("@/infrastructure");
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(logger.event).toHaveBeenCalledWith(
+      "activation.activated",
+      expect.objectContaining({
+        tags: expect.objectContaining({ returned: "true" }),
+      }),
+    );
+  });
+
+  it("keeps the activation event's shape for an activation the application accepted", async () => {
+    const { logger } = await import("@/infrastructure");
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    // `tags` is compared whole, so an extra key fails the match.
+    expect(logger.event).toHaveBeenCalledWith(
+      "activation.activated",
+      expect.objectContaining({ tags: { vaultId: expect.any(String) } }),
+    );
+  });
+
+  it("does not tag the escape hatch as returned, since its redeem tag already says so", async () => {
+    const { logger } = await import("@/infrastructure");
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    // `tags` is compared whole, so a `returned` key fails the match.
+    expect(logger.event).toHaveBeenCalledWith(
+      "activation.activated",
+      expect.objectContaining({
+        tags: { vaultId: expect.any(String), redeem: "true" },
+      }),
+    );
   });
 
   it("checks the activate-and-redeem receipt for CollateralAdded in escape-hatch mode", async () => {
@@ -2953,6 +3242,156 @@ describe("useVaultActions — handleBroadcast ack window", () => {
     expect(result.current.broadcastError).toEqual(
       COPY.deposit.errors.broadcastAckWindowUnavailable,
     );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("useVaultActions — handleBroadcast position capacity", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.PENDING,
+      offchainParamsVersion: basePendingPegin.buildOffchainParamsVersion,
+      htlcVout: 1,
+    } as never);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+  });
+
+  it("refuses a full position before any BTC wallet prompt", async () => {
+    mockAssertResumePositionCapacity.mockRejectedValue(
+      new PositionCapacityExceededError({
+        vaultId: "0xvaultId",
+        vaultCount: 1,
+        amount: 100_000n,
+      }),
+    );
+    // "unisat" is a probe-safe wallet, so a liveness probe would call
+    // connectWallet(); none may happen for a broadcast that is refused.
+    const connector = makeDefaultChainConnector();
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: { ...connector.connectedWallet, id: "unisat" },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      }),
+    );
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.positionCapacityExceeded,
+    );
+    expect(
+      connector.connectedWallet.provider.connectWallet,
+    ).not.toHaveBeenCalled();
+    expect(mockGetPublicKeyHex).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the position's capacity cannot be read", async () => {
+    mockAssertResumePositionCapacity.mockRejectedValue(
+      new PositionCapacityUnavailableError("allowedToDeposit unreadable", {
+        vaultId: "0xvaultId",
+        cause: new Error("execution reverted"),
+      }),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      }),
+    );
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.positionCapacityUnavailable,
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("checks the whole batch against the hash-checked transaction and the on-chain record, then broadcasts", async () => {
+    const batchVaultIds = ["0xvaultId", "0xsiblingId"] as Hex[];
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        batchVaultIds,
+        pendingPegin: { ...basePendingPegin },
+      }),
+    );
+
+    expect(mockAssertResumePositionCapacity).toHaveBeenCalledWith({
+      vaultId: "0xvaultId",
+      target: {
+        depositor: MATCHING_BASIC_INFO.depositor,
+        amount: MATCHING_BASIC_INFO.amount,
+        applicationEntryPoint: MATCHING_BASIC_INFO.applicationEntryPoint,
+        prePeginTxHash: "0xmatching_pre_pegin_hash",
+        htlcVout: 1,
+      },
+      unsignedTxHex: TRUSTED_TX_HEX,
+      batchVaultIds,
+    });
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(result.current.broadcastError).toBeNull();
+  });
+
+  it("raises no wallet prompt when the modal unmounts while the capacity check is pending", async () => {
+    let releaseCapacityCheck: (() => void) | undefined;
+    const capacityCheckReached = new Promise<void>((reached) => {
+      mockAssertResumePositionCapacity.mockImplementation(() => {
+        reached();
+        return new Promise<void>((resolve) => {
+          releaseCapacityCheck = resolve;
+        });
+      });
+    });
+    // "unisat" is a probe-safe wallet, so the liveness probe that follows the
+    // check would call connectWallet().
+    const connector = makeDefaultChainConnector();
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: { ...connector.connectedWallet, id: "unisat" },
+    } as never);
+
+    const { result, unmount } = renderHook(() => useVaultActions());
+
+    let broadcastPromise: Promise<void> | undefined;
+    await act(async () => {
+      broadcastPromise = result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+      await capacityCheckReached;
+    });
+
+    await act(async () => {
+      unmount();
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)));
+    });
+
+    // The check passes, but only after the flow was cancelled.
+    await act(async () => {
+      releaseCapacityCheck?.();
+      await broadcastPromise;
+    });
+
+    expect(
+      connector.connectedWallet.provider.connectWallet,
+    ).not.toHaveBeenCalled();
+    expect(mockGetPublicKeyHex).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });

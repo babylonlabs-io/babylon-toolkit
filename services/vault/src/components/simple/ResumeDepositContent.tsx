@@ -76,6 +76,7 @@ import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { VaultActivatedView } from "./VaultActivatedView";
+import { VaultReturnedView } from "./VaultReturnedView";
 
 /**
  * Keep the error intact for mapping. Its message alone loses wallet codes
@@ -742,7 +743,7 @@ function ResumeActivationContentConnected({
 
   const {
     activating,
-    activated,
+    outcome,
     error: activationError,
     errorTerminal,
     handleActivation,
@@ -873,12 +874,20 @@ function ResumeActivationContentConnected({
     useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
 
   // Terminal: once activation is submitted (optimistic CONFIRMED) or the
-  // contract reports ACTIVE, show the activated success screen — never the
-  // completed stepper. PostDepositContinuationView swaps to the same screen
-  // when it re-selects on the polling update; this covers any window where
-  // this branch is still mounted.
-  if (activated || active) {
+  // contract reports ACTIVE, show the outcome screen — never the completed
+  // stepper. A receipt showing the registry redeemed the vault must not read
+  // as activated, but the contract status outranks the receipt reading: an
+  // ACTIVE vault is activated. PostDepositContinuationView swaps to the
+  // batch's outcome screen when it re-selects on the polling update; this
+  // covers any window where this branch is still mounted.
+  if (active || outcome === "activated") {
     return <VaultActivatedView onGoToDashboard={onGoToDashboard} />;
+  }
+  if (outcome === "returned") {
+    // Only this vault's outcome is known here, so not the partial screen.
+    return (
+      <VaultReturnedView variant="full" onGoToDashboard={onGoToDashboard} />
+    );
   }
 
   return (

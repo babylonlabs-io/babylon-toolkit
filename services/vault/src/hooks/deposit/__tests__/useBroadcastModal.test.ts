@@ -50,6 +50,77 @@ describe("useBroadcastModal", () => {
     expect(result.current.broadcastingBatchIds).toEqual(["0xc"]);
   });
 
+  it("adds a sibling listed after the modal opened to the open batch", () => {
+    const a = activity("0xa", "0xshared", "0.05");
+    const b = activity("0xb", "0xshared", "0.03");
+
+    const { result, rerender } = renderHook(
+      ({ allActivities }) =>
+        useBroadcastModal({ allActivities, onSuccess: vi.fn() }),
+      { initialProps: { allActivities: [a] } },
+    );
+
+    act(() => result.current.handleBroadcastClick("0xa"));
+    expect(result.current.broadcastingBatchIds).toEqual(["0xa"]);
+
+    rerender({ allActivities: [a, b] });
+
+    expect(result.current.broadcastingBatchIds).toEqual(["0xa", "0xb"]);
+    expect(result.current.broadcastingActivity).toBe(a);
+    expect(result.current.isOpen).toBe(true);
+  });
+
+  it("keeps the representative open and in the batch while a refetch drops it", () => {
+    const a = { ...activity("0xa", "0xshared", "0.05"), constructionIndex: 0 };
+    const b = { ...activity("0xb", "0xshared", "0.03"), constructionIndex: 1 };
+
+    const { result, rerender } = renderHook(
+      ({ allActivities }) =>
+        useBroadcastModal({ allActivities, onSuccess: vi.fn() }),
+      { initialProps: { allActivities: [a, b] } },
+    );
+
+    act(() => result.current.handleBroadcastClick("0xa"));
+    rerender({ allActivities: [b] });
+
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.broadcastingActivity).toBe(a);
+    expect(result.current.broadcastingBatchIds).toEqual(["0xa", "0xb"]);
+  });
+
+  it("keeps a sibling in the batch while a refetch drops it", () => {
+    const a = { ...activity("0xa", "0xshared", "0.05"), constructionIndex: 0 };
+    const b = { ...activity("0xb", "0xshared", "0.03"), constructionIndex: 1 };
+
+    const { result, rerender } = renderHook(
+      ({ allActivities }) =>
+        useBroadcastModal({ allActivities, onSuccess: vi.fn() }),
+      { initialProps: { allActivities: [a, b] } },
+    );
+
+    act(() => result.current.handleBroadcastClick("0xa"));
+    rerender({ allActivities: [a] });
+
+    expect(result.current.broadcastingBatchIds).toEqual(["0xa", "0xb"]);
+  });
+
+  it("sums the amounts of a sibling listed after the modal opened", () => {
+    const onSuccess = vi.fn();
+    const a = activity("0xa", "0xshared", "0.05");
+    const b = activity("0xb", "0xshared", "0.03");
+
+    const { result, rerender } = renderHook(
+      ({ allActivities }) => useBroadcastModal({ allActivities, onSuccess }),
+      { initialProps: { allActivities: [a] } },
+    );
+
+    act(() => result.current.handleBroadcastClick("0xa"));
+    rerender({ allActivities: [a, b] });
+    act(() => result.current.handleSuccess());
+
+    expect(result.current.successAmount).toBe("0.08");
+  });
+
   it("sums the batch amounts for the success modal", () => {
     const onSuccess = vi.fn();
     const a = activity("0xa", "0xshared", "0.05");

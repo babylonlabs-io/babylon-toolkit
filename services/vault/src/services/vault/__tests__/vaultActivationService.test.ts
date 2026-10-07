@@ -1,5 +1,7 @@
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
+  encodeAbiParameters,
   encodeEventTopics,
   type Address,
   type Hex,
@@ -11,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   activateVaultWithSecret,
   activationAddedCollateral,
+  activationRedeemedForDepositor,
   claimExpiredVaultWithSecret,
 } from "../vaultActivationService";
 
@@ -225,6 +228,143 @@ describe("activationAddedCollateral", () => {
       activationAddedCollateral(
         resultWithLogs([collateralAddedLog(REGISTRY_ADDRESS, vaultId)]),
         vaultId,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("activationRedeemedForDepositor", () => {
+  const ADAPTER_ADDRESS =
+    "0xCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCd" as Address;
+  const vaultId = ("0x" + "aa".repeat(32)) as Hex;
+  const otherVaultId = ("0x" + "bb".repeat(32)) as Hex;
+  const peginTxHash = ("0x" + "cc".repeat(32)) as Hex;
+  const vaultProviderKey = ("0x" + "dd".repeat(32)) as Hex;
+  const depositorKey = ("0x" + "ee".repeat(32)) as Hex;
+  const vaultKeeperKey = ("0x" + "ff".repeat(32)) as Hex;
+
+  function vaultClaimableByLog(
+    address: Address,
+    loggedVaultId: Hex,
+    claimerPK: Hex,
+  ): Log {
+    return {
+      address,
+      topics: encodeEventTopics({
+        abi: BTCVaultRegistryABI,
+        eventName: "VaultClaimableBy",
+        args: { vaultId: loggedVaultId, peginTxHash, claimerPK },
+      }) as Log["topics"],
+      // vaultCoreVersion, proverCircuitVersion, offchainParamsVersion,
+      // universalChallengersVersion, appVaultKeepersVersion.
+      data: encodeAbiParameters(
+        [
+          { type: "uint16" },
+          { type: "uint16" },
+          { type: "uint16" },
+          { type: "uint16" },
+          { type: "uint16" },
+        ],
+        [1, 1, 1, 1, 1],
+      ),
+    } as unknown as Log;
+  }
+
+  function collateralAddedLog(): Log {
+    return {
+      address: ADAPTER_ADDRESS,
+      topics: encodeEventTopics({
+        abi: AaveIntegrationAdapterABI,
+        eventName: "CollateralAdded",
+        args: {
+          positionAccount: "0x1111111111111111111111111111111111111111",
+          vaultId,
+        },
+      }) as Log["topics"],
+      data: "0x",
+    } as unknown as Log;
+  }
+
+  function resultWithLogs(logs: Log[]) {
+    return {
+      transactionHash: ("0x" + "cd".repeat(32)) as Hex,
+      receipt: { status: "success", logs },
+    } as unknown as Parameters<typeof activationRedeemedForDepositor>[0];
+  }
+
+  it("is true when the registry makes this vault claimable by the vault provider and the depositor", () => {
+    expect(
+      activationRedeemedForDepositor(
+        resultWithLogs([
+          vaultClaimableByLog(REGISTRY_ADDRESS, vaultId, vaultProviderKey),
+          vaultClaimableByLog(REGISTRY_ADDRESS, vaultId, depositorKey),
+        ]),
+        vaultId,
+        depositorKey,
+      ),
+    ).toBe(true);
+  });
+
+  it("is false when the only claim for this vault is a vault keeper's, as from an application redeeming it to its keeper", () => {
+    expect(
+      activationRedeemedForDepositor(
+        resultWithLogs([
+          vaultClaimableByLog(REGISTRY_ADDRESS, vaultId, vaultKeeperKey),
+        ]),
+        vaultId,
+        depositorKey,
+      ),
+    ).toBe(false);
+  });
+
+  it("matches the depositor key whatever its case or 0x prefix", () => {
+    expect(
+      activationRedeemedForDepositor(
+        resultWithLogs([
+          vaultClaimableByLog(REGISTRY_ADDRESS, vaultId, depositorKey),
+        ]),
+        vaultId,
+        "EE".repeat(32),
+      ),
+    ).toBe(true);
+  });
+
+  it("is false for an activation the application accepted", () => {
+    expect(
+      activationRedeemedForDepositor(
+        resultWithLogs([collateralAddedLog()]),
+        vaultId,
+        depositorKey,
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for an activation that carries neither log, as into another application", () => {
+    expect(
+      activationRedeemedForDepositor(resultWithLogs([]), vaultId, depositorKey),
+    ).toBe(false);
+  });
+
+  it("is false when the depositor's VaultClaimableBy is for a different vault", () => {
+    expect(
+      activationRedeemedForDepositor(
+        resultWithLogs([
+          vaultClaimableByLog(REGISTRY_ADDRESS, otherVaultId, depositorKey),
+        ]),
+        vaultId,
+        depositorKey,
+      ),
+    ).toBe(false);
+  });
+
+  it("is false when the depositor's VaultClaimableBy comes from a contract other than the registry", () => {
+    expect(
+      activationRedeemedForDepositor(
+        resultWithLogs([
+          vaultClaimableByLog(ADAPTER_ADDRESS, vaultId, depositorKey),
+        ]),
+        vaultId,
+        depositorKey,
       ),
     ).toBe(false);
   });

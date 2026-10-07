@@ -86,12 +86,14 @@ import {
   fetchVaultById,
 } from "../../services/vault";
 import { assertActivationFollowsConstructionOrder } from "../../services/vault/activationOrder";
+import { assertResumePositionCapacity } from "../../services/vault/assertResumePositionCapacity";
 import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
   activationAddedCollateral,
+  activationRedeemedForDepositor,
 } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import { verifyResumeParticipantKeys } from "../../services/vault/verifyResumeParticipantKeys";
@@ -103,6 +105,14 @@ import {
 
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
+  /**
+   * Every vault this Pre-PegIn commits, including `vaultId`. The broadcast
+   * funds all of them, so the position-capacity check sizes the whole batch.
+   * Indexer-derived, so discovery input only: a vault counts when its on-chain
+   * Pre-PegIn hash and depositor match, and the vaults found must hold every
+   * HTLC output of the transaction.
+   */
+  batchVaultIds: readonly Hex[];
   /**
    * ETH address selected for this action. It must match the live wallet and
    * the depositor registered on chain before signing.
@@ -146,16 +156,29 @@ export interface ActivateVaultParams {
    */
   siblingVaultIds?: readonly Hex[];
   pendingPegin?: PendingPeginRequest;
+  /**
+   * Stores CONFIRMED on `pendingPegin` once the reveal lands. A normal
+   * activation the registry redeemed for the depositor passes the `"returned"`
+   * outcome in that same write.
+   */
   updatePendingPeginStatus?: (
     vaultId: string,
     status: LocalStorageStatus,
+    activationOutcome?: PendingPeginRequest["activationOutcome"],
   ) => void;
   onRefetchActivities: () => void;
   /**
    * `collateralAdded` is true only when the receipt carries the adapter's
-   * `CollateralAdded` log for this vault.
+   * `CollateralAdded` log for this vault. `redeemed` is true only when it
+   * carries the registry's `VaultClaimableBy` log making this vault claimable
+   * by the depositor's on-chain BTC key: the registry redeemed the vault for
+   * the depositor instead of handing it to the application. A receipt with
+   * neither is an activation into an application other than the Aave adapter.
    */
-  onShowSuccessModal: (outcome: { collateralAdded: boolean }) => void;
+  onShowSuccessModal: (outcome: {
+    collateralAdded: boolean;
+    redeemed: boolean;
+  }) => void;
 }
 
 export interface UseVaultActionsReturn {
@@ -244,6 +267,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
       vaultId,
+      batchVaultIds,
       depositorEthAddress,
       pendingPegin,
       updatePendingPeginStatus,
@@ -392,6 +416,29 @@ export function useVaultActions(): UseVaultActionsReturn {
         status: finalBasicInfo.status,
         createdAt: finalBasicInfo.createdAt,
         offchainParamsVersion: onChainVault.offchainParamsVersion,
+      });
+      if (signal.aborted) return;
+
+      // Position capacity, from the same post-wait observation. Activation
+      // runs the application's size check per vault and redeems on failure,
+      // so a batch the position can no longer take would lock BTC only to
+      // send it back through a payout. The refusal comes before this attempt
+      // broadcasts anything or prompts the wallet; it cannot recall a Pre-PegIn
+      // another device already broadcast while the on-chain status still reads
+      // PENDING. The batch is sized from the hash-checked transaction's HTLC
+      // outputs, so an under-listed batch cannot pass. Fails closed when the
+      // check cannot be read or the batch is incomplete.
+      await assertResumePositionCapacity({
+        vaultId,
+        target: {
+          depositor: finalBasicInfo.depositor,
+          amount: finalBasicInfo.amount,
+          applicationEntryPoint: finalBasicInfo.applicationEntryPoint,
+          prePeginTxHash: onChainVault.prePeginTxHash,
+          htlcVout: onChainVault.htlcVout,
+        },
+        unsignedTxHex,
+        batchVaultIds,
       });
       if (signal.aborted) return;
 
@@ -797,6 +844,18 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error(message);
       }
 
+      // The receipt proves the registry returned the vault only through a
+      // claim made out to this key, so it is read and canonicalized here,
+      // before the secret is used: a record without it fails while nothing is
+      // public, rather than after the reveal has landed with an outcome that
+      // cannot be read. An empty key is a malformed record.
+      const depositorBtcPubkey = stripHexPrefix(basicInfo.depositorBtcPubKey);
+      if (!depositorBtcPubkey) {
+        throw new Error(COPY.deposit.errors.depositorBtcKeyMissing);
+      }
+      const expectedDepositorBtcPubkey =
+        canonicalizeBtcPubkey(depositorBtcPubkey);
+
       // A normal activation appends this vault to the application's
       // liquidation queue. For a split deposit, enforce the Pre-PegIn HTLC
       // construction order before the secret can reach a wallet/RPC call.
@@ -990,14 +1049,34 @@ export function useVaultActions(): UseVaultActionsReturn {
           );
       vpTokenRegistry.release(peginTxidForRelease);
 
-      // Update localStorage status
+      const collateralAdded = activationAddedCollateral(
+        revealResult,
+        ensureHexPrefix(vaultId),
+      );
+      const redeemed = activationRedeemedForDepositor(
+        revealResult,
+        ensureHexPrefix(vaultId),
+        expectedDepositorBtcPubkey,
+      );
+      // A normal activation the registry redeemed for the depositor. The
+      // escape hatch always redeems, and is told apart by its own mode.
+      const returned = redeemed && !redeemImmediately;
+
+      // Update localStorage status. A returned activation stores that outcome
+      // in the same write: CONFIRMED alone reads as activated, and a reload or
+      // another tab sees only this record, not this session's mark. The
+      // escape hatch stays unmarked — it has its own success screen.
       const nextStatus = getNextLocalStatus(
         redeemImmediately
           ? PeginAction.ACTIVATE_AND_REDEEM
           : PeginAction.ACTIVATE_VAULT,
       );
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
-        updatePendingPeginStatus(vaultId, nextStatus);
+        updatePendingPeginStatus(
+          vaultId,
+          nextStatus,
+          returned ? "returned" : undefined,
+        );
       }
 
       logger.event(TELEMETRY_EVENT.ACTIVATION_ACTIVATED, {
@@ -1008,16 +1087,15 @@ export function useVaultActions(): UseVaultActionsReturn {
           // Present only on the escape hatch so existing activation events
           // keep their exact shape.
           ...(redeemImmediately ? { redeem: "true" } : {}),
+          // Present only on a normal activation the registry redeemed for the
+          // depositor, for the same reason. The escape hatch always redeems,
+          // so `redeem` already says it there.
+          ...(returned ? { returned: "true" } : {}),
         },
       });
 
       // Show success and refetch
-      onShowSuccessModal({
-        collateralAdded: activationAddedCollateral(
-          revealResult,
-          ensureHexPrefix(vaultId),
-        ),
-      });
+      onShowSuccessModal({ collateralAdded, redeemed });
       onRefetchActivities();
 
       if (mountedRef.current) setActivating(false);
