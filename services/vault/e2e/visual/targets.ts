@@ -51,17 +51,19 @@ export interface VisualTarget {
 }
 
 /** Desktop is the primary review size; mobile catches responsive-only
- *  regressions that a single width would hide. */
+ *  regressions that a single width would hide, and mobile-360 the narrowest
+ *  phone the app supports. */
 export const VISUAL_VIEWPORTS: readonly VisualViewport[] = [
   { name: "desktop", width: 1280, height: 800 },
   { name: "mobile", width: 390, height: 844 },
+  { name: "mobile-360", width: 360, height: 780 },
 ];
 
 /**
  * What every route screen reads before it has painted.
  *
  * Measured, not assumed: a capture run instrumented to print `backend.served`
- * per screen reports all four non-zero on all six routes at both viewports -
+ * per screen reports all four non-zero on all six routes at every viewport -
  * the app shell fetches the Aave config and the provider list (`graphql`),
  * polls protocol status (`vp-health`), reads the chain through Multicall3
  * (`eth-rpc`) and asks mempool for fees. `vp-rpc` is the one boundary no

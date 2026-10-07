@@ -55,11 +55,12 @@ import {
 const MIN_CAPTURE_BYTES = 1000;
 
 /**
- * The width at or above which the app must render its desktop tree.
+ * The width at or above which the app must render its desktop tree, and
+ * below which it must render its phone tree.
  *
  * The default breakpoint of core-ui's `useIsMobile`
- * (packages/babylon-core-ui/src/hooks/useIsMobile.ts), which is what every
- * responsive branch in the vault shell reads.
+ * (packages/babylon-core-ui/src/hooks/useIsMobile.ts) - the app's one phone
+ * breakpoint, which every responsive branch in the vault shell reads.
  */
 const DESKTOP_LAYOUT_MIN_WIDTH_PX = 768;
 
@@ -201,19 +202,52 @@ export async function assertNoErrorSurface(
 }
 
 /**
+ * Reject the desktop layout at a phone width.
+ *
+ * The header's menu button renders only on its phone branch, and the
+ * sidebar - the vault's desktop navigation - only on the shell's desktop
+ * branch. Both read the same breakpoint, so a phone capture showing the
+ * sidebar, or missing the button, is a desktop page photographed narrow.
+ */
+export async function assertPhoneLayout(
+  page: Page,
+  label: string,
+): Promise<void> {
+  const width = page.viewportSize()?.width;
+  await expect(
+    page.getByTestId("header-menu-button"),
+    `${label} has no phone menu button at a ${width}px viewport - the app ` +
+      `rendered its desktop header below the ${DESKTOP_LAYOUT_MIN_WIDTH_PX}px ` +
+      `phone breakpoint.`,
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("complementary", { includeHidden: true })
+      .getByRole("navigation", { includeHidden: true }),
+    `${label} shows the desktop sidebar at a ${width}px viewport - the app ` +
+      `rendered its desktop shell below the ${DESKTOP_LAYOUT_MIN_WIDTH_PX}px ` +
+      `phone breakpoint.`,
+  ).toBeHidden();
+}
+
+/**
  * Reject the mobile layout at a desktop width, even when its pixels are stable.
  * Chromium can emit a temporary 1x1 resize during a full-page screenshot.
  * The fixed clock lets a throttled listener keep that size after restoration.
  * Check before and after each screenshot. The capture filter handles only
  * that temporary event; this guard still catches other wrong-layout causes.
- * Mobile viewports correctly retain their mobile layout.
+ * Phone viewports get the reverse check, {@link assertPhoneLayout}.
  */
 async function assertLayoutMatchesViewport(
   page: Page,
   label: string,
 ): Promise<void> {
   const viewport = page.viewportSize();
-  if (!viewport || viewport.width < DESKTOP_LAYOUT_MIN_WIDTH_PX) return;
+  if (!viewport) return;
+  if (viewport.width < DESKTOP_LAYOUT_MIN_WIDTH_PX) {
+    await assertPhoneLayout(page, label);
+    return;
+  }
 
   await expect(
     page.locator(MOBILE_MENU_BUTTON),
