@@ -32,6 +32,8 @@ export interface SettingMenuProps {
   className?: string;
   /** Offset from the trigger element */
   offset?: [number, number];
+  /** Phone presentation; `popover` keeps the dropdown instead of the drawer */
+  mobileMode?: "drawer" | "popover";
   /** Children components */
   children: ReactNode;
 }
@@ -53,6 +55,7 @@ const SettingMenuBase: React.FC<SettingMenuProps> = ({
   placement = "bottom-end",
   className,
   offset = [0, 8],
+  mobileMode = "drawer",
   children,
 }) => {
   const defaultTrigger = (
@@ -72,7 +75,7 @@ const SettingMenuBase: React.FC<SettingMenuProps> = ({
       placement={placement}
       className={twJoin("relative", className)}
       offset={offset}
-      mobileMode="drawer"
+      mobileMode={mobileMode}
     >
       {children}
     </Menu>

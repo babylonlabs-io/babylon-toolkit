@@ -124,7 +124,12 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
             // uses it as its route-independent "connected" signal. resume.ts also
             // counts its wallet icons (one per connected chain) to tell whether
             // Bitcoin is back, so keep one icon per chain.
-            <div className="cursor-pointer" data-testid="wallet-menu-trigger">
+            <button
+              type="button"
+              aria-label={COPY.wallet.menuTrigger}
+              className="flex cursor-pointer"
+              data-testid="wallet-menu-trigger"
+            >
               <AvatarGroup max={3} className="!-space-x-2">
                 {displayWallets["BTC"] && (
                   <WalletIcon
@@ -141,7 +146,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
                   />
                 )}
               </AvatarGroup>
-            </div>
+            </button>
           }
           btcAddress={btcConnected ? btcAddress : undefined}
           ethAddress={ethAddress}
@@ -155,6 +160,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}
           connectAction={unlockAction}
+          mobileMode="popover"
         />
       </div>
     );

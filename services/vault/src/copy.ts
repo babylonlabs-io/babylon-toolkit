@@ -1694,6 +1694,7 @@ export const COPY = {
       linkCopied: "Link Copied",
       goBack: "Go Back",
     },
+    menuTrigger: "Wallet menu",
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     // The ineligible body renders `COPY.nav.termsOfUse` as a link.

@@ -22,7 +22,29 @@ export interface WalletBalanceData {
   inscriptions?: number;
 }
 
+const LAYOUT_STYLES = {
+  card: {
+    container: "bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-[4px] p-3 flex-1 md:p-4",
+    header: "gap-2.5 mb-2 md:mb-3",
+    icon: "w-8 h-8 md:w-10 md:h-10",
+    addressRow: "gap-1",
+    copyButton: "p-1 rounded hover:bg-[#d7e1e7] dark:hover:bg-[#252525] transition-colors h-6 w-6 hover:opacity-80",
+  },
+  row: {
+    container: "",
+    header: "gap-4",
+    icon: "",
+    addressRow: "gap-1.5 min-h-6",
+    copyButton: "h-6 hover:opacity-80",
+  },
+} as const;
+
+/** Wallet names often already end in "Wallet" (e.g. "Rabby Wallet"). */
+const toWalletTitle = (name: string) => (/wallet$/i.test(name) ? name : `${name} Wallet`);
+
 export interface WalletMenuCardProps {
+  /** `row` is the phone dropdown row: no card fill, wallet name as the title. */
+  layout?: keyof typeof LAYOUT_STYLES;
   walletType: 'Bitcoin' | 'Babylon' | 'Ethereum';
   walletName?: string;
   walletIcon?: string;
@@ -46,6 +68,7 @@ export interface WalletMenuCardProps {
 }
 
 export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
+  layout = "card",
   walletType,
   walletName,
   walletIcon,
@@ -163,44 +186,59 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
     </>
   );
 
+  const styles = LAYOUT_STYLES[layout];
+  const isRow = layout === "row";
+
   return (
-    <div className={twJoin(
-      "bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-[4px] p-3 flex-1 md:p-4",
-      className
-    )}>
+    <div className={twJoin(styles.container, className)}>
       <div className="flex flex-col w-full">
-        <div className="flex items-center gap-2.5 mb-2 md:mb-3">
+        <div className={twJoin("flex items-center", styles.header)}>
           <WalletIcon
             alt={walletName || walletType}
             url={walletIcon || ''}
             background={walletIconBackground}
-            className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0"
+            className={twJoin(styles.icon, "flex-shrink-0")}
           />
 
           <div className="flex flex-1 flex-col items-start min-w-0">
-            <Text
-              variant="body1"
-              className="text-accent-primary font-medium text-xs"
-            >
-              {walletType} Wallet
-            </Text>
-            <div className="flex items-center gap-1">
+            {isRow ? (
+              <Text variant="caption" className="text-accent-primary leading-[1.66]">
+                {walletName ? toWalletTitle(walletName) : `${walletType} Wallet`}
+              </Text>
+            ) : (
+              <Text
+                variant="body1"
+                className="text-accent-primary font-medium text-xs"
+              >
+                {walletType} Wallet
+              </Text>
+            )}
+            <div className={twJoin("flex items-center", styles.addressRow)}>
               {isCopied ? (
-                <Text className="text-accent-secondary text-xs">
+                <Text className={twJoin("text-accent-secondary text-xs", isRow && "tracking-0.4 leading-[1.66]")}>
                   Copied ✓
                 </Text>
               ) : (
                 <DisplayHash
-                  className="text-accent-secondary text-xs"
+                  className={twJoin("text-accent-secondary text-xs", isRow && "leading-[1.66]")}
+                  size={isRow ? "caption" : undefined}
                   value={address}
-                  symbols={6}
+                  symbols={isRow ? 5 : 6}
                 />
               )}
               <button
                 onClick={onCopy}
-                className="flex-shrink-0 p-1 rounded hover:bg-[#d7e1e7] dark:hover:bg-[#252525] transition-colors h-6 w-6 flex items-center justify-center hover:opacity-80"
+                aria-label={`Copy ${walletType} wallet address`}
+                className={twJoin(
+                  "relative flex flex-shrink-0 items-center justify-center before:absolute before:left-1/2 before:top-1/2 before:size-10 before:-translate-x-1/2 before:-translate-y-1/2",
+                  styles.copyButton,
+                )}
               >
-                <CopyIcon size={14} className="md:w-4 md:h-4" />
+                {isRow ? (
+                  <CopyIcon size={10} variant="secondary" />
+                ) : (
+                  <CopyIcon size={14} className="md:w-4 md:h-4" />
+                )}
               </button>
             </div>
           </div>

@@ -26,8 +26,6 @@ import {
 
 /** core-ui `Portal` root. Every dialog renders inside one. */
 const PORTAL_ROOT = ".portal-root";
-/** core-ui `MobileDialog`. Every phone dialog, the wallet menu included. */
-const MOBILE_DIALOG = ".bbn-dialog-mobile";
 /** Entry page hero heading, shown before any wallet connects. */
 const ENTRY_HEADING = "Borrow against native Bitcoin, trustlessly.";
 /** wallet-connector chain row attribute, "true" on a chain the app does not require. */
@@ -38,9 +36,14 @@ const BTC_WALLET_LIST_HEADING = "Select Bitcoin Wallet";
 const BTC_WALLET_LIST_HINT = "To continue, connect a Bitcoin wallet";
 /** Deposit dialog heading. */
 const DEPOSIT_HEADING = "Deposit";
-/** core-ui `WalletMenuCard` titles, `${walletType} Wallet`. */
-const ETH_WALLET_CARD = "Ethereum Wallet";
-const BTC_WALLET_CARD = "Bitcoin Wallet";
+/**
+ * core-ui `WalletMenuCard` titles: `${walletType} Wallet` on desktop, the
+ * wallet's own name (the injected wallets here) in the phone dropdown.
+ */
+const WALLET_CARDS = {
+  desktop: { eth: "Ethereum Wallet", btc: "Bitcoin Wallet" },
+  phone: { eth: "E2E Capture Wallet", btc: "Unisat Wallet" },
+};
 /** core-ui dialog controls. */
 const BACK_LABEL = "Back";
 const CLOSE_LABEL = "Close";
@@ -97,20 +100,14 @@ function isPhoneProject(): boolean {
   return test.info().project.name.startsWith("chromium-phone");
 }
 
+function walletCards(): (typeof WALLET_CARDS)["desktop"] {
+  return isPhoneProject() ? WALLET_CARDS.phone : WALLET_CARDS.desktop;
+}
+
 /** Open or close the navbar wallet menu and wait for the new state. */
 async function toggleWalletMenu(page: Page, expanded: boolean): Promise<void> {
   const trigger = page.getByTestId("wallet-menu-trigger");
-  // On phone the menu is a sheet whose backdrop covers the trigger. A dialog
-  // that just closed stays mounted while it animates out, so scope to the menu.
-  if (!expanded && isPhoneProject()) {
-    await page
-      .locator(MOBILE_DIALOG)
-      .filter({ hasText: ETH_WALLET_CARD })
-      .getByRole("button", { name: CLOSE_LABEL, exact: true })
-      .click();
-  } else {
-    await trigger.click();
-  }
+  await trigger.click();
   await expect(trigger).toHaveAttribute("aria-expanded", String(expanded));
   // The menu body renders through a portal one commit after the trigger flips,
   // so an absence check straight after the toggle could read an empty menu and
@@ -118,7 +115,7 @@ async function toggleWalletMenu(page: Page, expanded: boolean): Promise<void> {
   // walk opens the menu in, so waiting for it anchors what follows.
   if (expanded) {
     await expect(
-      page.getByText(ETH_WALLET_CARD, { exact: true }),
+      page.getByText(walletCards().eth, { exact: true }),
     ).toBeVisible();
   }
 }
@@ -224,7 +221,7 @@ test.describe("Ethereum-only access", () => {
 
       await toggleWalletMenu(page, true);
       await expect(
-        page.getByText(BTC_WALLET_CARD, { exact: true }),
+        page.getByText(walletCards().btc, { exact: true }),
       ).toHaveCount(0);
       await holdForAudience(page, headless);
       await toggleWalletMenu(page, false);
@@ -269,7 +266,7 @@ test.describe("Ethereum-only access", () => {
 
       await toggleWalletMenu(page, true);
       await expect(
-        page.getByText(BTC_WALLET_CARD, { exact: true }),
+        page.getByText(walletCards().btc, { exact: true }),
       ).toHaveCount(0);
       await toggleWalletMenu(page, false);
       await holdForAudience(page, headless);
@@ -292,7 +289,7 @@ test.describe("Ethereum-only access", () => {
       await expect(commit).toHaveCount(0);
       await toggleWalletMenu(page, true);
       await expect(
-        page.getByText(BTC_WALLET_CARD, { exact: true }),
+        page.getByText(walletCards().btc, { exact: true }),
       ).toBeVisible();
       await toggleWalletMenu(page, false);
       // Connecting is not consent to run: no deposit form opened by itself.

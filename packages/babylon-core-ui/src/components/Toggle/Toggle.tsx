@@ -8,6 +8,7 @@ export interface ToggleProps {
   onChange?: (value: boolean) => void;
   className?: string;
   disabled?: boolean;
+  "aria-label"?: string;
 }
 
 export const Toggle = ({
@@ -16,6 +17,7 @@ export const Toggle = ({
   onChange,
   className = '',
   disabled = false,
+  "aria-label": ariaLabel = "Toggle",
 }: ToggleProps) => {
   const [isOn = false, setIsOn] = useControlledState<boolean>({
     value,
@@ -39,7 +41,7 @@ export const Toggle = ({
         className,
       )}
       aria-pressed={isOn}
-      aria-label="Toggle"
+      aria-label={ariaLabel}
     >
       <span
         className={twJoin(
