@@ -39,6 +39,8 @@ export const TELEMETRY_EVENT = {
   ACTIVATION_ARTIFACTS_DOWNLOADED: "activation.artifacts.downloaded",
   /** The VP kept reporting "still processing" past the stall threshold — depositor is stuck waiting. */
   ACTIVATION_ARTIFACTS_STALLED: "activation.artifacts.stalled",
+  /** The activation modal's probe did not get a result from the deposit's vault provider (outcome in tags). */
+  ACTIVATION_PROVIDER_UNCONFIRMED: "activation.provider.unconfirmed",
   /** Every vault provider was filtered out of the deposit picker — deposits blocked at the top of the funnel. */
   ONBOARDING_PROVIDERS_EMPTY: "onboarding.providers.empty",
 } as const;

@@ -78,7 +78,24 @@ describe("RecoveryArtifactsCard — streaming download", () => {
       receivedBytes: 742_000_000,
       totalBytes: 1_000_000_000,
       status: "Fetching artifacts from vault provider...",
+      error: null,
     });
+  });
+
+  it("reports the hook's error through onStateChange", () => {
+    hookState.current = {
+      ...hookState.current,
+      loading: false,
+      error: "Download failed",
+    };
+    const onStateChange = vi.fn();
+    render(
+      <RecoveryArtifactsCard {...COMMON_PROPS} onStateChange={onStateChange} />,
+    );
+
+    expect(onStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({ loading: false, error: "Download failed" }),
+    );
   });
 });
 

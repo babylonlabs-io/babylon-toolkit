@@ -721,6 +721,33 @@ export const COPY = {
       confirmSkipTitle: "Are you sure?",
       confirmSkipBody:
         "Continuing without downloading the recovery artifacts may put your funds at risk if your vault provider becomes unavailable.",
+      // Shown under the body while the modal asks the vault provider one
+      // status question before offering the skip or activation.
+      probingVaultProvider:
+        "Checking that your vault provider is responding...",
+      // No result came back. The app cannot tell a dead provider from a proxy
+      // that refused the question, so it says "could not confirm", not "down".
+      vpUnconfirmedTitle: "Could not confirm your vault provider",
+      vpUnconfirmedBody:
+        "We could not confirm that your vault provider is responding. Do not activate this BTCVault until it can be confirmed: once activated, getting your BTC back depends on the vault provider. Nothing was submitted and your secret stays private. If it stays unreachable, do nothing: the BTCVault expires when its activation window closes, and Refund appears on this row once the Bitcoin timelock opens.",
+      // Artifacts are on disk, so activation stays possible (decision D2); the
+      // user still learns the provider is silent before choosing.
+      vpUnconfirmedBodyDownloaded:
+        "We could not confirm that your vault provider is responding. Your artifacts were saved earlier, so you can still activate; check that the file is still where you saved it. If the vault provider stays offline, this app cannot yet recover your BTC without it, so if in doubt wait: the BTCVault expires when its activation window closes, and Refund then appears on this row.",
+      // The proxy or the network failed, not the provider.
+      proxyUnreachableTitle: "Cannot reach the vault provider service",
+      proxyUnreachableBody:
+        "The app could not reach the service that connects to vault providers. Check your connection and retry. Nothing was submitted.",
+      // The deposit record lacks its provider address, peg-in txid or depositor
+      // key, so neither the probe nor the download can run (decision D3).
+      dataIncompleteTitle: "Deposit details incomplete",
+      dataIncompleteBody:
+        "This deposit's vault provider or peg-in details are missing, so it cannot be checked and its artifacts cannot be downloaded. Refresh and try again. Do not activate until it can be checked.",
+      // "Check again", not "Retry": the progress view's transaction Retry
+      // (deposit.progress.buttons.retry) and the real-wallet E2E's generic
+      // Retry handler (RETRY_BUTTON_RX in e2e/real/actions/stepMachine.ts)
+      // both match the word "Retry".
+      checkAgainButton: "Check again",
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
     // the BTCVault in one transaction, skipping application activation.
