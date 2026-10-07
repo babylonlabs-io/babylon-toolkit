@@ -106,11 +106,11 @@ async function readAddress(page: Page): Promise<string | null> {
 const MM_VIEW_TOGGLE_TESTID = "global-menu-toggle-view";
 
 /**
- * Where to click inside the 32x32 account-options button. MetaMask overlays an unread-notifications
- * badge (`notifications-tag-counter__unread-dot`) at the button's top-right, which intercepts a normal
- * centre click; the bottom-left corner is clear of it.
+ * Side-panel route with the account-menu drawer already open. Since 13.50 the account menu (behind the
+ * hamburger button) is a drawer that this query opens, which spares a click on a button the
+ * unread-notifications badge overlaps.
  */
-const MM_MENU_CLICK_POSITION = { x: 4, y: 28 } as const;
+const MM_MENU_DRAWER_ROUTE = "#/?drawerOpen=true";
 
 /** The auto-lock value MetaMask ships with (its Security settings show it as a word, not minutes). */
 const MM_EXPECTED_AUTO_LOCK = "Never";
@@ -168,8 +168,11 @@ async function verifyAutoLockNever(page: Page): Promise<void> {
  * every approval path in this harness is already built around.
  *
  * The toggle only renders in the popup/side-panel view (never in the expanded tab), so this drives it
- * from `sidepanel.html` opened AS A TAB — the same trick that makes the panel reachable at all. The
- * account-options button needs an off-centre click to dodge the unread-notifications badge.
+ * from `sidepanel.html` opened AS A TAB — the same trick that makes the panel reachable at all. Since
+ * 13.50 the toggle ("Switch to popup") sits in the account-menu drawer. The drawer's route opens it
+ * directly: the off-centre click on the hamburger that used to open the menu stopped opening it, and
+ * the toggle, present in the DOM but hidden, was then clicked in vain. The toggle's visibility and the
+ * panel's close are both waited for rather than assumed after a fixed settle.
  *
  * Confirmed by the panel document closing itself, which is what switching view modes does. Note the
  * toggle's LABEL cannot be used: it names the current view, and read from `sidepanel.html` that is
@@ -182,24 +185,21 @@ async function usePopupApprovals(
 ): Promise<void> {
   const panel = await context.newPage();
   try {
-    await panel.goto(`${base}/sidepanel.html`).catch(() => {});
-    await panel.waitForTimeout(SETTLE.LONG);
-    await panel
-      .getByTestId("account-options-menu-button")
-      .first()
-      .click({ position: MM_MENU_CLICK_POSITION, timeout: WAIT_FOR.ELEMENT_MS })
-      .catch(() => {});
-    await panel.waitForTimeout(SETTLE.MODAL);
+    await panel.goto(`${base}/sidepanel.html${MM_MENU_DRAWER_ROUTE}`).catch(() => {});
 
     const toggle = panel
       .locator(`[data-testid="${MM_VIEW_TOGGLE_TESTID}"]`)
       .first();
-    if ((await toggle.count().catch(() => 0)) === 0)
+    await toggle.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+    if (!(await toggle.isVisible().catch(() => false)))
       throw new Error(
-        `MetaMask: view toggle (${MM_VIEW_TOGGLE_TESTID}) not found in the side-panel view — cannot put approvals into pop-ups, which the approver requires.`,
+        `MetaMask: view toggle (${MM_VIEW_TOGGLE_TESTID}) never became visible in the account-menu drawer (sidepanel.html${MM_MENU_DRAWER_ROUTE}) — cannot put approvals into pop-ups, which the approver requires.`,
       );
     await toggle.click({ timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
-    await panel.waitForTimeout(SETTLE.MODAL).catch(() => {});
+
+    const closeDeadline = Date.now() + WAIT_FOR.ELEMENT_SLOW_MS;
+    while (!panel.isClosed() && Date.now() < closeDeadline)
+      await panel.waitForTimeout(SETTLE.SHORT).catch(() => {});
 
     if (!panel.isClosed())
       throw new Error(

@@ -15,7 +15,7 @@ serializes the result.
 
 | What | Value |
 | --- | --- |
-| btc-vault | `b534ff9e846d93367fbaabe0f54517db200326fd` (the v3 engine bundled by vault-wasm `fd9872c4`, per `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`) |
+| btc-vault | `b534ff9e846d93367fbaabe0f54517db200326fd` (the v3 engine bundled by vault-wasm `301fb3da`, per `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`) |
 | Toolchain | `1.93.1` (btc-vault's `rust-toolchain.toml` at that rev) |
 | Features | `btc-vault` with `test-utils` (default features kept) |
 

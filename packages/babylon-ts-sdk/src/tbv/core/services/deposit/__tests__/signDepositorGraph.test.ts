@@ -33,10 +33,26 @@ vi.mock("../../../primitives/psbt/payout", () => ({
 }));
 
 vi.mock("../../../primitives/psbt/noPayout", () => ({
+  assertCanonicalNoPayoutShape: vi.fn(),
   assertNoPayoutOutputMatchesChallenger: vi.fn(),
   buildNoPayoutPsbt: vi.fn(
     async (params: { challengerPubkey: string }) =>
       `${MOCK_LOCAL_NOPAYOUT_PSBT_HEX_PREFIX}${params.challengerPubkey}`,
+  ),
+}));
+
+// The ChallengeAssert-parent binding needs real transactions; it is tested
+// against real ones in primitives/psbt/__tests__/challengeAssert.test.ts and
+// on a btc-vault-built graph in signDepositorGraph.realGraph.test.ts.
+vi.mock("../../../primitives/psbt/challengeAssert", () => ({
+  assertChallengeAssertIsCanonical: vi.fn(),
+}));
+
+const MOCK_CA_OUTPUT_SCRIPT_PUBKEY = `5120${"7".repeat(64)}`;
+
+vi.mock("../../../wasm", () => ({
+  getChallengeAssertOutputScriptPubKey: vi.fn(
+    async () => MOCK_CA_OUTPUT_SCRIPT_PUBKEY,
   ),
 }));
 
@@ -77,6 +93,8 @@ vi.mock("../../../primitives/utils/bitcoin", () => ({
     return stripped.length === 66 ? stripped.slice(2) : stripped;
   },
   stripHexPrefix: (s: string) => (s.startsWith("0x") ? s.slice(2) : s),
+  getSortedXOnlyPubkeys: (keys: string[]) =>
+    keys.map((k) => (k.startsWith("0x") ? k.slice(2) : k)).sort(),
   uint8ArrayToHex: (bytes: Uint8Array) => Buffer.from(bytes).toString("hex"),
   validateWalletPubkey: (walletRaw: string, expectedDepositor: string) => {
     const stripped = walletRaw.startsWith("0x")
@@ -151,6 +169,7 @@ const CLAIM_TX_HEX = "claim_tx_hex";
 const CLAIM_TXID = "55".repeat(32);
 const TIMELOCK_PEGIN = 50;
 const TIMELOCK_ASSERT = 144;
+const TIMELOCK_CHALLENGE_ASSERT = 100;
 const COUNCIL_QUORUM = 1;
 const NETWORK = "regtest" as DepositorGraphSigningContext["network"];
 
@@ -177,6 +196,24 @@ function cayTxHex(challengerPk: string): string {
 
 function nopayoutTxHex(challengerPk: string): string {
   return `nopayout_${challengerPk}`;
+}
+
+function assertOutputs(
+  challengerCount: number,
+): Array<{ script: Buffer; value: number }> {
+  return [
+    { script: Buffer.from([0xab]), value: 1000 },
+    ...Array.from({ length: 2 * challengerCount }, () => ({
+      script: Buffer.from([0xa1]),
+      value: 1_234,
+    })),
+    { script: Buffer.from([0x6a]), value: 0 },
+    { script: Buffer.from([0xa2]), value: 546 },
+  ];
+}
+
+function labelHashes(challengerPk: string): string[] {
+  return Array.from({ length: 6 }, (_, i) => `${i}${challengerPk.slice(1)}`);
 }
 
 function registerStandardMocks(challengerPubkeys: string[]): void {
@@ -206,7 +243,8 @@ function registerStandardMocks(challengerPubkeys: string[]): void {
     getId: () => CLAIM_TXID,
   });
 
-  // Assert tx: at least one output (Assert:0) used as input 0's prevout.
+  // Assert tx at vault core version 2: output 0 (NoPayout input 0's prevout),
+  // a ConnectorX and a ConnectorY per challenger, the marker, the anchor.
   registerMockTx(ASSERT_TX_HEX, {
     ins: [
       {
@@ -215,7 +253,7 @@ function registerStandardMocks(challengerPubkeys: string[]): void {
         sequence: 0xffffffff,
       },
     ],
-    outs: [{ script: Buffer.from([0xab]), value: 1000 }],
+    outs: assertOutputs(challengerPubkeys.length),
     getId: () => ASSERT_TXID,
   });
 
@@ -289,7 +327,7 @@ function createDepositorGraph(
       nopayout_tx: { tx_hex: nopayoutTxHex(pk) },
       nopayout_psbt: btoa(`vp_supplied_nopayout_${pk}_unused`),
       challenge_assert_connectors: [],
-      output_label_hashes: [],
+      output_label_hashes: labelHashes(pk),
     })),
     offchain_params_version: 1,
   };
@@ -318,6 +356,7 @@ function createSigningContext(
     universalChallengerBtcPubkeys: [],
     timelockPegin: TIMELOCK_PEGIN,
     timelockAssert: TIMELOCK_ASSERT,
+    timelockChallengeAssert: TIMELOCK_CHALLENGE_ASSERT,
     councilMembers: [COUNCIL_MEMBER],
     councilQuorum: COUNCIL_QUORUM,
     network: NETWORK,
@@ -583,115 +622,260 @@ describe("signDepositorGraph", () => {
     expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 
-  it("rejects a NoPayout that doesn't have exactly 3 inputs", async () => {
+  it("binds both ChallengeAssert parents of every NoPayout to the Assert by sorted challenger index", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    // Replace the nopayout tx with a 2-input variant
-    registerMockTx(nopayoutTxHex(CHALLENGER_A), {
-      ins: [
-        {
-          hash: makeReversedHash(ASSERT_TXID),
-          index: 0,
-          sequence: 0xffffffff,
-        },
-        {
-          hash: makeReversedHash(caxTxid(CHALLENGER_A)),
-          index: 0,
-          sequence: 100,
-        },
-      ],
-      outs: [{ script: Buffer.from([0xee]), value: 1400 }],
-      getId: () => `nopayout_id_${CHALLENGER_A}`,
+    const { assertChallengeAssertIsCanonical } = await import(
+      "../../../primitives/psbt/challengeAssert"
+    );
+    const binder = vi.mocked(assertChallengeAssertIsCanonical);
+    binder.mockClear();
+
+    await signDepositorGraph({
+      depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+      btcWallet: createMockWallet({ supportsBatch: true }),
+      signingContext: createSigningContext(),
     });
 
+    expect(binder.mock.calls.map(([params]) => params)).toEqual([
+      expect.objectContaining({
+        half: "X",
+        challengerIndex: 0,
+        challengerCount: 2,
+        challengerPubkey: CHALLENGER_A,
+        outputConnectorScriptPubKey: MOCK_CA_OUTPUT_SCRIPT_PUBKEY,
+      }),
+      expect.objectContaining({
+        half: "Y",
+        challengerIndex: 0,
+        challengerPubkey: CHALLENGER_A,
+      }),
+      expect.objectContaining({
+        half: "X",
+        challengerIndex: 1,
+        challengerPubkey: CHALLENGER_B,
+      }),
+      expect.objectContaining({
+        half: "Y",
+        challengerIndex: 1,
+        challengerPubkey: CHALLENGER_B,
+      }),
+    ]);
+    expect(binder.mock.calls[0][0].challengeAssertTx.getId()).toBe(
+      caxTxid(CHALLENGER_A),
+    );
+    expect(binder.mock.calls[0][0].assertTx.getId()).toBe(ASSERT_TXID);
+  });
+
+  it("takes each challenger's index from the sorted challenger set, not the VP's array order", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const { assertChallengeAssertIsCanonical } = await import(
+      "../../../primitives/psbt/challengeAssert"
+    );
+    const binder = vi.mocked(assertChallengeAssertIsCanonical);
+    binder.mockClear();
+
+    await signDepositorGraph({
+      depositorGraph: createDepositorGraph([CHALLENGER_B, CHALLENGER_A]),
+      btcWallet: createMockWallet({ supportsBatch: true }),
+      signingContext: createSigningContext(),
+    });
+
+    const indexByChallenger = Object.fromEntries(
+      binder.mock.calls.map(([params]) => [
+        params.challengerPubkey,
+        params.challengerIndex,
+      ]),
+    );
+    expect(indexByChallenger).toEqual({ [CHALLENGER_A]: 0, [CHALLENGER_B]: 1 });
+  });
+
+  it("derives the ChallengeAssert output connector from the depositor, the challenger, the on-chain timelock and the VP's label hashes", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const { getChallengeAssertOutputScriptPubKey } = await import(
+      "../../../wasm"
+    );
+    const connector = vi.mocked(getChallengeAssertOutputScriptPubKey);
+    connector.mockClear();
+
+    await signDepositorGraph({
+      depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+      btcWallet: createMockWallet({ supportsBatch: true }),
+      signingContext: createSigningContext(),
+    });
+
+    expect(connector).toHaveBeenCalledWith({
+      txGraphVersion: 2,
+      claimer: DEPOSITOR_PUBKEY,
+      challenger: CHALLENGER_A,
+      timelockChallengeAssert: TIMELOCK_CHALLENGE_ASSERT,
+      outputLabelHashes: labelHashes(CHALLENGER_A),
+      network: NETWORK,
+    });
+  });
+
+  it("rejects before any wallet prompt when a ChallengeAssert parent is not canonical", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const { assertChallengeAssertIsCanonical } = await import(
+      "../../../primitives/psbt/challengeAssert"
+    );
+    vi.mocked(assertChallengeAssertIsCanonical).mockImplementationOnce(() => {
+      throw new Error(
+        "ChallengeAssertX is not the canonical transaction for this Assert",
+      );
+    });
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
-        depositorGraph: graph,
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow("must have exactly 3 inputs");
+    ).rejects.toThrow("not the canonical transaction");
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("checks each NoPayout's shape against its canonical parents and the ChallengeAssert timelock", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const { assertCanonicalNoPayoutShape } = await import(
+      "../../../primitives/psbt/noPayout"
+    );
+    const shapeCheck = vi.mocked(assertCanonicalNoPayoutShape);
+    shapeCheck.mockClear();
+
+    await signDepositorGraph({
+      depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+      btcWallet: createMockWallet({ supportsBatch: true }),
+      signingContext: createSigningContext(),
+    });
+
+    expect(shapeCheck).toHaveBeenCalledTimes(2);
+    const params = shapeCheck.mock.calls[0][0];
+    expect(params).toEqual(
+      expect.objectContaining({
+        assertTxid: ASSERT_TXID,
+        challengeAssertXTxid: caxTxid(CHALLENGER_A),
+        challengeAssertYTxid: cayTxid(CHALLENGER_A),
+        timelockChallengeAssert: TIMELOCK_CHALLENGE_ASSERT,
+        prevoutValues: [1000, 200, 300],
+      }),
+    );
+    expect(params.noPayoutTx.getId()).toBe(`nopayout_id_${CHALLENGER_A}`);
+  });
+
+  it("rejects before any wallet prompt when a NoPayout's shape is not canonical", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    const { assertCanonicalNoPayoutShape } = await import(
+      "../../../primitives/psbt/noPayout"
+    );
+    vi.mocked(assertCanonicalNoPayoutShape).mockImplementationOnce(() => {
+      throw new Error(
+        "NoPayout input 1 (ChallengeAssertX) sequence must be 100, got 0",
+      );
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow("sequence must be 100");
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 
-  it("rejects a NoPayout whose Assert input references a different parent txid", async () => {
+  it("rejects an Assert whose output count does not fit the challenger set", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    registerMockTx(nopayoutTxHex(CHALLENGER_A), {
+    registerMockTx(ASSERT_TX_HEX, {
       ins: [
         {
-          // Wrong txid for Assert input - simulates a malicious VP swapping
-          // the assert tx hex against a NoPayout that still commits to the
-          // real assert txid.
-          hash: makeReversedHash("99".repeat(32)),
+          hash: makeReversedHash(CLAIM_TXID),
           index: 0,
           sequence: 0xffffffff,
         },
-        {
-          hash: makeReversedHash(caxTxid(CHALLENGER_A)),
-          index: 0,
-          sequence: 100,
-        },
-        {
-          hash: makeReversedHash(cayTxid(CHALLENGER_A)),
-          index: 0,
-          sequence: 100,
-        },
       ],
-      outs: [{ script: Buffer.from([0xee]), value: 1400 }],
-      getId: () => `nopayout_id_${CHALLENGER_A}`,
+      // Built for three challengers, while the vault has two.
+      outs: assertOutputs(3),
+      getId: () => ASSERT_TXID,
     });
-
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
-        depositorGraph: graph,
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow("does not reference Assert");
+    ).rejects.toThrow("Assert must have 7 outputs for 2 challengers");
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 
-  it("rejects a NoPayout input that spends a non-zero vout of its parent", async () => {
+  it("expects no marker output on a vault core version 1 Assert", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    registerMockTx(nopayoutTxHex(CHALLENGER_A), {
+    // assertOutputs(2) carries the marker that only vault core version 2
+    // and later emit, so a version 1 Assert must have one output fewer.
+    registerMockTx(ASSERT_TX_HEX, {
       ins: [
         {
-          hash: makeReversedHash(ASSERT_TXID),
-          index: 1,
+          hash: makeReversedHash(CLAIM_TXID),
+          index: 0,
           sequence: 0xffffffff,
         },
-        {
-          hash: makeReversedHash(caxTxid(CHALLENGER_A)),
-          index: 0,
-          sequence: 100,
-        },
-        {
-          hash: makeReversedHash(cayTxid(CHALLENGER_A)),
-          index: 0,
-          sequence: 100,
-        },
       ],
-      outs: [{ script: Buffer.from([0xee]), value: 1400 }],
-      getId: () => `nopayout_id_${CHALLENGER_A}`,
+      outs: assertOutputs(2),
+      getId: () => ASSERT_TXID,
     });
-
     const wallet = createMockWallet({ supportsBatch: true });
-    const graph = createDepositorGraph([CHALLENGER_A, CHALLENGER_B]);
 
     await expect(
       signDepositorGraph({
-        depositorGraph: graph,
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
         btcWallet: wallet,
-        signingContext: createSigningContext(),
+        signingContext: createSigningContext({ vaultCoreVersion: 1 }),
       }),
-    ).rejects.toThrow("expected to spend Assert vout 0, got vout 1");
+    ).rejects.toThrow(
+      "Assert must have 6 outputs for 2 challengers (vault core version 1), got 7",
+    );
+
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+  });
+
+  it("accepts a vault core version 1 Assert without the marker output", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    // A version 1 Assert: output 0, a ConnectorX and a ConnectorY per
+    // challenger, and the anchor, with no marker before it.
+    registerMockTx(ASSERT_TX_HEX, {
+      ins: [
+        {
+          hash: makeReversedHash(CLAIM_TXID),
+          index: 0,
+          sequence: 0xffffffff,
+        },
+      ],
+      outs: [
+        { script: Buffer.from([0xab]), value: 1000 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa2]), value: 546 },
+      ],
+      getId: () => ASSERT_TXID,
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await signDepositorGraph({
+      depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+      btcWallet: wallet,
+      signingContext: createSigningContext({ vaultCoreVersion: 1 }),
+    });
+
+    expect(wallet.signPsbts).toHaveBeenCalledOnce();
   });
 
   it("derives localChallengers as VKs \\ {depositor} (depositor-as-claimer special case)", async () => {

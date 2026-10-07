@@ -37,8 +37,17 @@ import {
   assertPsbtUnsignedTxMatches,
   type AssertPsbtUnsignedTxMatchesParams,
 } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
-import { DEPOSITOR_SIGNED_INPUT_COUNT } from "../../primitives/psbt/constants";
+import { assertChallengeAssertIsCanonical } from "../../primitives/psbt/challengeAssert";
 import {
+  ASSERT_MARKER_FIRST_VAULT_CORE_VERSION,
+  ASSERT_NON_CHALLENGER_OUTPUT_COUNT,
+  ASSERT_PAYOUT_OUTPUT_INDEX,
+  CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER,
+  CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX,
+  DEPOSITOR_SIGNED_INPUT_COUNT,
+} from "../../primitives/psbt/constants";
+import {
+  assertCanonicalNoPayoutShape,
   assertNoPayoutOutputMatchesChallenger,
   buildNoPayoutPsbt,
 } from "../../primitives/psbt/noPayout";
@@ -48,11 +57,13 @@ import {
 } from "../../primitives/psbt/payout";
 import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
 import {
+  getSortedXOnlyPubkeys,
   stripHexPrefix,
   uint8ArrayToHex,
   validateWalletPubkey,
 } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
+import { getChallengeAssertOutputScriptPubKey } from "../../wasm";
 import { assertPresignClaimAssertLinkage } from "./graphFingerprint";
 
 /**
@@ -80,24 +91,31 @@ interface CollectedDepositorGraphPsbts {
 
 /**
  * Reject VP-supplied `challenger_presign_data` whose pubkey set does not
- * exactly equal `localChallengers ∪ universalChallengers`.
+ * exactly equal `localChallengers ∪ universalChallengers`, and return that
+ * set in the protocol's challenger order.
  *
  * The daemon's `challenger_presign_data` contains one entry per challenger
- * in `Challengers::all_sorted() = local + universal` (per
- * btc-vault `crates/vault/src/tx_graph/graph.rs:438-458`). For the
- * depositor-as-claimer flow this is `VKs + UCs`.
+ * in `local ∪ universal`; for the depositor-as-claimer flow this is
+ * `VKs ∪ UCs`. Its array order is not meaningful (the daemon iterates a map).
+ * The order that matters is btc-vault `Challengers::all_sorted()`
+ * (`crates/vault/src/lib.rs:596-601` @ b534ff9e): one sort over local and
+ * universal together by x-only key bytes, which is lowercase-hex order. A
+ * challenger's position in it fixes which Assert outputs its ChallengeAsserts
+ * spend.
  *
  * Threat model: a malicious or buggy VP could omit, duplicate, or inject
  * unrelated entries. Missing entries → depositor activates with incomplete
  * recovery material (omitted challenger later becomes unenforceable).
  * Duplicates or extras → wallet signs PSBTs for challengers the protocol
  * doesn't recognize, handing the VP signatures it shouldn't have.
+ *
+ * @returns Every challenger key (lowercase x-only hex) in `all_sorted()` order
  */
 function assertChallengerSetMatchesExpected(
   challengerPresignData: PresignDataPerChallenger[],
   localChallengers: string[],
   universalChallengerBtcPubkeys: string[],
-): void {
+): string[] {
   const universal = universalChallengerBtcPubkeys.map((k) =>
     stripHexPrefix(k).toLowerCase(),
   );
@@ -130,44 +148,236 @@ function assertChallengerSetMatchesExpected(
         (extra.length > 0 ? ` (unexpected: ${extra.join(", ")})` : ""),
     );
   }
+  return getSortedXOnlyPubkeys(expected);
 }
 
 /**
- * Read the txid that the given input references in the unsigned tx, in display
- * (big-endian) hex order. bitcoinjs-lib stores `input.hash` in internal
- * little-endian byte order, which is the reverse of how txids are normally
- * displayed.
+ * Require the Assert to carry exactly one ConnectorX and one ConnectorY per
+ * challenger, around output 0 and the CPFP anchor (plus the RFC-008 marker
+ * from vault core version 2). The ChallengeAssert vouts are derived from the
+ * challenger count, so an Assert built for a different count would shift
+ * which connector each ChallengeAssert spends.
  */
-function readInputTxid(tx: Transaction, inputIndex: number): string {
-  const input = tx.ins[inputIndex];
-  return uint8ArrayToHex(new Uint8Array(input.hash).slice().reverse());
-}
-
-/**
- * Verify the noPayout transaction's input at `inputIndex` references the
- * given parent transaction at vout 0 (per nopayout.rs the layout is fixed:
- * Assert:0, ChallengeAssertX:0, ChallengeAssertY:0).
- */
-function assertInputReferencesParent(
-  noPayoutTx: Transaction,
-  inputIndex: number,
-  parentTx: Transaction,
-  parentLabel: string,
-  challengerPubkey: string,
+function assertAssertChallengerOutputCount(
+  assertTx: Transaction,
+  challengerCount: number,
+  vaultCoreVersion: number,
 ): void {
-  const input = noPayoutTx.ins[inputIndex];
-  if (input.index !== 0) {
+  const markerOutputs =
+    vaultCoreVersion >= ASSERT_MARKER_FIRST_VAULT_CORE_VERSION ? 1 : 0;
+  const expected =
+    ASSERT_NON_CHALLENGER_OUTPUT_COUNT +
+    CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER * challengerCount +
+    markerOutputs;
+  if (assertTx.outs.length !== expected) {
     throw new Error(
-      `NoPayout (challenger ${challengerPubkey}) input ${inputIndex} expected to spend ${parentLabel} vout 0, got vout ${input.index}`,
+      `Assert must have ${expected} outputs for ${challengerCount} challengers ` +
+        `(vault core version ${vaultCoreVersion}), got ${assertTx.outs.length}`,
     );
   }
-  const parentTxid = parentTx.getId();
-  const inputTxid = readInputTxid(noPayoutTx, inputIndex);
-  if (inputTxid !== parentTxid) {
-    throw new Error(
-      `NoPayout (challenger ${challengerPubkey}) input ${inputIndex} does not reference ${parentLabel} (expected txid ${parentTxid}, got ${inputTxid})`,
+}
+
+// ============================================================================
+// NoPayout checks
+// ============================================================================
+
+/** One challenger's NoPayout, checked against its canonical parents. */
+export interface CheckedNoPayout {
+  /** The challenger's entry in the VP response */
+  challenger: PresignDataPerChallenger;
+  /** The challenger's x-only key (hex, no 0x prefix) */
+  challengerPubkey: string;
+  /** Assert:0, ChallengeAssertX:0 and ChallengeAssertY:0, in NoPayout input order */
+  prevouts: Array<{ script_pubkey: string; value: number }>;
+}
+
+/** The NoPayout side of a depositor graph, checked and ready to build. */
+export interface CheckedDepositorGraphNoPayouts {
+  /** The depositor-as-claimer's local challengers, derived from the context */
+  localChallengers: string[];
+  /** One entry per challenger, in the VP's order */
+  noPayouts: CheckedNoPayout[];
+}
+
+/**
+ * Check everything on the NoPayout side of the depositor graph that needs no
+ * wallet: the challenger set equals `local ∪ universal`, the Assert carries
+ * one ConnectorX and one ConnectorY per challenger, and for every challenger
+ * the ChallengeAssertX/Y are the canonical transactions for this Assert, the
+ * NoPayout spends exactly them with the canonical sequences, and it pays the
+ * challenger's BIP-86 key.
+ *
+ * `runDepositorPresignFlow` calls this before the deposit-terms approval and
+ * every payout signing prompt. `signDepositorGraph` calls it again because it
+ * is also a public entry point.
+ *
+ * @param depositorGraph - The depositor graph from the VP response
+ * @param ctx - Authoritative inputs the graph is checked against
+ * @returns The checked per-challenger data the NoPayout PSBTs are built from
+ * @throws If any check fails
+ */
+export async function assertDepositorGraphNoPayoutsCanonical(
+  depositorGraph: DepositorGraphTransactions,
+  ctx: DepositorGraphSigningContext,
+): Promise<CheckedDepositorGraphNoPayouts> {
+  const localChallengers = deriveLocalChallengers({
+    claimerBtcPubkey: ctx.depositorBtcPubkey,
+    depositorBtcPubkey: ctx.depositorBtcPubkey,
+    vaultProviderBtcPubkey: ctx.vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys: ctx.vaultKeeperBtcPubkeys,
+  });
+  const sortedChallengers = assertChallengerSetMatchesExpected(
+    depositorGraph.challenger_presign_data,
+    localChallengers,
+    ctx.universalChallengerBtcPubkeys,
+  );
+
+  const claimerPubkey = stripHexPrefix(ctx.depositorBtcPubkey);
+  const assertTx = Transaction.fromHex(
+    stripHexPrefix(depositorGraph.assert_tx.tx_hex),
+  );
+  assertAssertChallengerOutputCount(
+    assertTx,
+    sortedChallengers.length,
+    ctx.vaultCoreVersion,
+  );
+
+  const noPayouts: CheckedNoPayout[] = [];
+  for (const challenger of depositorGraph.challenger_presign_data) {
+    const challengerPubkey = stripHexPrefix(challenger.challenger_pubkey);
+    // The set check above guarantees membership.
+    const challengerIndex = sortedChallengers.indexOf(
+      challengerPubkey.toLowerCase(),
     );
+    const prevouts = await assertNoPayoutParentsCanonical({
+      challenger,
+      challengerPubkey,
+      challengerIndex,
+      challengerCount: sortedChallengers.length,
+      claimerPubkey,
+      assertTx,
+      ctx,
+    });
+    noPayouts.push({ challenger, challengerPubkey, prevouts });
   }
+
+  return { localChallengers, noPayouts };
+}
+
+interface AssertNoPayoutParentsCanonicalParams {
+  challenger: PresignDataPerChallenger;
+  challengerPubkey: string;
+  /** Position of the challenger in `Challengers::all_sorted()` order */
+  challengerIndex: number;
+  /** Number of local plus universal challengers */
+  challengerCount: number;
+  claimerPubkey: string;
+  assertTx: Transaction;
+  ctx: DepositorGraphSigningContext;
+}
+
+/**
+ * Check one challenger's NoPayout and its two ChallengeAssert parents against
+ * the authoritative Assert, and return the NoPayout's prevouts taken from
+ * those canonical parents.
+ *
+ * NoPayout transaction layout (per
+ * btc-vault crates/vault/src/transactions/nopayout.rs):
+ * - 3 inputs (fixed order):
+ *   - Input 0: Assert tx output 0 (depositor signs - NoPayout path)
+ *   - Input 1: ChallengeAssertX tx output 0 (with timelock)
+ *   - Input 2: ChallengeAssertY tx output 0 (with timelock)
+ * - 1 output: BIP-86 P2TR to the challenger
+ */
+async function assertNoPayoutParentsCanonical(
+  params: AssertNoPayoutParentsCanonicalParams,
+): Promise<CheckedNoPayout["prevouts"]> {
+  const {
+    challenger,
+    challengerPubkey,
+    challengerIndex,
+    challengerCount,
+    claimerPubkey,
+    assertTx,
+    ctx,
+  } = params;
+
+  // Pin the output sink before doing any sighash-relevant work.
+  assertNoPayoutOutputMatchesChallenger(
+    challenger.nopayout_tx.tx_hex,
+    challengerPubkey,
+    ctx.network,
+  );
+
+  // Parse the NoPayout tx and the two ChallengeAssert parents.
+  const noPayoutTx = Transaction.fromHex(
+    stripHexPrefix(challenger.nopayout_tx.tx_hex),
+  );
+  const challengeAssertXTx = Transaction.fromHex(
+    stripHexPrefix(challenger.challenge_assert_x_tx.tx_hex),
+  );
+  const challengeAssertYTx = Transaction.fromHex(
+    stripHexPrefix(challenger.challenge_assert_y_tx.tx_hex),
+  );
+
+  // The depositor's signature commits to both parents' txids, and that
+  // commitment is the only constraint on them: the protocol takes no claimer
+  // signature on ChallengeAssert. So each parent must be exactly the
+  // transaction btc-vault builds from this Assert, paying the timelocked
+  // connector — otherwise a colluding challenger could spend Assert:0 through
+  // NoPayout without a dispute. The label hashes are the VP's, and are bound
+  // to this vault only by the presign fingerprint checked at activation. The
+  // response validator accepts either hex case and the fingerprint lowercases
+  // them, so they are lowercased here too: the same bytes, in the only case
+  // the connector accepts.
+  const outputConnectorScriptPubKey =
+    await getChallengeAssertOutputScriptPubKey({
+      txGraphVersion: ctx.vaultCoreVersion,
+      claimer: claimerPubkey,
+      challenger: challengerPubkey,
+      timelockChallengeAssert: ctx.timelockChallengeAssert,
+      outputLabelHashes: challenger.output_label_hashes.map((hash) =>
+        hash.toLowerCase(),
+      ),
+      network: ctx.network,
+    });
+  for (const [half, challengeAssertTx] of [
+    ["X", challengeAssertXTx],
+    ["Y", challengeAssertYTx],
+  ] as const) {
+    assertChallengeAssertIsCanonical({
+      challengeAssertTx,
+      assertTx,
+      half,
+      challengerIndex,
+      challengerCount,
+      challengerPubkey,
+      outputConnectorScriptPubKey,
+    });
+  }
+
+  const parentOutputs = [
+    assertTx.outs[ASSERT_PAYOUT_OUTPUT_INDEX],
+    challengeAssertXTx.outs[CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX],
+    challengeAssertYTx.outs[CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX],
+  ] as const;
+  assertCanonicalNoPayoutShape({
+    noPayoutTx,
+    assertTxid: assertTx.getId(),
+    challengeAssertXTxid: challengeAssertXTx.getId(),
+    challengeAssertYTxid: challengeAssertYTx.getId(),
+    timelockChallengeAssert: ctx.timelockChallengeAssert,
+    prevoutValues: [
+      parentOutputs[0].value,
+      parentOutputs[1].value,
+      parentOutputs[2].value,
+    ],
+  });
+
+  return parentOutputs.map((out) => ({
+    script_pubkey: uint8ArrayToHex(new Uint8Array(out.script)),
+    value: out.value,
+  }));
 }
 
 // ============================================================================
@@ -190,18 +400,10 @@ async function collectDepositorGraphPsbts(
   const challengerEntries: ChallengerEntry[] = [];
 
   // 1. Fail-fast on a malformed VP response BEFORE doing any PSBT-build
-  //    work that would be wasted if the challenger set is wrong.
-  const localChallengers = deriveLocalChallengers({
-    claimerBtcPubkey: ctx.depositorBtcPubkey,
-    depositorBtcPubkey: ctx.depositorBtcPubkey,
-    vaultProviderBtcPubkey: ctx.vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys: ctx.vaultKeeperBtcPubkeys,
-  });
-  assertChallengerSetMatchesExpected(
-    depositorGraph.challenger_presign_data,
-    localChallengers,
-    ctx.universalChallengerBtcPubkeys,
-  );
+  //    work that would be wasted if the challenger set or a NoPayout's
+  //    parents are wrong.
+  const { localChallengers, noPayouts } =
+    await assertDepositorGraphNoPayoutsCanonical(depositorGraph, ctx);
 
   // 2. Build the payout PSBT locally — every sighash-relevant field is
   //    derived from trusted on-chain connector params, not from the VP.
@@ -235,23 +437,24 @@ async function collectDepositorGraphPsbts(
     ),
   );
 
-  // 3. Per-challenger: build the NoPayout PSBT locally too.
+  // 3. Per-challenger: build the NoPayout PSBT locally too, over the
+  //    canonical parents checked in step 1.
   const claimerPubkey = stripHexPrefix(ctx.depositorBtcPubkey);
-  const assertTxParsed = Transaction.fromHex(
-    stripHexPrefix(depositorGraph.assert_tx.tx_hex),
-  );
-
-  for (const challenger of depositorGraph.challenger_presign_data) {
-    const challengerPubkey = stripHexPrefix(challenger.challenger_pubkey);
-
+  for (const { challenger, challengerPubkey, prevouts } of noPayouts) {
     const noPayoutIdx = psbtHexes.length;
-    const noPayoutHex = await buildLocalNoPayoutPsbt({
-      challenger,
+    const noPayoutHex = await buildNoPayoutPsbt({
+      noPayoutTxHex: challenger.nopayout_tx.tx_hex,
       challengerPubkey,
-      claimerPubkey,
-      localChallengers,
-      assertTxParsed,
-      ctx,
+      prevouts,
+      connectorParams: {
+        txGraphVersion: ctx.vaultCoreVersion,
+        claimer: claimerPubkey,
+        localChallengers,
+        universalChallengers: ctx.universalChallengerBtcPubkeys,
+        timelockAssert: ctx.timelockAssert,
+        councilMembers: ctx.councilMembers,
+        councilQuorum: ctx.councilQuorum,
+      },
     });
     psbtHexes.push(noPayoutHex);
     signOptions.push(
@@ -268,116 +471,6 @@ async function collectDepositorGraphPsbts(
   }
 
   return { psbtHexes, signOptions, challengerEntries };
-}
-
-interface BuildLocalNoPayoutPsbtParams {
-  challenger: PresignDataPerChallenger;
-  challengerPubkey: string;
-  claimerPubkey: string;
-  localChallengers: string[];
-  assertTxParsed: Transaction;
-  ctx: DepositorGraphSigningContext;
-}
-
-/**
- * Build a single NoPayout PSBT for one challenger from authoritative
- * inputs. Validates the VP-supplied parent transactions match what the
- * NoPayout transaction commits to via input txids, and asserts the output
- * pays to the protocol-defined challenger sink before returning.
- *
- * NoPayout transaction layout (per
- * btc-vault crates/vault/src/transactions/nopayout.rs):
- * - 3 inputs (fixed order):
- *   - Input 0: Assert tx output 0 (depositor signs - NoPayout path)
- *   - Input 1: ChallengeAssertX tx output 0 (with timelock)
- *   - Input 2: ChallengeAssertY tx output 0 (with timelock)
- * - 1 output: BIP-86 P2TR to the challenger
- */
-async function buildLocalNoPayoutPsbt(
-  params: BuildLocalNoPayoutPsbtParams,
-): Promise<string> {
-  const {
-    challenger,
-    challengerPubkey,
-    claimerPubkey,
-    localChallengers,
-    assertTxParsed,
-    ctx,
-  } = params;
-
-  // Pin the output sink before doing any sighash-relevant work.
-  assertNoPayoutOutputMatchesChallenger(
-    challenger.nopayout_tx.tx_hex,
-    challengerPubkey,
-    ctx.network,
-  );
-
-  // Parse the NoPayout tx and the two ChallengeAssert parents.
-  const noPayoutTx = Transaction.fromHex(
-    stripHexPrefix(challenger.nopayout_tx.tx_hex),
-  );
-  const challengeAssertXTx = Transaction.fromHex(
-    stripHexPrefix(challenger.challenge_assert_x_tx.tx_hex),
-  );
-  const challengeAssertYTx = Transaction.fromHex(
-    stripHexPrefix(challenger.challenge_assert_y_tx.tx_hex),
-  );
-
-  if (noPayoutTx.ins.length !== 3) {
-    throw new Error(
-      `NoPayout (challenger ${challengerPubkey}) must have exactly 3 inputs, got ${noPayoutTx.ins.length}`,
-    );
-  }
-
-  // Pin every input's parent. Each parent's outs[0] is the authoritative
-  // prevout - because we verified the parent's txid matches what the NoPayout
-  // tx commits to, the parent cannot be substituted without changing the
-  // NoPayout txid.
-  assertInputReferencesParent(
-    noPayoutTx,
-    0,
-    assertTxParsed,
-    "Assert",
-    challengerPubkey,
-  );
-  assertInputReferencesParent(
-    noPayoutTx,
-    1,
-    challengeAssertXTx,
-    "ChallengeAssertX",
-    challengerPubkey,
-  );
-  assertInputReferencesParent(
-    noPayoutTx,
-    2,
-    challengeAssertYTx,
-    "ChallengeAssertY",
-    challengerPubkey,
-  );
-
-  const prevouts = [
-    assertTxParsed.outs[0],
-    challengeAssertXTx.outs[0],
-    challengeAssertYTx.outs[0],
-  ].map((out) => ({
-    script_pubkey: uint8ArrayToHex(new Uint8Array(out.script)),
-    value: out.value,
-  }));
-
-  return buildNoPayoutPsbt({
-    noPayoutTxHex: challenger.nopayout_tx.tx_hex,
-    challengerPubkey,
-    prevouts,
-    connectorParams: {
-      txGraphVersion: ctx.vaultCoreVersion,
-      claimer: claimerPubkey,
-      localChallengers,
-      universalChallengers: ctx.universalChallengerBtcPubkeys,
-      timelockAssert: ctx.timelockAssert,
-      councilMembers: ctx.councilMembers,
-      councilQuorum: ctx.councilQuorum,
-    },
-  });
 }
 
 // ============================================================================
@@ -486,6 +579,14 @@ export interface DepositorGraphSigningContext {
    * `ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockAssert`.
    */
   timelockAssert: number;
+  /**
+   * ChallengeAssert CSV timelock from the locked offchain params version
+   * (blocks). Sourced from the on-chain ProtocolParams contract via
+   * `ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockChallengeAssert`.
+   * Each NoPayout's ChallengeAssert inputs must carry it as their sequence,
+   * and it is part of the connector their ChallengeAssert parents pay to.
+   */
+  timelockChallengeAssert: number;
   /**
    * Security council member x-only public keys (hex, no prefix). Sourced from
    * the on-chain ProtocolParams contract via

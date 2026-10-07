@@ -22,9 +22,21 @@ import {
   TAPSCRIPT_LEAF_VERSION,
   getNetwork,
   hexToUint8Array,
+  inputTxidHex,
   processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../utils/bitcoin";
+import {
+  ASSERT_PAYOUT_OUTPUT_INDEX,
+  CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX,
+  NOPAYOUT_ASSERT_INPUT_SEQUENCE,
+  NOPAYOUT_INPUT_COUNT,
+  NOPAYOUT_TX_LOCKTIME,
+  NOPAYOUT_TX_VERSION,
+} from "./constants";
+
+/** Largest `timelockChallengeAssert` the protocol accepts (a Rust `NonZeroU16`). */
+const MAX_TIMELOCK_CHALLENGE_ASSERT = 0xffff;
 
 /**
  * Parameters for building a NoPayout PSBT
@@ -158,6 +170,120 @@ export function assertNoPayoutOutputMatchesChallenger(
   if (!tx.outs[0].script.equals(expectedScript)) {
     throw new Error(
       "NoPayout transaction does not pay to the expected challenger BIP-86 P2TR address",
+    );
+  }
+}
+
+/**
+ * Parameters for {@link assertCanonicalNoPayoutShape}
+ */
+export interface AssertCanonicalNoPayoutShapeParams {
+  /** The NoPayout transaction the VP supplied */
+  noPayoutTx: Transaction;
+  /** Authoritative Assert txid (display hex) */
+  assertTxid: string;
+  /** Canonical ChallengeAssertX txid (display hex) */
+  challengeAssertXTxid: string;
+  /** Canonical ChallengeAssertY txid (display hex) */
+  challengeAssertYTxid: string;
+  /** ChallengeAssert CSV timelock in blocks (offchain param `timelockChallengeAssert`) */
+  timelockChallengeAssert: number;
+  /** Values of Assert:0, ChallengeAssertX:0 and ChallengeAssertY:0, in input order */
+  prevoutValues: readonly [number, number, number];
+}
+
+/**
+ * Require a VP-supplied NoPayout to have the shape btc-vault `NoPayoutTx::new`
+ * builds over the canonical parents
+ * (`crates/vault/src/transactions/nopayout.rs:148-209` @ b534ff9e): version 2,
+ * locktime 0, and exactly the inputs Assert:0, ChallengeAssertX:0 and
+ * ChallengeAssertY:0, in that order, with sequences `0xffffffff`, `t`, `t`.
+ *
+ * The depositor's signature commits to every one of these fields. The
+ * challenge window itself is enforced by the ChallengeAssert output connector's
+ * NoPayout leaf (`<challenger> CHECKSIGVERIFY <t> CSV`), which the txid binding
+ * of both parents pins: a NoPayout with a shorter or disabled sequence, or
+ * below version 2, fails that CSV and is invalid rather than early. Pinning the
+ * inputs, sequences, version and locktime to btc-vault's layout keeps the
+ * signature on a NoPayout that satisfies that CSV. The output value is not
+ * pinned to btc-vault's (the inputs minus its fee); it is only required not to
+ * exceed the inputs, since a larger output could never be valid. The output
+ * script is checked by {@link assertNoPayoutOutputMatchesChallenger}.
+ *
+ * @param params - The supplied NoPayout and the authoritative parents
+ * @throws If any input, sequence, version or locktime differs from the
+ *   canonical layout, the timelock is not a valid relative timelock, or the
+ *   output value exceeds the inputs
+ */
+export function assertCanonicalNoPayoutShape(
+  params: AssertCanonicalNoPayoutShapeParams,
+): void {
+  const { noPayoutTx, timelockChallengeAssert } = params;
+  if (
+    !Number.isInteger(timelockChallengeAssert) ||
+    timelockChallengeAssert < 1 ||
+    timelockChallengeAssert > MAX_TIMELOCK_CHALLENGE_ASSERT
+  ) {
+    throw new Error(
+      `timelockChallengeAssert must be an integer in 1..${MAX_TIMELOCK_CHALLENGE_ASSERT}, got ${timelockChallengeAssert}`,
+    );
+  }
+  if (noPayoutTx.version !== NOPAYOUT_TX_VERSION) {
+    throw new Error(
+      `NoPayout version must be ${NOPAYOUT_TX_VERSION}, got ${noPayoutTx.version}`,
+    );
+  }
+  if (noPayoutTx.locktime !== NOPAYOUT_TX_LOCKTIME) {
+    throw new Error(
+      `NoPayout locktime must be ${NOPAYOUT_TX_LOCKTIME}, got ${noPayoutTx.locktime}`,
+    );
+  }
+  if (noPayoutTx.ins.length !== NOPAYOUT_INPUT_COUNT) {
+    throw new Error(
+      `NoPayout must have exactly ${NOPAYOUT_INPUT_COUNT} inputs, got ${noPayoutTx.ins.length}`,
+    );
+  }
+
+  const expectedInputs = [
+    {
+      label: "Assert",
+      txid: params.assertTxid,
+      vout: ASSERT_PAYOUT_OUTPUT_INDEX,
+      sequence: NOPAYOUT_ASSERT_INPUT_SEQUENCE,
+    },
+    {
+      label: "ChallengeAssertX",
+      txid: params.challengeAssertXTxid,
+      vout: CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX,
+      sequence: timelockChallengeAssert,
+    },
+    {
+      label: "ChallengeAssertY",
+      txid: params.challengeAssertYTxid,
+      vout: CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX,
+      sequence: timelockChallengeAssert,
+    },
+  ];
+  expectedInputs.forEach((expected, i) => {
+    const input = noPayoutTx.ins[i];
+    const txid = inputTxidHex(input);
+    if (txid !== expected.txid || input.index !== expected.vout) {
+      throw new Error(
+        `NoPayout input ${i} must spend ${expected.label} ${expected.txid}:${expected.vout}, got ${txid}:${input.index}`,
+      );
+    }
+    if (input.sequence !== expected.sequence) {
+      throw new Error(
+        `NoPayout input ${i} (${expected.label}) sequence must be ${expected.sequence}, got ${input.sequence}`,
+      );
+    }
+  });
+
+  const inputValue = params.prevoutValues.reduce((sum, v) => sum + v, 0);
+  const outputValue = noPayoutTx.outs.reduce((sum, out) => sum + out.value, 0);
+  if (outputValue > inputValue) {
+    throw new Error(
+      `NoPayout output value ${outputValue} exceeds its inputs (${inputValue} sats)`,
     );
   }
 }

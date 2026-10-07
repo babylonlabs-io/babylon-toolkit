@@ -68,6 +68,27 @@ const IMPORT_TESTID = {
   CONTINUE: "mnemonic-import-continue-button",
 } as const;
 
+/** UniSat routes are hash-based; name the current one so a failure says which screen it stopped on. */
+function currentRoute(page: Page): string {
+  const url = page.url();
+  const hash = url.indexOf("#");
+  return hash === -1 ? url : url.slice(hash);
+}
+
+/**
+ * Click an onboarding control once it is on screen, or fail at the step that never appeared.
+ *
+ * Each onboarding screen mounts some time after the previous click, and how long varies with machine
+ * load. A fixed settle followed by a one-shot `clickText` silently skipped the step whenever the
+ * screen was late, and the run then failed two screens later at the seed textarea, naming the wrong
+ * step and no screen at all.
+ */
+async function clickOnboardingStep(page: Page, re: RegExp, step: string): Promise<void> {
+  await page.getByText(re).first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  if (!(await clickText(page, re)))
+    throw new Error(`UniSat: ${step} (${re}) never appeared; the wallet is at "${currentRoute(page)}".`);
+}
+
 /** How many times to click the import screen's Continue before giving up. */
 const IMPORT_CONTINUE_ATTEMPTS = 4;
 
@@ -85,8 +106,9 @@ async function enterMnemonic(page: Page, words: string[]): Promise<void> {
   await initial.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
   if ((await initial.count()) === 0)
     throw new Error(
-      `UniSat: the seed textarea ([data-testid="${IMPORT_TESTID.INITIAL_INPUT}"]) never appeared. Its ` +
-        "restore UI likely changed; re-derive enterMnemonic (unisat.ts) against the installed extension.",
+      `UniSat: the seed textarea ([data-testid="${IMPORT_TESTID.INITIAL_INPUT}"]) never appeared; the wallet ` +
+        `is at "${currentRoute(page)}". Its restore UI likely changed; re-derive enterMnemonic (unisat.ts) ` +
+        "against the installed extension.",
     );
 
   await initial.fill(words.join(" "));
@@ -291,14 +313,13 @@ export async function setupUnisatWallet(context: BrowserContext, mnemonic: strin
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/index.html`).catch(() => {});
   await page.waitForLoadState("domcontentloaded").catch(() => {});
-  await page.waitForTimeout(SETTLE.MODAL);
 
   // Welcome → "I already have a wallet".
-  await clickText(page, /i already have a wallet|already have/i);
+  await clickOnboardingStep(page, /i already have a wallet|already have/i, "the welcome screen's restore option");
 
   // UniSat asks to create a password first.
-  await page.waitForTimeout(SETTLE.BRIEF);
   const passwordInputs = page.locator('input[type="password"]');
+  await passwordInputs.nth(1).waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
   if ((await passwordInputs.count()) >= 2) {
     await passwordInputs.nth(0).fill(password);
     await passwordInputs.nth(1).fill(password);
@@ -306,11 +327,9 @@ export async function setupUnisatWallet(context: BrowserContext, mnemonic: strin
   }
 
   // "Restore from Mnemonics" chooser → source wallet = UniSat Wallet.
-  await page.waitForTimeout(SETTLE.BRIEF);
-  await clickText(page, /^UniSat Wallet$/);
+  await clickOnboardingStep(page, /^UniSat Wallet$/, "the restore chooser's UniSat Wallet option");
 
   // Seed-entry screen — the phrase goes in as one commit; UniSat auto-detects 12 vs 24 words.
-  await page.waitForTimeout(SETTLE.BRIEF);
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
   await enterMnemonic(page, words);
   await advanceFromImport(page);

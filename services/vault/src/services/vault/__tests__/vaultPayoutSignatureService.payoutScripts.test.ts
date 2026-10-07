@@ -32,6 +32,7 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
     getTimelockPeginByVersion: vi.fn().mockResolvedValue(100),
     getOffchainParamsByVersion: vi.fn().mockResolvedValue({
       timelockAssert: 144n,
+      timelockChallengeAssert: 108n,
       securityCouncilKeys: ["0xcouncil"],
       councilQuorum: 1,
       minVpCommissionBps: 10,

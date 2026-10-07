@@ -209,6 +209,9 @@ describe("vaultPayoutSignatureService", () => {
       mockGetTimelockPeginByVersion.mockResolvedValue(100);
       mockGetOffchainParamsByVersion.mockResolvedValue({
         timelockAssert: 144n,
+        // Distinct from timelockAssert on purpose: reading the wrong timelock
+        // would fail the assertion below.
+        timelockChallengeAssert: 108n,
         securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
         councilQuorum: 1,
         minVpCommissionBps: 10,
@@ -251,6 +254,7 @@ describe("vaultPayoutSignatureService", () => {
       expect(context.vaultCoreVersion).toBe(2);
       expect(context.timelockPegin).toBe(100);
       expect(context.timelockAssert).toBe(144);
+      expect(context.timelockChallengeAssert).toBe(108);
       expect(context.councilMembers).toEqual(["council1", "council2"]);
       expect(context.councilQuorum).toBe(1);
       expect(context.vaultKeeperBtcPubkeys).toEqual(["vk1", "vk2"]);
@@ -351,6 +355,7 @@ describe("vaultPayoutSignatureService", () => {
       // builder refuses commission 0 — so the effective floor is max(0, 1).
       mockGetOffchainParamsByVersion.mockResolvedValue({
         timelockAssert: 144n,
+        timelockChallengeAssert: 108n,
         securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
         councilQuorum: 1,
         minVpCommissionBps: 0,

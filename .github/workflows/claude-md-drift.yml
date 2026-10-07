@@ -30,6 +30,7 @@ jobs:
           paths=(
             "packages/babylon-tbv-rust-wasm/src/index.ts"
             "packages/babylon-tbv-rust-wasm/src/index-node.ts"
+            "packages/babylon-tbv-rust-wasm/src/challengeAssertOutputConnector.ts"
             "packages/babylon-tbv-rust-wasm/scripts/build-wasm.js"
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts"
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts"
@@ -42,7 +43,10 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts"
             "services/vault/src/hooks/deposit/useEstimatedBtcFee.ts"
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAssert.ts"
             "packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts"
             "packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/"
             "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
             "packages/babylon-ts-sdk/src/tbv/core/vault-secrets/"

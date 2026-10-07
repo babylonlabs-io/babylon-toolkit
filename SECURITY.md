@@ -95,7 +95,8 @@ rubric below.
     `.../utils/fee/peginFeeMath.ts`,
     `.../utils/utxo/selectUtxos.ts`, `services/vault/src/hooks/deposit/useEstimatedBtcFee.ts`)
   - Local construction of every PSBT the depositor signs, from on-chain-sourced connector data
-    (`packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts`)
+    (`packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts`,
+    `.../services/deposit/runDepositorPresignFlow.ts`)
   - The frozen vault-secret derivation API and the `VAULT_WASM_COMMIT` pin
     (`packages/babylon-ts-sdk/src/tbv/core/vault-secrets/`,
     `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`)
@@ -215,6 +216,12 @@ the Taproot signing data before it creates a PSBT. It rejects a WASM transaction
 that does not match. The canonical transaction constants for this check are in
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts`.
 
+`packages/babylon-tbv-rust-wasm/src/challengeAssertOutputConnector.ts`, spread into both entries,
+returns the scriptPubKey of the ChallengeAssert output connector. It range-checks the timelock and
+label hashes before WASM and rejects a return that is not a P2TR scriptPubKey. The presign path does
+not use the value on its own: it rebuilds each ChallengeAssert around it and compares the txid with
+the vault provider's transaction (see "Presigning the depositor graph").
+
 The same entry (`src/index.ts`, `src/index-node.ts`) also exports the wasm-bindgen classes directly.
 That export is a second crossing, and it is unguarded. No value is checked at that export. The SDK's
 public `loadTbvWasm()` (`@babylonlabs-io/ts-sdk/tbv/core/wasm`) returns this engine module, so it also
@@ -286,6 +293,36 @@ requires the Claim to have exactly one input spending output 1 of the depositor'
 PegIn transaction. A VP/VK claimer funds its Claim from its own wallet, and only the depositor can
 spend PegIn output 1, so claimer Claims are not pinned to it. Without these checks, a
 self-consistent payout PSBT can still belong to a recovery chain that this vault never funds.
+
+Each NoPayout also spends output 0 of the challenger's ChallengeAssertX and ChallengeAssertY, and the
+depositor's signature commits to those parents. The protocol takes no claimer signature on a
+ChallengeAssert, so that commitment is all that binds them. A parent that does not spend this Assert,
+or whose output 0 is not the timelocked ChallengeAssert output connector, lets the VP and one
+colluding challenger spend Assert:0 through NoPayout with no dispute the depositor can answer, which
+invalidates the depositor's Payout. Before any signing prompt the SDK rebuilds each challenger's
+ChallengeAssertX and ChallengeAssertY from the Assert, at outputs `1 + i` and `1 + K + i` where `i` is
+the challenger's position in the sorted `local ∪ universal` set, with output 0 paying the connector
+scriptPubKey the WASM engine derives, and requires the VP's txids to match
+(`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAssert.ts`). It also pins NoPayout's
+version, locktime, input order and sequences, with `timelockChallengeAssert` on both ChallengeAssert
+inputs (`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts`).
+`packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts` runs these checks
+right after it fetches the presign response, before the deposit-terms approval and every Payout
+signing prompt, and `signDepositorGraph` repeats them for callers that use it directly.
+
+The rebuild takes two inputs that the VP relays at presign and that it cannot authenticate: the
+challenger's GC output label hashes, which the connector commits to, and the Assert, whose outputs
+`1..2K` commit to each challenger's GC WOTS keys. The rebuilt ChallengeAssert is canonical only for
+those values. Nothing in this repository authenticates either today. The presign fingerprint only
+proves the VP serves the same hashes and Assert at activation. Closing the gap takes two
+activation-gate checks, neither implemented
+(`services/vault/src/services/artifacts/artifactBinding.ts`): check (c) compares the graph's label
+hashes and GC WOTS keys with the values rebuilt from each challenger's BaBe artifacts, and check (d)
+rebuilds the graph from canonical inputs, which is what ties the Assert's outputs to those keys. The
+vault-wasm facade exports neither yet; https://github.com/babylonlabs-io/vault-wasm/issues/12 tracks
+check (c). A VP and one colluding challenger can still relay hashes with no known preimage, or an
+Assert that commits to WOTS keys other than the challenger's. Either leaves the claimer no
+WronglyChallenged answer once `timelockChallengeAssert` has passed.
 
 Two further invariants, both asymmetric in their failure mode:
 
@@ -784,8 +821,11 @@ only repository-local safeguards.
    the estimator.
 3. **Every PSBT the depositor signs is constructed locally** from on-chain-sourced connector data.
    No PSBT, sighash input, or payout value is accepted from the vault provider verbatim. Before any
-   signing prompt, every VP-supplied Assert input 0 spends output 0 of its own Claim, and the
-   depositor graph's Claim has exactly one input spending the authoritative PegIn output 1.
+   signing prompt, every VP-supplied Assert input 0 spends output 0 of its own Claim, the
+   depositor graph's Claim has exactly one input spending the authoritative PegIn output 1, and
+   every NoPayout's ChallengeAssert parents are the canonical transactions for that Assert and
+   challenger, given the challenger's output label hashes and the Assert's GC WOTS keys as the VP
+   relays them (neither is authenticated yet).
 4. **The VP-returned challenger set equals `local ∪ universal` exactly** — no missing entries, no
    extras — with `LocalChallengers` derived from the on-chain VK list.
 5. **Signatures produced with `useTweakedSigner: false` / `autoFinalized: false` are verified against
@@ -825,6 +865,8 @@ only repository-local safeguards.
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
 | Presigning          | A         | VP supplies an unfunded Claim/Assert chain while requesting valid payout signatures | Deposit stalls; recovery chain is unusable                              | Bind depositor Claim to PegIn:1 and every Assert:0 to its Claim:0 before every signing prompt                   | graph fingerprint and depositor-presign tests                     |
 | Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
+| Presigning          | A         | VP and a colluding challenger supply ChallengeAssert parents that do not spend the Assert, or pay output 0 elsewhere | **Loss of independent claim capability** — Assert:0 spent through NoPayout, invalidating the depositor's Payout | Rebuild each ChallengeAssertX/Y from the Assert around the WASM-derived output connector and match txids; pin NoPayout inputs and sequences; before every signing prompt | `challengeAssert.test.ts`, `noPayout.test.ts`, `signDepositorGraph.realGraph.test.ts`, `runDepositorPresignFlow.test.ts` |
+| Presigning          | A         | VP and a colluding challenger relay output label hashes with no known preimage, or an Assert committing to GC WOTS keys other than the challenger's | **Loss of independent claim capability** — no WronglyChallenged answer once `timelockChallengeAssert` passes | **Known gap** — both are bound only by the presign fingerprint; activation-gate checks (c) and (d) are unimplemented, and vault-wasm does not export check (c) yet (https://github.com/babylonlabs-io/vault-wasm/issues/12) | close with activation-gate checks (c) and (d)                     |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |
 | Vault secrets       | F/G       | `VAULT_WASM_COMMIT` bump rotates expander output                                  | **Permanent loss of access for every in-flight deposit**                | Frozen API; JS + Rust golden-vector gates on every bump                                                         | `vault-secrets/__tests__/expand.test.ts`, `golden_vectors_pinned` |
 | Activation          | —         | Wrong preimage submitted to `activateVaultWithSecret`                             | Funds permanently locked                                                | SDK pre-check when `hashlock` is supplied; the vault app always supplies it                                     | SDK `activateVault` tests                                         |
@@ -972,9 +1014,10 @@ When changing this repository, explicitly consider:
   the frozen vault-secret primitives, `VAULT_WASM_COMMIT`, the HTLC activation check, VP response
   validation or server-identity pinning, `localStorage` validation, the CSP, the SRI gate, telemetry
   scrubbing, or the install policy MUST be treated as a security-model change.
-- Closing any of the gaps named above — artifact body validation, the fail-open screening
-  configuration, either dApp's CSP restrictions, production response headers, or the missing SCA
-  gate — MUST update the corresponding section and the severity anchors.
+- Closing any of the gaps named above — artifact body validation, the unauthenticated challenger
+  output label hashes and GC WOTS keys, the fail-open screening configuration, either dApp's CSP restrictions,
+  production response headers, or the missing SCA gate — MUST update the corresponding section and
+  the severity anchors.
 - This file, [CLAUDE.md](CLAUDE.md), [`.github/CODEOWNERS`](.github/CODEOWNERS),
   [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml), and
   [`.github/workflows/claude-md-drift.yml`](.github/workflows/claude-md-drift.yml) contain the full

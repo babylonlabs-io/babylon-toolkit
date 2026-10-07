@@ -4,6 +4,7 @@
 // It initializes the binary with initSync. No fetch() or separate
 // wasm-pack --target nodejs build is needed.
 
+import { createChallengeAssertOutputConnectorApi } from './challengeAssertOutputConnector.js';
 import { createDelegatedClaimApi } from './delegatedClaim.js';
 import { toError } from './errors.js';
 import {
@@ -564,6 +565,7 @@ export type {
   AssertNoPayoutScriptInfo,
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
+  ChallengeAssertOutputConnectorParams,
   WatchtowerArtifactsInputs,
   WotsKeypairDerivation,
   WronglyChallengedPsbts,
@@ -575,6 +577,11 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
+
+// ChallengeAssert output connector: what output 0 of every ChallengeAssertX/Y
+// must pay to before the depositor signs a NoPayout that spends it.
+export const { getChallengeAssertOutputScriptPubKey } =
+  createChallengeAssertOutputConnectorApi(getWasmBindings);
 
 // The delegated-claim surface (graph v3 only): assembly of the two files the
 // `vaultd vp wt` watchtower CLI reads, and the claim-time execution that runs

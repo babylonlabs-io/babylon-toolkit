@@ -109,6 +109,8 @@ export interface SigningContext {
   timelockPegin: number;
   /** Assert CSV timelock (blocks) — required for depositor-graph NoPayout local rebuild */
   timelockAssert: number;
+  /** ChallengeAssert CSV timelock (blocks) — binds each NoPayout's ChallengeAssert parents */
+  timelockChallengeAssert: number;
   /** Security council member x-only pubkeys (hex, no prefix) */
   councilMembers: string[];
   /** M-of-N council quorum threshold */
@@ -322,6 +324,7 @@ export async function prepareSigningContext(
       depositorBtcPubkey,
       timelockPegin,
       timelockAssert: Number(offchainParams.timelockAssert),
+      timelockChallengeAssert: Number(offchainParams.timelockChallengeAssert),
       councilMembers,
       councilQuorum: offchainParams.councilQuorum,
       network: getBTCNetworkForWASM(),
