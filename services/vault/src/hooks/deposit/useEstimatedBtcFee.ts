@@ -13,6 +13,7 @@
  * @param amount - Amount to peg in (in satoshis)
  * @param utxos - Available UTXOs for fee calculation
  * @param numOutputs - Number of outputs before change (e.g. N HTLCs + 1 CPFP anchor)
+ * @param maxFundingInputCount - `ProtocolParams.maxFundingInputCount`; caps the UTXOs considered
  * @param feeRateOverride - Optional sat/vB rate; when > 0, replaces mempool default
  * @returns Estimated fee, fee rate, loading state, and error
  */
@@ -67,6 +68,7 @@ export function useEstimatedBtcFee(
   amount: bigint,
   utxos: MempoolUTXO[] | undefined,
   numOutputs: number,
+  maxFundingInputCount: number,
   feeRateOverride?: number,
 ): EstimatedBtcFeeResult {
   const { defaultFeeRate, isLoading, error: feeError } = useNetworkFees();
@@ -87,8 +89,8 @@ export function useEstimatedBtcFee(
     [utxos],
   );
   const cappedUtxos = useMemo(
-    () => capFundingUtxos(spendableUtxos),
-    [spendableUtxos],
+    () => capFundingUtxos(spendableUtxos, maxFundingInputCount),
+    [spendableUtxos, maxFundingInputCount],
   );
 
   // Max deposit only depends on UTXOs + fee rate, not the user's amount

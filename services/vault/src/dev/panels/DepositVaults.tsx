@@ -473,8 +473,8 @@ function UtxoFragmentControl() {
         />
       </label>
       <div className={PANEL_HINT_CLASS}>
-        Same total, N equal outpoints. Drives Max and the 20-UTXO cap on the
-        deposit form; signing uses the real UTXOs.
+        Same total, N equal outpoints. Drives Max and the funding-input cap on
+        the deposit form; signing uses the real UTXOs.
       </div>
     </div>
   );

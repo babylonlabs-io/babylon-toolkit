@@ -6,7 +6,6 @@ import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
-import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
 import type { DepositSplitUnavailableReason } from "@/services/deposit/vaultCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 
@@ -194,6 +193,7 @@ interface DepositFormProps {
   collateralFactor?: number | null;
   twoVaultSplit?: TwoVaultSplitProps;
   fundingInputCapExceeded?: boolean;
+  maxFundingInputCount: number;
   onAmountChange: (value: string) => void;
   onMaxClick: () => void;
   onDeposit: () => void;
@@ -208,6 +208,7 @@ export function DepositForm({
   collateralFactor = null,
   twoVaultSplit,
   fundingInputCapExceeded = false,
+  maxFundingInputCount,
   onAmountChange,
   onMaxClick,
   onDeposit,
@@ -483,7 +484,7 @@ export function DepositForm({
               {COPY.deposit.fundingInputCap.noticeBefore}
               <span className="text-accent-contrast">
                 {COPY.deposit.fundingInputCap.noticeEmphasis(
-                  MAX_PRE_PEGIN_FUNDING_INPUTS,
+                  maxFundingInputCount,
                 )}
               </span>
               {COPY.deposit.fundingInputCap.noticeAfter}

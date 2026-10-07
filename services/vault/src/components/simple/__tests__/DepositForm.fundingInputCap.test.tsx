@@ -1,6 +1,6 @@
 /**
  * The inline callout shown when the entered amount exceeds what one
- * Pre-PegIn's 20-UTXO funding cap can fund, even though the wallet's full
+ * Pre-PegIn's funding-input cap can fund, even though the wallet's full
  * balance could cover it.
  */
 
@@ -8,7 +8,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
-import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
 
 import {
   DepositForm,
@@ -52,6 +51,8 @@ vi.mock("@/components/shared", () => ({
     <button type="button">{children}</button>
   ),
 }));
+
+const MAX_FUNDING_INPUT_COUNT = 20;
 
 const amountState: DepositAmountState = {
   amount: "",
@@ -116,6 +117,7 @@ function renderForm(fundingInputCapExceeded?: boolean) {
       collateralFactor={null}
       twoVaultSplit={undefined}
       fundingInputCapExceeded={fundingInputCapExceeded}
+      maxFundingInputCount={MAX_FUNDING_INPUT_COUNT}
       onAmountChange={vi.fn()}
       onMaxClick={vi.fn()}
       onDeposit={vi.fn()}
@@ -128,9 +130,7 @@ describe("DepositForm funding-input-cap callout", () => {
     renderForm(false);
     expect(
       screen.queryByText(
-        COPY.deposit.fundingInputCap.noticeEmphasis(
-          MAX_PRE_PEGIN_FUNDING_INPUTS,
-        ),
+        COPY.deposit.fundingInputCap.noticeEmphasis(MAX_FUNDING_INPUT_COUNT),
       ),
     ).not.toBeInTheDocument();
   });
@@ -139,9 +139,7 @@ describe("DepositForm funding-input-cap callout", () => {
     renderForm(undefined);
     expect(
       screen.queryByText(
-        COPY.deposit.fundingInputCap.noticeEmphasis(
-          MAX_PRE_PEGIN_FUNDING_INPUTS,
-        ),
+        COPY.deposit.fundingInputCap.noticeEmphasis(MAX_FUNDING_INPUT_COUNT),
       ),
     ).not.toBeInTheDocument();
   });
@@ -150,9 +148,7 @@ describe("DepositForm funding-input-cap callout", () => {
     renderForm(true);
     expect(
       screen.getByText(
-        COPY.deposit.fundingInputCap.noticeEmphasis(
-          MAX_PRE_PEGIN_FUNDING_INPUTS,
-        ),
+        COPY.deposit.fundingInputCap.noticeEmphasis(MAX_FUNDING_INPUT_COUNT),
       ),
     ).toBeInTheDocument();
   });

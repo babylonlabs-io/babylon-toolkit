@@ -12,6 +12,7 @@ const MOCK_TBV_PARAMS = {
   pegInActivationTimeout: 14400n,
   maxHtlcOutputCount: 5,
   expiredPegInGraceBlocks: 100n,
+  maxFundingInputCount: 20,
 };
 
 const MOCK_OFFCHAIN_PARAMS = {
@@ -87,13 +88,15 @@ function createMockPublicClient(overrides?: {
     multicall: vi.fn(
       async ({
         contracts,
+        allowFailure,
       }: {
         contracts: Array<{
           functionName: string;
           args?: readonly unknown[];
         }>;
+        allowFailure: boolean;
       }) => {
-        return contracts.map((c) => {
+        const results = contracts.map((c) => {
           if (c.functionName === "getTBVProtocolParams") {
             return overrides?.tbvParams ?? MOCK_TBV_PARAMS;
           }
@@ -116,6 +119,9 @@ function createMockPublicClient(overrides?: {
           }
           throw new Error(`Unknown function in multicall: ${c.functionName}`);
         });
+        return allowFailure
+          ? results.map((result) => ({ status: "success", result }))
+          : results;
       },
     ),
   };
@@ -291,6 +297,7 @@ describe("ViemProtocolParamsReader", () => {
     };
     expect(callArgs.contracts.map((c) => c.functionName)).toEqual([
       "getTBVProtocolParams",
+      "getTBVProtocolParams",
       "getLatestOffchainParams",
       "latestOffchainParamsVersion",
       "activeVaultCoreVersion",
@@ -330,8 +337,7 @@ describe("ViemProtocolParamsReader", () => {
 
     await reader.getPeginActivationDelay();
 
-    // Folding this into getPegInConfiguration's multicall would make every
-    // protocol-param read fail on deployments that predate the parameter.
+    // getPeginActivationDelay() reads the standalone getter, not the multicall.
     expect(publicClient.multicall).not.toHaveBeenCalled();
     expect(publicClient.readContract).toHaveBeenCalledWith(
       expect.objectContaining({ functionName: "peginActivationDelay" }),
@@ -531,7 +537,7 @@ describe("ViemProtocolParamsReader", () => {
     expect(timelockPegin).toBe(65535);
   });
 
-  it("passes correct contract address to readContract", async () => {
+  it("passes correct contract address to the TBV params multicall", async () => {
     const publicClient = createMockPublicClient();
     const reader = new ViemProtocolParamsReader(
       publicClient as never,
@@ -540,10 +546,14 @@ describe("ViemProtocolParamsReader", () => {
 
     await reader.getTBVProtocolParams();
 
-    expect(publicClient.readContract).toHaveBeenCalledWith(
+    expect(publicClient.multicall).toHaveBeenCalledWith(
       expect.objectContaining({
-        address: MOCK_ADDRESS,
-        functionName: "getTBVProtocolParams",
+        contracts: expect.arrayContaining([
+          expect.objectContaining({
+            address: MOCK_ADDRESS,
+            functionName: "getTBVProtocolParams",
+          }),
+        ]),
       }),
     );
   });

@@ -200,6 +200,17 @@ export function validateTBVProtocolParams(params: TBVProtocolParams): void {
   }
 
   if (
+    params.maxFundingInputCount !== null &&
+    (!Number.isInteger(params.maxFundingInputCount) ||
+      params.maxFundingInputCount <= 0 ||
+      params.maxFundingInputCount > UINT8_MAX)
+  ) {
+    errors.push(
+      `maxFundingInputCount must be an integer in [1, ${UINT8_MAX}], got ${params.maxFundingInputCount}`,
+    );
+  }
+
+  if (
     typeof params.expiredPegInGraceBlocks !== "bigint" ||
     params.expiredPegInGraceBlocks <= 0n
   ) {

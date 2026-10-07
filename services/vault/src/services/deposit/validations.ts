@@ -210,7 +210,10 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * with no error or retry signal.
    */
   depositorClaimValueError: Error | null;
-  /** The amount needs more than the 20 largest UTXOs, though the wallet holds enough. */
+  /**
+   * The amount needs more than the largest UTXOs the funding-input cap allows,
+   * though the wallet holds enough.
+   */
   fundingInputCapExceeded: boolean;
 }
 

@@ -71,6 +71,7 @@ const chainMocks = vi.hoisted(() => {
     minimumPegInAmount: 10_000n,
     maxPegInAmount: 10_000_000n,
     maxHtlcOutputCount: 5,
+    maxFundingInputCount: 20,
   };
   // Every field the lock commits to differs, so an assertion on any of them
   // discriminates between the two sources. The two version labels deliberately
@@ -103,6 +104,7 @@ const chainMocks = vi.hoisted(() => {
     minimumPegInAmount: 500_000n,
     maxPegInAmount: 900_000n,
     maxHtlcOutputCount: 1,
+    maxFundingInputCount: 1,
   };
   return {
     peginConfig,

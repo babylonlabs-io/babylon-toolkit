@@ -15,11 +15,13 @@ import { IoClose } from "react-icons/io5";
 
 import { DETAIL_PANEL_CLASS } from "@/components/shared/layoutClasses";
 import { MIN_RELAY_FEE_RATE_SATS_VB } from "@/constants";
+import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useEstimatedBtcFee } from "@/hooks/deposit/useEstimatedBtcFee";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
 import { useUTXOs } from "@/hooks/useUTXOs";
+import { resolveFundingInputCap } from "@/services/deposit/fundingInputCap";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { getFeeRateBounds } from "@/utils/feeRateBounds";
 import { formatBtcAmount } from "@/utils/formatting";
@@ -63,6 +65,7 @@ export function FeeRateSelector({
   } = useNetworkFees();
   const { address } = useBTCWallet();
   const { spendableMempoolUTXOs } = useUTXOs(address);
+  const { config } = useProtocolParamsContext();
 
   const totalAmountSats = useMemo(
     () => vaultAmounts.reduce((sum, amount) => sum + amount, 0n),
@@ -73,6 +76,7 @@ export function FeeRateSelector({
     totalAmountSats,
     spendableMempoolUTXOs,
     numOutputs,
+    resolveFundingInputCap(config.maxFundingInputCount),
     feeRate,
   );
 

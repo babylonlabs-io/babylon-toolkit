@@ -11,6 +11,10 @@ vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => ({ address: "bc1qtest" }),
 }));
 
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: () => ({ config: { maxFundingInputCount: 20 } }),
+}));
+
 vi.mock("@/hooks/useUTXOs", () => ({
   useUTXOs: vi.fn(() => ({ spendableMempoolUTXOs: [] })),
 }));

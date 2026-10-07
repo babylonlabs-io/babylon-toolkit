@@ -118,6 +118,7 @@ function renderForm(
       gatingState={gatingState}
       collateralFactor={null}
       twoVaultSplit={undefined}
+      maxFundingInputCount={20}
       onAmountChange={onAmountChange}
       onMaxClick={vi.fn()}
       onDeposit={vi.fn()}

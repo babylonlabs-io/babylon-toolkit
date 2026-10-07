@@ -25,6 +25,7 @@ import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 import { depositService } from "@/services/deposit";
+import { resolveFundingInputCap } from "@/services/deposit/fundingInputCap";
 import {
   resolveDepositSplitUnavailableReason,
   resolveVaultCapState,
@@ -194,6 +195,7 @@ function SimpleDepositContent({
   } = useDepositPageFlow();
 
   const { config } = useProtocolParamsContext();
+  const fundingInputCap = resolveFundingInputCap(config.maxFundingInputCount);
 
   // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
   // block the deposit when even a single vault won't fit (`isAtCap`), force a
@@ -322,6 +324,7 @@ function SimpleDepositContent({
     estimatedFeeRate,
     depositorClaimValue,
     minPeginFee,
+    maxFundingInputCount: fundingInputCap,
   });
   const [overlappingPendingVaultCount, setOverlappingPendingVaultCount] =
     useState<number | null | "unreadable">(null);
@@ -576,6 +579,7 @@ function SimpleDepositContent({
                 collateralFactor={collateralFactor}
                 twoVaultSplit={twoVaultSplitProps}
                 fundingInputCapExceeded={fundingInputCapExceeded}
+                maxFundingInputCount={fundingInputCap}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
                 onDeposit={handleDeposit}

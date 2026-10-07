@@ -36,9 +36,18 @@ const UTXOS = [
 
 const AMOUNT = 100_000n;
 const NUM_OUTPUTS = 2;
+const MAX_FUNDING_INPUT_COUNT = 20;
 
 const render = (override?: number) =>
-  renderHook(() => useEstimatedBtcFee(AMOUNT, UTXOS, NUM_OUTPUTS, override));
+  renderHook(() =>
+    useEstimatedBtcFee(
+      AMOUNT,
+      UTXOS,
+      NUM_OUTPUTS,
+      MAX_FUNDING_INPUT_COUNT,
+      override,
+    ),
+  );
 
 beforeEach(() => {
   networkFees.defaultFeeRate = 10;
@@ -84,7 +93,13 @@ describe("useEstimatedBtcFee fee-rate override", () => {
   it("keeps the override when the mempool rate changes underneath it", () => {
     const { result, rerender } = renderHook(
       ({ override }) =>
-        useEstimatedBtcFee(AMOUNT, UTXOS, NUM_OUTPUTS, override),
+        useEstimatedBtcFee(
+          AMOUNT,
+          UTXOS,
+          NUM_OUTPUTS,
+          MAX_FUNDING_INPUT_COUNT,
+          override,
+        ),
       { initialProps: { override: 25 } },
     );
 
@@ -128,7 +143,12 @@ describe("useEstimatedBtcFee uncapped max", () => {
 
   it("reports the whole wallet's max alongside the funding-input-capped one", () => {
     const { result } = renderHook(() =>
-      useEstimatedBtcFee(AMOUNT, OVER_CAP_UTXOS, NUM_OUTPUTS),
+      useEstimatedBtcFee(
+        AMOUNT,
+        OVER_CAP_UTXOS,
+        NUM_OUTPUTS,
+        MAX_FUNDING_INPUT_COUNT,
+      ),
     );
 
     expect(result.current.maxDeposit).toBe(22_999_000n);
@@ -141,7 +161,12 @@ describe("useEstimatedBtcFee uncapped max", () => {
     ) as unknown as MempoolUTXO[];
 
     const { result } = renderHook(() =>
-      useEstimatedBtcFee(AMOUNT, withMalformed, NUM_OUTPUTS),
+      useEstimatedBtcFee(
+        AMOUNT,
+        withMalformed,
+        NUM_OUTPUTS,
+        MAX_FUNDING_INPUT_COUNT,
+      ),
     );
 
     expect(result.current.maxDeposit).toBe(20_899_000n);
