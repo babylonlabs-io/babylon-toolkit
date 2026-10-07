@@ -845,6 +845,39 @@ describe("signDepositorGraph", () => {
     expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 
+  it("accepts a vault core version 1 Assert without the marker output", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    // A version 1 Assert: output 0, a ConnectorX and a ConnectorY per
+    // challenger, and the anchor, with no marker before it.
+    registerMockTx(ASSERT_TX_HEX, {
+      ins: [
+        {
+          hash: makeReversedHash(CLAIM_TXID),
+          index: 0,
+          sequence: 0xffffffff,
+        },
+      ],
+      outs: [
+        { script: Buffer.from([0xab]), value: 1000 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa1]), value: 1_234 },
+        { script: Buffer.from([0xa2]), value: 546 },
+      ],
+      getId: () => ASSERT_TXID,
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await signDepositorGraph({
+      depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+      btcWallet: wallet,
+      signingContext: createSigningContext({ vaultCoreVersion: 1 }),
+    });
+
+    expect(wallet.signPsbts).toHaveBeenCalledOnce();
+  });
+
   it("derives localChallengers as VKs \\ {depositor} (depositor-as-claimer special case)", async () => {
     // Per btc-vault `crates/vault/src/tx_graph/graph.rs:144-150`:
     // depositor-as-claimer ⇒ LocalChallengers = VKs only (VP excluded).

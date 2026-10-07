@@ -204,6 +204,26 @@ describe("signDepositorGraph on a btc-vault-built graph", () => {
     expect(signPsbts).toHaveBeenCalledOnce();
   });
 
+  it("clears every check when the VP sends the label hashes in uppercase hex", async () => {
+    const { wallet, signPsbts } = walletThatStopsAtSigning();
+    const data = presignData().map((challenger) => ({
+      ...challenger,
+      output_label_hashes: challenger.output_label_hashes.map((hash) =>
+        hash.toUpperCase(),
+      ),
+    }));
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: depositorGraph(data),
+        btcWallet: wallet,
+        signingContext,
+      }),
+    ).rejects.toThrow(WALLET_REACHED);
+
+    expect(signPsbts).toHaveBeenCalledOnce();
+  });
+
   it("refuses an independently funded ChallengeAssertX before the wallet", async () => {
     const { wallet, signPsbts, signPsbt } = walletThatStopsAtSigning();
     const forged = withForgedChallengeAssertX((tx) => {

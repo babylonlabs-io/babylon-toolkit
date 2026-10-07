@@ -326,14 +326,19 @@ async function assertNoPayoutParentsCanonical(
   // transaction btc-vault builds from this Assert, paying the timelocked
   // connector — otherwise a colluding challenger could spend Assert:0 through
   // NoPayout without a dispute. The label hashes are the VP's, and are bound
-  // to this vault only by the presign fingerprint checked at activation.
+  // to this vault only by the presign fingerprint checked at activation. The
+  // response validator accepts either hex case and the fingerprint lowercases
+  // them, so they are lowercased here too: the same bytes, in the only case
+  // the connector accepts.
   const outputConnectorScriptPubKey =
     await getChallengeAssertOutputScriptPubKey({
       txGraphVersion: ctx.vaultCoreVersion,
       claimer: claimerPubkey,
       challenger: challengerPubkey,
       timelockChallengeAssert: ctx.timelockChallengeAssert,
-      outputLabelHashes: challenger.output_label_hashes,
+      outputLabelHashes: challenger.output_label_hashes.map((hash) =>
+        hash.toLowerCase(),
+      ),
       network: ctx.network,
     });
   for (const [half, challengeAssertTx] of [
