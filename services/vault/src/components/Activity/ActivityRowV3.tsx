@@ -12,7 +12,7 @@
  * There is no status column: a pending row spins beside its type label.
  */
 
-import { Avatar, Loader } from "@babylonlabs-io/core-ui";
+import { Avatar, Loader, useIsTouchFirst } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
 import { LIST_ROW_ACTION_SLOT_CLASS } from "@/components/shared/ListRow";
@@ -99,6 +99,7 @@ export function ActivityRowLayout({
   isPending,
   action,
 }: ActivityRowLayoutProps) {
+  const touchFirst = useIsTouchFirst();
   return (
     <div className="flex w-full flex-wrap items-center gap-x-10 gap-y-3">
       <div className="flex min-w-[180px] shrink grow-[2] basis-[180px] items-center gap-2">
@@ -135,7 +136,9 @@ export function ActivityRowLayout({
 
       <div className={CELL_CLASS}>
         <span className={`${CAPTION_TEXT_CLASS} text-accent-secondary`}>
-          {COPY.activity.explorerLabel(getExplorerName(chain))}
+          {touchFirst
+            ? COPY.activity.copyHashLabel
+            : COPY.activity.explorerLabel(getExplorerName(chain))}
         </span>
         {transactionHash !== "" ? (
           <ActivityHashLink

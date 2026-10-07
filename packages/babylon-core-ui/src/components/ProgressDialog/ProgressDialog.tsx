@@ -4,7 +4,7 @@ import { Button } from "@/components/Button";
 import { DialogBody } from "@/components/Dialog/components/DialogBody";
 import { DialogFooter } from "@/components/Dialog/components/DialogFooter";
 import { DialogHeader } from "@/components/Dialog/components/DialogHeader";
-import { ResponsiveDialog } from "@/components/ResponsiveDialog";
+import { ResponsiveDialog } from "@/components/Dialog";
 import { Stepper, type StepperItem } from "@/components/Stepper";
 
 export interface ProgressDialogProps {

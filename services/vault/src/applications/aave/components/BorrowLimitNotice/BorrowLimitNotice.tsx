@@ -12,6 +12,7 @@
  * the body starts at the title's height with no gap.
  */
 
+import { useIsTouchFirst } from "@babylonlabs-io/core-ui";
 import { PiWarningCircleFill } from "react-icons/pi";
 
 import { SINGLE_BORROW_ASSET_DOCS_URL } from "@/constants";
@@ -30,6 +31,7 @@ interface BorrowLimitNoticeProps {
 }
 
 export function BorrowLimitNotice({ mode, limit }: BorrowLimitNoticeProps) {
+  const touchFirst = useIsTouchFirst();
   const { assetNoticeTitle, assetNoticeBody, hubNoticeTitle, hubNoticeBody } =
     COPY.loans.borrowLimit;
   const title =
@@ -57,7 +59,7 @@ export function BorrowLimitNotice({ mode, limit }: BorrowLimitNoticeProps) {
               {" "}
               <a
                 href={SINGLE_BORROW_ASSET_DOCS_URL}
-                target="_blank"
+                target={touchFirst ? undefined : "_blank"}
                 rel="noopener noreferrer"
                 className="underline"
               >

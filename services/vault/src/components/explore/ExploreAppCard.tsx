@@ -1,8 +1,9 @@
-import { Button } from "@babylonlabs-io/core-ui";
+import { Button, useIsTouchFirst } from "@babylonlabs-io/core-ui";
 
 import { CARD_SHELL_CLASS } from "@/components/shared/layoutClasses";
 import type { ExploreApp } from "@/config/exploreApps";
 import { COPY } from "@/copy";
+import { openExternalUrl } from "@/utils/externalLink";
 
 interface ExploreAppCardProps {
   app: ExploreApp;
@@ -16,12 +17,13 @@ const LOGO_TILE_CLASS =
 
 /**
  * A single Explore entry: logo tile, name + description, and a "Go to App"
- * button that opens the external destination in a new tab. core-ui's Button
- * renders a native <button> with no href, and interactive content can't nest
- * inside an <a>, so navigation goes through window.open with `noopener` (the
- * same pattern used by the refund-success screen).
+ * button that opens the external destination in a new tab (same tab on
+ * touch-first devices). core-ui's Button renders a native <button> with no
+ * href, and interactive content can't nest inside an <a>, so navigation goes
+ * through `openExternalUrl` (shared with the refund-success screen).
  */
 export function ExploreAppCard({ app }: ExploreAppCardProps) {
+  const touchFirst = useIsTouchFirst();
   return (
     <div className={`${CARD_SHELL_CLASS} p-4`} data-testid="explore-app-card">
       <div className="flex h-full gap-6">
@@ -47,9 +49,7 @@ export function ExploreAppCard({ app }: ExploreAppCardProps) {
               variant="contained"
               color="secondary"
               size="small"
-              onClick={() =>
-                window.open(app.appUrl, "_blank", "noopener,noreferrer")
-              }
+              onClick={() => openExternalUrl(app.appUrl, touchFirst)}
               data-testid="explore-go-to-app"
             >
               {COPY.explore.goToApp}

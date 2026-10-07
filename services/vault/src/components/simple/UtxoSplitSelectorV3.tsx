@@ -1,4 +1,9 @@
-import { Accordion, AccordionDetails, Card } from "@babylonlabs-io/core-ui";
+import {
+  Accordion,
+  AccordionDetails,
+  Card,
+  useIsTouchFirst,
+} from "@babylonlabs-io/core-ui";
 import { IoCheckmark, IoChevronUp } from "react-icons/io5";
 
 import { TWO_VAULT_SPLIT_DOCS_URL } from "@/constants";
@@ -31,6 +36,7 @@ export function UtxoSplitSelectorV3({
   expanded,
   onExpandedChange,
 }: UtxoSplitSelectorProps) {
+  const touchFirst = useIsTouchFirst();
   const splitDisabled = !twoVaultSplit.canSplit || twoVaultSplit.isLoading;
 
   // Picking an option collapses the panel, matching the vault provider picker.
@@ -142,7 +148,7 @@ export function UtxoSplitSelectorV3({
                   {FORM_COPY.splitOptionDescription}{" "}
                   <a
                     href={TWO_VAULT_SPLIT_DOCS_URL}
-                    target="_blank"
+                    target={touchFirst ? undefined : "_blank"}
                     rel="noopener noreferrer"
                     className="text-secondary-main underline"
                     onClick={(event) => event.stopPropagation()}

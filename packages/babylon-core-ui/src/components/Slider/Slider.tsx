@@ -122,7 +122,7 @@ export function Slider({
   return (
     <div
       className={twJoin(
-        "relative w-full",
+        "relative flow-root w-full",
         Array.isArray(steps) && steps.some((s) => s.label) && "mt-4",
       )}
     >

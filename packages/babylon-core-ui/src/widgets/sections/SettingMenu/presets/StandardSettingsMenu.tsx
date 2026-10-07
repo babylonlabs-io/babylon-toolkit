@@ -4,6 +4,7 @@ import { SettingMenu, type SettingMenuProps } from "../SettingMenu";
 import { ThemeIcon } from "@/components/Icons";
 import { Toggle } from "@/components/Toggle/Toggle";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsTouchFirst } from "@/hooks/useIsTouchFirst";
 
 type Theme = "light" | "dark" | "system";
 
@@ -53,6 +54,7 @@ export const StandardSettingsMenu = ({
   );
   const isMobile = useIsMobile();
   const isPhonePopover = isMobile && mobileMode === "popover";
+  const touchFirst = useIsTouchFirst();
 
   useEffect(() => {
     if (theme) {
@@ -68,13 +70,17 @@ export const StandardSettingsMenu = ({
     setTheme(newTheme);
   };
 
-  const handleTermsOfUse = () => {
-    window.open(TERMS_OF_USE_URL, "_blank", "noopener,noreferrer");
+  const openLegalUrl = (url: string) => {
+    if (touchFirst) {
+      window.location.assign(url);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const handlePrivacyPolicy = () => {
-    window.open(PRIVACY_POLICY_URL, "_blank", "noopener,noreferrer");
-  };
+  const handleTermsOfUse = () => openLegalUrl(TERMS_OF_USE_URL);
+
+  const handlePrivacyPolicy = () => openLegalUrl(PRIVACY_POLICY_URL);
 
   const getThemeDescription = () => {
     return isLightMode ? "Light mode" : "Dark mode";
@@ -105,7 +111,7 @@ export const StandardSettingsMenu = ({
             <a
               key={url}
               href={url}
-              target="_blank"
+              target={touchFirst ? undefined : "_blank"}
               rel="noopener noreferrer"
               className="relative flex w-[220px] items-center justify-between text-sm leading-[1.43] tracking-[0.17px] text-accent-primary before:absolute before:-inset-y-2 before:inset-x-0"
             >

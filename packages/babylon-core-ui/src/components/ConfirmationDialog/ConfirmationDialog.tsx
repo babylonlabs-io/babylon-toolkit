@@ -5,7 +5,7 @@ import { Button } from "@/components/Button";
 import { DialogBody } from "@/components/Dialog/components/DialogBody";
 import { DialogFooter } from "@/components/Dialog/components/DialogFooter";
 import { Heading } from "@/components/Heading";
-import { ResponsiveDialog } from "@/components/ResponsiveDialog";
+import { ResponsiveDialog } from "@/components/Dialog";
 import { Text } from "@/components/Text";
 
 export interface ConfirmationDialogProps {

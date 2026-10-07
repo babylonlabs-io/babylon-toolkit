@@ -1,2 +1,0 @@
-export { ResponsiveDialog } from "./ResponsiveDialog";
-

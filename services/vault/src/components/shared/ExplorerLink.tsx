@@ -1,3 +1,4 @@
+import { useIsTouchFirst } from "@babylonlabs-io/core-ui";
 import { IoOpenOutline } from "react-icons/io5";
 
 interface ExplorerLinkProps {
@@ -16,7 +17,8 @@ interface ExplorerLinkProps {
 
 /**
  * Icon-only external link to the Babylon BTC Vault explorer. Opens in a new tab
- * with `rel="noopener noreferrer"`. Renders nothing without an `href`.
+ * with `rel="noopener noreferrer"`, or in the same tab on touch-first devices,
+ * where wallet in-app browsers have no tabs. Renders nothing without an `href`.
  */
 export function ExplorerLink({
   href,
@@ -24,12 +26,13 @@ export function ExplorerLink({
   size = 16,
   className = "text-accent-secondary transition-colors hover:text-accent-primary",
 }: ExplorerLinkProps) {
+  const touchFirst = useIsTouchFirst();
   if (!href) return null;
 
   return (
     <a
       href={href}
-      target="_blank"
+      target={touchFirst ? undefined : "_blank"}
       rel="noopener noreferrer"
       aria-label={label}
       title={label}

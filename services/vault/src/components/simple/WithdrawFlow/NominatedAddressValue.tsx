@@ -1,3 +1,6 @@
+import { useIsTouchFirst } from "@babylonlabs-io/core-ui";
+import { twJoin } from "tailwind-merge";
+
 import { CopyableHash } from "@/components/shared/CopyableHash";
 
 interface NominatedAddressValueProps {
@@ -12,10 +15,16 @@ interface NominatedAddressValueProps {
 export function NominatedAddressValue({
   addresses,
 }: NominatedAddressValueProps) {
+  const touchFirst = useIsTouchFirst();
   if (addresses.length === 0) return null;
 
   return (
-    <span className="flex flex-col items-end gap-1">
+    <span
+      className={twJoin(
+        "flex flex-col items-end",
+        touchFirst ? "gap-5" : "gap-1",
+      )}
+    >
       {addresses.map((address) => (
         <CopyableHash key={address} hash={address} chain="BTC" kind="address" />
       ))}

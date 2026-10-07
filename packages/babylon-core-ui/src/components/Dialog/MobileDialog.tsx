@@ -50,7 +50,7 @@ export const MobileDialog = ({
             className={
               handle
                 ? "sr-only"
-                : "absolute top-4 left-4 z-10 p-1.5 rounded-full bg-surface-tertiary hover:bg-surface-quaternary transition-colors"
+                : "absolute top-4 left-4 z-10 p-1.5 rounded-full bg-surface-tertiary hover:bg-surface-quaternary transition-colors before:absolute before:-inset-[7px] before:content-['']"
             }
             aria-label="Close"
           >

@@ -52,7 +52,7 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
         {showBackButton && (
           <button
             onClick={onClose}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded transition-colors hover:bg-accent-secondary/10"
+            className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded transition-colors hover:bg-accent-secondary/10 before:absolute before:-inset-1 before:content-['']"
             aria-label="Go back"
           >
             {backIcon || (

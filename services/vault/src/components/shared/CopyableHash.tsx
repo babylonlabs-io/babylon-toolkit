@@ -3,11 +3,19 @@
  *
  * BTC hashes are displayed without the 0x prefix (Bitcoin convention).
  * EVM hashes keep the 0x prefix (Ethereum convention).
- * If explorerUrl is provided, the hash text opens the explorer in a new tab.
+ * If explorerUrl is provided, the hash text opens the explorer in a new tab;
+ * on touch-first devices the hash stays plain text and the copy button is the
+ * affordance.
  */
 
-import { CheckIcon, CopyIcon, useCopy } from "@babylonlabs-io/core-ui";
+import {
+  CheckIcon,
+  CopyIcon,
+  useCopy,
+  useIsTouchFirst,
+} from "@babylonlabs-io/core-ui";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { twJoin } from "tailwind-merge";
 
 import { truncateHash } from "@/utils/addressUtils";
 
@@ -41,6 +49,7 @@ export function CopyableHash({
   kind = "tx",
 }: CopyableHashProps) {
   const { isCopied, copyToClipboard } = useCopy();
+  const touchFirst = useIsTouchFirst();
   const displayHash = formatForChain(hash, chain);
   const truncated = truncateHash(displayHash);
   const copyLabel = `Copy ${chain} ${kind === "address" ? "address" : "transaction hash"} ${truncated}`;
@@ -55,7 +64,7 @@ export function CopyableHash({
           {chain}
         </span>
       )}
-      {explorerUrl ? (
+      {explorerUrl && !touchFirst ? (
         <a
           href={explorerUrl}
           target="_blank"
@@ -75,7 +84,11 @@ export function CopyableHash({
         type="button"
         onClick={() => copyToClipboard(hash, displayHash)}
         aria-label={copyLabel}
-        className="flex cursor-pointer items-center text-accent-secondary transition-colors hover:text-accent-primary"
+        className={twJoin(
+          "flex cursor-pointer items-center text-accent-secondary transition-colors hover:text-accent-primary",
+          touchFirst &&
+            "relative before:absolute before:-inset-[13px] before:content-['']",
+        )}
       >
         {isCopied(hash) ? (
           <CheckIcon size={COPY_ICON_SIZE} variant="success" />

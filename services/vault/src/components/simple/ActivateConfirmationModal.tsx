@@ -4,7 +4,6 @@ import {
   DialogBody,
   DialogFooter,
   ResponsiveDialog,
-  WINDOW_BREAKPOINT,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
@@ -127,7 +126,7 @@ export function ActivateConfirmationModal({
   // The mobile sheet draws its own close button, so the design's header
   // control is desktop-only. Same breakpoint ResponsiveDialog switches on, so
   // exactly one of the two renders at every width.
-  const isMobile = useIsMobile(WINDOW_BREAKPOINT);
+  const isMobile = useIsMobile();
 
   // A malformed address is a data problem too: no proxy URL can be built
   // from it, so neither the probe nor the download could ever run.
