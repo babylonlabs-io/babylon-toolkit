@@ -352,13 +352,16 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   verifyRegisteredParticipantKeys: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/clients/eth-contract/walletChain", () => ({
+  getWalletClientOnExpectedChain: vi.fn(),
+}));
+
 vi.mock("../depositFlowSteps", async () => {
   const actual = await vi.importActual<typeof import("../depositFlowSteps")>(
     "../depositFlowSteps",
   );
   return {
     ...actual,
-    getEthWalletClient: vi.fn(),
     registerPeginBatchAndWait: vi.fn(),
     signAndSubmitPayouts: vi.fn(),
     signProofOfPossession: vi.fn(),
@@ -550,8 +553,10 @@ async function setupDefaultMocks() {
     await import("@/services/vault/vaultPeginBroadcastService"),
   );
   const { addPendingPegin } = vi.mocked(await import("@/storage/peginStorage"));
+  const { getWalletClientOnExpectedChain } = vi.mocked(
+    await import("@/clients/eth-contract/walletChain"),
+  );
   const {
-    getEthWalletClient,
     registerPeginBatchAndWait,
     signAndSubmitPayouts,
     signProofOfPossession,
@@ -593,7 +598,9 @@ async function setupDefaultMocks() {
     MOCK_BATCH_RESULT as any,
   );
 
-  vi.mocked(getEthWalletClient).mockResolvedValue(MOCK_ETH_WALLET as any);
+  vi.mocked(getWalletClientOnExpectedChain).mockResolvedValue(
+    MOCK_ETH_WALLET as any,
+  );
   vi.mocked(signProofOfPossession).mockResolvedValue({
     btcPopSignature: "0xMockPopSignature" as Hex,
     depositorEthAddress: "0xEthAddress123" as `0x${string}`,

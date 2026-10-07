@@ -1132,10 +1132,6 @@ export const COPY = {
       // reconnect cannot fix a malformed record, so this is not a mismatch.
       depositorBtcKeyMissing:
         "This BTCVault has no registered Bitcoin key on-chain, so it cannot be resumed. Please contact support.",
-      chainSwitchRequired: (network: string) =>
-        `Please switch to ${network} in your wallet`,
-      ethereumMainnet: "Ethereum Mainnet",
-      sepoliaTestnet: "Sepolia Testnet",
       // ----------------------------------------------------------------------
       // Deposit-flow error callout copy (title + body). Consumed by
       // `mapDepositError` (utils/errors/depositErrors.ts). `defaultTitle` is the
@@ -1728,6 +1724,12 @@ export const COPY = {
     },
     publicKeyUnavailable:
       "Your BTC wallet did not return a public key. Please reconnect your wallet and try again.",
+    chainSwitch: {
+      required: (network: string) =>
+        `Please switch to ${network} in your wallet`,
+      ethereumMainnet: "Ethereum Mainnet",
+      sepoliaTestnet: "Sepolia Testnet",
+    },
   },
   collateral: {
     uncapped: "Uncapped",

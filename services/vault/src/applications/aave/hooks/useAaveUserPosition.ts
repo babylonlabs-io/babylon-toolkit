@@ -119,6 +119,8 @@ export function useAaveUserPosition(
       }),
     enabled: !!connectedAddress && !!spokeAddress && vbtcReserveId != null,
     refetchOnMount: true,
+    // A phone returning from the wallet app must not show the pre-tx position.
+    refetchOnWindowFocus: "always",
     refetchInterval: POSITION_REFETCH_INTERVAL_MS,
     // `"online"` (the default) pauses queries when `navigator.onLine` is
     // false rather than running queryFn — `refetch()` then resolves with

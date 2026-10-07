@@ -1,16 +1,11 @@
 /**
- * Steps 1-3: ETH wallet acquisition, BIP-322 PoP signing, pegin submission.
+ * Steps 2-3: BIP-322 PoP signing, pegin submission.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { PopSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import type { Address, WalletClient } from "viem";
-import { getWalletClient, switchChain } from "wagmi/actions";
 
-import { getETHChain } from "@/config/network";
-import { COPY } from "@/copy";
-import { logger } from "@/infrastructure";
 import {
   registerPeginBatchOnChain,
   signProofOfPossession as sdkSignProofOfPossession,
@@ -20,44 +15,6 @@ import type {
   PeginBatchRegisterParams,
   PeginBatchRegisterResult,
 } from "./types";
-
-// ============================================================================
-// Step 1: Get ETH Wallet Client
-// ============================================================================
-
-/**
- * Get ETH wallet client, switching chain if needed.
- */
-export async function getEthWalletClient(
-  depositorEthAddress: Address,
-): Promise<WalletClient> {
-  const wagmiConfig = getSharedWagmiConfig();
-  const expectedChainId = getETHChain().id;
-
-  try {
-    await switchChain(wagmiConfig, { chainId: expectedChainId });
-  } catch (switchError) {
-    logger.error(switchError, { data: { context: "Failed to switch chain" } });
-    throw new Error(
-      COPY.deposit.errors.chainSwitchRequired(
-        expectedChainId === 1
-          ? COPY.deposit.errors.ethereumMainnet
-          : COPY.deposit.errors.sepoliaTestnet,
-      ),
-    );
-  }
-
-  const walletClient = await getWalletClient(wagmiConfig, {
-    chainId: expectedChainId,
-    account: depositorEthAddress,
-  });
-
-  if (!walletClient) {
-    throw new Error("Failed to get wallet client");
-  }
-
-  return walletClient;
-}
 
 // ============================================================================
 // Step 2: Sign BIP-322 Proof of Possession (one wallet popup per session)

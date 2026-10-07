@@ -52,6 +52,10 @@ vi.mock("../../config", () => ({
   getAaveAdapterAddress: vi.fn(() => "0xadapter"),
 }));
 
+vi.mock("../../../../clients/eth-contract/walletChain", () => ({
+  ensureWalletClientOnExpectedChain: (walletClient: unknown) => walletClient,
+}));
+
 // The proxy-integrity guard is unit-tested in assertProxyMatchesOnChain.test.ts.
 // Default (in beforeEach) is identity so the existing repayAll tests see the
 // same proxy; the F8 block overrides it to exercise the mismatch behavior.

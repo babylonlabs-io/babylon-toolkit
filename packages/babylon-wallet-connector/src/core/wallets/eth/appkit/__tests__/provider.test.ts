@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "wagmi";
 
 import type { ETHConfig } from "@/core/types";
@@ -13,7 +13,9 @@ const wagmiActions = vi.hoisted(() => ({
     chainId: undefined,
     status: "disconnected",
   })),
-  watchAccount: vi.fn(() => () => {}),
+  watchAccount: vi.fn<
+    (config: Config, options: { onChange: (account: { address?: `0x${string}`; chainId?: number }) => void }) => () => void
+  >(() => () => {}),
   watchChainId: vi.fn(() => () => {}),
   disconnect: vi.fn(),
 }));
@@ -122,7 +124,7 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
       const sharedConfig = {} as Config;
       setSharedWagmiConfig(sharedConfig);
       const provider = new AppKitProvider(ethConfig);
-      wagmiActions.getAccount.mockReturnValueOnce({ address: "0xabc", chainId: 1, status: "connected" });
+      wagmiActions.getAccount.mockReturnValueOnce({ address: "0x00000000000000000000000000000000000000aB", chainId: 1, status: "connected" });
       await provider.connectWallet();
 
       if (refused) {
@@ -131,7 +133,7 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
           chainId: "ETH",
         });
         expect(wagmiActions.disconnect).not.toHaveBeenCalled();
-        await expect(provider.getAddress()).resolves.toBe("0xabc");
+        await expect(provider.getAddress()).resolves.toBe("0x00000000000000000000000000000000000000aB");
         await expect(provider.getChainId()).resolves.toBe(1);
       } else {
         await provider.disconnect(scope);
@@ -188,13 +190,13 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
     setSharedWagmiConfig({} as Config);
     const provider = new AppKitProvider(ethConfig);
 
-    wagmiActions.getAccount.mockReturnValueOnce({ address: "0xabc", chainId: 1, status: "connected" });
+    wagmiActions.getAccount.mockReturnValueOnce({ address: "0x00000000000000000000000000000000000000aB", chainId: 1, status: "connected" });
     await provider.connectWallet();
 
     wagmiActions.disconnect.mockRejectedValueOnce(new Error("disconnect failed"));
 
     await expect(provider.disconnect("chain")).rejects.toThrow("disconnect failed");
-    await expect(provider.getAddress()).resolves.toBe("0xabc");
+    await expect(provider.getAddress()).resolves.toBe("0x00000000000000000000000000000000000000aB");
 
     provider.destroy();
   });
@@ -207,7 +209,7 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
     setSharedWagmiConfig({} as Config);
     const provider = new AppKitProvider(ethConfig);
 
-    wagmiActions.getAccount.mockReturnValueOnce({ address: "0xabc", chainId: 1, status: "connected" });
+    wagmiActions.getAccount.mockReturnValueOnce({ address: "0x00000000000000000000000000000000000000aB", chainId: 1, status: "connected" });
     await provider.connectWallet();
 
     wagmiActions.disconnect.mockResolvedValueOnce(undefined);
@@ -215,6 +217,154 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
     await provider.disconnect("chain");
     await expect(provider.getAddress()).rejects.toThrow("Wallet not connected");
 
+    provider.destroy();
+  });
+});
+
+describe("AppKitProvider — a momentarily empty account reading", () => {
+  const ADDRESS = "0xAbC0000000000000000000000000000000000001";
+  const OTHER_ADDRESS = "0xDef0000000000000000000000000000000000002";
+
+  const connectedProvider = async () => {
+    vi.resetModules();
+    const { setSharedWagmiConfig } = await import("../sharedConfig");
+    const { AppKitProvider } = await import("../provider");
+    setSharedWagmiConfig({} as Config);
+    const provider = new AppKitProvider(ethConfig);
+    const { onChange } = wagmiActions.watchAccount.mock.calls[0][1];
+    onChange({ address: ADDRESS, chainId: 1 });
+    const accountsChanged = vi.fn();
+    provider.on("accountsChanged", accountsChanged);
+    return { provider, onChange, accountsChanged };
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("keeps the session when the same address returns within 3 s", async () => {
+    const { provider, onChange, accountsChanged } = await connectedProvider();
+
+    onChange({ address: undefined, chainId: undefined });
+    vi.advanceTimersByTime(2_000);
+    await expect(provider.getAddress()).resolves.toBe(ADDRESS);
+    onChange({ address: ADDRESS.toLowerCase() as `0x${string}`, chainId: 1 });
+    vi.advanceTimersByTime(5_000);
+
+    expect(accountsChanged).not.toHaveBeenCalled();
+    await expect(provider.getAddress()).resolves.toBe(ADDRESS.toLowerCase());
+    provider.destroy();
+  });
+
+  it("reports the account as gone once, after it stays empty past 3 s", async () => {
+    const { provider, onChange, accountsChanged } = await connectedProvider();
+
+    onChange({ address: undefined, chainId: undefined });
+    onChange({ address: undefined, chainId: undefined });
+    vi.advanceTimersByTime(2_999);
+    expect(accountsChanged).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(accountsChanged).toHaveBeenCalledTimes(1);
+    expect(accountsChanged).toHaveBeenCalledWith([]);
+    await expect(provider.getAddress()).rejects.toThrow("Wallet not connected");
+    provider.destroy();
+  });
+
+  it("reports a different address at once, without waiting for the window", async () => {
+    const { provider, onChange, accountsChanged } = await connectedProvider();
+
+    onChange({ address: undefined, chainId: undefined });
+    onChange({ address: OTHER_ADDRESS, chainId: 1 });
+
+    expect(accountsChanged).toHaveBeenCalledTimes(1);
+    expect(accountsChanged).toHaveBeenCalledWith([OTHER_ADDRESS]);
+    vi.advanceTimersByTime(5_000);
+    expect(accountsChanged).toHaveBeenCalledTimes(1);
+    provider.destroy();
+  });
+});
+
+describe("AppKitProvider — the AppKit modal closes while a connection is pending", () => {
+  const ADDRESS = "0xAbC0000000000000000000000000000000000001";
+
+  const setVisibility = (state: DocumentVisibilityState) => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue(state);
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  const startConnect = async () => {
+    vi.resetModules();
+    const { getAppKitModal } = await import("@/core/wallets/appkit/state");
+    const { setSharedWagmiConfig } = await import("../sharedConfig");
+    const { AppKitProvider } = await import("../provider");
+    let onModalState: (state: { open: boolean }) => void = () => {};
+    vi.mocked(getAppKitModal).mockReturnValue({
+      subscribeState: (listener: (state: { open: boolean }) => void) => {
+        onModalState = listener;
+        return () => {};
+      },
+    } as never);
+    setSharedWagmiConfig({} as Config);
+    const provider = new AppKitProvider(ethConfig);
+
+    let outcome = "pending";
+    const connecting = provider.connectWallet().then(
+      () => {
+        outcome = "resolved";
+      },
+      (error: Error) => {
+        outcome = error.message;
+      },
+    );
+    const { onChange: approve } = wagmiActions.watchAccount.mock.calls[1][1];
+    return { provider, onModalState, approve, connecting, outcome: () => outcome };
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("keeps the connection pending while the page is hidden, then resolves on approval", async () => {
+    const { provider, onModalState, approve, connecting, outcome } = await startConnect();
+
+    onModalState({ open: true });
+    setVisibility("hidden");
+    onModalState({ open: false });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(outcome()).toBe("pending");
+
+    setVisibility("visible");
+    approve({ address: ADDRESS, chainId: 1 });
+    await connecting;
+    expect(outcome()).toBe("resolved");
+    await expect(provider.getAddress()).resolves.toBe(ADDRESS);
+    provider.destroy();
+  });
+
+  it("cancels the connection 1.5 s after the modal closes while the page is visible", async () => {
+    const { provider, onModalState, outcome } = await startConnect();
+
+    onModalState({ open: true });
+    onModalState({ open: false });
+    await vi.advanceTimersByTimeAsync(1_499);
+    expect(outcome()).toBe("pending");
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(outcome()).toBe("Failed to connect wallet: Connection cancelled");
     provider.destroy();
   });
 });

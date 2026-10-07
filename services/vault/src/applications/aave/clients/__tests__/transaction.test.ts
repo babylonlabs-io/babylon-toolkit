@@ -1,6 +1,7 @@
-import { encodeErrorResult } from "viem";
+import { encodeErrorResult, type Chain, type WalletClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
 import {
   ContractError,
   ErrorCode,
@@ -12,6 +13,9 @@ const {
   mockWaitReceipt,
   mockSendWithStaleNonceRetry,
   mockWaitForWalletToCountTransaction,
+  mockSwitchChain,
+  mockGetWalletClient,
+  sharedWagmiConfig,
 } = vi.hoisted(() => ({
   mockPublicClient: {
     call: vi.fn(),
@@ -19,6 +23,18 @@ const {
   mockWaitReceipt: vi.fn(),
   mockSendWithStaleNonceRetry: vi.fn(),
   mockWaitForWalletToCountTransaction: vi.fn(),
+  mockSwitchChain: vi.fn(),
+  mockGetWalletClient: vi.fn(),
+  sharedWagmiConfig: { id: "shared-wagmi-config" },
+}));
+
+vi.mock("wagmi/actions", () => ({
+  switchChain: (...args: unknown[]) => mockSwitchChain(...args),
+  getWalletClient: (...args: unknown[]) => mockGetWalletClient(...args),
+}));
+
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  getSharedWagmiConfig: () => sharedWagmiConfig,
 }));
 
 vi.mock("../../../../clients/eth-contract/client", () => ({
@@ -41,7 +57,12 @@ vi.mock("@/config/network", () => ({
   getETHChain: () => ({ id: 1 }),
 }));
 
-import { repayToCorePosition } from "../transaction";
+import {
+  borrowFromCorePosition,
+  reorderVaults,
+  repayToCorePosition,
+  withdrawCollaterals,
+} from "../transaction";
 
 const ERC20_INSUFFICIENT_ALLOWANCE_ABI = [
   {
@@ -176,5 +197,116 @@ describe("executeTx wallet nonce handling (via repayToCorePosition)", () => {
 
     expect(isSimulationPhaseError(thrown)).toBe(true);
     expect(walletClient.sendTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeTx network switch", () => {
+  const ACCOUNT = "0x2000000000000000000000000000000000000002";
+  const ADAPTER = "0x3000000000000000000000000000000000000003";
+  const VAULT_ID =
+    "0x4000000000000000000000000000000000000000000000000000000000000004";
+  const MAINNET = { id: 1 } as Chain;
+
+  const walletOnChain = (chainId: number) => ({
+    chain: { id: chainId },
+    account: { address: ACCOUNT },
+    sendTransaction: vi.fn().mockResolvedValue("0xsent"),
+  });
+
+  let wrongChainWallet: ReturnType<typeof walletOnChain>;
+  let switchedWallet: ReturnType<typeof walletOnChain>;
+
+  beforeEach(() => {
+    mockPublicClient.call.mockResolvedValue({});
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xmined",
+    });
+    wrongChainWallet = walletOnChain(2);
+    switchedWallet = walletOnChain(1);
+    mockSwitchChain.mockResolvedValue(undefined);
+    mockGetWalletClient.mockResolvedValue(switchedWallet);
+  });
+
+  const expectSwitchedBeforeSend = () => {
+    expect(mockSwitchChain).toHaveBeenCalledWith(sharedWagmiConfig, {
+      chainId: 1,
+    });
+    expect(mockGetWalletClient).toHaveBeenCalledWith(sharedWagmiConfig, {
+      chainId: 1,
+      account: ACCOUNT,
+    });
+    expect(wrongChainWallet.sendTransaction).not.toHaveBeenCalled();
+    expect(switchedWallet.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSwitchChain.mock.invocationCallOrder[0]).toBeLessThan(
+      switchedWallet.sendTransaction.mock.invocationCallOrder[0],
+    );
+  };
+
+  it.each([
+    {
+      action: "borrow",
+      send: (wallet: WalletClient) =>
+        borrowFromCorePosition(wallet, MAINNET, ADAPTER, 0n, 5n, ACCOUNT),
+    },
+    {
+      action: "repay",
+      send: (wallet: WalletClient) =>
+        repayToCorePosition(wallet, MAINNET, ADAPTER, ACCOUNT, 0n, 3n),
+    },
+    {
+      action: "withdraw",
+      send: (wallet: WalletClient) =>
+        withdrawCollaterals(wallet, MAINNET, ADAPTER, [VAULT_ID]),
+    },
+    {
+      action: "reorder",
+      send: (wallet: WalletClient) =>
+        reorderVaults(wallet, MAINNET, ADAPTER, [VAULT_ID]),
+    },
+  ])(
+    "switches a wallet on the wrong chain to chain 1 before sending a $action",
+    async ({ send }) => {
+      await send(wrongChainWallet as unknown as WalletClient);
+
+      expectSwitchedBeforeSend();
+    },
+  );
+
+  it("sends from the connected wallet without a switch prompt when it is already on chain 1", async () => {
+    const rightChainWallet = walletOnChain(1);
+
+    await repayToCorePosition(
+      rightChainWallet as unknown as WalletClient,
+      MAINNET,
+      ADAPTER,
+      ACCOUNT,
+      0n,
+      3n,
+    );
+
+    expect(mockSwitchChain).not.toHaveBeenCalled();
+    expect(mockGetWalletClient).not.toHaveBeenCalled();
+    expect(rightChainWallet.sendTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails with the switch-network message and sends nothing when the user refuses the switch", async () => {
+    mockSwitchChain.mockRejectedValue(new Error("User rejected the request."));
+
+    await expect(
+      repayToCorePosition(
+        wrongChainWallet as unknown as WalletClient,
+        MAINNET,
+        ADAPTER,
+        ACCOUNT,
+        0n,
+        3n,
+      ),
+    ).rejects.toThrow(
+      COPY.wallet.chainSwitch.required(COPY.wallet.chainSwitch.ethereumMainnet),
+    );
+    expect(mockPublicClient.call).not.toHaveBeenCalled();
+    expect(wrongChainWallet.sendTransaction).not.toHaveBeenCalled();
+    expect(switchedWallet.sendTransaction).not.toHaveBeenCalled();
   });
 });

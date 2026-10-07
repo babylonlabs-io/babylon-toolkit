@@ -7,7 +7,7 @@
  *
  * Flow steps (align with the `DepositFlowStep` enum):
  * 0. Validation - validateMultiVaultDepositInputs
- * 1. Get ETH wallet - getEthWalletClient
+ * 1. Get ETH wallet - getWalletClientOnExpectedChain (clients/eth-contract/walletChain)
  * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
  * 2b. Sign proof of possession - signProofOfPossession (one BIP-322 wallet popup)
  * 2c. Register pegin batch - registerPeginBatchAndWait (single ETH tx for all vaults)
@@ -30,9 +30,8 @@ export type {
 export { validateMultiVaultDepositInputs } from "./validation";
 export type { VaultMultiVaultDepositInputs } from "./validation";
 
-// Steps 1-3: ETH wallet, proof of possession, pegin submission
+// Steps 2-3: proof of possession, pegin submission
 export {
-  getEthWalletClient,
   registerPeginBatchAndWait,
   signProofOfPossession,
 } from "./ethereumSubmit";
