@@ -53,6 +53,34 @@ function RecoveryArtifactsIcon() {
   );
 }
 
+/**
+ * The vault surface's wording for each activation-phrased message. An active
+ * vault has no activation, risk acknowledgement or artifact warning left, so
+ * those clauses are dropped there.
+ */
+const VAULT_MESSAGES = new Map<string, string>([
+  [
+    COPY.deposit.recoveryArtifacts.fallbackSaveHint,
+    COPY.deposit.artifactDownload.fallbackSaveHint,
+  ],
+  [
+    COPY.deposit.recoveryArtifacts.unverifiedSaveNotice,
+    COPY.deposit.artifactDownload.unverifiedSaveNotice,
+  ],
+  [
+    COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
+    COPY.deposit.artifactDownload.signedGraphUnavailable,
+  ],
+  [
+    COPY.deposit.recoveryArtifacts.signedGraphNotRecorded,
+    COPY.deposit.artifactDownload.signedGraphNotRecorded,
+  ],
+  [
+    COPY.deposit.recoveryArtifacts.signedGraphMismatch,
+    COPY.deposit.artifactDownload.signedGraphMismatch,
+  ],
+]);
+
 /** Everything the parent needs to render the download in the card's place. */
 export interface ArtifactDownloadProgress {
   loading: boolean;
@@ -81,16 +109,9 @@ interface RecoveryArtifactsCardProps {
    * Fired the first time a download within this card completes with proof:
    * a validated bundle written to a file the user chose, and receipted. This
    * is what satisfies the activation gate, so the unverifiable anchor
-   * fallback deliberately does NOT fire it — see `onDelivered`.
+   * fallback deliberately does NOT fire it.
    */
   onDownloaded?: () => void;
-  /**
-   * Fired the first time a download finishes without proof — the anchor
-   * fallback, where the browser reports nothing about whether the file was
-   * saved. Parents may use it to offer a way out of an informational dialog,
-   * but it must never stand in for `onDownloaded` on an activation gate.
-   */
-  onDelivered?: () => void;
   /**
    * Fired whenever the in-flight download's state moves. The card renders
    * nothing while `loading`, so this is what lets the parent modal present
@@ -104,6 +125,12 @@ interface RecoveryArtifactsCardProps {
    * offering the risk opt-out for this vault.
    */
   onGraphMismatch?: () => void;
+  /**
+   * Where the card is mounted. `activation` gates activating the vault;
+   * `vault` downloads for a vault that is already active and shows the
+   * messages without the activation clauses.
+   */
+  context?: "activation" | "vault";
 }
 
 /**
@@ -128,9 +155,9 @@ export const RecoveryArtifactsCard = forwardRef<
     vaultId,
     unsignedPrePeginTxHex,
     onDownloaded,
-    onDelivered,
     onStateChange,
     onGraphMismatch,
+    context = "activation",
   },
   ref,
 ) {
@@ -170,6 +197,9 @@ export const RecoveryArtifactsCard = forwardRef<
       ? COPY.deposit.recoveryArtifacts.signedGraphMismatch
       : null);
 
+  const message = (text: string) =>
+    context === "vault" ? (VAULT_MESSAGES.get(text) ?? text) : text;
+
   // A finished-but-unprovable save (the anchor fallback). Deliberately not
   // folded into `isDownloaded`: that flag drives the success presentation and,
   // through onDownloaded, the activation gate. A receipt from an earlier
@@ -187,14 +217,6 @@ export const RecoveryArtifactsCard = forwardRef<
       onDownloaded?.();
     }
   }, [downloaded, onDownloaded]);
-
-  const deliveredNotifiedRef = useRef(false);
-  useEffect(() => {
-    if (delivered && !deliveredNotifiedRef.current) {
-      deliveredNotifiedRef.current = true;
-      onDelivered?.();
-    }
-  }, [delivered, onDelivered]);
 
   useEffect(() => {
     onStateChange?.({
@@ -268,20 +290,20 @@ export const RecoveryArtifactsCard = forwardRef<
           <span className="text-accent-primary">
             {COPY.deposit.recoveryArtifacts.unverifiedSaveTitle}
           </span>{" "}
-          {COPY.deposit.recoveryArtifacts.unverifiedSaveNotice}
+          {message(COPY.deposit.recoveryArtifacts.unverifiedSaveNotice)}
         </span>
       )}
 
       {/* Already spelled out at length by the unverified notice above. */}
       {!isDownloaded && usesFallbackSave && !isUnverified && (
         <span className="text-center text-xs text-accent-secondary">
-          {COPY.deposit.recoveryArtifacts.fallbackSaveHint}
+          {message(COPY.deposit.recoveryArtifacts.fallbackSaveHint)}
         </span>
       )}
 
       {error && (
         <span className="text-sm leading-[1.43] tracking-[0.17px] text-error-main">
-          {error}
+          {message(error)}
         </span>
       )}
     </div>

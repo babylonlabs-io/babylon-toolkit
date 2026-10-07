@@ -891,6 +891,19 @@ export const COPY = {
       // confirms the artifacts are on disk (collateral list); it doesn't
       // perform activation, so the label simply dismisses it.
       doneButton: "Done",
+      // Active-vault variants of the recoveryArtifacts messages that speak
+      // about activation, the risk acknowledgement, or the artifact warning.
+      // The vault is already active, so those clauses do not apply here.
+      fallbackSaveHint:
+        "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
+      unverifiedSaveNotice:
+        "Check your downloads folder for the file. This browser does not report whether the save completed. For a confirmed save, download again using a Chromium-based browser such as Chrome or Brave.",
+      signedGraphUnavailable:
+        "This browser has no record of the transactions you signed for this deposit, so these artifacts cannot be checked. This happens when the deposit was signed on another device or browser data was cleared. Download them on the device you signed with.",
+      signedGraphNotRecorded:
+        "This deposit was signed before this app kept a record of the transactions you signed, so these artifacts cannot be checked against it.",
+      signedGraphMismatch:
+        "These artifacts do not match the transactions you signed, so they were not saved. Contact support.",
     },
     vaultActivatedSuccess: {
       heading: "BTCVault activated",
@@ -909,6 +922,11 @@ export const COPY = {
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
+      phoneReminder: {
+        title: "Save your recovery artifacts",
+        subtitle: "Computer required ~1 GB",
+        body: "Open this app on a computer, connect the same wallet, and download artifacts from the Vaults page. Keep them in a secure place.",
+      },
       // The deposit's vault provider address could not be turned into a
       // proxy URL (malformed address or missing proxy configuration).
       vaultProviderUnreachable:
@@ -2654,6 +2672,7 @@ export const COPY = {
     progressPercent: (percent: number) => `${percent}%`,
     actions: {
       reorder: "Reorder",
+      downloadArtifacts: "Download artifacts",
       withdraw: "Withdraw",
       redeem: "Redeem",
       viewDetails: "View Details",

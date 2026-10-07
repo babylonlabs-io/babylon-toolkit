@@ -1,3 +1,4 @@
+import { isTouchFirstNow } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   processPublicKeyToXOnly,
@@ -11,6 +12,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
+import featureFlags from "@/config/featureFlags";
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
@@ -211,6 +213,17 @@ export function useArtifactDownload(options?: {
       // god-mode panel's "Mock artifact download" toggle; off in production
       // builds, where the god-mode gate is compile-time false.
       const demoDownload = getArtifactDownloadOverride();
+      // A phone browser has no save-file picker and would buffer the whole
+      // artifact set in memory, so every surface is stopped here. The mock
+      // writes a synthetic file of a few MB, so QA can still run it on a phone.
+      if (!demoDownload && featureFlags.isMobileEnabled && isTouchFirstNow()) {
+        abortControllerRef.current?.abort();
+        setState({
+          ...INITIAL_STATE,
+          error: COPY.deposit.recoveryArtifacts.phoneReminder.body,
+        });
+        return;
+      }
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
       // Per-vault join key for telemetry. The pegin txid identifies the same
       // deposit when no vaultId is mounted, and is public on-chain data

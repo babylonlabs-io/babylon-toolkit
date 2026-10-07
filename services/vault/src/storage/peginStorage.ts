@@ -17,12 +17,16 @@
 import type { Hex } from "viem";
 
 import { logger } from "@/infrastructure";
+import {
+  readSignedGraphFingerprintRecord,
+  saveSignedGraphFingerprint,
+} from "@/utils/artifactDownloadStorage";
 
 import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
 import {
+  ContractStatus,
   LocalStorageStatus,
   shouldRemoveFromLocalStorage,
-  type ContractStatus,
 } from "../models/peginStateMachine";
 
 export interface PendingPeginRequest {
@@ -803,7 +807,9 @@ export type SignedGraphFingerprintLookup =
   | { status: "not-recorded" };
 
 /**
- * Look up the presign graph fingerprint this device recorded for a vault.
+ * Look up the presign graph fingerprint this device recorded for a vault:
+ * on its pending entry, or, once `filterPendingPegins` removed that entry, on
+ * the record it kept for it.
  *
  * @throws `PendingPeginStorageReadError` when the stored entries cannot be read.
  */
@@ -815,7 +821,12 @@ export function getSignedGraphFingerprint(
   const entry = getPendingPegins(ethAddress).find(
     (pegin) => normalizeTransactionId(pegin.id).toLowerCase() === target,
   );
-  if (!entry) return { status: "no-entry" };
+  if (!entry) {
+    const fingerprint = readSignedGraphFingerprintRecord(target);
+    return fingerprint
+      ? { status: "found", fingerprint }
+      : { status: "no-entry" };
+  }
   if (entry.signedGraphFingerprint === undefined) {
     return { status: "not-recorded" };
   }
@@ -965,6 +976,9 @@ export function markRefundBroadcast(
  * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
  * - Remove entries for contract status 2+ (ACTIVE, REDEEMED)
  * - Remove when contract status has progressed beyond local status
+ * - Keep the presign graph fingerprint of an entry removed as VERIFIED or
+ *   ACTIVE (see `saveSignedGraphFingerprint`); keep the entry itself while
+ *   that write fails
  *
  * This ensures localStorage stays in sync with the state machine
  */
@@ -994,10 +1008,27 @@ export function filterPendingPegins(
 
     // If it exists on blockchain, use peginStateMachine to determine if we should remove it
     // This handles the logic for keeping status 0-1 and removing status 2+
-    return !shouldRemoveFromLocalStorage(
+    const remove = shouldRemoveFromLocalStorage(
       confirmedPegin.status,
       pegin.status,
       pegin.refundBroadcastAt,
     );
+    // An active vault can still download its artifacts, and that download is
+    // checked against this fingerprint, so it outlives the entry. VERIFIED
+    // counts too: an entry still PENDING locally (the tab closed between
+    // recording the fingerprint and marking it signed) is removed there,
+    // before activation. A failed write keeps the entry for the next pass.
+    if (
+      remove &&
+      (confirmedPegin.status === ContractStatus.VERIFIED ||
+        confirmedPegin.status === ContractStatus.ACTIVE) &&
+      pegin.signedGraphFingerprint !== undefined
+    ) {
+      return !saveSignedGraphFingerprint(
+        normalizedPeginId,
+        pegin.signedGraphFingerprint,
+      );
+    }
+    return !remove;
   });
 }

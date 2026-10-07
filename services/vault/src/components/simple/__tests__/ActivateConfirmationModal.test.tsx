@@ -90,7 +90,6 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
     { cancel: () => void; download: () => void },
     {
       onDownloaded?: () => void;
-      onDelivered?: () => void;
       onStateChange?: (state: {
         loading: boolean;
         receivedBytes: number;
@@ -128,13 +127,6 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
           }
         >
           idle
-        </button>
-        <button
-          type="button"
-          data-testid="card-download-delivered"
-          onClick={() => props.onDelivered?.()}
-        >
-          delivered
         </button>
         <button
           type="button"
@@ -522,47 +514,6 @@ describe("ActivateConfirmationModal", () => {
 
     expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
-  });
-
-  it("keeps the checkbox and Activate disabled when the card reports only a delivered download", () => {
-    // The anchor fallback (Firefox/Safari) cannot prove the file reached
-    // disk, so it must not stand in for the acknowledgement: a blocked or
-    // dismissed save would otherwise unlock activation with no evidence and
-    // no attestation, which is what the fallback hint promises it will not do.
-    render(
-      <ActivateConfirmationModal
-        open
-        {...COMMON_PROPS}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("card-download-delivered"));
-
-    expect(screen.queryByText("Activate BTCVault")).toBeNull();
-
-    fireEvent.click(screen.getByText("Continue without"));
-
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
-    expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
-  });
-
-  it("enables Activate BTCVault after an unverified download only once the risk is acknowledged", () => {
-    render(
-      <ActivateConfirmationModal
-        open
-        {...COMMON_PROPS}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("card-download-delivered"));
-    fireEvent.click(screen.getByText("Continue without"));
-    fireEvent.click(screen.getByTestId("risk-checkbox"));
-
-    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
   });
 
   it("returns to the download step with the acknowledgement cleared when Cancel is clicked on the confirm-skip step", () => {

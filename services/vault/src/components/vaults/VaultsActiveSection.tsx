@@ -10,11 +10,20 @@
  * action flow.
  */
 
-import { Avatar, Heading, Loader } from "@babylonlabs-io/core-ui";
-import type { ReactNode } from "react";
+import {
+  Avatar,
+  Heading,
+  Loader,
+  useIsTouchFirst,
+} from "@babylonlabs-io/core-ui";
+import { useMemo, type ReactNode } from "react";
+import { twMerge } from "tailwind-merge";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
-import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
+import {
+  NEUTRAL_ROW_BUTTON_CLASS,
+  PRIMARY_ROW_BUTTON_CLASS,
+} from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import {
   LIST_ROW_ACTION_SLOT_CLASS,
@@ -23,16 +32,27 @@ import {
   LIST_ROW_MIN_HEIGHT_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
+import { ArtifactReminderCard } from "@/components/vaults/ArtifactReminderCard";
 import { getNetworkConfigBTC } from "@/config";
+import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import {
+  getArtifactDownloadParams,
+  type ArtifactDownloadParams,
+} from "@/utils/artifactDownloadParams";
+import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 interface VaultsActiveSectionProps {
   vaults: CollateralVaultEntry[];
   onWithdraw: (vaultId: string) => void;
+  onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
   isWithdrawDisabled: boolean;
+  /** The connected Ethereum account; the presign fingerprints that gate
+   *  Download artifacts are stored under it. */
+  ethAddress?: string;
   /** Shown under a plain "Vaults" heading while no vault is active yet —
    *  the page reaches this section with pending deposits only. */
   emptyState?: ReactNode;
@@ -41,16 +61,28 @@ interface VaultsActiveSectionProps {
 function ActiveVaultRow({
   vault,
   onWithdraw,
+  onDownloadArtifacts,
   isWithdrawDisabled,
+  isTouchFirst,
+  downloadParams,
 }: {
   vault: CollateralVaultEntry;
   onWithdraw: (vaultId: string) => void;
+  onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
   isWithdrawDisabled: boolean;
+  isTouchFirst: boolean;
+  /** Set only while the row offers Download artifacts. */
+  downloadParams: ArtifactDownloadParams | null;
 }) {
   // Peg-in first: once a vault is active the peg-in tx is the canonical
   // on-Bitcoin one (pending/inactive rows prefer the opposite).
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
   const btcConfig = getNetworkConfigBTC();
+  const showArtifactReminder =
+    featureFlags.isMobileEnabled &&
+    isTouchFirst &&
+    vault.lifecycle === "active";
+  const showDownloadParams = showArtifactReminder ? null : downloadParams;
 
   return (
     // This row's data-testid is a real-wallet E2E hook
@@ -59,7 +91,11 @@ function ActiveVaultRow({
     // which is what the withdraw flow selects on.
     <ListRowCard
       testId={`vault-row-${vault.vaultId}`}
-      className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}
+      className={twMerge(
+        LIST_ROW_MIN_HEIGHT_CLASS,
+        "xl:flex-nowrap",
+        showArtifactReminder && "xl:flex-wrap",
+      )}
     >
       {/* Amount + liquidation ordinal */}
       <div
@@ -140,7 +176,21 @@ function ActiveVaultRow({
         )}
       </div>
 
-      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+      <div
+        className={twMerge(
+          LIST_ROW_ACTION_SLOT_CLASS,
+          showDownloadParams && "basis-auto gap-2",
+        )}
+      >
+        {showDownloadParams && (
+          <button
+            type="button"
+            onClick={() => onDownloadArtifacts(showDownloadParams)}
+            className={PRIMARY_ROW_BUTTON_CLASS}
+          >
+            {COPY.vaults.actions.downloadArtifacts}
+          </button>
+        )}
         {/* This control's data-testid is a real-wallet E2E hook
             (e2e/real/actions/withdraw.ts) — carry it over if you move or rename
             the element. Its disabled state is the harness's eligibility gate. */}
@@ -159,6 +209,11 @@ function ActiveVaultRow({
           {COPY.vaults.actions.withdraw}
         </button>
       </div>
+      {showArtifactReminder && (
+        <div className="mt-3 basis-full">
+          <ArtifactReminderCard />
+        </div>
+      )}
     </ListRowCard>
   );
 }
@@ -166,9 +221,25 @@ function ActiveVaultRow({
 export function VaultsActiveSection({
   vaults,
   onWithdraw,
+  onDownloadArtifacts,
   isWithdrawDisabled,
+  ethAddress,
   emptyState,
 }: VaultsActiveSectionProps) {
+  const isTouchFirst = useIsTouchFirst();
+  // One pass over pending storage per vault-list change, not one per row per
+  // render. The receipt check below stays per render, so a row drops its
+  // button as soon as the modal saves the artifacts.
+  const artifactParamsById = useMemo(() => {
+    const byId = new Map<string, ArtifactDownloadParams>();
+    for (const vault of vaults) {
+      if (vault.lifecycle !== "active") continue;
+      const params = getArtifactDownloadParams(vault, ethAddress);
+      if (params) byId.set(vault.id, params);
+    }
+    return byId;
+  }, [vaults, ethAddress]);
+
   if (vaults.length === 0) {
     if (!emptyState) return null;
     return (
@@ -194,14 +265,28 @@ export function VaultsActiveSection({
         </span>
       </Heading>
       <div className="space-y-2">
-        {vaults.map((vault) => (
-          <ActiveVaultRow
-            key={vault.id}
-            vault={vault}
-            onWithdraw={onWithdraw}
-            isWithdrawDisabled={isWithdrawDisabled}
-          />
-        ))}
+        {vaults.map((vault) => {
+          const artifactParams = artifactParamsById.get(vault.id);
+          return (
+            <ActiveVaultRow
+              key={vault.id}
+              vault={vault}
+              onWithdraw={onWithdraw}
+              onDownloadArtifacts={onDownloadArtifacts}
+              isWithdrawDisabled={isWithdrawDisabled}
+              isTouchFirst={isTouchFirst}
+              downloadParams={
+                artifactParams &&
+                !hasArtifactsDownloaded(
+                  artifactParams.vaultId,
+                  artifactParams.peginTxid,
+                )
+                  ? artifactParams
+                  : null
+              }
+            />
+          );
+        })}
       </div>
     </section>
   );

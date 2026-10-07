@@ -15,6 +15,7 @@ import { useOutletContext } from "react-router";
 
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
+import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
@@ -40,6 +41,7 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { useDepositOverride } from "@/overrides/deposits";
+import type { ArtifactDownloadParams } from "@/utils/artifactDownloadParams";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 export default function VaultsPage() {
@@ -85,6 +87,10 @@ export default function VaultsPage() {
   const [withdrawVaultIds, setWithdrawVaultIds] = useState<string[] | null>(
     null,
   );
+  // Closing the modal clears this, which re-renders the rows so a vault whose
+  // artifacts were just saved drops its Download button.
+  const [artifactParams, setArtifactParams] =
+    useState<ArtifactDownloadParams | null>(null);
   const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
 
@@ -115,6 +121,12 @@ export default function VaultsPage() {
     setWithdrawVaultIds([vaultId]);
   }, []);
   const handleWithdrawClose = useCallback(() => setWithdrawVaultIds(null), []);
+
+  const ethAddress = isConnected ? address : undefined;
+  const handleArtifactDownloadClose = useCallback(
+    () => setArtifactParams(null),
+    [],
+  );
 
   // Mirrors CollateralSection: dismissing the success modal hands display
   // back to the indexer by refetching the order-dependent queries.
@@ -150,6 +162,8 @@ export default function VaultsPage() {
         <VaultsActiveSection
           vaults={displayVaults}
           onWithdraw={handleWithdrawRow}
+          onDownloadArtifacts={setArtifactParams}
+          ethAddress={ethAddress}
           isWithdrawDisabled={isWithdrawBlocked(gate) || Boolean(indexerError)}
           // Pending deposits keep the page populated while the vault list is
           // still empty — the section shows the empty state until the deposit
@@ -231,6 +245,13 @@ export default function VaultsPage() {
         currentHealthFactor={summary.healthFactor}
         preSelectedVaultIds={withdrawVaultIds ?? []}
       />
+
+      {artifactParams && (
+        <ArtifactDownloadModal
+          {...artifactParams}
+          onClose={handleArtifactDownloadClose}
+        />
+      )}
 
       <ReorderVaultsModal
         isOpen={isReorderOpen}
