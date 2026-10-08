@@ -76,7 +76,7 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     queryFn: () => getApplicationCap(app),
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     // Surface a real error when offline instead of silently pausing refetches
     // and serving cached cap data — the stale timer is the backstop, this is
     // the direct signal. Matches useERC20Balance / useAaveUserPosition.
@@ -101,7 +101,7 @@ export function useApplicationCap(user?: string): UseApplicationCapResult {
     queryFn: () => getApplicationUsage(app, userAddressForUsage),
     staleTime: CAP_STALE_TIME_MS,
     refetchInterval: CAP_REFETCH_INTERVAL_MS,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     networkMode: "always",
     enabled: enabled && capsResolved,
   });
