@@ -2328,6 +2328,7 @@ export const COPY = {
   // Borrowing markets data page (Figma node 10088-60956).
   marketData: {
     pageTitle: "Borrowing markets data",
+    phonePageTitle: "Markets",
     backToAssets: "Back to assets",
     subtitle: (symbol: string, hub: string) =>
       `Learn more about the ${tokenOnHub(symbol, hub)} borrow market`,
