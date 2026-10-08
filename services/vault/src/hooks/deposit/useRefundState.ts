@@ -141,7 +141,7 @@ export function useRefundState({
           setRefunding(false);
           // Mark a confirmed (terminal) refund so the dashboard shows "Refunded"
           // immediately this session (and across reloads), not "Refunding".
-          if (confirmed) addConfirmedRefund(vaultId);
+          if (confirmed) addConfirmedRefund(vaultId, txId);
           const refundBroadcastAt = Date.now();
           setOptimisticStatus(
             vaultId,
@@ -151,7 +151,7 @@ export function useRefundState({
           if (ethAddress && peginTxHash && unsignedPrePeginTx) {
             const existing = pendingPegins.find((p) => p.id === vaultId);
             if (existing) {
-              markRefundBroadcast(vaultId, refundBroadcastAt);
+              markRefundBroadcast(vaultId, refundBroadcastAt, txId);
             } else if (depositorBtcPubkey) {
               addPendingPegin({
                 id: vaultId,
@@ -163,6 +163,7 @@ export function useRefundState({
                 depositorBtcPubkey,
                 status: LocalStorageStatus.REFUND_BROADCAST,
                 refundBroadcastAt,
+                refundTxId: txId,
               });
             }
           }

@@ -3,8 +3,8 @@
  *
  * Owns two sections sharing one polling tree: "Pending Deposit" (one row per
  * in-flight deposit, with live step progress and the state's primary action)
- * and "Inactive Vaults" (refundable-expired deposits whose Withdraw action
- * performs the HTLC refund, plus settled vaults with a reserve to reclaim).
+ * and "Inactive Vaults" (expired deposits and their refunds, plus settled
+ * vaults with a reserve to reclaim).
  * `children` (the Active Vaults section) renders between them, giving the
  * page's Pending → Active → Inactive order. Polling state comes from the app's
  * single AppPeginPollingProvider (mounted in RootLayout); this component mounts
@@ -56,7 +56,6 @@ import { getNetworkConfigBTC } from "@/config";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
-import { useActionableExpiredDeposits } from "@/hooks/deposit/useActionableExpiredDeposits";
 import { useActionableReclaims } from "@/hooks/deposit/useActionableReclaims";
 import { useClaimExpiredRowAction } from "@/hooks/deposit/useClaimExpiredRowAction";
 import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
@@ -67,6 +66,7 @@ import {
   canPerformAction,
   getPeginProgressStep,
   hasActionableStep,
+  isRefundInFlightOrSettled,
   isVaultActivationReturned,
   LocalStorageStatus,
   PeginAction,
@@ -413,9 +413,10 @@ function InactiveRow({
     ? COPY.reclaim.rowStatusReclaiming
     : peginState?.displayLabel;
 
-  // Pre-PegIn first: an expired deposit never activated, so the Pre-PegIn tx
-  // is the one that exists (active rows prefer the opposite).
-  const hash = activity.prePeginTxHash ?? activity.peginTxHash;
+  const hasRefund = peginState && isRefundInFlightOrSettled(peginState);
+  const hash = hasRefund
+    ? result?.refundTxId
+    : (activity.prePeginTxHash ?? activity.peginTxHash);
 
   return (
     <ListRowCard className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}>
@@ -481,13 +482,22 @@ function InactiveRow({
 
       {/* Transaction hash */}
       <div
-        className={`flex items-center [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
+        className={`flex flex-col items-start [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
       >
+        {hasRefund && hash && (
+          <span className="text-xs text-accent-secondary">
+            {COPY.vaults.refundTransactionLabel}
+          </span>
+        )}
         {hash && (
           <CopyableHash
             hash={hash}
             chain="BTC"
-            explorerUrl={getRowExplorerUrl(activity, peginState)}
+            explorerUrl={
+              hasRefund
+                ? getBtcExplorerTxUrl(hash)
+                : getRowExplorerUrl(activity, peginState)
+            }
           />
         )}
       </div>
@@ -637,11 +647,9 @@ export function VaultsLifecycleSections({
 
   const { candidates: actionableReclaims, actions: reclaimActions } =
     useActionableReclaims(reclaimableCandidates, reclaimModal.inFlightVaultIds);
-  const actionableExpiredActivities =
-    useActionableExpiredDeposits(expiredActivities);
   const inactiveActivities: VaultActivity[] = useMemo(
-    () => [...actionableExpiredActivities, ...actionableReclaims],
-    [actionableExpiredActivities, actionableReclaims],
+    () => [...expiredActivities, ...actionableReclaims],
+    [expiredActivities, actionableReclaims],
   );
 
   const rows = [...pendingActivities, ...inactiveActivities];
