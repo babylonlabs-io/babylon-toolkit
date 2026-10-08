@@ -2627,7 +2627,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         btcNetwork: "signet",
         btcWallet,
-        ethWallet: new MockEthereumWallet() as any,
+        ethWallet:
+          new MockEthereumWallet() as unknown as PeginManagerConfig["ethWallet"],
         ethChain: TEST_CHAIN,
         publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
@@ -2660,7 +2661,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         btcNetwork: "signet",
         btcWallet,
-        ethWallet: new MockEthereumWallet() as any,
+        ethWallet:
+          new MockEthereumWallet() as unknown as PeginManagerConfig["ethWallet"],
         ethChain: TEST_CHAIN,
         publicClient: TEST_PUBLIC_CLIENT,
         vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },

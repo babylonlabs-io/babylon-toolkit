@@ -792,7 +792,9 @@ describe("useDepositFlow", () => {
         // An account switch while the derive popup is open resets the wallet
         // connection, which aborts the run before preparation returns.
         result.current.abort();
-        return MOCK_BATCH_RESULT as any;
+        return MOCK_BATCH_RESULT as unknown as Awaited<
+          ReturnType<typeof preparePeginTransaction>
+        >;
       });
 
       await act(async () => {
