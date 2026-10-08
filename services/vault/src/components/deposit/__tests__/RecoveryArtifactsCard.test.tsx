@@ -137,19 +137,13 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
     // clicked, so firing it there would unlock activation for a save the
     // browser may have blocked or the user may have dismissed.
     const onDownloaded = vi.fn();
-    const onDelivered = vi.fn();
     hookState.current = { ...IDLE_HOOK_STATE, delivered: true };
 
     render(
-      <RecoveryArtifactsCard
-        {...COMMON_PROPS}
-        onDownloaded={onDownloaded}
-        onDelivered={onDelivered}
-      />,
+      <RecoveryArtifactsCard {...COMMON_PROPS} onDownloaded={onDownloaded} />,
     );
 
     expect(onDownloaded).not.toHaveBeenCalled();
-    expect(onDelivered).toHaveBeenCalledTimes(1);
   });
 
   it("reports a graph mismatch upward once, so the gate can withdraw the opt-out", () => {

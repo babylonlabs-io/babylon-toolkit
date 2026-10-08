@@ -27,6 +27,13 @@ const ARTIFACTS_DOWNLOADED_KEY_PREFIX = "tbv:artifacts-downloaded:";
 const GRAPH_MISMATCH_KEY_PREFIX = "tbv:artifacts-graph-mismatch:";
 
 /**
+ * The presign graph fingerprint of a vault whose pending entry, the
+ * fingerprint's first home, was removed once the contract reached VERIFIED or
+ * ACTIVE. A later download still has to check the bundle against it.
+ */
+const SIGNED_GRAPH_FINGERPRINT_KEY_PREFIX = "tbv:signed-graph-fingerprint:";
+
+/**
  * Bumped whenever the receipt shape changes. A receipt from a different
  * version is discarded rather than migrated — re-downloading is safe, and
  * guessing at an old record's meaning is not.
@@ -62,6 +69,14 @@ function storageKey(vaultId: string): string {
 
 function graphMismatchKey(vaultId: string): string {
   return `${GRAPH_MISMATCH_KEY_PREFIX}${vaultId.toLowerCase()}`;
+}
+
+function signedGraphFingerprintKey(vaultId: string): string {
+  return `${SIGNED_GRAPH_FINGERPRINT_KEY_PREFIX}${vaultId.toLowerCase()}`;
+}
+
+function isSha256Hex(value: string): boolean {
+  return value.length === SHA256_HEX_LENGTH && SHA256_HEX_PATTERN.test(value);
 }
 
 export function normalizePeginTxid(peginTxid: string): string {
@@ -225,4 +240,48 @@ export function hasGraphMismatch(vaultId: string, peginTxid: string): boolean {
     // Unreadable storage also rejected the write, so nothing was recorded.
     return false;
   }
+}
+
+/**
+ * Keep a vault's presign graph fingerprint after its pending entry is removed.
+ * Never throws.
+ *
+ * @returns false when nothing was written, so the caller keeps the pending
+ * entry and the fingerprint with it.
+ */
+export function saveSignedGraphFingerprint(
+  vaultId: string,
+  fingerprint: string,
+): boolean {
+  if (!isBrowserStorageAvailable() || !vaultId) return false;
+  try {
+    window.localStorage.setItem(
+      signedGraphFingerprintKey(vaultId),
+      fingerprint,
+    );
+    return true;
+  } catch (err) {
+    logger.warn("Failed to persist the signed graph fingerprint", {
+      category: "activation",
+      reason: String(err),
+    });
+    return false;
+  }
+}
+
+/**
+ * The fingerprint kept for a vault whose pending entry was removed, or null
+ * when there is none or the stored value is not a SHA-256 hex digest.
+ */
+export function readSignedGraphFingerprintRecord(
+  vaultId: string,
+): string | null {
+  if (!isBrowserStorageAvailable() || !vaultId) return null;
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(signedGraphFingerprintKey(vaultId));
+  } catch {
+    return null;
+  }
+  return raw !== null && isSha256Hex(raw) ? raw : null;
 }

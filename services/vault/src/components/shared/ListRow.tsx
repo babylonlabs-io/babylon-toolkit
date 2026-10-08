@@ -55,6 +55,8 @@ export const LIST_ROW_LEADING_COLUMN_CLASS = "min-w-0 grow-[2] basis-[240px]";
  *
  * Sizing an auto-width slot to its own button instead would hand each row a
  * different amount of slack and skew that row's columns by tens of pixels.
+ * The one exception is a row with two actions: the Vaults page's active row
+ * that shows Download artifacts beside Withdraw widens its slot to fit both.
  *
  * The 168px basis is the widest 36px row action rounded up: "Broadcast
  * Pre-Pegin" measures 167px at `text-sm` + `tracking-[0.17px]` + `px-4` in Px

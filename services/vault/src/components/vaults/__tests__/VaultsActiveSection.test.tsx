@@ -24,6 +24,7 @@ describe("VaultsActiveSection", () => {
       <VaultsActiveSection
         vaults={[]}
         onWithdraw={vi.fn()}
+        onDownloadArtifacts={vi.fn()}
         isWithdrawDisabled={false}
         emptyState={<div data-testid="vaults-empty-state" />}
       />,
@@ -40,6 +41,7 @@ describe("VaultsActiveSection", () => {
       <VaultsActiveSection
         vaults={[activeVault]}
         onWithdraw={vi.fn()}
+        onDownloadArtifacts={vi.fn()}
         isWithdrawDisabled={false}
         emptyState={<div data-testid="vaults-empty-state" />}
       />,
@@ -59,6 +61,7 @@ describe("VaultsActiveSection", () => {
       <VaultsActiveSection
         vaults={[{ ...activeVault, lifecycle: "withdrawing" }]}
         onWithdraw={vi.fn()}
+        onDownloadArtifacts={vi.fn()}
         isWithdrawDisabled={false}
       />,
     );
@@ -77,6 +80,7 @@ describe("VaultsActiveSection", () => {
       <VaultsActiveSection
         vaults={[activeVault]}
         onWithdraw={vi.fn()}
+        onDownloadArtifacts={vi.fn()}
         isWithdrawDisabled={false}
       />,
     );
@@ -94,6 +98,7 @@ describe("VaultsActiveSection", () => {
           { ...activeVault, id: "vault-withdrawing", lifecycle: "withdrawing" },
         ]}
         onWithdraw={vi.fn()}
+        onDownloadArtifacts={vi.fn()}
         isWithdrawDisabled={false}
       />,
     );
@@ -106,6 +111,7 @@ describe("VaultsActiveSection", () => {
       <VaultsActiveSection
         vaults={[]}
         onWithdraw={vi.fn()}
+        onDownloadArtifacts={vi.fn()}
         isWithdrawDisabled={false}
       />,
     );
