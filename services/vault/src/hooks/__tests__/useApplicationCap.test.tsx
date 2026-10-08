@@ -1,4 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  focusManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,7 +36,9 @@ import { useApplicationCap } from "../useApplicationCap";
 
 function buildWrapper() {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, refetchOnWindowFocus: false },
+    },
   });
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -47,6 +53,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  focusManager.setFocused(undefined);
   vi.useRealTimers();
 });
 
@@ -178,22 +185,13 @@ describe("useApplicationCap", () => {
     expect(getApplicationUsage).not.toHaveBeenCalled();
   });
 
-  it("surfaces a stale error once cap data ages past the max stale age, even while a refetch is in flight", async () => {
-    // First read resolves; every later refetch hangs, so `dataUpdatedAt`
-    // freezes and `isFetching` stays true — the exact silent-RPC case.
-    let capCalls = 0;
-    vi.mocked(getApplicationCap).mockImplementation(() => {
-      capCalls += 1;
-      return capCalls === 1
-        ? Promise.resolve({ totalCapBTC: 1000n, perAddressCapBTC: 0n })
-        : new Promise(() => {});
-    });
-    vi.mocked(getApplicationUsage).mockResolvedValue({
-      totalBTC: 200n,
-      userBTC: null,
-    });
-
+  it("refreshes both reads on focus and clears the stale error only after they succeed", async () => {
+    const caps = { totalCapBTC: 1000n, perAddressCapBTC: 0n };
+    const usage = { totalBTC: 200n, userBTC: null };
+    vi.mocked(getApplicationCap).mockResolvedValue(caps);
+    vi.mocked(getApplicationUsage).mockResolvedValue(usage);
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    focusManager.setFocused(false);
     const { result } = renderHook(() => useApplicationCap(), {
       wrapper: buildWrapper(),
     });
@@ -204,29 +202,31 @@ describe("useApplicationCap", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(MAX_STALE_AGE_MS + 1);
     });
-    expect(result.current.error).not.toBeNull();
     expect(result.current.error?.message).toContain("stale");
-  });
+    expect(getApplicationCap).toHaveBeenCalledTimes(1);
+    expect(getApplicationUsage).toHaveBeenCalledTimes(1);
 
-  it("keeps error null while cap data refreshes within the max stale age", async () => {
-    vi.mocked(getApplicationCap).mockResolvedValue({
-      totalCapBTC: 1000n,
-      perAddressCapBTC: 0n,
+    let resolveCap!: (value: typeof caps) => void;
+    let resolveUsage!: (value: typeof usage) => void;
+    vi.mocked(getApplicationCap).mockReturnValue(
+      new Promise((resolve) => {
+        resolveCap = resolve;
+      }),
+    );
+    vi.mocked(getApplicationUsage).mockReturnValue(
+      new Promise((resolve) => {
+        resolveUsage = resolve;
+      }),
+    );
+    await act(async () => focusManager.setFocused(true));
+    expect(getApplicationCap).toHaveBeenCalledTimes(2);
+    expect(getApplicationUsage).toHaveBeenCalledTimes(2);
+    expect(result.current.error?.message).toContain("stale");
+    await act(async () => {
+      resolveCap(caps);
+      resolveUsage(usage);
     });
-    vi.mocked(getApplicationUsage).mockResolvedValue({
-      totalBTC: 200n,
-      userBTC: null,
-    });
-
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const { result } = renderHook(() => useApplicationCap(), {
-      wrapper: buildWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.snapshot).not.toBeNull());
-
-    // Polling keeps succeeding, so `dataUpdatedAt` advances and the staleness
-    // timer never trips even well past the threshold.
+    await waitFor(() => expect(result.current.error).toBeNull());
     await act(async () => {
       await vi.advanceTimersByTimeAsync(MAX_STALE_AGE_MS * 2);
     });
