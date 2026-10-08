@@ -22,6 +22,7 @@ import {
 } from "react";
 import type { Hex } from "viem";
 
+import { getStepFillPercent } from "@/components/simple/DepositProgressView/steps";
 import { useActivationFloorGate } from "@/hooks/useActivationFloorGate";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
@@ -38,6 +39,7 @@ import { useClaimExpiredWindowGate } from "../../hooks/useClaimExpiredWindowGate
 import { useStuckVaultChainConfirm } from "../../hooks/useStuckVaultChainConfirm";
 import {
   ContractStatus,
+  getPeginProgressStep,
   LocalStorageStatus,
 } from "../../models/peginStateMachine";
 import {
@@ -74,7 +76,7 @@ import {
   subscribeToOptimisticDepositState,
 } from "./optimisticDepositState";
 import {
-  publishPendingDepositCount,
+  publishPendingDepositSummary,
   selectPendingActivities,
 } from "./pendingDepositCount";
 import {
@@ -205,18 +207,6 @@ export function PeginPollingProvider({
   // is on and the panel toggle is enabled). When present, its ids resolve to
   // controlled results below instead of the live polling decision tree.
   const demo = useDepositOverride();
-
-  const pendingDepositCount = useMemo(
-    () =>
-      isConnected || demo
-        ? selectPendingActivities(activities, demo).length
-        : 0,
-    [isConnected, activities, demo],
-  );
-  useEffect(() => {
-    publishPendingDepositCount(pendingDepositCount);
-  }, [pendingDepositCount]);
-  useEffect(() => () => publishPendingDepositCount(0), []);
 
   // Optimistic step completions (for immediate UI feedback after an action).
   // App-scoped, not provider-scoped: the writers run outside the context
@@ -716,6 +706,33 @@ export function PeginPollingProvider({
       btcPublicKey,
     ],
   );
+
+  useEffect(() => {
+    // The demo gallery also keeps completed deposits for preview.
+    const pending = (
+      isConnected || demo ? selectPendingActivities(activities, demo) : []
+    ).filter(
+      (activity) =>
+        activity.contractStatus === ContractStatus.PENDING ||
+        activity.contractStatus === ContractStatus.VERIFIED,
+    );
+    const fills = pending.map((activity) => {
+      const result = getPollingResult(activity.id);
+      const step =
+        result && !result.loading
+          ? (result.displayStepOverride ??
+            getPeginProgressStep(result.peginState))
+          : null;
+      return step !== null ? getStepFillPercent(step) : null;
+    });
+    publishPendingDepositSummary(
+      pending.length,
+      fills.length > 0 && fills.every((fill) => fill !== null)
+        ? fills.reduce((sum, fill) => sum + fill, 0) / fills.length
+        : null,
+    );
+  }, [activities, demo, getPollingResult, isConnected]);
+  useEffect(() => () => publishPendingDepositSummary(0, null), []);
 
   // Surface a browser notification when any polled deposit enters a
   // signing/action-required state while the user is on another tab.
