@@ -32,6 +32,8 @@ interface UsePendingVaultOverlapCheckParams {
   depositorClaimValue: bigint | undefined;
   /** Per-vault minimum peg-in fee (sats) — must match the signing-path target. */
   minPeginFee: bigint | null;
+  /** `ProtocolParams.maxFundingInputCount` — caps the UTXOs the selector considers. */
+  maxFundingInputCount: number;
 }
 
 export function usePendingVaultOverlapCheck({
@@ -40,6 +42,7 @@ export function usePendingVaultOverlapCheck({
   estimatedFeeRate,
   depositorClaimValue,
   minPeginFee,
+  maxFundingInputCount,
 }: UsePendingVaultOverlapCheckParams) {
   const { data: vaultsResult } = useVaults(ethAddress);
   const depositorVaults = vaultsResult?.vaults;
@@ -59,7 +62,7 @@ export function usePendingVaultOverlapCheck({
       let selection;
       try {
         selection = selectUtxosForPegin(
-          capFundingUtxos(spendableUTXOs ?? []),
+          capFundingUtxos(spendableUTXOs ?? [], maxFundingInputCount),
           predictedTarget,
           estimatedFeeRate,
           numOutputs,
@@ -93,6 +96,7 @@ export function usePendingVaultOverlapCheck({
       estimatedFeeRate,
       depositorClaimValue,
       minPeginFee,
+      maxFundingInputCount,
       depositorVaults,
     ],
   );

@@ -35,10 +35,7 @@ import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import * as bitcoin from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
-import {
-  capFundingUtxos,
-  MAX_PRE_PEGIN_FUNDING_INPUTS,
-} from "../../services/deposit/fundingInputCap";
+import { capFundingUtxos } from "../../services/deposit/fundingInputCap";
 
 bitcoin.initEccLib(ecc);
 
@@ -47,6 +44,7 @@ const VALID_P2TR_SCRIPT =
 const OP_RETURN_SCRIPT = "6a20" + "00".repeat(32);
 const NUM_OUTPUTS = peginOutputCount(1, true);
 const FEE_RATE = 5;
+const MAX_FUNDING_INPUT_COUNT = 20;
 const ONE_BTC = 100_000_000;
 const SCHNORR_SIGNATURE_BYTES = 64;
 const NETWORK = bitcoin.networks.testnet;
@@ -92,8 +90,9 @@ describe("funding-input-cap estimator/selection agreement (real SDK)", () => {
   it("a Max deposit over the 20 largest of 25 UTXOs spends exactly those 20 and pays the 20-input base fee", () => {
     const capped = capFundingUtxos(
       makeUtxos(25, (index) => (index + 1) * 10_000),
+      MAX_FUNDING_INPUT_COUNT,
     );
-    expect(capped).toHaveLength(MAX_PRE_PEGIN_FUNDING_INPUTS);
+    expect(capped).toHaveLength(MAX_FUNDING_INPUT_COUNT);
 
     // Top 20 (60,000..250,000 sats) sum to 3,100,000; the cap drops 150,000.
     const maxDeposit = computeMaxDeposit({
@@ -125,6 +124,7 @@ describe("funding-input-cap estimator/selection agreement (real SDK)", () => {
   it("one sat above the capped Max is rejected as insufficient funds", () => {
     const capped = capFundingUtxos(
       makeUtxos(25, (index) => (index + 1) * 10_000),
+      MAX_FUNDING_INPUT_COUNT,
     );
 
     expect(() =>
@@ -133,7 +133,10 @@ describe("funding-input-cap estimator/selection agreement (real SDK)", () => {
   });
 
   it("a Max deposit over twenty 1 BTC UTXOs funds a Pre-PegIn with exactly 20 inputs, 3 outputs and no change", () => {
-    const capped = capFundingUtxos(makeUtxos(20, () => ONE_BTC));
+    const capped = capFundingUtxos(
+      makeUtxos(20, () => ONE_BTC),
+      MAX_FUNDING_INPUT_COUNT,
+    );
 
     const maxDeposit = computeMaxDeposit({
       numInputs: capped.length,
@@ -183,7 +186,10 @@ describe("funding-input-cap estimator/selection agreement (real SDK)", () => {
   });
 
   it("a 1 BTC deposit from twenty 1 BTC UTXOs spends 2 inputs and returns the remainder as change", () => {
-    const capped = capFundingUtxos(makeUtxos(20, () => ONE_BTC));
+    const capped = capFundingUtxos(
+      makeUtxos(20, () => ONE_BTC),
+      MAX_FUNDING_INPUT_COUNT,
+    );
 
     const selection = selectUtxosForPegin(
       capped,
@@ -229,7 +235,10 @@ describe("funding-input-cap estimator/selection agreement (real SDK)", () => {
   });
 
   it("twenty UTXOs totalling 1 BTC cannot fund a 1 BTC deposit because the 20-input fee caps the Max at 0.999935 BTC", () => {
-    const capped = capFundingUtxos(makeUtxos(20, () => 5_000_000));
+    const capped = capFundingUtxos(
+      makeUtxos(20, () => 5_000_000),
+      MAX_FUNDING_INPUT_COUNT,
+    );
 
     const maxDeposit = computeMaxDeposit({
       numInputs: capped.length,

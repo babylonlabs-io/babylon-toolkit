@@ -71,19 +71,21 @@ export function isBuildConfigDriftError(
  * What that does NOT cover: `PegInConfiguration` is composed from two contract
  * reads, and the `getTBVProtocolParams` half — `minimumPegInAmount`,
  * `maxPegInAmount`, `pegInAckTimeout`, `pegInActivationTimeout`,
- * `maxHtlcOutputCount`, `expiredPegInGraceBlocks` — carries no version label at
- * all, so a change there moves no field this guard reads. The deposit amount is
- * gated against the cached `minimumPegInAmount` / `maxPegInAmount` before this
- * runs, so a bound tightened inside the cache window gets past this guard
- * untouched.
+ * `maxHtlcOutputCount`, `expiredPegInGraceBlocks`, `maxFundingInputCount` —
+ * carries no version label at all, so a change there moves no field this guard
+ * reads. The deposit amount is gated against the cached `minimumPegInAmount` /
+ * `maxPegInAmount` before this runs, so a bound tightened inside the cache
+ * window gets past this guard untouched.
  *
  * That axis is deliberately out of scope *for this guard*, which exists to close
  * the divergence that pinning introduced — between the two snapshots, not
- * between a snapshot and the chain. It is now covered, one call site later, by
- * `assertBuildWithinPinnedLimits` in `./pinnedBuildLimits`, which re-validates
- * the chosen amounts and the vault count against the pinned read rather than
- * comparing the bounds (a bound that moves *up* leaves the chosen amount valid,
- * so comparing them would abort a deposit that has nothing wrong with it).
+ * between a snapshot and the chain. The amount bounds and the HTLC output cap
+ * are covered one call site later by `assertBuildWithinPinnedLimits` in
+ * `./pinnedBuildLimits`, which re-validates the chosen amounts and the vault
+ * count against the pinned read rather than comparing the bounds (a bound that
+ * moves *up* leaves the chosen amount valid, so comparing them would abort a
+ * deposit that has nothing wrong with it). The remaining unversioned fields are
+ * not covered there.
  *
  * @param buildConfig - Read from chain, pinned to the build's block.
  * @param formConfig - The cached snapshot the form gated and sized against.

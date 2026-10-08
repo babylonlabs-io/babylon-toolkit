@@ -337,7 +337,9 @@ export interface VaultRegistryReader {
 
 /**
  * TBV protocol parameters from the ProtocolParams contract.
- * Matches Solidity struct `IProtocolParams.TBVProtocolParams` exactly.
+ * Matches Solidity struct `IProtocolParams.TBVProtocolParams`, except
+ * `peginActivationDelay`, which is surfaced via `getPeginActivationDelay()`
+ * rather than on this type.
  *
  * All uint64 amounts use bigint (satoshi values can exceed 2^53).
  * uint8 uses number (bounded, max 255).
@@ -354,6 +356,14 @@ export interface TBVProtocolParams {
    * HTLC preimage. Source: `IProtocolParams.TBVProtocolParams.expiredPegInGraceBlocks`.
    */
   expiredPegInGraceBlocks: bigint;
+  /**
+   * Maximum number of funding inputs one Pre-PegIn may spend; the contract
+   * rejects a Pre-PegIn with more. Source:
+   * `IProtocolParams.TBVProtocolParams.maxFundingInputCount`. `null` means the
+   * deployed ProtocolParams predates `maxFundingInputCount` and enforces no
+   * funding-input bound.
+   */
+  maxFundingInputCount: number | null;
 }
 
 /**
@@ -390,6 +400,7 @@ export interface PegInConfiguration {
   pegInActivationTimeout: bigint;
   maxHtlcOutputCount: number;
   expiredPegInGraceBlocks: bigint;
+  maxFundingInputCount: number | null;
   timelockPegin: number;
   timelockRefund: number;
   minVpCommissionBps: number;
@@ -448,11 +459,6 @@ export interface ProtocolParamsReader {
   /**
    * Observation window enforced between a vault's final ACK and its
    * activation, in ETH blocks measured from `verifiedAt`. `0` disables it.
-   *
-   * Deliberately its own read rather than a field on
-   * {@link PegInConfiguration}: the parameter is absent from deployments that
-   * predate it, so folding it into the shared multicall would make every
-   * protocol-param read fail wherever it is missing.
    *
    * @throws If the deployment does not expose `peginActivationDelay()`, or
    *   the decoded payload is not a `bigint`.

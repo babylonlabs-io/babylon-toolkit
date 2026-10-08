@@ -3599,7 +3599,9 @@ so it describes the same block as the roster reads that follow it.
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
 TBV protocol parameters from the ProtocolParams contract.
-Matches Solidity struct `IProtocolParams.TBVProtocolParams` exactly.
+Matches Solidity struct `IProtocolParams.TBVProtocolParams`, except
+`peginActivationDelay`, which is surfaced via `getPeginActivationDelay()`
+rather than on this type.
 
 All uint64 amounts use bigint (satoshi values can exceed 2^53).
 uint8 uses number (bounded, max 255).
@@ -3657,6 +3659,20 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 Number of blocks added to the activation deadline as a grace window
 during which a depositor may still reclaim an expired pegin via the
 HTLC preimage. Source: `IProtocolParams.TBVProtocolParams.expiredPegInGraceBlocks`.
+
+##### maxFundingInputCount
+
+```ts
+maxFundingInputCount: number | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Maximum number of funding inputs one Pre-PegIn may spend; the contract
+rejects a Pre-PegIn with more. Source:
+`IProtocolParams.TBVProtocolParams.maxFundingInputCount`. `null` means the
+deployed ProtocolParams predates `maxFundingInputCount` and enforces no
+funding-input bound.
 
 ***
 
@@ -3831,6 +3847,14 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 
 ```ts
 expiredPegInGraceBlocks: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+##### maxFundingInputCount
+
+```ts
+maxFundingInputCount: number | null;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -4037,11 +4061,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 
 Observation window enforced between a vault's final ACK and its
 activation, in ETH blocks measured from `verifiedAt`. `0` disables it.
-
-Deliberately its own read rather than a field on
-[PegInConfiguration](#peginconfiguration): the parameter is absent from deployments that
-predate it, so folding it into the shared multicall would make every
-protocol-param read fail wherever it is missing.
 
 ###### Returns
 

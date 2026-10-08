@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { fragmentUtxos, useUtxoFragmentCountOverride } from "@/overrides/utxos";
-import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
+import { resolveFundingInputCap } from "@/services/deposit/fundingInputCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 import { normalizeError } from "@/utils/errors/normalizeError";
 import { getSupportedVaultCoreVersions } from "@/utils/vaultCoreVersionSupport";
@@ -134,7 +134,10 @@ export interface UseDepositPageFormResult {
   isLoadingFee: boolean;
   feeError: string | null;
   maxDepositSats: bigint | null;
-  /** The amount needs more than the 20 largest UTXOs, though the wallet holds enough. */
+  /**
+   * The amount needs more than the largest UTXOs the funding-input cap allows,
+   * though the wallet holds enough.
+   */
   fundingInputCapExceeded: boolean;
   /**
    * Terminal wallet public-key read failure. Without it the depositor pubkey
@@ -238,6 +241,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     refetch: refetchBtcPublicKey,
   } = useBtcPublicKey(btcConnected);
   const { config, latestUniversalChallengers } = useProtocolParamsContext();
+  const fundingInputCap = resolveFundingInputCap(config.maxFundingInputCount);
   const { config: aaveConfig } = useAaveConfig();
   const btcPriceUSD = usePrice("BTC");
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
@@ -453,7 +457,12 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     error: feeError,
     maxDeposit: maxDepositSats,
     uncappedMaxDeposit: uncappedMaxDepositSats,
-  } = useEstimatedBtcFee(amountSats, estimateUtxos, numPeginOutputs);
+  } = useEstimatedBtcFee(
+    amountSats,
+    estimateUtxos,
+    numPeginOutputs,
+    fundingInputCap,
+  );
 
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
@@ -647,12 +656,18 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const fundingInputCapExceeded = useMemo(
     () =>
       amountSats > 0n &&
-      estimateUtxos.length > MAX_PRE_PEGIN_FUNDING_INPUTS &&
+      estimateUtxos.length > fundingInputCap &&
       utxoCappedMaxSats !== null &&
       amountSats > utxoCappedMaxSats &&
       uncappedMaxSats !== null &&
       amountSats <= uncappedMaxSats,
-    [amountSats, estimateUtxos, utxoCappedMaxSats, uncappedMaxSats],
+    [
+      amountSats,
+      estimateUtxos,
+      fundingInputCap,
+      utxoCappedMaxSats,
+      uncappedMaxSats,
+    ],
   );
 
   // Declared after `adjustedMaxDepositSats` so the validator can reject amounts

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  capFundingUtxos,
-  MAX_PRE_PEGIN_FUNDING_INPUTS,
-} from "../fundingInputCap";
+import { capFundingUtxos } from "../fundingInputCap";
 
 interface TestUtxo {
   id: string;
@@ -13,6 +10,7 @@ interface TestUtxo {
 
 const VALID_P2TR_SCRIPT = `5120${"ab".repeat(32)}`;
 const MALFORMED_SCRIPT = "20";
+const MAX_FUNDING_INPUT_COUNT = 20;
 
 function makeUtxos(count: number): TestUtxo[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -25,9 +23,9 @@ function makeUtxos(count: number): TestUtxo[] {
 describe("capFundingUtxos", () => {
   it("returns the 20 largest UTXOs, sorted value-descending, from 25", () => {
     const utxos = makeUtxos(25);
-    const result = capFundingUtxos(utxos);
+    const result = capFundingUtxos(utxos, MAX_FUNDING_INPUT_COUNT);
 
-    expect(result).toHaveLength(MAX_PRE_PEGIN_FUNDING_INPUTS);
+    expect(result).toHaveLength(MAX_FUNDING_INPUT_COUNT);
     expect(result.map((u) => u.value)).toEqual([
       25000, 24000, 23000, 22000, 21000, 20000, 19000, 18000, 17000, 16000,
       15000, 14000, 13000, 12000, 11000, 10000, 9000, 8000, 7000, 6000,
@@ -39,7 +37,7 @@ describe("capFundingUtxos", () => {
 
   it("returns all UTXOs, sorted value-descending, when 20 or fewer", () => {
     const utxos = makeUtxos(20);
-    const result = capFundingUtxos(utxos);
+    const result = capFundingUtxos(utxos, MAX_FUNDING_INPUT_COUNT);
 
     expect(result).toHaveLength(20);
     expect(result[0].value).toBe(20000);
@@ -48,7 +46,7 @@ describe("capFundingUtxos", () => {
 
   it("returns all UTXOs when fewer than 20", () => {
     const utxos = makeUtxos(5);
-    const result = capFundingUtxos(utxos);
+    const result = capFundingUtxos(utxos, MAX_FUNDING_INPUT_COUNT);
 
     expect(result).toHaveLength(5);
     expect(result.map((u) => u.value)).toEqual([5000, 4000, 3000, 2000, 1000]);
@@ -58,13 +56,13 @@ describe("capFundingUtxos", () => {
     const utxos = makeUtxos(5);
     const original = [...utxos];
 
-    capFundingUtxos(utxos);
+    capFundingUtxos(utxos, MAX_FUNDING_INPUT_COUNT);
 
     expect(utxos).toEqual(original);
   });
 
   it("returns an empty array for an empty input", () => {
-    expect(capFundingUtxos([])).toEqual([]);
+    expect(capFundingUtxos([], MAX_FUNDING_INPUT_COUNT)).toEqual([]);
   });
 
   it("drops a malformed high-value UTXO so a valid one keeps the capped slot", () => {
@@ -73,9 +71,9 @@ describe("capFundingUtxos", () => {
       ...makeUtxos(21),
     ];
 
-    const result = capFundingUtxos(utxos);
+    const result = capFundingUtxos(utxos, MAX_FUNDING_INPUT_COUNT);
 
-    expect(result).toHaveLength(MAX_PRE_PEGIN_FUNDING_INPUTS);
+    expect(result).toHaveLength(MAX_FUNDING_INPUT_COUNT);
     expect(result.map((u) => u.id)).not.toContain("malformed");
     expect(result[0].value).toBe(21_000);
     expect(result.at(-1)?.value).toBe(2_000);
@@ -87,6 +85,6 @@ describe("capFundingUtxos", () => {
       { id: "b", value: 4_000, scriptPubKey: MALFORMED_SCRIPT },
     ];
 
-    expect(capFundingUtxos(utxos)).toEqual([]);
+    expect(capFundingUtxos(utxos, MAX_FUNDING_INPUT_COUNT)).toEqual([]);
   });
 });

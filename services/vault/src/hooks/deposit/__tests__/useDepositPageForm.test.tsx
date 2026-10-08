@@ -105,6 +105,7 @@ vi.mock("../../../context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: vi.fn(() => ({
     config: {
       activeVaultCoreVersion: 1,
+      maxFundingInputCount: 20,
       offchainParams: {
         babeInstancesToFinalize: 2,
         councilQuorum: 1,

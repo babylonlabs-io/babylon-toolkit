@@ -1,18 +1,21 @@
 import { script as bitcoinScript } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+const PRE_UPGRADE_FUNDING_INPUT_CAP = 20;
+
 /**
- * Client-side guard rail on the number of wallet UTXOs one Pre-PegIn may
- * spend. Mirrors the contract deploy default `INITIAL_MAX_FUNDING_INPUT_COUNT`
- * (`vault-contracts-aave-v4`) — governance can move that bound with
- * `setTBVParams`, and this constant would need to move with it. The contract
- * remains the enforcement; this only keeps the dApp from building a
- * transaction the contract is guaranteed to reject.
- *
- * TODO(#2402): read maxFundingInputCount from the ProtocolParams tuple once
- * the reader lands; follow the pinnedBuildLimits.ts pattern.
+ * `null` means the ProtocolParams deployment predates `maxFundingInputCount`
+ * and enforces no bound; the app keeps its previous client-side cap of 20
+ * there. Delete this once every target network returns the field.
  */
-export const MAX_PRE_PEGIN_FUNDING_INPUTS = 20;
+export function resolveFundingInputCap(
+  maxFundingInputCount: number | null,
+): number {
+  if (maxFundingInputCount === null) {
+    return PRE_UPGRADE_FUNDING_INPUT_CAP;
+  }
+  return maxFundingInputCount;
+}
 
 // The global Buffer, not the `buffer` polyfill imported above: polyfill
 // instances fail bitcoinjs/typeforce's `Buffer.isBuffer` (see btcUtils.ts:52).
@@ -35,8 +38,11 @@ export function withSpendableScripts<T extends { scriptPubKey: string }>(
 }
 
 /**
- * Cap a UTXO set to the largest {@link MAX_PRE_PEGIN_FUNDING_INPUTS} entries
- * whose script the selector can decompile, sorted value-descending. Both the
+ * Cap a UTXO set to the largest `maxFundingInputCount` entries whose script
+ * the selector can decompile, sorted value-descending. The bound is
+ * `ProtocolParams.maxFundingInputCount`, read from the contract; the contract
+ * remains the enforcement, and this only keeps the dApp from building a
+ * transaction the contract is guaranteed to reject. Both the
  * validity filter and the sort order match `selectUtxosForPegin`'s internal
  * `validUTXOs`/`sortedUTXOs` exactly, so the estimator, the selector, and the
  * build all agree on which UTXOs are in play — and a malformed high-value
@@ -45,8 +51,8 @@ export function withSpendableScripts<T extends { scriptPubKey: string }>(
  */
 export function capFundingUtxos<
   T extends { value: number; scriptPubKey: string },
->(utxos: readonly T[]): T[] {
+>(utxos: readonly T[], maxFundingInputCount: number): T[] {
   return withSpendableScripts(utxos)
     .sort((a, b) => b.value - a.value)
-    .slice(0, MAX_PRE_PEGIN_FUNDING_INPUTS);
+    .slice(0, maxFundingInputCount);
 }

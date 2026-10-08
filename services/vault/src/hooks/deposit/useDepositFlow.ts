@@ -68,7 +68,10 @@ import {
   TELEMETRY_EVENT,
 } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
-import { capFundingUtxos } from "@/services/deposit/fundingInputCap";
+import {
+  capFundingUtxos,
+  resolveFundingInputCap,
+} from "@/services/deposit/fundingInputCap";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import {
   assertBuildConfigMatchesForm,
@@ -708,7 +711,8 @@ export function useDepositFlow(
           // The guard above only sees the two version labels, and the deposit
           // bounds carry none — they come from the `getTBVProtocolParams` half
           // of the read, which is unversioned. So a tightened minimum or
-          // maximum, or a lowered HTLC output cap, passes it untouched.
+          // maximum, a lowered HTLC output cap, or a lowered funding-input cap
+          // passes it untouched.
           // Re-check what the depositor actually approved against the pinned
           // numbers.
           assertBuildWithinPinnedLimits(vaultAmounts, buildConfig);
@@ -816,7 +820,10 @@ export function useDepositFlow(
             timelockRefund: buildConfig.timelockRefund,
             councilQuorum: buildConfig.offchainParams.councilQuorum,
             councilSize: buildConfig.offchainParams.securityCouncilKeys.length,
-            availableUTXOs: capFundingUtxos(spendableUTXOs),
+            availableUTXOs: capFundingUtxos(
+              spendableUTXOs,
+              resolveFundingInputCap(buildConfig.maxFundingInputCount),
+            ),
           },
         );
         const {

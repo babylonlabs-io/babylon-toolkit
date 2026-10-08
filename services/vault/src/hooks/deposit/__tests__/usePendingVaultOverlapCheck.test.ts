@@ -35,6 +35,7 @@ function runCheck() {
       estimatedFeeRate: 5,
       depositorClaimValue: 1000n,
       minPeginFee: 500n,
+      maxFundingInputCount: 20,
     }),
   );
   return result.current([100_000n]);

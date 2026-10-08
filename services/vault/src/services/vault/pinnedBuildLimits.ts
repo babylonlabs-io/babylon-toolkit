@@ -16,9 +16,10 @@
  * `PegInConfiguration` is assembled from two contract reads. The
  * `getLatestOffchainParams` half carries a version label; the
  * `getTBVProtocolParams` half — `minimumPegInAmount`, `maxPegInAmount`,
- * `maxHtlcOutputCount` and three timeouts — carries none. So a governance
- * change to any of those moves no field `assertBuildConfigMatchesForm` reads,
- * and it passes.
+ * `maxHtlcOutputCount`, `maxFundingInputCount`, `pegInAckTimeout`,
+ * `pegInActivationTimeout` and `expiredPegInGraceBlocks` — carries none. So a
+ * governance change to any of those moves no field
+ * `assertBuildConfigMatchesForm` reads, and it passes.
  *
  * The amounts are bound-checked once, early in the flow, against the cached
  * React Query configuration — a snapshot with a five minute `staleTime` that
@@ -26,6 +27,11 @@
  * build proceeds and the registration reverts on-chain, after the depositor has
  * completed a signing ceremony. This runs against the pinned read instead, so
  * the deposit stops while restarting is still free.
+ *
+ * This guard re-checks only the amounts and the vault count; the other
+ * unversioned fields are not re-checked here. A lowered `maxFundingInputCount`
+ * in particular reaches the build's UTXO selection and surfaces as its
+ * insufficient-funds error.
  *
  * ## Re-validate the choices, do not compare the bounds
  *

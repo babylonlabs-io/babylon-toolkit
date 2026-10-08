@@ -59,6 +59,7 @@ function buildConfig(
     pegInActivationTimeout: 200n,
     maxHtlcOutputCount: 2,
     expiredPegInGraceBlocks: 10n,
+    maxFundingInputCount: 20,
     timelockPegin: 144,
     timelockRefund: 288,
     minVpCommissionBps: 10,
