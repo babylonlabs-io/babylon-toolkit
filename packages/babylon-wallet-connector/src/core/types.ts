@@ -584,6 +584,14 @@ export interface IBTCProvider extends IProvider {
    * (`appName` charset and length, `context` even-length lowercase hex,
    * 64-char hex output). Adapters forward without re-validating.
    *
+   * The output must be derived under the account {@link getPublicKeyHex}
+   * reports, and nothing in it shows which account that was. An adapter whose
+   * wallet can switch accounts MUST reject when the selected account changes
+   * while the call is in flight. The UniSat, OKX, OneKey and Utila adapters
+   * re-read the selected account after the call; Ledger and Keystone derive at
+   * a host-chosen path. The injectable adapter passes the injected wallet
+   * through unchanged, so that wallet carries this obligation itself.
+   *
    * @param appName - Application identifier (1-64 bytes, `[a-z0-9\-]`).
    *                  Displayed by the wallet in its approval dialog.
    * @param context - Application-specific context, hex-encoded
@@ -597,6 +605,11 @@ export interface IBTCProvider extends IProvider {
    *   {@link ERROR_CODES.WALLET_ACCOUNT_NOT_SUPPORTED} when the selected
    *   account cannot derive the context hash. Only the UniSat provider
    *   reports this code.
+   * @throws {@link WalletError} with code
+   *   {@link ERROR_CODES.WALLET_ACCOUNT_CHANGED} when the selected account
+   *   changed while the call was in flight, or, for a wallet that reports
+   *   identity events, when an account, network or disconnect event fired
+   *   during it. The UniSat, OKX, OneKey and Utila providers report this code.
    */
   deriveContextHash(appName: string, context: string): Promise<string>;
 }

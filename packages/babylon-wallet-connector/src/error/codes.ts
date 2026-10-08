@@ -20,6 +20,7 @@ export const ERROR_CODES = {
   INCOMPATIBLE_WALLET_VERSION: "INCOMPATIBLE_WALLET_VERSION", // Version mismatch
   WALLET_METHOD_NOT_SUPPORTED: "WALLET_METHOD_NOT_SUPPORTED", // Wallet does not implement a required method
   WALLET_ACCOUNT_NOT_SUPPORTED: "WALLET_ACCOUNT_NOT_SUPPORTED", // Selected wallet account cannot do the action
+  WALLET_ACCOUNT_CHANGED: "WALLET_ACCOUNT_CHANGED", // Selected wallet account or network changed while a call was in flight
   NETWORK_NOT_ENABLED_IN_WALLET: "NETWORK_NOT_ENABLED_IN_WALLET", // Network not enabled
   WALLET_CONFIG_REQUIRED: "WALLET_CONFIG_REQUIRED", // Wallet configuration required
   SHARED_SESSION_DISCONNECT_REFUSED: "SHARED_SESSION_DISCONNECT_REFUSED", // Disconnecting one chain would also disconnect another

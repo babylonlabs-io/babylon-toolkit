@@ -35,6 +35,7 @@ import {
 } from "./userCancellation";
 import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
+import { isWalletAccountChanged } from "./walletAccountChanged";
 import { isWalletAccountNotSupported } from "./walletAccountNotSupported";
 import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
@@ -611,6 +612,9 @@ export function formatPayoutSignatureError(error: unknown): {
   }
   if (isWalletAccountNotSupported(error)) {
     return PSE.walletAccountNotSupported;
+  }
+  if (isWalletAccountChanged(error)) {
+    return PSE.walletAccountChanged;
   }
 
   // Device codes nested in a cause chain — without these they fall to

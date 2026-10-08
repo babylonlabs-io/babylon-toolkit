@@ -48,7 +48,9 @@
  *  - Wallet method not supported — the connected wallet lacks a required
  *    method (coded, cause-walking; runs after every typed bucket above).
  *  - Wallet not connected / wallet client missing.
- *  - Wallet account changed mid-flow (the WOTS-vs-PoP key guard).
+ *  - Wallet account or network changed mid-flow — the adapter's coded
+ *    refusal of a derive (cause-walking, after every typed bucket above),
+ *    the SDK's post-derive key check, or the WOTS-vs-PoP key guard.
  *  - Wrong wallet connected on resume (WOTS hash mismatch).
  *  - Preparation failure — the Pre-PegIn could not be prepared for signing
  *    (e.g. prevout resolution against the mempool API failed).
@@ -117,6 +119,7 @@ import {
 } from "./userCancellation";
 import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
+import { isWalletAccountChanged } from "./walletAccountChanged";
 import { isWalletAccountNotSupported } from "./walletAccountNotSupported";
 import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
@@ -188,7 +191,9 @@ export function mapDepositErrorAfterRegistration(
       ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported
       : content === ERRORS.walletMethodNotSupported
         ? COPY.deposit.payoutSignatureErrors.walletMethodNotSupported
-        : undefined;
+        : content === ERRORS.walletAccountChanged
+          ? COPY.deposit.payoutSignatureErrors.walletAccountChanged
+          : undefined;
   return resumeCopy
     ? { title: resumeCopy.title, body: resumeCopy.message }
     : content;
@@ -205,6 +210,9 @@ export function postRegistrationWalletErrorMessage(
 ): string {
   if (isWalletAccountNotSupported(error)) {
     return COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message;
+  }
+  if (isWalletAccountChanged(error)) {
+    return COPY.deposit.payoutSignatureErrors.walletAccountChanged.message;
   }
   return error instanceof Error ? error.message : fallback;
 }
@@ -459,8 +467,10 @@ export function mapDepositError(err: unknown): DepositErrorContent {
 
   const msg = lowerMessage(err);
 
-  // 4. Wallet account changed mid-flow (WOTS-vs-PoP key guard).
-  if (msg.includes("wallet account changed")) {
+  // 4. Wallet account changed mid-flow: the adapter's typed refusal of a
+  // derive that ran under another account, the SDK's post-derive key check,
+  // or the WOTS-vs-PoP key guard.
+  if (isWalletAccountChanged(err) || msg.includes("wallet account changed")) {
     return ERRORS.walletAccountChanged;
   }
 

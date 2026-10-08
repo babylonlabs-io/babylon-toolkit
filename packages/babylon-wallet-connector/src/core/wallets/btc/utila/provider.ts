@@ -8,6 +8,7 @@ import {
 import type { IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { withTimeout } from "@/core/utils/withTimeout";
+import { type LiveBtcIdentity, assertDeriveAccountUnchanged } from "@/core/wallets/btc/assertDeriveAccountUnchanged";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
@@ -99,12 +100,7 @@ export class UtilaProvider implements IBTCProvider {
 
     this.trackIdentityChanges();
     const identityVersion = this.identityVersion;
-    const address = await withTimeout<string>(this.provider.getAddress(), UTILA_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading the address"),
-    );
-    const publicKeyHex = await withTimeout<string>(this.provider.getPublicKeyHex(), UTILA_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading the public key"),
-    );
+    const { address, publicKeyHex } = await this.readLiveIdentity();
 
     if (publicKeyHex && address) {
       this.walletInfo = {
@@ -119,6 +115,18 @@ export class UtilaProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  // Reads the wallet's selected account without prompting and without
+  // touching `walletInfo`, so the derive check can compare the two.
+  private readLiveIdentity = async (): Promise<LiveBtcIdentity> => {
+    const address = await withTimeout<string>(this.provider.getAddress(), UTILA_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the address"),
+    );
+    const publicKeyHex = await withTimeout<string>(this.provider.getPublicKeyHex(), UTILA_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the public key"),
+    );
+    return { address, publicKeyHex };
   };
 
   isIdentityCurrent = (): boolean =>
@@ -311,10 +319,22 @@ export class UtilaProvider implements IBTCProvider {
       });
     }
 
+    const expectedPublicKeyHex = this.walletInfo.publicKeyHex;
+    const identityVersionAtStart = this.identityVersion;
+    let contextHash: string;
     try {
-      return await this.provider.deriveContextHash(appName, context);
+      contextHash = await this.provider.deriveContextHash(appName, context);
     } catch (error) {
       return this.mapPromptRejection(error, "deriveContextHash approval");
     }
+
+    await assertDeriveAccountUnchanged({
+      walletName: WALLET_PROVIDER_NAME,
+      expectedPublicKeyHex,
+      identityVersionAtStart,
+      currentIdentityVersion: () => this.identityVersion,
+      readLiveIdentity: this.readLiveIdentity,
+    });
+    return contextHash;
   };
 }

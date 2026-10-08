@@ -833,6 +833,11 @@ export function useDepositFlow(
           authAnchorHex,
         } = batchResult;
 
+        // An account switch while the derive popup was open resets the wallet
+        // connection and aborts this run. Stop before the PoP popup and the
+        // on-chain registration commit the secrets that derive produced.
+        signal.throwIfAborted();
+
         // ========================================================================
         // Step 3: Sign PoP + batch register all vaults on Ethereum
         // ========================================================================

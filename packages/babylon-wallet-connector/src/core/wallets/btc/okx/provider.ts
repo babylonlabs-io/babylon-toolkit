@@ -9,6 +9,7 @@ import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } fr
 import { IBTCProvider, Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
+import { type LiveBtcIdentity, assertDeriveAccountUnchanged } from "@/core/wallets/btc/assertDeriveAccountUnchanged";
 import logo from "@/core/wallets/icons/okx.svg";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
@@ -96,9 +97,9 @@ export class OKXProvider implements IBTCProvider {
 
     this.trackIdentityChanges();
     const identityVersion = this.identityVersion;
-    let result;
+    let identity: LiveBtcIdentity;
     try {
-      result = await this.provider.connect();
+      identity = await this.readLiveIdentity();
     } catch (error) {
       if ((error as Error)?.message?.includes("rejected")) {
         throw new WalletError({
@@ -115,11 +116,11 @@ export class OKXProvider implements IBTCProvider {
       });
     }
 
-    const { address, compressedPublicKey } = result;
+    const { address, publicKeyHex } = identity;
 
-    if (compressedPublicKey && address) {
+    if (publicKeyHex && address) {
       this.walletInfo = {
-        publicKeyHex: compressedPublicKey,
+        publicKeyHex,
         address,
       };
       this.walletInfoIdentityVersion = identityVersion;
@@ -130,6 +131,14 @@ export class OKXProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  // `connect()` resolves with the selected account, silently once the site is
+  // authorised, and with null when the selected wallet has no account on this
+  // chain. Never touches `walletInfo`, so the derive check can compare the two.
+  private readLiveIdentity = async (): Promise<LiveBtcIdentity> => {
+    const result = await this.provider.connect();
+    return { address: result?.address, publicKeyHex: result?.compressedPublicKey };
   };
 
   isIdentityCurrent = (): boolean =>
@@ -425,8 +434,11 @@ export class OKXProvider implements IBTCProvider {
       });
     }
 
+    const expectedPublicKeyHex = this.walletInfo.publicKeyHex;
+    const identityVersionAtStart = this.identityVersion;
+    let contextHash: string;
     try {
-      return await this.provider.deriveContextHash(appName, context);
+      contextHash = await this.provider.deriveContextHash(appName, context);
     } catch (error) {
       if (isUserRejectionMessage((error as Error | undefined)?.message)) {
         throw new WalletError({
@@ -437,5 +449,15 @@ export class OKXProvider implements IBTCProvider {
       }
       throw error;
     }
+
+    await assertDeriveAccountUnchanged({
+      walletName: WALLET_PROVIDER_NAME,
+      expectedPublicKeyHex,
+      identityVersionAtStart,
+      currentIdentityVersion: () => this.identityVersion,
+      readLiveIdentity: () =>
+        withTimeout(this.readLiveIdentity(), OKX_RPC_TIMEOUT_MS, () => this.timeoutError("reading the selected account")),
+    });
+    return contextHash;
   };
 }

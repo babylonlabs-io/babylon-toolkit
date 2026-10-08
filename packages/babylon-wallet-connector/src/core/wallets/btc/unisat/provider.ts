@@ -19,6 +19,7 @@ import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
+import { type LiveBtcIdentity, assertDeriveAccountUnchanged } from "@/core/wallets/btc/assertDeriveAccountUnchanged";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
@@ -161,13 +162,7 @@ export class UnisatProvider implements IBTCProvider {
     );
     this.trackIdentityChanges();
     const identityVersion = this.identityVersion;
-    const accounts: string[] = await withTimeout(this.provider.getAccounts(), UNISAT_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading accounts"),
-    );
-    const address = accounts[0];
-    const publicKeyHex: string = await withTimeout(this.provider.getPublicKey(), UNISAT_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading the public key"),
-    );
+    const { address, publicKeyHex } = await this.readLiveIdentity();
 
     if (publicKeyHex && address) {
       this.walletInfo = {
@@ -182,6 +177,18 @@ export class UnisatProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  // Reads the extension's selected account without prompting and without
+  // touching `walletInfo`, so the derive check can compare the two.
+  private readLiveIdentity = async (): Promise<LiveBtcIdentity> => {
+    const accounts: string[] = await withTimeout(this.provider.getAccounts(), UNISAT_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading accounts"),
+    );
+    const publicKeyHex: string = await withTimeout(this.provider.getPublicKey(), UNISAT_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the public key"),
+    );
+    return { address: accounts[0], publicKeyHex };
   };
 
   isIdentityCurrent = (): boolean =>
@@ -685,8 +692,11 @@ export class UnisatProvider implements IBTCProvider {
       });
     }
 
+    const expectedPublicKeyHex = this.walletInfo.publicKeyHex;
+    const identityVersionAtStart = this.identityVersion;
+    let contextHash: string;
     try {
-      return await this.provider.deriveContextHash(appName, context);
+      contextHash = await this.provider.deriveContextHash(appName, context);
     } catch (error) {
       // Pass through user-rejection as a typed connection-rejected
       // error so callers can distinguish "user said no" from other
@@ -715,5 +725,14 @@ export class UnisatProvider implements IBTCProvider {
       // (`appName` charset, `context` hex format, length bounds).
       throw error;
     }
+
+    await assertDeriveAccountUnchanged({
+      walletName: WALLET_PROVIDER_NAME,
+      expectedPublicKeyHex,
+      identityVersionAtStart,
+      currentIdentityVersion: () => this.identityVersion,
+      readLiveIdentity: this.readLiveIdentity,
+    });
+    return contextHash;
   };
 }

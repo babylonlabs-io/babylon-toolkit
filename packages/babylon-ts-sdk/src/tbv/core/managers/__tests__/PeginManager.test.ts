@@ -2554,17 +2554,42 @@ describe("PeginManager", () => {
   });
 
   describe("contract invariants", () => {
-    it("calls getPublicKeyHex exactly once across the whole flow", async () => {
+    it("reads getPublicKeyHex as a snapshot before derivation and only re-checks it after", async () => {
       // Regression test for the pubkey snapshot consistency contract:
-      // sizing, root derivation, and commit signing must all bind to one
-      // identity. A second wallet read mid-flow would re-introduce the
-      // bug where secrets bind to pubkey A and the commit pass signs
-      // under pubkey B.
+      // sizing, root derivation, and commit signing must all bind to the
+      // first read. The second read sits between the derive and any
+      // signing, and only checks that the wallet still reports that key.
+      const callOrder: string[] = [];
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
+      const originalGetPublicKeyHex = btcWallet.getPublicKeyHex.bind(btcWallet);
+      const originalDeriveContextHash =
+        btcWallet.deriveContextHash.bind(btcWallet);
+      const originalSignPsbt = btcWallet.signPsbt.bind(btcWallet);
+      const originalSignPsbts = btcWallet.signPsbts.bind(btcWallet);
+      Object.assign(btcWallet, {
+        getPublicKeyHex: async () => {
+          callOrder.push("getPublicKeyHex");
+          return originalGetPublicKeyHex();
+        },
+        deriveContextHash: async (appName: string, context: string) => {
+          callOrder.push("deriveContextHash");
+          return originalDeriveContextHash(appName, context);
+        },
+        signPsbt: async (psbtHex: string, options?: SignPsbtOptions) => {
+          callOrder.push("sign");
+          return originalSignPsbt(psbtHex, options);
+        },
+        signPsbts: async (
+          psbtsHexes: string[],
+          options?: SignPsbtOptions[],
+        ) => {
+          callOrder.push("sign");
+          return originalSignPsbts(psbtsHexes, options);
+        },
+      });
       const ethWallet = new MockEthereumWallet();
-      const getPublicKeyHexSpy = vi.spyOn(btcWallet, "getPublicKeyHex");
 
       const manager = new PeginManager({
         btcNetwork: "signet",
@@ -2581,7 +2606,76 @@ describe("PeginManager", () => {
         ...BASE_PREPARE_PEGIN_PARAMS,
       });
 
-      expect(getPublicKeyHexSpy).toHaveBeenCalledTimes(1);
+      expect(callOrder).toEqual([
+        "getPublicKeyHex",
+        "deriveContextHash",
+        "getPublicKeyHex",
+        "sign",
+      ]);
+    });
+
+    it("rejects the derived root when the wallet reports another account after derivation", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "getPublicKeyHex")
+        .mockResolvedValueOnce(TEST_KEYS.DEPOSITOR)
+        .mockResolvedValueOnce(TEST_KEYS.VAULT_KEEPER_1);
+      const deriveSpy = vi.spyOn(btcWallet, "deriveContextHash");
+      const signPsbtSpy = vi.spyOn(btcWallet, "signPsbt");
+      const signPsbtsSpy = vi.spyOn(btcWallet, "signPsbts");
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(
+        "BTC wallet account changed during vault secret derivation",
+      );
+
+      expect(deriveSpy).toHaveBeenCalledOnce();
+      expect(signPsbtSpy).not.toHaveBeenCalled();
+      expect(signPsbtsSpy).not.toHaveBeenCalled();
+    });
+
+    it("rejects before signing when the wallet cannot report its account after derivation", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      vi.spyOn(btcWallet, "getPublicKeyHex")
+        .mockResolvedValueOnce(TEST_KEYS.DEPOSITOR)
+        .mockRejectedValueOnce(new Error("Wallet not connected"));
+      const signPsbtSpy = vi.spyOn(btcWallet, "signPsbt");
+      const signPsbtsSpy = vi.spyOn(btcWallet, "signPsbts");
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow("Wallet not connected");
+
+      expect(signPsbtSpy).not.toHaveBeenCalled();
+      expect(signPsbtsSpy).not.toHaveBeenCalled();
     });
 
     it("throws if the commit pass returns a perVault entry with a mismatched htlcVout", async () => {

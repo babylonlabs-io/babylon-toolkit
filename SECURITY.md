@@ -720,6 +720,27 @@ from a wallet API before use: addresses, public keys (`validateWalletPubkey`), a
 treat a wallet's success return as proof of a correct signature; see _Non-standard wallet signing
 flags_.
 
+`deriveContextHash` output carries no trace of the account that produced it, yet the vault root it
+returns at deposit time becomes every on-chain commitment. A root derived under another account
+leaves the deposit unable to re-derive its secrets on resume, so it is stuck until the refund
+timelock. Extension adapters (UniSat, OKX, OneKey, Utila) answer `getPublicKeyHex()` from a cache
+while the extension derives under whatever account is selected, so two checks refuse a change they
+can observe. Each adapter re-reads the selected account from the extension after the derive and,
+when the extension reports identity events, refuses on any account, network or disconnect event
+during it (`WALLET_ACCOUNT_CHANGED`). `PeginManager.preparePegin` then re-reads `getPublicKeyHex()`
+and refuses the root unless it still matches the snapshot. Ledger and Keystone derive at a
+host-chosen path; the injectable adapter passes the injected wallet through, so that wallet must
+enforce this itself.
+
+This is a mitigation, not a proof of which account derived the root. **Known gap:** a switch to
+another account and back before the post-derive read passes both checks when no identity event
+reaches the adapter in time. Which events reach it depends on each extension and is not verified
+here against live builds. For a wallet that binds the account when the call is made, as the spec
+requires, that window is the whole approval popup. A same-key network switch without a delivered
+event passes the same way, and so does a hostile or non-conforming wallet. Closing the gap needs
+the wallet to bind the derivation to an expected key and attest it, which is a `deriveContextHash`
+spec change.
+
 ## 5) Supply chain and CI
 
 For a frontend, the supply chain **is** the attack surface: a malicious transitive dependency
@@ -854,6 +875,12 @@ only repository-local safeguards.
     allowlist, and SHA-pinned actions** remain in force.
 15. **A blocking `envInitError` blocks.** No actionable surface renders while the app is running on
     fallback network parameters.
+16. **A vault root is refused when a wallet account change across `deriveContextHash` is
+    observed.** The UniSat, OKX, OneKey and Utila adapters re-read the selected account after the
+    derive and, when the extension reports identity events, refuse on any such event during it;
+    `preparePegin` refuses the root unless `getPublicKeyHex()` still matches the depositor
+    snapshot. An unobserved switch away and back is a known gap until the wallet attests the key it
+    derived under.
 
 ## Attack scenarios matrix
 
@@ -868,6 +895,7 @@ only repository-local safeguards.
 | Presigning          | A         | VP and a colluding challenger supply ChallengeAssert parents that do not spend the Assert, or pay output 0 elsewhere | **Loss of independent claim capability** — Assert:0 spent through NoPayout, invalidating the depositor's Payout | Rebuild each ChallengeAssertX/Y from the Assert around the WASM-derived output connector and match txids; pin NoPayout inputs and sequences; before every signing prompt | `challengeAssert.test.ts`, `noPayout.test.ts`, `signDepositorGraph.realGraph.test.ts`, `runDepositorPresignFlow.test.ts` |
 | Presigning          | A         | VP and a colluding challenger relay output label hashes with no known preimage, or an Assert committing to GC WOTS keys other than the challenger's | **Loss of independent claim capability** — no WronglyChallenged answer once `timelockChallengeAssert` passes | **Known gap** — both are bound only by the presign fingerprint; activation-gate checks (c) and (d) are unimplemented, and vault-wasm does not export check (c) yet (https://github.com/babylonlabs-io/vault-wasm/issues/12) | close with activation-gate checks (c) and (d)                     |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |
+| Vault secrets       | —/E       | Wallet derives the vault root under another account (switched during the derive popup) while funding and registration use the depositor snapshot | Deposit stuck until the refund timelock; secrets cannot be re-derived on resume | Adapter re-reads the selected account and refuses on any identity event the extension reports across the derive; `preparePegin` re-checks the reported key; flow aborts before PoP. **Known gap**: an unobserved switch away and back before the post-derive read (no or late identity event; the whole popup for a wallet that binds at call time), a same-key network switch on such an extension, or a hostile wallet; closing it needs a wallet-attested derivation key | `PeginManager.test.ts`, adapter `deriveContextHash.test.ts` |
 | Vault secrets       | F/G       | `VAULT_WASM_COMMIT` bump rotates expander output                                  | **Permanent loss of access for every in-flight deposit**                | Frozen API; JS + Rust golden-vector gates on every bump                                                         | `vault-secrets/__tests__/expand.test.ts`, `golden_vectors_pinned` |
 | Activation          | —         | Wrong preimage submitted to `activateVaultWithSecret`                             | Funds permanently locked                                                | SDK pre-check when `hashlock` is supplied; the vault app always supplies it                                     | SDK `activateVault` tests                                         |
 | Artifacts           | A         | VP returns a valid JSON-RPC envelope wrapping a corrupt ~1 GB artifact body       | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — only the envelope prefix is validated for large payloads                                        | close with end-to-end body validation                             |

@@ -1304,8 +1304,8 @@ export const COPY = {
       // "wallet is not connected", so keep that phrase.
       ethWalletNotConnected: "Ethereum wallet is not connected",
       walletAccountChanged: {
-        title: "Wallet account changed",
-        body: "Your wallet account changed during the deposit. Please restart the deposit with the original account.",
+        title: "Wallet account or network changed",
+        body: "Your wallet's account or network changed during the deposit. Please restart the deposit with the original account and network.",
       },
       utxosUnavailable: {
         title: "Bitcoin funds unavailable",
@@ -1674,6 +1674,13 @@ export const COPY = {
         title: "Account can't be used",
         message:
           "The account selected in your wallet can't create the deposit secret. Select the account that created this deposit, in the wallet you used to create it, then try again.",
+      },
+      // Resume-specific variant of deposit.errors.walletAccountChanged: the
+      // deposit already exists, so the recovery is to switch back, not restart.
+      walletAccountChanged: {
+        title: "Wallet account or network changed",
+        message:
+          "The account or network selected in your wallet changed while the deposit secret was being created. Select the account and network that created this deposit, then try again.",
       },
       // Typed device-state codes from the hardware-wallet provider; wording
       // shared with deposit.errors via the DEVICE_* constants above.
