@@ -49,8 +49,8 @@ import {
   loadMatureRefundTxids,
 } from "../../storage/matureRefundCache";
 import {
-  addRefundedHtlcVaultId,
-  loadRefundedHtlcVaultIds,
+  addRefundedHtlc,
+  loadRefundedHtlcs,
 } from "../../storage/refundedHtlcCache";
 import type { VaultActivity } from "../../types/activity";
 import type {
@@ -298,9 +298,7 @@ export function PeginPollingProvider({
   // EXPIRED vaults whose HTLC spend confirmed (refund landed). A confirmed
   // spend is terminal, so — like the caches above — drop the vault from the
   // poll set and keep rendering "Refunded" without re-probing.
-  const [refundedHtlcVaultIds, setRefundedHtlcVaultIds] = useState<Set<string>>(
-    loadRefundedHtlcVaultIds,
-  );
+  const [refundedHtlcs, setRefundedHtlcs] = useState(loadRefundedHtlcs);
 
   const { resolveRequiredPrePeginDepth, resolveRefundTimelock } = params;
   const getRequiredPrePeginDepth = useCallback(
@@ -365,7 +363,7 @@ export function PeginPollingProvider({
   // never sees them — read Bitcoin directly. For EXPIRED vaults a spend is
   // the refund landing; for VERIFIED vaults it is the stuck-state signal
   // (peg-in swept without activation → activate-and-redeem escape hatch).
-  // Drop vaults already known refunded (confirmed-spend cache) from the set.
+  // The cache keeps confirmed refunds and their hashes out of this poll.
   const htlcRefundOutpoints = useMemo(
     () =>
       activities
@@ -389,7 +387,7 @@ export function PeginPollingProvider({
             localStatusById.get(a.id) === LocalStorageStatus.CONFIRMED
           )
             return false;
-          if (refundedHtlcVaultIds.has(a.id.toLowerCase())) return false;
+          if (refundedHtlcs.has(a.id.toLowerCase())) return false;
           return (
             !!a.prePeginTxHash &&
             a.htlcVout !== undefined &&
@@ -404,7 +402,7 @@ export function PeginPollingProvider({
           prePeginTxHash: a.prePeginTxHash as string,
           htlcVout: a.htlcVout as number,
         })),
-    [activities, btcPublicKey, refundedHtlcVaultIds, localStatusById],
+    [activities, btcPublicKey, localStatusById, refundedHtlcs],
   );
   const {
     refundByDepositId: htlcRefundByDepositId,
@@ -506,9 +504,8 @@ export function PeginPollingProvider({
     resolveRefundTimelock,
   ]);
 
-  // Persist vaults whose HTLC spend has confirmed and drop them from the next
-  // poll set. Only confirmed spends are cached (a mempool-only spend can still
-  // be replaced/reorged); the live map drives the transient "Refunding" state.
+  // Cache confirmed refunds to keep the action blocked during a read failure.
+  // The live poll supplies the refund hash for pending and confirmed spends.
   // EXPIRED vaults only: for them a confirmed spend IS the refund landing
   // (terminal). A VERIFIED vault's confirmed spend is the VP sweep of the
   // stuck state — caching it as "refunded" would mislabel the vault if it
@@ -516,8 +513,7 @@ export function PeginPollingProvider({
   useEffect(() => {
     if (htlcRefundByDepositId.size === 0) return;
     // Keyed by id, with the PegIn txid: a spend by the PegIn is a sweep INTO
-    // the BTCVault, not a refund, and must never be cached as one. Once cached
-    // the vault leaves the probe, so a wrong entry would stick.
+    // the BTCVault, not a refund, and must never be cached as one.
     const expiredPeginTxById = new Map(
       activities
         .filter(
@@ -527,7 +523,7 @@ export function PeginPollingProvider({
         )
         .map((a) => [a.id.toLowerCase(), a.peginTxHash] as const),
     );
-    const newlyRefunded: string[] = [];
+    const newlyRefunded = new Map<string, string | undefined>();
     for (const [depositId, spend] of htlcRefundByDepositId) {
       if (!expiredPeginTxById.has(depositId)) continue;
       // A spend reported without its transaction may be the PegIn's: caching
@@ -536,18 +532,14 @@ export function PeginPollingProvider({
       if (isHtlcSpentByPegin(spend, expiredPeginTxById.get(depositId))) {
         continue;
       }
-      if (spend.confirmed && !refundedHtlcVaultIds.has(depositId)) {
-        newlyRefunded.push(depositId);
+      if (spend.confirmed && !refundedHtlcs.has(depositId)) {
+        newlyRefunded.set(depositId, spend.spendingTxid);
       }
     }
-    if (newlyRefunded.length === 0) return;
-    newlyRefunded.forEach(addRefundedHtlcVaultId);
-    setRefundedHtlcVaultIds((prev) => {
-      const next = new Set(prev);
-      newlyRefunded.forEach((id) => next.add(id));
-      return next;
-    });
-  }, [htlcRefundByDepositId, refundedHtlcVaultIds, activities]);
+    if (newlyRefunded.size === 0) return;
+    newlyRefunded.forEach((txId, id) => addRefundedHtlc(id, txId));
+    setRefundedHtlcs((prev) => new Map([...prev, ...newlyRefunded]));
+  }, [htlcRefundByDepositId, refundedHtlcs, activities]);
 
   // Emit the on-chain funnel terminals — activation.verified and
   // deposit.completed — once per vault as its contractStatus transitions. The
@@ -614,18 +606,14 @@ export function PeginPollingProvider({
     [],
   );
 
-  // Confirmed settled refund: persist to the cache AND update the in-memory set
-  // so `refundConfirmed` flips to "Refunded" this session, not just on reload.
-  // Lowercased to match the `depositId.toLowerCase()` lookup in the poll result.
-  const addConfirmedRefund = useCallback((depositId: string) => {
-    addRefundedHtlcVaultId(depositId);
-    const key = depositId.toLowerCase();
-    setRefundedHtlcVaultIds((prev) => {
-      if (prev.has(key)) return prev;
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
+  const addConfirmedRefund = useCallback((depositId: string, txId?: string) => {
+    addRefundedHtlc(depositId, txId);
+    setRefundedHtlcs((prev) =>
+      new Map(prev).set(
+        depositId.toLowerCase(),
+        txId ?? prev.get(depositId.toLowerCase()),
+      ),
+    );
   }, []);
 
   // Wrapper: depositId → activity, resolve per-vault thresholds, then
@@ -656,7 +644,7 @@ export function PeginPollingProvider({
         confirmedTxids,
         matureRefundTxids,
         htlcRefundByDepositId,
-        refundedHtlcVaultIds,
+        refundedHtlcs,
         requiredDepth: getRequiredPrePeginDepth(activity),
         refundTimelock,
         activationDeadlinePassed: activationDeadlinePassedIds.has(
@@ -699,7 +687,7 @@ export function PeginPollingProvider({
       confirmedTxids,
       matureRefundTxids,
       htlcRefundByDepositId,
-      refundedHtlcVaultIds,
+      refundedHtlcs,
       getRequiredPrePeginDepth,
       resolveRefundTimelock,
       activationDeadlinePassedIds,

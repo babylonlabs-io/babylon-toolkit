@@ -279,7 +279,7 @@ describe("RefundModal", () => {
     // 1,000,000 sats = 0.01 BTC at $50,000 = $500.00.
     expect(screen.getByText("Refund Amount")).toBeInTheDocument();
     expect(screen.getByText("0.01 sBTC")).toBeInTheDocument();
-    expect(screen.getByText("$500.00 USD")).toBeInTheDocument();
+    expect(await screen.findByText("$500.00 USD")).toBeInTheDocument();
   });
 
   it("disables Confirm and shows the rate-cap banner when mempool returns a malicious fee rate", async () => {
