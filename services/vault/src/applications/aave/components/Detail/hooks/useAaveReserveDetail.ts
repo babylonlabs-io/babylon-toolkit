@@ -5,6 +5,7 @@
  * - Reserve config from Aave, resolved by on-chain reserve id
  * - The reserve's on-chain-proven token identity (label + decimals)
  * - User position data (with position-specific collateral factor)
+ * - The reserve's current collateral factor, which a borrow applies
  * - Aave on-chain oracle price for the selected borrow token
  *
  * Nothing on this screen reads the indexer's `token.symbol/name/decimals`: a
@@ -61,8 +62,17 @@ export interface UseAaveReserveDetailResult {
   assetConfig: Asset | null;
   /** vBTC reserve config (for liquidation threshold) */
   vbtcReserve: AaveReserveConfig | null;
-  /** Liquidation threshold in BPS */
+  /**
+   * Liquidation threshold in BPS under the position's stored
+   * `dynamicConfigKey`. Repay uses it: `repay()` does not refresh the key.
+   */
   liquidationThresholdBps: number;
+  /**
+   * Liquidation threshold in BPS under the reserve's current
+   * `dynamicConfigKey`. Borrow uses it: `borrow()` copies the current key onto
+   * the position before it checks the health factor.
+   */
+  borrowLiquidationThresholdBps: number;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
   /** Collateral value in USD */
@@ -122,11 +132,13 @@ export interface UseAaveReserveDetailResult {
   refetchPosition: () => Promise<AavePositionWithLiveData | null>;
   /**
    * Force a fresh contract round-trip for vault split params
-   * (`getDynamicReserveConfig` + `getLiquidationConfig`). Use immediately
-   * before signing a borrow or repay so the projected-HF math runs against
-   * current on-chain values, not the React Query cache.
+   * (`getDynamicReserveConfig` + `getLiquidationConfig`) under the position's
+   * stored key. Use immediately before signing a repay so the projected-HF
+   * math runs against current on-chain values, not the React Query cache.
    */
   refetchSplitParams: () => Promise<VaultSplitParams | null>;
+  /** Same as `refetchSplitParams`, under the reserve's current key. Use before signing a borrow. */
+  refetchBorrowSplitParams: () => Promise<VaultSplitParams | null>;
 }
 
 export function useAaveReserveDetail({
@@ -220,10 +232,21 @@ export function useAaveReserveDetail({
 
   // Pre-sign path — pass retry: 0 so a transient RPC blip surfaces fast
   // instead of stalling the click for ~7s through the default retry backoff.
-  // All current consumers of this exposed refetch are pre-sign validators
-  // (`validateBorrowPreSign`, `validateRepayPreSign`); the background query
-  // inside `useVaultSplitParams` keeps `CONFIG_RETRY_COUNT` for resilience.
+  // All current consumers of the exposed refetches are pre-sign validators
+  // (`validateBorrowPreSign`, `validateRepayPreSign`); the background queries
+  // inside `useVaultSplitParams` keep `CONFIG_RETRY_COUNT` for resilience.
   const refetchSplitParams = () => refetchSplitParamsRaw({ retry: 0 });
+
+  // Without an address the hook reads the reserve's current key. `borrow()`
+  // applies that key, not the stored one, so the borrow form must use it too.
+  const {
+    params: borrowSplitParams,
+    isLoading: borrowSplitParamsLoading,
+    error: borrowSplitParamsError,
+    refetch: refetchBorrowSplitParamsRaw,
+  } = useVaultSplitParams();
+  const refetchBorrowSplitParams = () =>
+    refetchBorrowSplitParamsRaw({ retry: 0 });
 
   // Debt for the selected reserve in token units, at proven decimals. Null
   // until the identity resolves: a `0` rendered against unverified decimals is
@@ -243,11 +266,14 @@ export function useAaveReserveDetail({
     return Number(formatUnits(debtPosition.totalDebt, tokenIdentity.decimals));
   }, [selectedReserve, tokenIdentity, position]);
 
-  // Position-specific liquidation threshold from contract.
-  // Uses the user's stored dynamicConfigKey (not the indexer's reserve config)
-  // so it reflects the CF that the contract will actually use for liquidation.
+  // Liquidation thresholds from the contract, never the indexer's reserve
+  // config: the stored key's CF is what liquidation and repay use, the current
+  // key's CF is what borrow uses.
   const liquidationThresholdBps = splitParams
     ? Math.round(splitParams.CF * BPS_SCALE)
+    : 0;
+  const borrowLiquidationThresholdBps = borrowSplitParams
+    ? Math.round(borrowSplitParams.CF * BPS_SCALE)
     : 0;
 
   // Trust the Aave oracle; do not substitute. A null/error here disables
@@ -262,12 +288,17 @@ export function useAaveReserveDetail({
 
   return {
     isLoading:
-      identityLoading || positionLoading || pricesLoading || splitParamsLoading,
+      identityLoading ||
+      positionLoading ||
+      pricesLoading ||
+      splitParamsLoading ||
+      borrowSplitParamsLoading,
     selectedReserve,
     tokenIdentity,
     assetConfig,
     vbtcReserve,
     liquidationThresholdBps,
+    borrowLiquidationThresholdBps,
     proxyContract: position?.proxyContract,
     collateralValueUsd,
     currentDebtAmount,
@@ -276,7 +307,8 @@ export function useAaveReserveDetail({
     tokenPriceUsd,
     isPriceStale,
     positionError: positionError ?? null,
-    ancillaryError: pricesError ?? splitParamsError ?? null,
+    ancillaryError:
+      pricesError ?? splitParamsError ?? borrowSplitParamsError ?? null,
     identityError,
     isIdentityCompromised: isIntegrityViolation,
     retryIdentity,
@@ -284,5 +316,6 @@ export function useAaveReserveDetail({
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
+    refetchBorrowSplitParams,
   };
 }
