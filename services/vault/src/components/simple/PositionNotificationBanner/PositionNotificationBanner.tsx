@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type ReactNode } from "react";
 import type { Hex } from "viem";
 
+import { UnconfirmedTransactionCallout } from "@/applications/aave/components/UnconfirmedTransactionCallout";
 import { useReorderOverride } from "@/applications/aave/context";
 import {
   usePositionNotifications,
@@ -35,7 +36,7 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
 
-import { buildBannerActions } from "./BannerActions";
+import { buildBannerActions, offersApplyOrder } from "./BannerActions";
 import { STALE_PRICE_BANNER_GRACE_MS } from "./constants";
 import { OptimalOrderChips } from "./OptimalOrderChips";
 import { useSustainedFlag } from "./useSustainedFlag";
@@ -119,7 +120,9 @@ export function PositionNotificationBanner({
   const {
     executeReorder,
     isProcessing: isReordering,
+    pendingWrite,
     error: reorderError,
+    notice: reorderNotice,
   } = useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const [isReorderSuccess, setIsReorderSuccess] = useState(false);
@@ -322,7 +325,8 @@ export function PositionNotificationBanner({
     onRepay,
     onApplyOrder: handleApplyOrder,
     isReordering,
-    reorderBlocked: isReorderBlocked(gate),
+    // Another Aave transaction from this wallet blocks the reorder too.
+    reorderBlocked: isReorderBlocked(gate) || pendingWrite !== null,
     // `executeReorder` submits the optimal order alongside the calculator inputs
     // it was derived from; both come from the same `usePositionNotifications`
     // "ready" branch, so in production this holds whenever an order exists. It
@@ -332,20 +336,33 @@ export function PositionNotificationBanner({
     repayBlocked: isRepayBlocked(gate),
   });
 
+  // The Aave write still being waited on shows on every card: the lock it
+  // holds is the account's. How the last "Apply optimal order" ended shows
+  // only on a card that offers the action.
+  const showsApplyOrder = offersApplyOrder(result, bannerState);
+  let reorderStatus: ReactNode = null;
+  if (pendingWrite?.phase === "unconfirmed") {
+    reorderStatus = <UnconfirmedTransactionCallout write={pendingWrite} />;
+  } else if (showsApplyOrder && reorderError) {
+    reorderStatus = (
+      <Callout variant="error" title={COPY.common.transactionFailedTitle}>
+        {reorderError}
+      </Callout>
+    );
+  } else if (showsApplyOrder && reorderNotice) {
+    reorderStatus = <Callout variant="warning">{reorderNotice}</Callout>;
+  }
+
   // Sub-box content: the optimal-order chips for the standalone reorder card,
   // otherwise the primary warning's own suggestion (e.g. the cliff advice —
   // urgent conveys its CTA via the action buttons instead) stacked above any
-  // secondary warnings (e.g. urgent + cliff).
+  // secondary warnings (e.g. urgent + cliff). The reorder status goes last.
   let suggestion: ReactNode;
   if (isStandaloneReorder && result.optimalVaultOrder) {
     suggestion = (
       <div className="flex flex-col gap-2">
         <OptimalOrderChips vaults={result.optimalVaultOrder} />
-        {reorderError && (
-          <Callout variant="error" title={COPY.common.transactionFailedTitle}>
-            {reorderError}
-          </Callout>
-        )}
+        {reorderStatus}
       </div>
     );
   } else {
@@ -384,7 +401,11 @@ export function PositionNotificationBanner({
       }
     }
 
-    if (primarySuggestionNode || secondaryWarnings.length > 0) {
+    if (
+      primarySuggestionNode ||
+      secondaryWarnings.length > 0 ||
+      reorderStatus
+    ) {
       suggestion = (
         <div className="flex flex-col gap-2">
           {primarySuggestionNode}
@@ -401,6 +422,7 @@ export function PositionNotificationBanner({
               )}
             </div>
           ))}
+          {reorderStatus}
         </div>
       );
     }

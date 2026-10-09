@@ -43,6 +43,8 @@ export const TELEMETRY_EVENT = {
   ACTIVATION_PROVIDER_UNCONFIRMED: "activation.provider.unconfirmed",
   /** Every vault provider was filtered out of the deposit picker — deposits blocked at the top of the funnel. */
   ONBOARDING_PROVIDERS_EMPTY: "onboarding.providers.empty",
+  /** A broadcast borrow, repay, withdraw or reorder outlived its receipt wait; its form stays locked while it is watched. */
+  LOAN_WRITE_UNCONFIRMED: "loan.write.unconfirmed",
 } as const;
 
 export type TelemetryEvent =

@@ -23,16 +23,23 @@ import {
   throwRevertError,
   type TransactionResult,
 } from "../../../clients/eth-contract/transactionFactory";
+import {
+  assertReceiptIsForSentCall,
+  readBroadcastPosition,
+} from "../../../clients/eth-contract/transactionReplacement";
 import { ensureWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
 import {
   sendWithStaleNonceRetry,
   waitForWalletToCountTransaction,
 } from "../../../clients/eth-contract/walletNonce";
 import {
+  UnconfirmedTransactionError,
+  isDefinitiveReceiptWaitFailure,
   isSimulationPhaseError,
   mapViemErrorToContractError,
   tagSimulationPhase,
 } from "../../../utils/errors";
+import { RECEIPT_WAIT_ROUND_MS } from "../constants";
 
 /**
  * ABIs consulted when decoding a revert on the Aave paths.
@@ -124,6 +131,12 @@ async function simulateTx(
  * Execute a transaction using encoded data from SDK
  *
  * Performs pre-flight simulation first to catch errors before user signs.
+ *
+ * @throws UnconfirmedTransactionError when the transaction was broadcast but
+ *   the receipt wait ended without an answer (a timeout, an RPC failure or
+ *   lag, or a Safe Transaction Service error). It may still be mined.
+ * @throws TransactionReplacedError when the wallet replaced the transaction
+ *   with a cancel or a different call.
  */
 async function executeTx(
   connectedWalletClient: WalletClient,
@@ -165,69 +178,92 @@ async function executeTx(
   };
   await simulate();
 
-  try {
-    // Simulation passed, now send the actual transaction. A send the wallet
-    // signed with a nonce used before it started is simulated and sent once
-    // more.
-    const hash = await sendWithStaleNonceRetry({
-      walletClient,
-      publicClient,
-      account,
-      send: () =>
-        walletClient.sendTransaction({
-          to,
-          data,
-          chain,
-          account: walletClient.account!,
-        }),
-      prepare: simulate,
-    });
+  const mapError = (error: unknown) =>
+    mapViemErrorToContractError(error, errorContext, AAVE_REVERT_DECODING_ABIS);
 
-    // Smart-account-aware: Externally Owned Account (EOA) wallets — controlled
-    // by a single private key, e.g. MetaMask — resolve via the real tx hash
-    // directly. Safe-style multisigs return a `safeTxHash` here that requires
-    // polling the Safe Transaction Service before the on-chain receipt exists.
-    const receipt = await waitForTransactionReceiptSmartAware({
-      publicClient,
-      walletAddress: account,
-      hash,
-    });
-
-    // Before the flow asks the wallet for its next transaction (a repay's
-    // approve is followed straight away by the repay), let the wallet's own
-    // node count this one, so it does not reuse the nonce.
-    await waitForWalletToCountTransaction({
-      walletClient,
-      publicClient,
-      account,
-      receipt,
-    });
-
-    // Check if transaction was reverted
-    if (receipt.status === "reverted") {
-      await throwRevertError(
-        publicClient,
-        receipt,
-        receipt.transactionHash,
+  // Simulation passed, now send the actual transaction. A send the wallet
+  // signed with a nonce used before it started is simulated and sent once
+  // more.
+  const hash = await sendWithStaleNonceRetry({
+    walletClient,
+    publicClient,
+    account,
+    send: () =>
+      walletClient.sendTransaction({
         to,
         data,
-        account,
-      );
-    }
-
-    return {
-      transactionHash: receipt.transactionHash,
-      receipt,
-    };
-  } catch (error) {
+        chain,
+        account: walletClient.account!,
+      }),
+    prepare: simulate,
+  }).catch((error: unknown) => {
     // The simulation re-run before a stale-nonce retry is already mapped.
     if (isSimulationPhaseError(error)) throw error;
-    throw mapViemErrorToContractError(
-      error,
-      errorContext,
-      AAVE_REVERT_DECODING_ABIS,
-    );
+    throw mapError(error);
+  });
+
+  // From here on the transaction has been broadcast. A wait that ends without
+  // a receipt says nothing about whether it will be mined, so it is not a
+  // failure: the caller keeps the hash and keeps waiting.
+  const broadcast = { hash, from: account, to, data };
+  // Read while the original is still in the node's pool: a wallet speed-up or
+  // cancel drops it, and its nonce is then lost (see transactionReplacement.ts).
+  const position = readBroadcastPosition(publicClient, hash, account);
+
+  // Smart-account-aware: Externally Owned Account (EOA) wallets — controlled
+  // by a single private key, e.g. MetaMask — resolve via the real tx hash
+  // directly. Safe-style multisigs return a `safeTxHash` here that requires
+  // polling the Safe Transaction Service before the on-chain receipt exists.
+  const receipt = await waitForTransactionReceiptSmartAware({
+    publicClient,
+    walletAddress: account,
+    hash,
+    // The SDK would poll a Safe proposal for hours while the account's Aave
+    // lock is held with no "Stop waiting". Bounded, a proposal still in the
+    // queue ends this wait as unconfirmed and the lock's own watch takes over.
+    safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS,
+  }).catch(async (error: unknown) => {
+    // Only a Safe transaction that executed and reverted is an answer; any
+    // other failed wait leaves the outcome unknown.
+    if (isDefinitiveReceiptWaitFailure(error)) throw mapError(error);
+    throw new UnconfirmedTransactionError(mapError(error), {
+      ...broadcast,
+      ...(await position),
+    });
+  });
+
+  // A cancel in the wallet comes back as the cancel's own successful receipt.
+  await assertReceiptIsForSentCall({ publicClient, receipt, sent: broadcast });
+
+  // Before the flow asks the wallet for its next transaction (a repay's
+  // approve is followed straight away by the repay), let the wallet's own
+  // node count this one, so it does not reuse the nonce.
+  await waitForWalletToCountTransaction({
+    walletClient,
+    publicClient,
+    account,
+    receipt,
+  });
+
+  // The receipt says reverted, so this is a definite failure even when
+  // diagnosing the revert fails too.
+  if (receipt.status === "reverted") {
+    await throwRevertError(
+      publicClient,
+      receipt,
+      receipt.transactionHash,
+      to,
+      data,
+      account,
+    ).catch((error: unknown) => {
+      throw mapError(error);
+    });
   }
+
+  return {
+    transactionHash: receipt.transactionHash,
+    receipt,
+  };
 }
 
 /**

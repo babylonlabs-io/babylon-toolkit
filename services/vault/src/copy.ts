@@ -1781,6 +1781,29 @@ export const COPY = {
       staleDeploy:
         "This page is out of date — a newer version of the app was deployed. Refresh the page and try again.",
     },
+    // An Aave transaction that has been broadcast but has not confirmed within
+    // the receipt wait. It may still confirm, so the loan and collateral forms
+    // stay locked until its outcome is known. None of these may contain
+    // "transaction failed": the real-wallet E2E fails on that text at once.
+    unconfirmedTransaction: {
+      title: "Waiting for confirmation",
+      body: "Your transaction is taking longer than usual to confirm. New loan and collateral transactions stay paused until it confirms, so it isn't sent twice.",
+      stopWaiting: "Stop waiting",
+      stopWaitingHint:
+        "Stopping doesn't cancel the transaction. If it confirms later, it still takes effect.",
+      inProgress:
+        "A loan or collateral transaction from this wallet is still in progress. Wait for it to finish, then try again.",
+      reverted:
+        "Your transaction has been broadcast but was reverted on-chain, so it didn't go through. Check your position and try again.",
+      replaced:
+        "This transaction was canceled or replaced in your wallet, so it didn't go through.",
+      replacedOutcomeUnknown:
+        "This transaction may have been replaced in your wallet. Check your updated position to see whether it went through.",
+    },
+    // Refusal before signing: the app's RPC still sees a transaction from this
+    // wallet waiting to be mined, which a new one would queue behind.
+    transactionInFlight:
+      "Your wallet has a transaction that hasn't confirmed yet. Wait for it to confirm, or speed it up or cancel it in your wallet, then try again.",
   },
   wallet: {
     // Thrown by the Aave transaction hooks when no ETH wallet is connected.

@@ -86,7 +86,10 @@ export function LoanFlowOverlay({
 
   // Lifted from the Borrow/Repay forms so the dialog can refuse to close
   // mid-transaction — a dismiss would unmount the flow and the success screen
-  // would never show even though the tx completes on-chain.
+  // would never show even though the tx completes on-chain. The forms release
+  // it once a broadcast transaction outlives the receipt wait: it may take
+  // much longer to confirm, and the app-wide Aave lock keeps it from being
+  // sent twice after a dismiss.
   const [isTxInFlight, setIsTxInFlight] = useState(false);
   const [success, setSuccess] = useState<LoanSuccessState | null>(null);
 

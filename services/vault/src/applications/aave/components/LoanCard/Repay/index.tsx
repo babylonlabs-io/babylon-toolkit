@@ -45,6 +45,7 @@ import {
 import { describeHubBlock, getReserveHubBlock } from "../../../utils/hubState";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
+import { UnconfirmedTransactionCallout } from "../../UnconfirmedTransactionCallout";
 
 import { pickRepayParams } from "./hooks/pickRepayParams";
 import { useRepayMetrics } from "./hooks/useRepayMetrics";
@@ -110,11 +111,17 @@ export function Repay() {
   const {
     executeRepay,
     isProcessing,
+    pendingWrite,
     error: txError,
+    notice: txNotice,
     clearError,
   } = useRepayTransaction({
     proxyContract,
   });
+  // A transaction from this wallet has been broadcast but not yet confirmed:
+  // possibly this repay, possibly one from another Aave form or a remount.
+  const unconfirmedWrite =
+    pendingWrite?.phase === "unconfirmed" ? pendingWrite : null;
 
   const {
     repayAmount,
@@ -146,10 +153,14 @@ export function Repay() {
   }, [selectedReserve.reserveId, resetRepayAmount, clearError]);
 
   // Mirror the in-flight state up to the detail screen so it can lock the
-  // dialog's close affordances during signing — see AaveReserveDetail.
+  // dialog's close affordances during signing — see AaveReserveDetail. Once
+  // the transaction outlives the receipt wait the dialog may close: the
+  // app-wide lock keeps every Aave form disabled until it confirms.
   useEffect(() => {
-    onProcessingChange(isProcessing || isSubmitting);
-  }, [isProcessing, isSubmitting, onProcessingChange]);
+    onProcessingChange(
+      (isProcessing || isSubmitting) && unconfirmedWrite === null,
+    );
+  }, [isProcessing, isSubmitting, unconfirmedWrite, onProcessingChange]);
 
   const metrics = useRepayMetrics({
     repayAmount,
@@ -241,7 +252,7 @@ export function Repay() {
 
       setRefetchError(null);
 
-      const success = await executeRepay(amount, selectedReserve, mode, {
+      const result = await executeRepay(amount, selectedReserve, mode, {
         preSignValidation: () =>
           validateRepayPreSign({
             liquidationThresholdBps,
@@ -249,10 +260,13 @@ export function Repay() {
           }),
         repayAmountRaw: amountRaw,
       });
-      if (success) {
+      if (result === "succeeded") {
         resetRepayAmount();
         onRepaySuccess(amount, 0);
       }
+      // It may still have gone through: do not leave the same repay one
+      // click away.
+      if (result === "unknown") resetRepayAmount();
     } finally {
       setIsSubmitting(false);
     }
@@ -262,7 +276,8 @@ export function Repay() {
   // priority first: why repaying is unavailable (so it matches the button),
   // then a current input/validation error (only once the balance is known, so
   // we never surface a misleading verdict computed against a still-loading 0),
-  // then the last failed transaction, the submit-time refetch failure, a
+  // then the last failed transaction or the last outcome that is not a
+  // failure, the submit-time refetch failure, a
   // balance-load failure, and finally the standing shortfall warning.
   const statusCallout: {
     variant: "error" | "warning";
@@ -280,19 +295,21 @@ export function Repay() {
               title: COPY.common.transactionFailedTitle,
               body: txError,
             }
-          : refetchError
-            ? { variant: "warning", body: refetchError }
-            : // Only when NO balance ever loaded (first load failed). A
-              // background-refetch blip keeps the last good balance, so it must
-              // not surface a load error or block repay.
-              !hasBalanceData && balanceError != null
-              ? {
-                  variant: "warning",
-                  body: COPY.loans.repay.balanceLoadError,
-                }
-              : balanceKnown && warningMessage
-                ? { variant: "warning", body: warningMessage }
-                : null;
+          : txNotice
+            ? { variant: "warning", body: txNotice }
+            : refetchError
+              ? { variant: "warning", body: refetchError }
+              : // Only when NO balance ever loaded (first load failed). A
+                // background-refetch blip keeps the last good balance, so it must
+                // not surface a load error or block repay.
+                !hasBalanceData && balanceError != null
+                ? {
+                    variant: "warning",
+                    body: COPY.loans.repay.balanceLoadError,
+                  }
+                : balanceKnown && warningMessage
+                  ? { variant: "warning", body: warningMessage }
+                  : null;
 
   return (
     <div>
@@ -397,6 +414,7 @@ export function Repay() {
           isDisabled ||
           isProcessing ||
           isSubmitting ||
+          pendingWrite !== null ||
           !balanceKnown ||
           isRepayUnavailable
         }
@@ -406,20 +424,30 @@ export function Repay() {
       >
         {isRepayUnavailable
           ? COPY.loans.repay.unavailable
-          : isProcessing || isSubmitting
-            ? COPY.loans.repay.processing
-            : buttonText}
+          : unconfirmedWrite
+            ? COPY.common.confirming
+            : isProcessing || isSubmitting || pendingWrite
+              ? COPY.loans.repay.processing
+              : buttonText}
       </Button>
 
-      {/* Single status callout (validation / transaction / balance warning) */}
-      {statusCallout && (
-        <Callout
-          variant={statusCallout.variant}
-          title={statusCallout.title}
+      {/* Single status callout (validation / transaction / balance warning),
+          replaced while a broadcast transaction is still confirming */}
+      {unconfirmedWrite ? (
+        <UnconfirmedTransactionCallout
+          write={unconfirmedWrite}
           className="mt-4"
-        >
-          {statusCallout.body}
-        </Callout>
+        />
+      ) : (
+        statusCallout && (
+          <Callout
+            variant={statusCallout.variant}
+            title={statusCallout.title}
+            className="mt-4"
+          >
+            {statusCallout.body}
+          </Callout>
+        )
       )}
     </div>
   );
