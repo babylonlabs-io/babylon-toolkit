@@ -52,6 +52,7 @@ import {
 import { describeHubBlock, getBorrowHubBlock } from "../../../utils/hubState";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
+import { UnconfirmedTransactionCallout } from "../../UnconfirmedTransactionCallout";
 
 import { BorrowMetricsCard } from "./BorrowMetricsCard";
 import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
@@ -99,9 +100,15 @@ export function Borrow() {
   const {
     executeBorrow,
     isProcessing,
+    pendingWrite,
     error: txError,
+    notice: txNotice,
     clearError,
   } = useBorrowTransaction();
+  // A transaction from this wallet has been broadcast but not yet confirmed:
+  // possibly this borrow, possibly one from another Aave form or a remount.
+  const unconfirmedWrite =
+    pendingWrite?.phase === "unconfirmed" ? pendingWrite : null;
 
   const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
     useBorrowState({
@@ -172,10 +179,12 @@ export function Borrow() {
   }, [selectedReserve.reserveId, setBorrowAmount, clearError]);
 
   // Mirror the in-flight state up to the detail screen so it can lock the
-  // dialog's close affordances during signing — see AaveReserveDetail.
+  // dialog's close affordances during signing — see AaveReserveDetail. Once
+  // the transaction outlives the receipt wait the dialog may close: the
+  // app-wide lock keeps every Aave form disabled until it confirms.
   useEffect(() => {
-    onProcessingChange(isProcessing);
-  }, [isProcessing, onProcessingChange]);
+    onProcessingChange(isProcessing && unconfirmedWrite === null);
+  }, [isProcessing, unconfirmedWrite, onProcessingChange]);
 
   // Editing the amount drops a stale failed-tx error so it can't re-surface
   // through the status-callout priority chain once a validation error clears.
@@ -273,7 +282,7 @@ export function Borrow() {
   const handleBorrow = async () => {
     // Defensive: the disabled prop already gates on `oracleAddress == null`.
     if (oracleAddress == null) return;
-    const success = await executeBorrow(borrowAmount, selectedReserve, () =>
+    const result = await executeBorrow(borrowAmount, selectedReserve, () =>
       validateBorrowPreSign({
         borrowAmount,
         oracleAddress,
@@ -284,22 +293,26 @@ export function Borrow() {
         chainMaxBorrowReserves,
       }),
     );
-    if (success) {
+    if (result === "succeeded") {
       resetBorrowAmount();
       onBorrowSuccess(borrowAmount);
     }
+    // It may still have gone through: do not leave the same borrow one click
+    // away.
+    if (result === "unknown") resetBorrowAmount();
   };
 
   const getBorrowButtonText = () => {
     if (isBorrowUnavailable) return COPY.loans.borrow.unavailable;
-    if (isProcessing) return COPY.loans.borrow.processing;
+    if (unconfirmedWrite) return COPY.common.confirming;
+    if (isProcessing || pendingWrite) return COPY.loans.borrow.processing;
     return buttonText;
   };
 
   // A single status callout, rendered once below the action button. Highest
   // priority first: why borrowing is unavailable (so it matches the button),
-  // then a current input/validation error, then the last failed transaction,
-  // then the standing warnings.
+  // then a current input/validation error, then the last failed transaction
+  // or the last outcome that is not a failure, then the standing warnings.
   const statusCallout: {
     variant: "error" | "warning";
     title?: string;
@@ -316,19 +329,21 @@ export function Borrow() {
               title: COPY.common.transactionFailedTitle,
               body: txError,
             }
-          : tokenPriceUsd == null || oracleAddress == null
-            ? { variant: "warning", body: COPY.loans.priceUnavailable }
-            : // Before an amount is entered, say the borrow limit is used up
-              // rather than leaving a zero max unexplained.
-              limitedBy === "borrowLimit" && effectiveMaxBorrowAmount <= 0
-              ? {
-                  variant: "warning",
-                  body: COPY.loans.validation.borrowLimitReached(
-                    assetConfig.symbol,
-                    hub.label,
-                  ),
-                }
-              : null;
+          : txNotice
+            ? { variant: "warning", body: txNotice }
+            : tokenPriceUsd == null || oracleAddress == null
+              ? { variant: "warning", body: COPY.loans.priceUnavailable }
+              : // Before an amount is entered, say the borrow limit is used up
+                // rather than leaving a zero max unexplained.
+                limitedBy === "borrowLimit" && effectiveMaxBorrowAmount <= 0
+                ? {
+                    variant: "warning",
+                    body: COPY.loans.validation.borrowLimitReached(
+                      assetConfig.symbol,
+                      hub.label,
+                    ),
+                  }
+                : null;
 
   return (
     <div>
@@ -443,6 +458,7 @@ export function Borrow() {
         disabled={
           isDisabled ||
           isProcessing ||
+          pendingWrite !== null ||
           isBorrowUnavailable ||
           !isPriceReady ||
           oracleAddress == null
@@ -454,15 +470,23 @@ export function Borrow() {
         {getBorrowButtonText()}
       </Button>
 
-      {/* Single status callout (validation / transaction / availability) */}
-      {statusCallout && (
-        <Callout
-          variant={statusCallout.variant}
-          title={statusCallout.title}
+      {/* Single status callout (validation / transaction / availability),
+          replaced while a broadcast transaction is still confirming */}
+      {unconfirmedWrite ? (
+        <UnconfirmedTransactionCallout
+          write={unconfirmedWrite}
           className="mt-4"
-        >
-          {statusCallout.body}
-        </Callout>
+        />
+      ) : (
+        statusCallout && (
+          <Callout
+            variant={statusCallout.variant}
+            title={statusCallout.title}
+            className="mt-4"
+          >
+            {statusCallout.body}
+          </Callout>
+        )
       )}
     </div>
   );

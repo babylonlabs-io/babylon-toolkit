@@ -24,8 +24,27 @@ vi.mock("@/config/network", () => ({
   })),
 }));
 
+const mockAssertNoTransactionInFlight = vi.hoisted(() => vi.fn());
+vi.mock("@/clients/eth-contract/transactionInFlight", () => ({
+  assertNoTransactionInFlight: (...a: unknown[]) =>
+    mockAssertNoTransactionInFlight(...a),
+}));
+
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: () => ({
+      getTransaction: () => Promise.reject(new Error("not found")),
+    }),
+  },
+}));
+
 vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn() },
+}));
+
+const mockInvalidateQueries = vi.hoisted(() => vi.fn());
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 const mockUseAccount = vi.fn();
@@ -69,6 +88,12 @@ vi.mock("../../services", () => ({
   reorderVaultOrder: (...args: unknown[]) => mockReorderVaultOrder(...args),
 }));
 
+import { COPY } from "@/copy";
+import {
+  TransactionInFlightError,
+  TransactionReplacedError,
+} from "@/utils/errors";
+
 import type { ReorderVerificationContext } from "../../services";
 import { useReorderVaults } from "../useReorderVaults";
 
@@ -109,6 +134,48 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     mockReorderVaultOrder.mockResolvedValue({
       transactionHash: "0xtx",
     });
+    mockAssertNoTransactionInFlight.mockResolvedValue(undefined);
+  });
+
+  it("refuses before the membership read while the wallet has a pending transaction", async () => {
+    mockAssertNoTransactionInFlight.mockRejectedValue(
+      new TransactionInFlightError(),
+    );
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+    });
+
+    expect(resolved).toBe(false);
+    expect(result.current.notice).toBe(COPY.common.transactionInFlight);
+    expect(result.current.error).toBeNull();
+    expect(mockAssertMembership).not.toHaveBeenCalled();
+    expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the position when the wallet replaced the reorder, which a speed-up may have done anyway", async () => {
+    mockReorderVaultOrder.mockRejectedValue(
+      new TransactionReplacedError(
+        "unknown",
+        "0x5555555555555555555555555555555555555555555555555555555555555555",
+      ),
+    );
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+    });
+
+    expect(resolved).toBe(false);
+    expect(result.current.notice).toBe(
+      COPY.common.unconfirmedTransaction.replacedOutcomeUnknown,
+    );
+    expect(
+      mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
+    ).toContainEqual(["aaveUserPosition"]);
   });
 
   it("calls assertReorderMembership with the env-pinned adapter address before broadcasting", async () => {

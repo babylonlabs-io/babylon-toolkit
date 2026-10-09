@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import type { Hex } from "viem";
 
+import { UnconfirmedTransactionCallout } from "@/applications/aave/components/UnconfirmedTransactionCallout";
 import { useReorderOverride } from "@/applications/aave/context";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { COPY } from "@/copy";
@@ -46,8 +47,12 @@ export function ReorderVaultsModal({
     handleDragEnd,
     handleConfirm,
     isProcessing,
+    pendingWrite,
     error,
+    notice,
   } = useReorderModal({ vaults, isOpen });
+  const unconfirmedWrite =
+    pendingWrite?.phase === "unconfirmed" ? pendingWrite : null;
 
   const vaultIds = orderedVaults.map((v) => v.vaultId as Hex);
   const { feeEth, feeUsd } = useReorderGasEstimate(
@@ -64,8 +69,11 @@ export function ReorderVaultsModal({
     }),
   );
 
-  // Prevent closing while transaction is in-flight
-  const handleClose = isProcessing ? undefined : onClose;
+  // Prevent closing while transaction is in-flight, until it outlives the
+  // receipt wait: it may take much longer to confirm, and the app-wide Aave
+  // lock keeps it from being sent twice after the modal closes.
+  const handleClose =
+    isProcessing && unconfirmedWrite === null ? undefined : onClose;
 
   const handleConfirmClick = async () => {
     const success = await handleConfirm();
@@ -134,13 +142,20 @@ export function ReorderVaultsModal({
               size="large"
               fluid
               onClick={handleConfirmClick}
-              disabled={!hasOrderChanged || isProcessing}
+              disabled={
+                !hasOrderChanged || isProcessing || pendingWrite !== null
+              }
             >
-              {isProcessing
+              {isProcessing || pendingWrite
                 ? COPY.common.confirming
                 : COPY.reorder.confirmButton}
             </Button>
-            {error && (
+            {unconfirmedWrite ? (
+              <UnconfirmedTransactionCallout
+                write={unconfirmedWrite}
+                className="mt-3"
+              />
+            ) : error ? (
               <Callout
                 variant="error"
                 title={COPY.common.transactionFailedTitle}
@@ -148,6 +163,12 @@ export function ReorderVaultsModal({
               >
                 {error}
               </Callout>
+            ) : (
+              notice && (
+                <Callout variant="warning" className="mt-3">
+                  {notice}
+                </Callout>
+              )
             )}
             {hasOrderChanged && (
               <div className="flex items-center justify-between pt-3 text-sm text-accent-secondary">

@@ -21,6 +21,20 @@ vi.mock("@/clients/eth-contract", () => ({
   ERC20: { getERC20Decimals: vi.fn() },
 }));
 
+const mockAssertNoTransactionInFlight = vi.hoisted(() => vi.fn());
+vi.mock("@/clients/eth-contract/transactionInFlight", () => ({
+  assertNoTransactionInFlight: (...a: unknown[]) =>
+    mockAssertNoTransactionInFlight(...a),
+}));
+
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: () => ({
+      getTransaction: () => Promise.reject(new Error("not found")),
+    }),
+  },
+}));
+
 vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn() },
 }));
@@ -43,6 +57,10 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 import { COPY } from "@/copy";
+import {
+  TransactionInFlightError,
+  TransactionReplacedError,
+} from "@/utils/errors";
 
 import { ProxyMismatchError } from "../../services";
 import { useRepayTransaction } from "../useRepayTransaction";
@@ -60,6 +78,7 @@ function setup() {
 beforeEach(() => {
   vi.clearAllMocks();
   gateMock.value = { protocol: null, aave: null };
+  mockAssertNoTransactionInFlight.mockResolvedValue(undefined);
 });
 
 describe("useRepayTransaction — pause gating (either scope paused)", () => {
@@ -67,12 +86,12 @@ describe("useRepayTransaction — pause gating (either scope paused)", () => {
     gateMock.value = { protocol: null, aave: "paused" };
     const { result } = setup();
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeRepay(100, RESERVE);
     });
 
-    expect(resolved).toBe(false);
+    expect(resolved).toBe("failed");
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockRepayAll).not.toHaveBeenCalled();
   });
@@ -81,12 +100,12 @@ describe("useRepayTransaction — pause gating (either scope paused)", () => {
     gateMock.value = { protocol: "paused", aave: null };
     const { result } = setup();
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeRepay(100, RESERVE);
     });
 
-    expect(resolved).toBe(false);
+    expect(resolved).toBe("failed");
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockRepayAll).not.toHaveBeenCalled();
   });
@@ -98,14 +117,14 @@ describe("useRepayTransaction — max mode wiring", () => {
       useRepayTransaction({ proxyContract: undefined }),
     );
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeRepay(100, RESERVE, "max", {
         repayAmountRaw: 123n,
       });
     });
 
-    expect(resolved).toBe(false);
+    expect(resolved).toBe("failed");
     expect(result.current.error).toContain("position data not available");
     expect(mockRepayAll).not.toHaveBeenCalled();
   });
@@ -113,12 +132,12 @@ describe("useRepayTransaction — max mode wiring", () => {
   it("refuses max mode without the exact bigint balance", async () => {
     const { result } = setup();
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeRepay(100, RESERVE, "max");
     });
 
-    expect(resolved).toBe(false);
+    expect(resolved).toBe("failed");
     expect(result.current.error).toContain("requires repayAmountRaw");
     expect(mockRepayAll).not.toHaveBeenCalled();
   });
@@ -128,14 +147,14 @@ describe("useRepayTransaction — max mode wiring", () => {
     mockRepayAll.mockResolvedValue({ transactionHash: "0xhash" });
     const { result } = setup();
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeRepay(100, RESERVE, "max", {
         repayAmountRaw: 123n,
       });
     });
 
-    expect(resolved).toBe(true);
+    expect(resolved).toBe("succeeded");
     expect(mockRepayAll).toHaveBeenCalledWith(
       expect.anything(), // wallet client
       expect.anything(), // chain
@@ -180,14 +199,85 @@ describe("useRepayTransaction — proxy integrity (F8)", () => {
     );
     const { result } = setup();
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeRepay(100, RESERVE, "max", {
         repayAmountRaw: 123n,
       });
     });
 
-    expect(resolved).toBe(false);
+    expect(resolved).toBe("failed");
     expect(result.current.error).toBe(COPY.loans.repay.integrityError);
+  });
+});
+
+describe("useRepayTransaction — a transaction already in flight", () => {
+  it("checks for a pending transaction once, before the reserve check and the repay with its approve", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockRepayAll.mockResolvedValue({ transactionHash: "0xhash" });
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(mockAssertNoTransactionInFlight).toHaveBeenCalledTimes(1);
+    expect(
+      mockAssertNoTransactionInFlight.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockAssertReserve.mock.invocationCallOrder[0]);
+    expect(mockAssertReserve.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRepayAll.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("refuses before any on-chain read while the wallet has a pending transaction", async () => {
+    mockAssertNoTransactionInFlight.mockRejectedValue(
+      new TransactionInFlightError(),
+    );
+    const { result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(resolved).toBe("failed");
+    expect(result.current.notice).toBe(COPY.common.transactionInFlight);
+    expect(result.current.error).toBeNull();
+    expect(mockAssertReserve).not.toHaveBeenCalled();
+    expect(mockRepayAll).not.toHaveBeenCalled();
+  });
+});
+
+describe("useRepayTransaction — wallet replacement", () => {
+  it("reports a replacement it could not read as an unknown outcome, not a failure, and refreshes the position", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockRepayAll.mockRejectedValue(
+      new TransactionReplacedError(
+        "unknown",
+        "0x5555555555555555555555555555555555555555555555555555555555555555",
+      ),
+    );
+    const { result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(resolved).toBe("unknown");
+    expect(result.current.notice).toBe(
+      COPY.common.unconfirmedTransaction.replacedOutcomeUnknown,
+    );
+    expect(result.current.error).toBeNull();
+    expect(
+      mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
+    ).toContainEqual(["aaveUserPosition"]);
   });
 });

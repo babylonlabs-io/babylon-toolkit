@@ -49,7 +49,7 @@ function WithdrawFlowContent({
 }: WithdrawFlowProps) {
   const { step, goToSelect, goToReview, goToProgress, reset } =
     useWithdrawFlow();
-  const { executeWithdraw, isProcessing, error } =
+  const { executeWithdraw, isProcessing, pendingWrite, error, notice } =
     useWithdrawCollateralTransaction();
   const hubBlockMessage = useWithdrawHubBlockMessage();
   const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
@@ -247,8 +247,14 @@ function WithdrawFlowContent({
               payoutAddresses={selectedPayoutAddresses}
               assertTimelockBlocks={selectedAssertTimelockBlocks}
               vpCommission={vpCommission}
-              isProcessing={isProcessing}
+              // Another Aave transaction from this wallet locks the confirm
+              // button too, not only this withdrawal.
+              isProcessing={isProcessing || pendingWrite !== null}
+              unconfirmedWrite={
+                pendingWrite?.phase === "unconfirmed" ? pendingWrite : null
+              }
               error={error}
+              notice={notice}
               hubBlockMessage={hubBlockMessage}
               acknowledged={acknowledged}
               onAcknowledgedChange={setAcknowledged}

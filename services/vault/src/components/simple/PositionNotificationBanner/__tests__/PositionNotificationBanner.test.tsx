@@ -43,6 +43,9 @@ vi.mock("@/clients/eth-contract/client", () => ({
 // the suggestion sub-box, and the action pills (label + onClick + disabled),
 // and surface variant/severity as data-attributes.
 vi.mock("@babylonlabs-io/core-ui", () => ({
+  Callout: ({ children }: { children?: ReactNode }) => (
+    <div role="note">{children}</div>
+  ),
   InfoIcon: () => <span data-testid="suggestion-info-icon" />,
   Text: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   WarningIcon: () => <span data-testid="warning-icon" />,
@@ -104,12 +107,29 @@ vi.mock("../../ReorderVaults", () => ({
 }));
 
 const mockExecuteReorder = vi.fn().mockResolvedValue(true);
+const reorderVaultsMock = vi.hoisted(() => ({
+  value: {
+    pendingWrite: null as {
+      phase: "unconfirmed";
+      hash: string;
+      stopWaiting: null;
+    } | null,
+    notice: null as string | null,
+  },
+}));
 vi.mock("@/applications/aave/hooks/useReorderVaults", () => ({
   useReorderVaults: () => ({
     executeReorder: mockExecuteReorder,
     isProcessing: false,
     error: null,
+    ...reorderVaultsMock.value,
   }),
+}));
+
+vi.mock("@/applications/aave/components/UnconfirmedTransactionCallout", () => ({
+  UnconfirmedTransactionCallout: ({ write }: { write: { hash: string } }) => (
+    <div data-testid="unconfirmed-transaction-callout">{write.hash}</div>
+  ),
 }));
 
 const mockApplyReorderedOrder = vi.fn();
@@ -235,6 +255,10 @@ function renderBanner(
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+beforeEach(() => {
+  reorderVaultsMock.value = { pendingWrite: null, notice: null };
+});
 
 describe("PositionNotificationBanner", () => {
   const onDeposit = vi.fn();
@@ -407,6 +431,67 @@ describe("PositionNotificationBanner", () => {
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
     expect(screen.getByText("Apply Optimal Order")).toBeTruthy();
+  });
+
+  it("shows the waiting callout on the urgent card while an Aave transaction is unconfirmed", () => {
+    reorderVaultsMock.value.pendingWrite = {
+      phase: "unconfirmed",
+      hash: "0x5555",
+      stopWaiting: null,
+    };
+    const result = makeBaseResult({
+      warnings: [
+        { type: "urgent", title: "Liquidation is 4.3% away", detail: "..." },
+      ],
+      optimalVaultOrder: OPTIMAL_ORDER,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(
+      screen.getByTestId("unconfirmed-transaction-callout").textContent,
+    ).toBe("0x5555");
+  });
+
+  it("shows why Apply Optimal Order was refused on a cliff card", () => {
+    reorderVaultsMock.value.notice = COPY.common.transactionInFlight;
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "Liquidation cliff",
+          detail: "...",
+          suggestion: "Add a smaller vault",
+        },
+      ],
+      optimalVaultOrder: OPTIMAL_ORDER,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    expect(screen.getByRole("note").textContent).toBe(
+      COPY.common.transactionInFlight,
+    );
+  });
+
+  it("shows no reorder notice on the green card, which offers no Apply Optimal Order", () => {
+    reorderVaultsMock.value.notice =
+      COPY.common.unconfirmedTransaction.inProgress;
+    renderBanner(makeBaseResult(), onDeposit, onRepay);
+
+    expect(screen.getByText("Position optimally structured")).toBeTruthy();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("shows the waiting callout on the green card while an Aave transaction is unconfirmed", () => {
+    reorderVaultsMock.value.pendingWrite = {
+      phase: "unconfirmed",
+      hash: "0x5555",
+      stopWaiting: null,
+    };
+    renderBanner(makeBaseResult(), onDeposit, onRepay);
+
+    expect(
+      screen.getByTestId("unconfirmed-transaction-callout").textContent,
+    ).toBe("0x5555");
   });
 
   it("calls onDeposit when Add Collateral is clicked", () => {

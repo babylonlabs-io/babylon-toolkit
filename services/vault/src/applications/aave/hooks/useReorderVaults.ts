@@ -5,10 +5,13 @@
  * to change the prefix ordering for liquidation priority.
  */
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
+import { ethClient } from "@/clients/eth-contract/client";
+import { assertNoTransactionInFlight } from "@/clients/eth-contract/transactionInFlight";
 import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
@@ -16,9 +19,12 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  TransactionReplacedError,
   WalletError,
+  isWriteNotice,
   mapViemErrorToContractError,
 } from "@/utils/errors";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { getAaveAdapterAddress } from "../config";
 import {
@@ -29,6 +35,12 @@ import {
   reorderVaultOrder,
   type ReorderVerificationContext,
 } from "../services";
+import {
+  runAaveWrite,
+  type PendingAaveWrite,
+} from "../services/pendingAaveWrite";
+
+import { usePendingAaveWrite } from "./usePendingAaveWrite";
 
 export interface ExecuteReorderOptions {
   /**
@@ -49,16 +61,32 @@ export interface ExecuteReorderOptions {
 }
 
 export interface UseReorderVaultsResult {
-  /** Execute the reorder transaction */
+  /**
+   * Execute the reorder transaction. Resolves true once it is mined,
+   * including a transaction mined after the normal receipt wait, which this
+   * keeps waiting for.
+   */
   executeReorder: (
     permutedVaultIds: Hex[],
     options?: ExecuteReorderOptions,
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
+  /**
+   * The account's Aave write in progress, from this form or any other. Every
+   * Aave action stays disabled while it is set.
+   */
+  pendingWrite: PendingAaveWrite | null;
   /** Last failure message, shown inline under the action (null when none). */
   error: string | null;
-  /** Clear the last failure message (e.g. when the modal reopens). */
+  /**
+   * Last outcome that is not a failure (null when none): a refusal before
+   * anything was signed, a wallet replacement that may have done the
+   * reorder, or another Aave form's write holding the lock. Shown without the
+   * failure title.
+   */
+  notice: string | null;
+  /** Clear the last failure message and notice (e.g. when the modal reopens). */
   clearError: () => void;
 }
 
@@ -71,17 +99,25 @@ export interface UseReorderVaultsResult {
  *    invoked from the auto-suggestion CTA)
  * 3. Reorder transaction execution
  *
- * Cache invalidation is deferred to the success modal close handler
- * to give the indexer time to process the block.
+ * After a success, cache invalidation is deferred to the success modal close
+ * handler to give the indexer time to process the block. When the outcome is
+ * unknown (the user stopped waiting, or the wallet replaced the transaction)
+ * there is no success modal, so the hook refreshes the position itself.
  */
 export function useReorderVaults(): UseReorderVaultsResult {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
+  const queryClient = useQueryClient();
   const gate = useProtocolGateState();
+  const pendingWrite = usePendingAaveWrite(address);
 
-  const clearError = useCallback(() => setError(null), []);
+  const clearError = useCallback(() => {
+    setError(null);
+    setNotice(null);
+  }, []);
 
   const executeReorder = useCallback(
     async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
@@ -93,6 +129,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
       if (isReorderBlocked(gate)) return false;
 
       setError(null);
+      setNotice(null);
       setIsProcessing(true);
       try {
         if (!walletClient) {
@@ -109,34 +146,64 @@ export function useReorderVaults(): UseReorderVaultsResult {
           );
         }
 
-        const adapterAddress = getAaveAdapterAddress();
+        // The account's Aave lock covers the pre-sign checks too, so a second
+        // call made while they run is refused instead of sent after this one.
+        const outcome = await runAaveWrite(address, async () => {
+          // A reorder this page did not see (sent before a reload, or from
+          // another tab) may still be pending.
+          await assertNoTransactionInFlight({
+            publicClient: ethClient.getPublicClient(),
+            account: address,
+          });
 
-        const currentVaultIds = await assertReorderMembership(
-          adapterAddress,
-          address,
-          permutedVaultIds,
-        );
+          const adapterAddress = getAaveAdapterAddress();
 
-        if (options?.expectedCurrentVaultIds) {
-          assertReorderBaseline(
-            currentVaultIds,
-            options.expectedCurrentVaultIds,
-          );
-        }
-
-        if (options?.optimalOrderContext) {
-          await assertOptimalOrderMatchesOnChain(
-            permutedVaultIds,
-            currentVaultIds,
+          const currentVaultIds = await assertReorderMembership(
             adapterAddress,
-            options.optimalOrderContext,
+            address,
+            permutedVaultIds,
           );
-        }
 
-        await reorderVaultOrder(walletClient, getETHChain(), permutedVaultIds);
+          if (options?.expectedCurrentVaultIds) {
+            assertReorderBaseline(
+              currentVaultIds,
+              options.expectedCurrentVaultIds,
+            );
+          }
 
-        return true;
+          if (options?.optimalOrderContext) {
+            await assertOptimalOrderMatchesOnChain(
+              permutedVaultIds,
+              currentVaultIds,
+              adapterAddress,
+              options.optimalOrderContext,
+            );
+          }
+
+          await reorderVaultOrder(
+            walletClient,
+            getETHChain(),
+            permutedVaultIds,
+          );
+        });
+
+        if (outcome === "mined") return true;
+        // The user stopped waiting and the reorder may still be mined: show
+        // the chain's order rather than the one in the cache.
+        await invalidateVaultQueries(queryClient);
+        return false;
       } catch (error) {
+        // The wallet replaced the transaction. A speed-up may still have done
+        // the reorder, so the position must show the chain's order.
+        if (error instanceof TransactionReplacedError) {
+          await invalidateVaultQueries(queryClient);
+        }
+        // Not a failure: a refusal before anything was signed, or a
+        // replacement that may have done the reorder.
+        if (isWriteNotice(error)) {
+          setNotice(error.message);
+          return false;
+        }
         logger.error(error, { data: { context: "Reorder vaults failed" } });
         // Surface a stale-baseline mismatch as its own user-facing error so
         // the user understands they need to refresh, not retry. Retry with
@@ -155,13 +222,24 @@ export function useReorderVaults(): UseReorderVaultsResult {
         setIsProcessing(false);
       }
     },
-    [walletClient, address, gate],
+    [walletClient, address, queryClient, gate],
   );
+
+  // Another Aave form's write holds the lock while it is signed or sent, so
+  // this one is disabled: say why instead of leaving it without a reason.
+  const lockedByOtherWrite =
+    pendingWrite?.phase === "submitting" && !isProcessing;
 
   return {
     executeReorder,
     isProcessing,
+    pendingWrite,
     error,
+    notice:
+      notice ??
+      (lockedByOtherWrite
+        ? COPY.common.unconfirmedTransaction.inProgress
+        : null),
     clearError,
   };
 }

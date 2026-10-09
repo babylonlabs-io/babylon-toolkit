@@ -3,7 +3,7 @@
  */
 
 import { encodeEventTopics, maxUint256, numberToHex } from "viem";
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 // Hoist mock functions so they can be used in vi.mock factories
 const {
@@ -76,6 +76,7 @@ import { logger } from "@/infrastructure";
 import {
   ContractError,
   ErrorCode,
+  UnconfirmedTransactionError,
   tagSimulationPhase,
 } from "../../../../utils/errors";
 import { getAaveAdapterAddress } from "../../config";
@@ -941,6 +942,35 @@ describe("positionTransactions", () => {
           mockToken,
         ),
       ).rejects.toThrow("execution reverted");
+
+      expect(mockRepayToCorePosition).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not send again a repay that was broadcast but not yet confirmed", async () => {
+      setSimulatedAllowance(2000000n);
+      const unconfirmed = new UnconfirmedTransactionError(
+        new ContractError("repay to Aave Core position failed: timed out"),
+        {
+          hash: "0xhash",
+          from: "0xuser",
+          to: "0xadapter",
+          data: "0x",
+          nonce: null,
+          sentAtBlock: null,
+        },
+      );
+      mockRepayToCorePosition.mockRejectedValue(unconfirmed);
+
+      await expect(
+        repayPartial(
+          mockWalletClient,
+          mockChain,
+          1n,
+          "0xtoken",
+          1000000n,
+          mockToken,
+        ),
+      ).rejects.toBe(unconfirmed);
 
       expect(mockRepayToCorePosition).toHaveBeenCalledTimes(1);
     });

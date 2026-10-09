@@ -132,7 +132,9 @@ function renderFlow(overrides: Partial<WithdrawFlowProps> = {}) {
   vi.mocked(useWithdrawCollateralTransaction).mockReturnValue({
     executeWithdraw,
     isProcessing: false,
+    pendingWrite: null,
     error: null,
+    notice: null,
   } as unknown as ReturnType<typeof useWithdrawCollateralTransaction>);
 
   const props: WithdrawFlowProps = {
