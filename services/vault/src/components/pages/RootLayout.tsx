@@ -35,7 +35,7 @@ import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvid
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
-import { usePageTitle } from "@/hooks/usePageTitle";
+import { usePageTitle, usePhonePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useProtocolStatusOverride } from "@/overrides/protocolStatus";
 
@@ -91,6 +91,7 @@ export default function RootLayout() {
   const { isSupportedAddress } = useAddressType();
   const isMobileView = useIsMobile();
   const pageTitle = usePageTitle();
+  const phonePageTitle = usePhonePageTitle();
   const { pathname } = useLocation();
 
   // One signal for "is this the entry frame", so the sidebar and the chrome
@@ -258,9 +259,9 @@ export default function RootLayout() {
                 <Heading
                   variant="h6"
                   as="h1"
-                  className="font-normal text-accent-primary"
+                  className="min-w-0 truncate font-normal text-accent-primary"
                 >
-                  {pageTitle}
+                  {phonePageTitle}
                 </Heading>
               )
             }

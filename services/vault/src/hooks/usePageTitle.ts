@@ -40,3 +40,14 @@ export function usePageTitle(): string {
   );
   return match ? match[1] : COPY.nav.overview;
 }
+
+// Titles too long for the phone header's slot, keyed by their desktop title.
+const PHONE_TITLES: Readonly<Record<string, string>> = {
+  [COPY.marketData.pageTitle]: COPY.marketData.phonePageTitle,
+};
+
+/** Page title for the phone header, shortened where the desktop title won't fit. */
+export function usePhonePageTitle(): string {
+  const title = usePageTitle();
+  return PHONE_TITLES[title] ?? title;
+}
