@@ -70,6 +70,31 @@ export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
 export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
 
 /**
+ * How long each round of waiting on an unconfirmed Aave transaction lasts
+ * (about 5 Ethereum slots). The watch never uses viem's unbounded wait: two
+ * waits on one hash share viem's poller, and a wait started after a
+ * replacement was mined never sees it. Between rounds the nonce check catches
+ * a replacement, so this also bounds how long one goes unnoticed. It is passed
+ * as the SDK's Safe polling budget too, since the SDK ignores the receipt
+ * timeout while it polls the Safe Transaction Service: a Safe round is bounded
+ * the same way, and a round left running after "Stop waiting" ends with it.
+ * `executeTx`'s first wait uses it for the same budget, so a Safe proposal
+ * still in the queue hands over to the watch instead of holding the lock in
+ * its submitting phase, where "Stop waiting" is never offered.
+ */
+export const RECEIPT_WAIT_ROUND_MS = 60 * 1000;
+
+/** Pause between rounds of that wait: one 12 s slot, the soonest a new block can change the answer. */
+export const RECEIPT_RETRY_DELAY_MS = 12 * 1000;
+
+/**
+ * When the "Stop waiting" action appears on an unconfirmed transaction (about
+ * 50 slots). A transaction priced at the wallet's default fee and still not
+ * included by then is stuck rather than slow.
+ */
+export const STOP_WAITING_AVAILABLE_AFTER_MS = 10 * 60 * 1000;
+
+/**
  * Minimum slider max value to prevent division by zero
  * when no vaults or borrow capacity available
  */

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   params: null as {
     vaults: { id: string; btc: number; name: string }[];
   } | null,
+  pendingWrite: null as { phase: "submitting" } | null,
 }));
 
 vi.mock("@/applications/aave/hooks/useSplitVaultOrder", () => ({
@@ -37,7 +38,9 @@ vi.mock("@/applications/aave/hooks/useReorderVaults", () => ({
   useReorderVaults: () => ({
     executeReorder: mocks.executeReorder,
     isProcessing: false,
+    pendingWrite: mocks.pendingWrite,
     error: null,
+    notice: null,
   }),
 }));
 
@@ -76,6 +79,31 @@ describe("SplitVaultOrderWarning", () => {
       ],
     };
     mocks.calculate.mockReturnValue({ optimalVaultOrder: null });
+    mocks.pendingWrite = null;
+  });
+
+  it("disables the restore action while another Aave transaction from this wallet is in progress", () => {
+    mocks.splitOrder = {
+      expectedVaultIds: ["0xsacrificial", "0xprotected"],
+      hasMismatch: true,
+      isError: false,
+    };
+    mocks.pendingWrite = { phase: "submitting" };
+
+    render(
+      <SplitVaultOrderWarning
+        connectedAddress="0xuser"
+        currentVaultIds={["0xprotected", "0xsacrificial"]}
+        onSuccess={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: COPY.vaults.splitOrderWarning.action,
+      }),
+    ).toBeDisabled();
   });
 
   it("stays hidden while the contract order matches construction order", () => {

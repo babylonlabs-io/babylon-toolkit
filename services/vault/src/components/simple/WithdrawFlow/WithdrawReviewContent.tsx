@@ -9,10 +9,12 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, type ReactNode } from "react";
 
+import { UnconfirmedTransactionCallout } from "@/applications/aave/components/UnconfirmedTransactionCallout";
 import {
   WITHDRAW_HF_BLOCK_THRESHOLD,
   WITHDRAW_HF_WARNING_THRESHOLD,
 } from "@/applications/aave/constants";
+import type { UnconfirmedAaveWrite } from "@/applications/aave/services/pendingAaveWrite";
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
 import { ReviewDetailRow } from "@/components/shared/DetailRow";
 import { BTC_BLOCK_TIME_MINS } from "@/constants";
@@ -59,8 +61,18 @@ interface WithdrawReviewContentProps {
   /** VP commission at each selected vault's own frozen rate. */
   vpCommission: WithdrawCommission;
   isProcessing: boolean;
+  /**
+   * An Aave transaction from this wallet that has been broadcast but not yet
+   * confirmed. Shown in place of the error, since nothing has failed.
+   */
+  unconfirmedWrite: UnconfirmedAaveWrite | null;
   /** Last failed-withdraw message, shown inline under the action (null when none). */
   error: string | null;
+  /**
+   * Last outcome that is not a failure (null when none), such as a refusal
+   * while another transaction is pending. Shown without the failure title.
+   */
+  notice: string | null;
   /**
    * Why a hub would reject the withdrawal (null when none): the collateral's
    * hub, or an inactive hub where the user has debt. Blocks the confirm button.
@@ -81,7 +93,9 @@ export function WithdrawReviewContent({
   assertTimelockBlocks,
   vpCommission,
   isProcessing,
+  unconfirmedWrite,
   error,
+  notice,
   hubBlockMessage,
   acknowledged,
   onAcknowledgedChange,
@@ -271,10 +285,14 @@ export function WithdrawReviewContent({
             )}
           </Button>
 
-          {error && (
+          {unconfirmedWrite ? (
+            <UnconfirmedTransactionCallout write={unconfirmedWrite} />
+          ) : error ? (
             <Callout variant="error" title={COPY.common.transactionFailedTitle}>
               {error}
             </Callout>
+          ) : (
+            notice && <Callout variant="warning">{notice}</Callout>
           )}
         </div>
       </div>
