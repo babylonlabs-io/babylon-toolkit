@@ -61,8 +61,8 @@ type ConnectorParams = Parameters<Awaited<ReturnType<typeof loadWasm>>["getAsser
 /** BIP-341 tapscript leaf version — matches `TAPSCRIPT_LEAF_VERSION` in the SDK builders. */
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
 
-/** The graph the fixture PSBTs are built under (peginFixture terms `vaultCoreVersion: 2`). */
-const VAULT_CORE_VERSION = 2;
+/** The graph the fixture PSBTs are built under (peginFixture terms `vaultCoreVersion: 1`). */
+const VAULT_CORE_VERSION = 1;
 
 /** Intent `base_fee_rate` (peginFixture BASE_FEE_RATE) as the SDK's bigint rate. */
 const PROTOCOL_FEE_RATE = 1n;

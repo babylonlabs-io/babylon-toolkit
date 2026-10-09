@@ -63,8 +63,9 @@ describe("buildDepositTerms", () => {
   });
 
   it("carries the graph version so an approving wallet knows the PegIn shape", () => {
-    // v1 = 2 outputs, no anchor; v2 = TRUC nVersion 3 with a 240-sat P2A
-    // anchor. A provider that supports only one shape must be able to tell.
+    // The version names the PegIn shape (1 = TRUC nVersion 3 with a 240-sat
+    // P2A anchor) and is passed through as given. A provider that supports
+    // only one shape must be able to tell.
     expect(
       buildDepositTerms({ ...BASE, vaultCoreVersion: 1 }).vaultCoreVersion,
     ).toBe(1);

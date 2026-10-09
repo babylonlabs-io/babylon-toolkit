@@ -1,8 +1,9 @@
 // scripts/build-wasm.js
 //
 // Builds the WASM module from the vault-wasm facade repository — a single
-// binary bundling every supported btc-vault tx-graph version (v1, v2, v3)
-// behind version-taking constructors that fail closed on unsupported versions.
+// binary bundling every supported btc-vault tx-graph version behind
+// version-taking constructors that fail closed on unsupported versions. Since
+// the testnet reset that is graph v1 only (post-reset Vault Core 1).
 
 import { execFileSync } from 'node:child_process';
 import shell from 'shelljs';
@@ -16,15 +17,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // golden-vector gate (src/__tests__ frozen vectors) before shipping.
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
 const VAULT_WASM_BRANCH = 'main';
-// vault-wasm main at the merge that adds WasmChallengeAssertOutputConnector
-// (the ChallengeAssert output 0 connector the depositor binds NoPayout's
-// parents to). Bundles btc-vault v1 @ 2c1177ec (tag v0.6.1), v2 @ 27c0062b
-// (tag v0.8.0) and v3 @ b534ff9e, unchanged from the previous pin; no
-// depositor-signed transaction or vault-secret derivation changes. Every rev
-// here is reachable from a default branch except btc-vault v1, which is
-// reachable from the release/0.6.x branch and tag v0.6.1, so the binary this
-// produces stays reproducible.
-const VAULT_WASM_COMMIT = '301fb3da221cee30a23a887b81e39aff525b0dbe';
+// vault-wasm at the re-pin for the testnet reset: graph v1 is btc-vault
+// main @ 5bc96f5c, post-reset Vault Core 1, and the pre-reset graphs
+// (v1 @ 2c1177ec, v2 @ 27c0062b, v3 @ b534ff9e) are gone. Post-reset Core 1
+// is the pre-reset Core 3 graph under a new number, so for the same inputs
+// graph v1 now builds the bytes graph v3 built (pinned by vault-wasm's golden
+// test); the vault-secret derivations are unchanged. The only btc-vault rev it
+// bundles, 5bc96f5c, is reachable from btc-vault main.
+// TODO: this is the head of the vault-wasm re-pin branch, reachable from that
+// branch only, not from main; set it to the vault-wasm main commit that lands
+// the re-pin before merge.
+const VAULT_WASM_COMMIT = '63e5f4c9393b40a655f7ff69e071fe91f87a2269';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');

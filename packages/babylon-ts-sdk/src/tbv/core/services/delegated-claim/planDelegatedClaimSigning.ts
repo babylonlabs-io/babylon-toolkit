@@ -109,12 +109,13 @@ export async function buildBoundPsbtSet(
     );
   }
 
-  // Vaults on graph v1 and v2 have no delegated-claim path at all, so the
-  // builders below would be asked for transactions that do not exist.
+  // The bundled WASM builds the delegated-claim transactions for one graph
+  // version only; any other would ask the builders below for a graph they
+  // cannot build.
   if (txGraphVersion !== DELEGATED_CLAIM_TX_GRAPH_VERSION) {
     throw new Error(
       `Graph version ${txGraphVersion} is not the delegated-claim graph version ` +
-        `${DELEGATED_CLAIM_TX_GRAPH_VERSION}; vaults on earlier graphs have no delegated-claim path.`,
+        `${DELEGATED_CLAIM_TX_GRAPH_VERSION}; vaults on other graphs have no delegated-claim path.`,
     );
   }
 
@@ -199,7 +200,8 @@ export async function buildBoundPsbtSet(
  *         `depositorPublicKey` is not the vault's registered depositor key,
  *         the registered payout script is not derived from it,
  *         the graph version and the vault context's vault core version
- *         disagree, the graph is not version 3, any binding check fails, or
+ *         disagree, the graph is not `DELEGATED_CLAIM_TX_GRAPH_VERSION`, any
+ *         binding check fails, or
  *         the Payout's CSV sequences, declared prevout amounts or implicit fee
  *         do not match the vault's stamped timelocks, its PegIn and Assert
  *         outputs, and the fee band.

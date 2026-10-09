@@ -624,7 +624,10 @@ export const BTCVaultRegistryABI = [
   {
     type: "error",
     name: "CommissionAboveMaximum",
-    inputs: [{ name: "provided", type: "uint16", internalType: "uint16" }],
+    inputs: [
+      { name: "provided", type: "uint16", internalType: "uint16" },
+      { name: "maximum", type: "uint16", internalType: "uint16" },
+    ],
   },
   { type: "error", name: "CommissionUnchanged", inputs: [] },
   {

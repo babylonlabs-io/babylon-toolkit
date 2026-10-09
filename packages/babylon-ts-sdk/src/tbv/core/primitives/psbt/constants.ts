@@ -112,11 +112,28 @@ export const PRE_PEGIN_TX_VERSION = 2;
  */
 export const PRE_PEGIN_TX_LOCKTIME = 0;
 
-/** Vault Core 1 PegIn nVersion from `PegInTx::expected_tx_version`. */
-export const PEGIN_TX_VERSION_CORE_1 = 2;
+/**
+ * The only Vault Core version with a PegIn shape: post-reset Core 1 (btc-vault
+ * `ACTIVE_VAULT_CORE_VERSION`, `crates/vault/src/lib.rs:260` @ 5bc96f5c).
+ * `PegInTx::expected_tx_version` / `expected_num_outputs`
+ * (`crates/vault/src/transactions/pegin.rs:92-106` @ 5bc96f5c) refuse every
+ * other Core. The testnet reset reused the number 1: the pre-reset Core 1
+ * PegIn (nVersion 2, two outputs) is a different protocol and is refused.
+ */
+export const PEGIN_VAULT_CORE_VERSION = 1;
 
-/** Vault Core 2 and 3 PegIn nVersion from `PegInTx::expected_tx_version`. */
-export const PEGIN_TX_VERSION_CORE_2_AND_3 = 3;
+/**
+ * PegIn nVersion: 3 (TRUC / BIP-431), so anyone can CPFP the P2A anchor
+ * (btc-vault `PEGIN_TX_VERSION`, `crates/vault/src/lib.rs:264` @ 5bc96f5c).
+ */
+export const PEGIN_TX_VERSION = 3;
+
+/**
+ * PegIn outputs: vault (vout 0), depositor claim (vout 1) and the P2A anchor
+ * (vout 2) (btc-vault `NUM_PEGIN_OUTPUTS`, `crates/vault/src/lib.rs:278` @
+ * 5bc96f5c).
+ */
+export const PEGIN_OUTPUT_COUNT = 3;
 
 /** PegIn locktime from `PegInTx::new_from_prepegin` (`LockTime::ZERO`). */
 export const PEGIN_TX_LOCKTIME = 0;
@@ -184,12 +201,12 @@ export const ASSERT_FIRST_CHALLENGER_CONNECTOR_VOUT = 1;
 export const ASSERT_NON_CHALLENGER_OUTPUT_COUNT = 2;
 
 /**
- * First `vaultCoreVersion` whose Assert carries the RFC-008 marker
- * `OP_RETURN` before the anchor. Matches `FIRST_MARKER_CORE_VERSION` in
- * btc-vault `crates/vault/src/assert_marker.rs:48` @ b534ff9e; the graph-v1
- * pin (2c1177ec) predates the marker.
+ * The Assert's RFC-008 marker `OP_RETURN`, immediately before the CPFP
+ * anchor. Every Assert carries exactly one (btc-vault
+ * `crates/vault/src/transactions/assert.rs:11,252` @ 5bc96f5c); the reset
+ * removed the per-Core marker gate.
  */
-export const ASSERT_MARKER_FIRST_VAULT_CORE_VERSION = 2;
+export const ASSERT_MARKER_OUTPUT_COUNT = 1;
 
 /**
  * ChallengeAssertX/Y literals btc-vault builds deterministically
@@ -223,12 +240,22 @@ export const NOPAYOUT_INPUT_COUNT = 3;
 export const CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX = 0;
 
 /**
- * Exclusive upper bound on VP commission (bps). Matches
- * `VPKeyRegistryLogic.sol` (`commissionBps >= 10000` reverts).
- * The minimum is version-locked (`minVpCommissionBps`) and enforced upstream,
- * not here.
+ * Exclusive upper bound on VP commission (bps): vault-contracts-aave-v4 keeps
+ * the `maxVpCommissionBps` cap below it (`ProtocolParams.sol:548` @
+ * 790c4df6), and the registry refuses any commission above that cap
+ * (`VPKeyRegistryLogic.sol:93-94,452-453`).
  */
 export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;
+
+/**
+ * Lowest VP commission (bps) the registry accepts, and the floor of the
+ * versioned `maxVpCommissionBps` cap: vault-contracts-aave-v4
+ * `MIN_VP_COMMISSION_BPS` (`src/protocol/lib/types/Constants.sol:15` @
+ * 790c4df6), enforced in `VPKeyRegistryLogic.sol:90-91,449-450` and
+ * `ProtocolParams.sol:548`. A library constant with no getter, so it cannot be
+ * read on-chain.
+ */
+export const MIN_VP_COMMISSION_BPS = 10;
 
 /**
  * Basis-points denominator for commission math:

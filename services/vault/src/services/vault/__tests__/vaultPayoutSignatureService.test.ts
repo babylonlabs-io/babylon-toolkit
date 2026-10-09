@@ -214,7 +214,7 @@ describe("vaultPayoutSignatureService", () => {
         timelockChallengeAssert: 108n,
         securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
         councilQuorum: 1,
-        minVpCommissionBps: 10,
+        maxVpCommissionBps: 10,
         // Distinctive on purpose: a hardcoded rate anywhere in the threading
         // path would fail the assertion below.
         feeRate: 7n,
@@ -316,7 +316,7 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("throws when VP commission is below the protocol floor", async () => {
-      // minVpCommissionBps = 10; a vault with commission 5 is below the floor.
+      // The registry never accepts a commission below 10.
       (getVaultFromChain as Mock).mockResolvedValue({
         ...ON_CHAIN_VAULT,
         vaultProviderCommissionBps: 5,
@@ -350,31 +350,23 @@ describe("vaultPayoutSignatureService", () => {
       );
     });
 
-    it("uses 1 as the floor when minVpCommissionBps is 0", async () => {
-      // The contract permits minVpCommissionBps 0, but the Rust tx-graph
-      // builder refuses commission 0 — so the effective floor is max(0, 1).
-      mockGetOffchainParamsByVersion.mockResolvedValue({
-        timelockAssert: 144n,
-        timelockChallengeAssert: 108n,
-        securityCouncilKeys: ["0xcouncil2", "0xcouncil1"],
-        councilQuorum: 1,
-        minVpCommissionBps: 0,
-        feeRate: 2n,
-      });
+    it("accepts a stamped commission above the versioned cap", async () => {
+      // The registry checks maxVpCommissionBps only when a VP registers or
+      // updates its commission, never at peg-in, so a vault can carry a
+      // commission above the cap of the params version it was stamped with.
+      // The params mocked above cap commissions at 10.
       (getVaultFromChain as Mock).mockResolvedValue({
         ...ON_CHAIN_VAULT,
-        vaultProviderCommissionBps: 0,
+        vaultProviderCommissionBps: 500,
       });
 
-      await expect(
-        prepareSigningContext({
-          vaultId: "vault_id",
-          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
-          registeredPayoutScriptPubKey: "0xscript",
-        }),
-      ).rejects.toThrow(
-        /VP commission 0 bps out of protocol range \[1, 10000\)/,
-      );
+      const { context } = await prepareSigningContext({
+        vaultId: "vault_id",
+        depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
+        registeredPayoutScriptPubKey: "0xscript",
+      });
+
+      expect(context.commissionBps).toBe(500);
     });
 
     it("accepts a caller-provided VP pubkey hint when it matches on-chain", async () => {

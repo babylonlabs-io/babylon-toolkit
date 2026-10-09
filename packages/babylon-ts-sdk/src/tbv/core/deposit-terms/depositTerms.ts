@@ -42,12 +42,12 @@ export interface DepositTerms {
    * btc-vault tx-graph version (`vaultCoreVersion`) these terms describe —
    * the vault's stamped on-chain version for resumes, the chain's
    * `activeVaultCoreVersion` for fresh deposits. It selects the PegIn shape
-   * an approving wallet must expect: v1 = 2 outputs, no anchor; v2/v3 = TRUC
-   * nVersion 3, 3 outputs with a 240-sat P2A anchor at vout 2, and an
+   * an approving wallet must expect. The only version with a shape is 1:
+   * TRUC nVersion 3, 3 outputs with a 240-sat P2A anchor at vout 2, and an
    * Assert OP_RETURN marker that raises the claim value
-   * (btc-vault `transactions/pegin.rs`, `assert_marker.rs`). A provider that
-   * supports only one shape MUST reject the others here rather than
-   * mis-validating the PSBTs later.
+   * (btc-vault `transactions/pegin.rs`, `assert_marker.rs`). The testnet
+   * reset reused the number 1, so a provider MUST reject every other
+   * version here rather than mis-validating the PSBTs later.
    */
   vaultCoreVersion: number;
   /**

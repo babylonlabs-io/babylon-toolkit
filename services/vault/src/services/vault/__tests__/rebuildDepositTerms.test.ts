@@ -387,7 +387,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
         securityCouncilKeys: ["c1", "c2", "c3"],
         timelockAssert: 150n,
         tRefund: 144,
-        minVpCommissionBps: 10,
+        maxVpCommissionBps: 10,
       }),
       getTimelockPeginByVersion: vi.fn().mockResolvedValue(100),
       getTBVProtocolParams: mockGetTBVProtocolParams,

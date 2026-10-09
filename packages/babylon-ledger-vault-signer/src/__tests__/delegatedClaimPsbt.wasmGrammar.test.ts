@@ -6,7 +6,7 @@
  * recognising it and every Ledger self-claim would fail as "no approved
  * intent" — this makes that drift a red build.
  *
- * The Claim, WronglyChallenged and Assert builders take a v3 graph JSON,
+ * The Claim, WronglyChallenged and Assert builders take a full graph JSON,
  * which no repo fixture provides, and the facade exposes no graph-free
  * builder for the claim-assert leaf (`getChallengeAssertScriptInfo` is the
  * Assert→Challenge connector and needs VP WOTS keys); their full-PSBT
@@ -27,8 +27,8 @@ import { CHALLENGER_XONLY, DEPOSITOR_XONLY, KEEPER_XONLY, PAYOUT_TIMELOCK } from
 /** BIP-340 test-vector pubkey 1 — the e2e fixture's council member (depositorGraphFixture.ts). */
 const COUNCIL_XONLY = "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9";
 const COUNCIL_QUORUM = 1;
-/** Delegated claim is graph v3 only (`delegatedClaim.ts` module doc). */
-const TX_GRAPH_VERSION = 3;
+/** The only graph the bundled WASM builds: post-reset Vault Core 1. */
+const TX_GRAPH_VERSION = 1;
 
 describe("payout-leaf grammar ↔ WASM builder contract", () => {
   it("accepts the WASM-built Assert:0 payout leaf and reads D out of it", async () => {

@@ -42,7 +42,7 @@ const APP_ENTRY_POINT = "0x2222222222222222222222222222222222222222" as const;
 const PREPEGIN_MAX_FEE = 1500n;
 const COMMISSION_BPS = 250;
 const REFUND_FEE = 800n;
-const CORE_VERSION = 2;
+const CORE_VERSION = 1;
 
 const DEPOSITOR = TEST_KEYS.DEPOSITOR;
 const VKS = [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2];
@@ -94,7 +94,7 @@ async function buildFundedTx(siblings: Sibling[]): Promise<string> {
     UCS.length,
     OFFCHAIN.minPeginFeeRate,
   );
-  const anchor = (await peginP2aAnchorOutput(CORE_VERSION))?.value ?? 0n;
+  const anchor = (await peginP2aAnchorOutput(CORE_VERSION)).value;
 
   const tx = new Transaction();
   tx.version = 2;

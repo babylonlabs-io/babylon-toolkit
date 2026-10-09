@@ -122,7 +122,7 @@ export const ProtocolParamsABI = [
             internalType: "uint8",
           },
           {
-            name: "minVpCommissionBps",
+            name: "maxVpCommissionBps",
             type: "uint16",
             internalType: "uint16",
           },
@@ -208,7 +208,7 @@ export const ProtocolParamsABI = [
             internalType: "uint8",
           },
           {
-            name: "minVpCommissionBps",
+            name: "maxVpCommissionBps",
             type: "uint16",
             internalType: "uint16",
           },

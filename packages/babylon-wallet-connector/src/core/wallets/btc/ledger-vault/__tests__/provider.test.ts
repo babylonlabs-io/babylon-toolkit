@@ -94,7 +94,7 @@ vi.mock("@babylonlabs-io/ledger-vault-signer", async (importOriginal) => ({
 import { LedgerVaultProvider } from "../provider";
 
 const TERMS: DepositTerms = {
-  vaultCoreVersion: 2,
+  vaultCoreVersion: 1,
   protocolFeeRate: 2n,
   timelockPegin: 684,
   timelockAssert: 684,

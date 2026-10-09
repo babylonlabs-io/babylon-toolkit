@@ -1,7 +1,7 @@
 /**
- * Depositor-graph presigning through the real WASM on a graph-v3 depositor
- * graph built by btc-vault's own code (the watchtower-artifacts fixture, see
- * `delegated-claim/__tests__/fixtures/watchtowerArtifactsV3/README.md`).
+ * Depositor-graph presigning through the real WASM on a Vault Core 1
+ * depositor graph built by btc-vault's own code (the watchtower-artifacts
+ * fixture, see `delegated-claim/__tests__/fixtures/watchtowerArtifacts/README.md`).
  *
  * The other signDepositorGraph tests mock the primitives; this file proves an
  * honest btc-vault graph clears every check and reaches the wallet, and that
@@ -66,7 +66,7 @@ interface FixtureGraph {
 const fixture = JSON.parse(
   readFileSync(
     new URL(
-      "../../delegated-claim/__tests__/fixtures/watchtowerArtifactsV3/fixture.json",
+      "../../delegated-claim/__tests__/fixtures/watchtowerArtifacts/fixture.json",
       import.meta.url,
     ),
     "utf8",

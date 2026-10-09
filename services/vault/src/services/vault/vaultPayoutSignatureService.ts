@@ -42,47 +42,46 @@ import { getBTCNetworkForWASM } from "../../config/pegin";
 import { DepositorBtcKeyMismatchError } from "../../utils/errors/depositorWalletMismatch";
 
 /**
- * Exclusive upper bound on VP commission (bps) — mirrors `VPKeyRegistryLogic.sol`
- * (registerVaultProvider / updateCommission bounds). Local literal by design:
+ * Exclusive upper bound on VP commission (bps): vault-contracts-aave-v4 keeps
+ * the `maxVpCommissionBps` cap below it (`ProtocolParams.sol:548` @
+ * 790c4df6), and the registry refuses any commission above that cap
+ * (`VPKeyRegistryLogic.sol:93-94,452-453`). Local literal by design:
  * the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE` is an internal module, not public API.
  */
 const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
 
 /**
- * Absolute floor on a realizable VP commission: the btc-vault tx-graph builder
- * refuses `vp_commission_bps == 0`, so the effective floor is
- * `max(minVpCommissionBps, 1)`.
+ * Lowest VP commission (bps) the registry accepts: vault-contracts-aave-v4
+ * `MIN_VP_COMMISSION_BPS` (`src/protocol/lib/types/Constants.sol:15` @
+ * 790c4df6), enforced on registration and on every commission update
+ * (`VPKeyRegistryLogic.sol:90-91,449-450`). It is above the btc-vault
+ * tx-graph builder's nonzero floor. Local literal for the same reason as the
+ * bound above.
  */
-const MIN_REALIZABLE_VP_COMMISSION_BPS = 1;
+const MIN_VP_COMMISSION_BPS = 10;
 
 /**
- * Trust-boundary check on a VP commission read from chain — mirrors
- * `VPKeyRegistryLogic.sol`'s registration/update bounds (plus the tx-graph's
- * nonzero floor) so downstream consumers can trust the value.
+ * Trust-boundary check on a VP commission read from chain — mirrors the
+ * registry's fixed registration/update bounds so downstream consumers can
+ * trust the value.
+ *
+ * The versioned `maxVpCommissionBps` cap is deliberately not applied: the
+ * registry checks it only when a VP registers or updates its commission,
+ * against the offchain params current at that moment, and never at peg-in
+ * (`VPKeyRegistryLogic.sol:93-94,452-453`). A vault's stamped commission can
+ * therefore exceed the cap of the params version it was stamped with, and
+ * refusing it here would strand a deposit whose Pre-PegIn is already
+ * broadcast.
  */
-export function assertVpCommissionInProtocolRange(
-  bps: number,
-  minVpCommissionBps: number,
-): void {
-  // NaN/undefined would silently disable the floor (Math.max(NaN, 1) → NaN,
-  // and every < comparison below turns false) — reject the bad read loudly.
-  if (!Number.isInteger(minVpCommissionBps) || minVpCommissionBps < 0) {
-    throw new Error(
-      `minVpCommissionBps must be a non-negative integer, got ${minVpCommissionBps}`,
-    );
-  }
-  const minCommissionBps = Math.max(
-    minVpCommissionBps,
-    MIN_REALIZABLE_VP_COMMISSION_BPS,
-  );
+export function assertVpCommissionInProtocolRange(bps: number): void {
   if (
     !Number.isInteger(bps) ||
-    bps < minCommissionBps ||
+    bps < MIN_VP_COMMISSION_BPS ||
     bps >= VP_COMMISSION_BPS_EXCLUSIVE_MAX
   ) {
     throw new Error(
       `VP commission ${bps} bps out of protocol range ` +
-        `[${minCommissionBps}, ${VP_COMMISSION_BPS_EXCLUSIVE_MAX})`,
+        `[${MIN_VP_COMMISSION_BPS}, ${VP_COMMISSION_BPS_EXCLUSIVE_MAX})`,
     );
   }
 }
@@ -240,10 +239,7 @@ export async function prepareSigningContext(
     vault.offchainParamsVersion,
   );
 
-  assertVpCommissionInProtocolRange(
-    vault.vaultProviderCommissionBps,
-    offchainParams.minVpCommissionBps,
-  );
+  assertVpCommissionInProtocolRange(vault.vaultProviderCommissionBps);
 
   const councilMembers = offchainParams.securityCouncilKeys
     .map((k) => stripHexPrefix(k))

@@ -54,9 +54,9 @@ function params() {
       vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY,
       vaultKeeperBtcPubkeys: [CHALLENGER_A],
       universalChallengerBtcPubkeys: [CHALLENGER_B],
-      txGraphVersion: 3,
+      txGraphVersion: 1,
       proverCircuitVersion: 7,
-      vaultCoreVersion: 3,
+      vaultCoreVersion: 1,
       claimableEventBlockNumber: 10_985_680n,
       peginVaultOutputValueSats: VAULT_UTXO_SATS,
       protocolFeeRate: PROTOCOL_FEE_RATE,
@@ -235,7 +235,7 @@ describe("planDelegatedClaimSigning", () => {
     p.vault.txGraphVersion = 2;
 
     await expect(planDelegatedClaimSigning(p)).rejects.toThrow(
-      "Graph version 2 is not the delegated-claim graph version 3; vaults on earlier graphs have no delegated-claim path.",
+      "Graph version 2 is not the delegated-claim graph version 1; vaults on other graphs have no delegated-claim path.",
     );
     expect(wasm.buildClaimPsbt).not.toHaveBeenCalled();
     expect(wasm.buildPayoutClaimerPsbt).not.toHaveBeenCalled();

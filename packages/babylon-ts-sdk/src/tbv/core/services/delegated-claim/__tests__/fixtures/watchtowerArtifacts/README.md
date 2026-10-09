@@ -1,21 +1,21 @@
-# Graph-v3 watchtower artifacts fixture
+# Watchtower artifacts fixture
 
 `fixture.json` holds the inputs `realWasmWatchtowerArtifacts.test.ts` needs to
 call the real WASM
-(`buildWatchtowerArtifacts` / `verifyWatchtowerArtifacts`, graph version 3)
+(`buildWatchtowerArtifacts` / `verifyWatchtowerArtifacts`, graph version 1)
 and prove that an **unjoined** artifacts file (`babe_sessions: {}`) and a
 **joined** one both build and verify, and that a partial session map is
-refused.
+refused. `signDepositorGraph.realGraph.test.ts` reads the same graph.
 
 Everything here was produced by btc-vault's own code at the pinned revision;
-the generator only replays btc-vault's test recipe at Core version 3 and
-serializes the result.
+the generator only replays btc-vault's test recipe at Vault Core version 1
+and serializes the result.
 
 ## Pins
 
 | What | Value |
 | --- | --- |
-| btc-vault | `b534ff9e846d93367fbaabe0f54517db200326fd` (the v3 engine bundled by vault-wasm `301fb3da`, per `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`) |
+| btc-vault | `5bc96f5cf2f8e6a323b69821368daaa04b8f4106` (post-reset Vault Core 1, the graph-v1 engine the vault-wasm re-pin bundles, per `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`) |
 | Toolchain | `1.93.1` (btc-vault's `rust-toolchain.toml` at that rev) |
 | Features | `btc-vault` with `test-utils` (default features kept) |
 
@@ -25,32 +25,36 @@ serializes the result.
 fixture.json              the generated fixture (699 926 bytes)
 generator/Cargo.toml      stand-alone generator crate, dependencies pinned exactly
 generator/Cargo.lock      btc-vault's own lock at the pinned rev, pruned to what the
-                          generator builds (537 entries, every name, version, source
+                          generator builds (297 entries, every name, version, source
                           and checksum identical) plus the generator crate
 generator/src/main.rs     the generator
 ```
 
 The generator builds against a `git archive` export of btc-vault at the pinned
-revision (`generator/btc-vault-src/`, a path dependency so the `babe-daemons`
-workspace member and the `workspace = true` manifest fields resolve) and
-btc-vault's own `Cargo.lock` at that revision, so every transitive crate matches
-what btc-vault builds with. The exported tree is not committed; regeneration
-recreates it (see below).
+revision (`generator/btc-vault-src/`, a path dependency so the `btc-signer`
+and `btc-vault-crypto` workspace members and the `workspace = true` manifest
+fields resolve) and btc-vault's own `Cargo.lock` at that revision, so every
+transitive crate matches what btc-vault builds with. The exported tree is not
+committed; regeneration recreates it (see below).
 
 ## What the generator does (`src/main.rs`)
 
 1. **Graph.** Replays `test_depositor_claimer_graph_for_depositor`
-   (`crates/vault/src/test_utils.rs`) with
-   `config.vault_core_version = 3` and `config.settlement_chain_id = 11155111`
-   (the value btc-vault's own marker test stamps, `tx_graph/graph.rs:2292`).
-   `PegInParams.core_version = 3` is what makes the PegIn v3-shaped: an
-   nVersion-3 (TRUC) transaction with three outputs, the third being the
-   240-sat P2A anchor (`transactions/pegin.rs` `build_outputs` /
-   `expected_tx_version`). The HTLC value is raised by those 240 sats so the
-   baked PegIn fee stays 1 000 sats. The generator re-applies the vault-wasm
-   facade's structural gate (`src/dispatch/mod.rs`
-   `check_pegin_value_tx_graph_version` @ `fd9872c4`: `pegin_tx.tx.version == 3`
-   and 3 outputs) to the serialized graph before going further.
+   (`crates/vault/src/test_utils.rs:311`) with
+   `config.vault_core_version = 1` and `config.settlement_chain_id = 11155111`
+   (the value btc-vault's own marker test stamps, `tx_graph/graph.rs:2312`).
+   Core 1 is the only Core with a PegIn shape: an nVersion-3 (TRUC)
+   transaction with three outputs, the third being the 240-sat P2A anchor
+   (`transactions/pegin.rs` `expected_tx_version` / `expected_num_outputs` /
+   `build_outputs`). The HTLC value is raised by those 240 sats so the baked
+   PegIn fee stays 1 000 sats; btc-vault's recipe does not add them, so its
+   own PegIn pays 760. The generator re-applies the vault-wasm facade's
+   structural gate (`src/dispatch/mod.rs` `check_pegin_value_tx_graph_version`:
+   `pegin_tx.tx.version == 3` and 3 outputs) to the serialized graph before
+   going further. btc-vault's builder and verifier also run
+   `TxGraph::validate_decoded` on the graph they parse
+   (`delegated_claim.rs:543` `parse_graph`, `tx_graph/graph.rs:851`), which
+   refuses any Core but 1 and a PegIn of another shape.
 2. **Presign.** `presign_test_depositor_claimer_graph` (VP seed 2, VKs 3–4,
    UC 5, depositor NoPayout presigs), exactly as `DelegatedClaimFixture::new`.
 3. **Claimer-side signatures.** Same as `DelegatedClaimFixture::new`: signed
@@ -60,7 +64,7 @@ recreates it (see below).
 4. **btc-vault's builder and verifier, three times:**
    - `babe_sessions_json = "{}"` → `build_watchtower_artifacts` **Ok**,
      `verify_watchtower_artifacts` **Ok**; the file records
-     `babe_sessions: {}`, `vault_core_version: 3`, the expected `vault_id`.
+     `babe_sessions: {}`, `vault_core_version: 1`, the expected `vault_id`.
    - one session per challenger (`decryptor_artifacts_hex: "a1a2"`) →
      build **Ok**, verify **Ok**; the file's `babe_sessions` equals the map.
    - the same map minus the first (sorted) challenger →
@@ -71,9 +75,10 @@ recreates it (see below).
    `derivePeginVaultId(peginTxidFromClaimTx(claim), depositor)` uses
    (`packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts`).
    Self-tested at startup against btc-vault's `cast` golden vector
-   (`crates/eth-client/src/vault_id.rs:128-147`), and cross-checked after
-   generation with the toolkit's own `viem`
-   (`keccak256(encodeAbiParameters([bytes32,address], …))` → same id).
+   (`crates/eth-client/src/vault_id.rs:128-147`), and checked again by
+   `realWasmWatchtowerArtifacts.test.ts`, where
+   `assertArtifactsUsableForVault` re-derives the id from the Claim's PegIn
+   with the SDK's own code.
 6. Writes `fixture.json`.
 
 ### Seeds and values
@@ -92,7 +97,7 @@ recreates it (see below).
 | Network / timelocks | regtest; t1 = 108, t2 = 684 (`test_config`), refund 144 |
 | PegIn / claim / anchor / fee | 100 000 000 / 1 000 000 / 240 / 1 000 sats (HTLC 101 001 240) |
 | Depositor ETH address | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` (Hardhat #1, the address the SDK's `vaultIdBinding` tests already use) |
-| Verifying key | `GENERATOR_VERIFYING_KEY_HEX`, copied from btc-vault `delegated_claim.rs:1273` (test-private): structurally valid, verifies no proof |
+| Verifying key | `GENERATOR_VERIFYING_KEY_HEX`, copied from btc-vault `delegated_claim.rs:1248` (test-private): structurally valid, verifies no proof |
 | Block number / circuit version | 42 / 7 (`DELEGATED_CLAIM_FIXTURE_*` from `test_utils.rs`) |
 
 ## `fixture.json` shape
@@ -102,14 +107,14 @@ Top-level keys: `babeSessionsJoined`, `inputs`, `meta`, `usableForVault`,
 
 - `inputs` — exactly the 13 fields of the toolkit's
   `WatchtowerArtifactsInputs` (`packages/babylon-tbv-rust-wasm/src/types.ts`),
-  same camelCase names: `txGraphVersion` (3), `graphJson` (string, 687 396
+  same camelCase names: `txGraphVersion` (1), `graphJson` (string, 687 396
   bytes — pass verbatim), `signedClaimTxHex`, `assertClaimerSigHex`,
   `payoutClaimerSigHex`, `wronglyChallengedSigs` (object: hex pk → 6 sig hexes,
   3 challengers), `depositorPayoutSigHex`, `verifyingKeyHex`,
   `claimableEventBlockNumber` (**JSON number 42** — the TS type is `bigint`, so
   wrap it: `BigInt(fixture.inputs.claimableEventBlockNumber)`),
   `proverCircuitVersion` (7), `vaultIdHex` (`0x…`), `babeSessionsJson` (`"{}"`,
-  the unjoined case), `expectedVaultCoreVersion` (3).
+  the unjoined case), `expectedVaultCoreVersion` (1).
 - `babeSessionsJoined` — `{ "<pk>": { "decryptor_artifacts_hex": "a1a2" } }`
   for all three challengers; `JSON.stringify` it into `babeSessionsJson` for
   the joined case. Delete one key for the partial case.
@@ -134,13 +139,18 @@ Run it in a scratch copy, so the exported tree and the build output stay out of
 the repository:
 
 ```sh
+BTC_VAULT=~/path/to/btc-vault   # any checkout that has the pinned commit
 rm -rf /tmp/watchtower-fixture
 cp -R generator /tmp/watchtower-fixture
 mkdir -p /tmp/watchtower-fixture/btc-vault-src
-git -C ~/babylon/btc-vault archive b534ff9e846d93367fbaabe0f54517db200326fd | tar -x -C /tmp/watchtower-fixture/btc-vault-src
+git -C "$BTC_VAULT" archive 5bc96f5cf2f8e6a323b69821368daaa04b8f4106 | tar -x -C /tmp/watchtower-fixture/btc-vault-src
 cargo +1.93.1 run --locked --manifest-path /tmp/watchtower-fixture/Cargo.toml
 cp /tmp/watchtower-fixture/fixture.json fixture.json
 ```
+
+BaBe and the BitVM script crates are git dependencies; if cargo cannot fetch
+them, set `CARGO_NET_GIT_FETCH_WITH_CLI=true` so it fetches with your git
+credentials.
 
 Expected stdout (two consecutive runs printed exactly this):
 
@@ -155,12 +165,24 @@ graph JSON:   687396 bytes
 fixture.json: 699926 bytes -> /tmp/watchtower-fixture/fixture.json
 ```
 
+### Moving to another btc-vault revision
+
+Change the rev in `generator/Cargo.toml`, `BTC_VAULT_REV` in `src/main.rs`,
+the line references above and in `src/main.rs`, and this README. Then export
+that rev as above, replace the scratch copy's `Cargo.lock` with btc-vault's
+own lock at that rev
+(`git -C "$BTC_VAULT" show <rev>:Cargo.lock > /tmp/watchtower-fixture/Cargo.lock`),
+and run once without `--locked`: cargo prunes the lock to what the generator
+builds and adds the generator crate, leaving every other entry's name,
+version, source and checksum as btc-vault resolves them. Copy that lock back
+to `generator/Cargo.lock`.
+
 ## Reproducibility
 
 Regeneration is **semantically** reproducible but **not byte**-reproducible.
 Measured over two consecutive runs:
 
-- raw `fixture.json` bytes: **differ** (sha256 `f3a005ea…` vs `f1f91b6d…`);
+- raw `fixture.json` bytes: **differ** (sha256 `ba8fbb40…` vs `c5fe7d5d…`);
 - canonical form (keys sorted recursively, `graphJson` parsed): **identical**;
 - `signedClaimTxHex`, all four signature fields, `wronglyChallengedSigs`,
   `vaultIdHex`, pegin and claim txids: **identical**.
@@ -170,15 +192,16 @@ What varies: only the key order of `HashMap`-backed fields inside `graphJson`
 maps, …) — `serde_json` writes them in `std::HashMap` iteration order, which is
 randomized per process. Nothing else does: every Schnorr signature uses
 `sign_schnorr_no_aux_rand`, challengers are ordered by `all_sorted()` inside
-`TxGraph::new`, and the GC WOTS keys come from a fixed ChaCha20 seed (this is
-the one deliberate deviation from btc-vault's test recipe, which draws them
-from `thread_rng` and would otherwise change the Assert/ChallengeAssert
-transactions — and every signature — on each run).
+`TxGraph::new`, and the GC WOTS keys come from a fixed ChaCha20 seed.
+btc-vault's test recipe draws them from `thread_rng`, which would change the
+Assert/ChallengeAssert transactions — and every signature — on each run; the
+seed and the anchor value above are the generator's only deviations from that
+recipe.
 
 ## Limits
 
 - `"a1a2"` is btc-vault's `DELEGATED_CLAIM_FIXTURE_SESSION_HEX`: valid hex
-  that verifies, but not a decodable BaBe session, so a joined file built from
-  it would still be refused by `vaultd vp wt start-claim`.
+  that the builder accepts (it checks only for non-empty hex), not a
+  decodable BaBe session.
 - The verifying key is structurally valid only; `pinPegoutProof` and anything
   needing a real proof cannot be exercised with it.

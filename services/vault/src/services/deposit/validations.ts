@@ -127,7 +127,7 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    */
   appVersionUnsupported: boolean;
   /**
-   * Per-vault P2A anchor value (0n for versions without an anchor). Null
+   * Per-vault P2A anchor value (240n). Null
    * while the WASM query loads — the CTA must treat that like the
    * minPeginFee loading window: a Max click before it resolves would
    * overstate the depositable amount by the anchor reserve.

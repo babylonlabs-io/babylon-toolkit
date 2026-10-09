@@ -3744,10 +3744,10 @@ babeInstancesToFinalize: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
-##### minVpCommissionBps
+##### maxVpCommissionBps
 
 ```ts
-minVpCommissionBps: number;
+maxVpCommissionBps: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -3875,10 +3875,10 @@ timelockRefund: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
-##### minVpCommissionBps
+##### maxVpCommissionBps
 
 ```ts
-minVpCommissionBps: number;
+maxVpCommissionBps: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)

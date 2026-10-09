@@ -80,7 +80,7 @@ test("pins deriveVaultId through the built WASM facade", async () => {
 test("pins getAssertNoPayoutScriptInfo through the built WASM facade", async () => {
   const noPayout = await getAssertNoPayoutScriptInfo(
     {
-      txGraphVersion: 3,
+      txGraphVersion: 1,
       claimer: CLAIMER,
       localChallengers: [LOCAL_CHALLENGER],
       universalChallengers: [UNIVERSAL_CHALLENGER],
@@ -107,7 +107,7 @@ test("pins getAssertNoPayoutScriptInfo through the built WASM facade", async () 
 
 test("pins getAssertPayoutScriptInfo through the built WASM facade", async () => {
   const payout = await getAssertPayoutScriptInfo({
-    txGraphVersion: 3,
+    txGraphVersion: 1,
     claimer: CLAIMER,
     localChallengers: [LOCAL_CHALLENGER],
     universalChallengers: [UNIVERSAL_CHALLENGER],
@@ -130,23 +130,6 @@ test("pins getAssertPayoutScriptInfo through the built WASM facade", async () =>
   );
 });
 
-test("getAssertPayoutScriptInfo ignores the tx-graph version", async () => {
-  const scriptInfo = (txGraphVersion) =>
-    getAssertPayoutScriptInfo({
-      txGraphVersion,
-      claimer: CLAIMER,
-      localChallengers: [LOCAL_CHALLENGER],
-      universalChallengers: [UNIVERSAL_CHALLENGER],
-      timelockAssert: 100,
-      councilMembers: COUNCIL,
-      councilQuorum: 1,
-    });
-
-  const v1 = await scriptInfo(1);
-  assert.deepEqual(await scriptInfo(2), v1);
-  assert.deepEqual(await scriptInfo(3), v1);
-});
-
 test("pins getChallengeAssertScriptInfo through the built WASM facade", async () => {
   const firstSmallKeys = Array.from({ length: 6 }, (_, index) =>
     wotsPublicKey(32, 20 + index),
@@ -155,7 +138,7 @@ test("pins getChallengeAssertScriptInfo through the built WASM facade", async ()
     wotsPublicKey(32, 40 + index),
   );
   const challengeAssert = await getChallengeAssertScriptInfo({
-    txGraphVersion: 3,
+    txGraphVersion: 1,
     claimer: CLAIMER,
     challenger: LOCAL_CHALLENGER,
     claimerWotsKeysJson: JSON.stringify(wotsPublicKey(64, 1)),
@@ -203,10 +186,6 @@ test("pins createPayoutConnector through the built WASM facade", async () => {
         "5120f168b9531c9ace8d638245e004e2550756b996300391337e169c7fb5c354d61d",
       address: "tb1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwsk4p9uy",
     },
-  );
-  assert.deepEqual(
-    await createPayoutConnector({ ...params, txGraphVersion: 3 }, "signet"),
-    result,
   );
 });
 

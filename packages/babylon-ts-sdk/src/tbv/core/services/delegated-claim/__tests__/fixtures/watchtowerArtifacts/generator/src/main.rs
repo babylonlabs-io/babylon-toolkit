@@ -1,8 +1,8 @@
-//! One-off generator for babylon-toolkit's graph-v3 delegated-claim fixture.
+//! One-off generator for babylon-toolkit's delegated-claim fixture.
 //!
 //! Replays btc-vault's `test_depositor_claimer_graph_for_depositor` and
-//! `DelegatedClaimFixture::new` (crates/vault/src/test_utils.rs @ b534ff9e)
-//! with `vault_core_version = 3`, runs btc-vault's own artifacts builder and
+//! `DelegatedClaimFixture::new` (crates/vault/src/test_utils.rs @ 5bc96f5c)
+//! with `vault_core_version = 1`, runs btc-vault's own artifacts builder and
 //! verifier over the result, and writes `fixture.json` next to Cargo.toml.
 
 use std::collections::{BTreeMap, HashMap};
@@ -43,12 +43,12 @@ use rand_chacha::ChaCha20Rng;
 use serde_json::{Value, json};
 use sha3::{Digest as _, Keccak256};
 
-const BTC_VAULT_REV: &str = "b534ff9e846d93367fbaabe0f54517db200326fd";
+const BTC_VAULT_REV: &str = "5bc96f5cf2f8e6a323b69821368daaa04b8f4106";
 
-/// The graph version the delegated-claim surface exists for.
-const TX_GRAPH_VERSION: u16 = 3;
+/// The Vault Core version the delegated-claim surface exists for.
+const TX_GRAPH_VERSION: u16 = 1;
 
-/// Sepolia; the value btc-vault's own marker test stamps (tx_graph/graph.rs:2292).
+/// Sepolia; the value btc-vault's own marker test stamps (tx_graph/graph.rs:2312).
 const SETTLEMENT_CHAIN_ID: u64 = 11_155_111;
 
 // Party seeds, identical to test_depositor_claimer_graph_for_depositor.
@@ -59,7 +59,7 @@ const COUNCIL_SEEDS: [u8; 2] = [10, 11];
 const COUNCIL_QUORUM: usize = 2;
 
 // Values, identical to test_depositor_claimer_graph_for_depositor except that
-// the HTLC also funds the v3 P2A anchor so the baked PegIn fee stays 1 000.
+// the HTLC also funds the P2A anchor so the baked PegIn fee stays 1 000.
 const PEGIN_AMOUNT: u64 = 100_000_000;
 const DEPOSITOR_CLAIM_VALUE: u64 = 1_000_000;
 const PEGIN_TX_FEE: u64 = 1_000;
@@ -73,7 +73,7 @@ const GC_WOTS_SEED: [u8; 32] = [0x6c; 32];
 /// Hardhat account #1, the address the SDK's vaultIdBinding tests already use.
 const DEPOSITOR_ETH_ADDRESS: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
-/// Copied verbatim from btc-vault crates/vault/src/delegated_claim.rs:1273
+/// Copied verbatim from btc-vault crates/vault/src/delegated_claim.rs:1248
 /// (test module, not public): a well-formed compressed Groth16 verifying key
 /// built from BN254 generator points. Passes the builder's structural check,
 /// verifies no proof.
@@ -90,7 +90,7 @@ struct ClaimerSignatures {
 fn main() {
     assert_eq!(
         TX_GRAPH_VERSION, ACTIVE_VAULT_CORE_VERSION,
-        "btc-vault's active Core version moved; re-check the v3 recipe"
+        "btc-vault's active Core version moved; re-check the recipe"
     );
     self_test_vault_id_derivation();
 
@@ -102,7 +102,7 @@ fn main() {
         "dummy_pubkey_seeded and dummy_keypair_seeded disagree"
     );
 
-    let mut graph = build_v3_graph(depositor_pk);
+    let mut graph = build_graph(depositor_pk);
     tokio::runtime::Builder::new_current_thread()
         .build()
         .expect("tokio runtime")
@@ -110,7 +110,7 @@ fn main() {
     let sigs = sign_claimer_side(&graph, &keypair);
 
     let graph_json = serde_json::to_string(&graph).expect("serialize graph");
-    assert_wasm_facade_v3_shape(&graph_json);
+    assert_wasm_facade_pegin_shape(&graph_json);
 
     let pegin_txid = graph.pegin_tx.get_txid();
     let depositor_eth = eth_address_bytes(DEPOSITOR_ETH_ADDRESS);
@@ -252,8 +252,8 @@ fn htlc_value() -> u64 {
         .expect("fixture values cannot overflow")
 }
 
-/// test_depositor_claimer_graph_for_depositor @ b534ff9e, at Core version 3.
-fn build_v3_graph(depositor_pk: XOnlyPublicKey) -> TxGraph {
+/// test_depositor_claimer_graph_for_depositor @ 5bc96f5c, at Core version 1.
+fn build_graph(depositor_pk: XOnlyPublicKey) -> TxGraph {
     let vault_provider_pk = dummy_pubkey_seeded(VAULT_PROVIDER_SEED);
     let vault_keeper_pks: Vec<XOnlyPublicKey> =
         VAULT_KEEPER_SEEDS.into_iter().map(dummy_pubkey_seeded).collect();
@@ -372,7 +372,7 @@ fn build_v3_graph(depositor_pk: XOnlyPublicKey) -> TxGraph {
         challenger_gc_data,
         config,
     })
-    .expect("valid depositor-as-claimer v3 graph")
+    .expect("valid depositor-as-claimer graph")
 }
 
 /// `WotsSmallBlockKeypairsBatch::generate(NUM_FINALIZED_INSTANCES).public_keys()`
@@ -390,7 +390,7 @@ fn seeded_gc_wots_keys(rng: &mut ChaCha20Rng) -> GcWotsPublicKeyBlocks {
         .collect()
 }
 
-/// DelegatedClaimFixture::new @ b534ff9e: every claimer-side signature.
+/// DelegatedClaimFixture::new @ 5bc96f5c: every claimer-side signature.
 fn sign_claimer_side(graph: &TxGraph, keypair: &bitcoin::secp256k1::Keypair) -> ClaimerSignatures {
     let claim_msg = compute_claim_depositor_sighash(graph).expect("claim sighash");
     let claim_sig = SECP.sign_schnorr_no_aux_rand(&claim_msg, keypair);
@@ -440,18 +440,18 @@ fn babe_sessions(challengers: &[XOnlyPublicKey]) -> Value {
     Value::Object(sessions)
 }
 
-/// The structural gate vault-wasm applies before any v3 delegated-claim
-/// export (src/dispatch/mod.rs `check_pegin_value_tx_graph_version` @
-/// fd9872c4): the embedded PegIn must be an nVersion-3 tx with 3 outputs.
-fn assert_wasm_facade_v3_shape(graph_json: &str) {
+/// The structural gate vault-wasm applies before any delegated-claim export
+/// (src/dispatch/mod.rs `check_pegin_value_tx_graph_version`): the embedded
+/// PegIn must be an nVersion-3 tx with 3 outputs.
+fn assert_wasm_facade_pegin_shape(graph_json: &str) {
     let value: Value = serde_json::from_str(graph_json).expect("graph JSON");
     let tx_version = value.pointer("/pegin_tx/tx/version").and_then(Value::as_i64);
     let num_outputs = value
         .pointer("/pegin_tx/tx/output")
         .and_then(Value::as_array)
         .map(Vec::len);
-    assert_eq!(tx_version, Some(3), "PegIn tx version must be 3 for graph v3");
-    assert_eq!(num_outputs, Some(3), "PegIn must carry 3 outputs for graph v3");
+    assert_eq!(tx_version, Some(3), "PegIn tx version must be 3 for Core 1");
+    assert_eq!(num_outputs, Some(3), "PegIn must carry 3 outputs for Core 1");
 }
 
 /// `keccak256(abi.encode(bytes32 peginTxHash, address depositor))`, the

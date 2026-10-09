@@ -217,7 +217,7 @@ describe("assertPayoutFeeInBand", () => {
     ).rejects.toThrow(/exceeds the safety cap/);
   });
 
-  // 40 WASM floor calls (20 corners x floor + assert); the 1500-challenger
+  // 20 WASM floor calls (10 corners x floor + assert); the 1500-challenger
   // corner dominates the runtime.
   it(
     "keeps the band non-empty (floor <= ceiling) across the domain corners",
@@ -249,34 +249,31 @@ describe("assertPayoutFeeInBand", () => {
         { n: 1, m: 1500, out0Len: 34, out1Len: 34, councilSize: 3 },
         { n: 1, m: 1, out0Len: 34, out1Len: 34, councilSize: 256 },
       ];
-      for (const vaultCoreVersion of [1, 2]) {
-        for (const { n, m, out0Len, out1Len, councilSize } of corners) {
-          const shape = {
-            ...params,
-            vaultCoreVersion,
-            numVaultKeepers: n,
-            numUniversalChallengers: m,
-            councilSize,
-          };
-          const floor = await computePayoutFeeFloor(
-            vaultCoreVersion,
-            n,
-            m,
-            n,
-            councilSize,
+      for (const { n, m, out0Len, out1Len, councilSize } of corners) {
+        const shape = {
+          ...params,
+          numVaultKeepers: n,
+          numUniversalChallengers: m,
+          councilSize,
+        };
+        const floor = await computePayoutFeeFloor(
+          1,
+          n,
+          m,
+          n,
+          councilSize,
+          out0Len,
+          out1Len,
+          1n,
+        );
+        // A floor above the ceiling would throw here.
+        await expect(
+          assertPayoutFeeInBand(shape, {
+            implicitFeeSats: Number(floor),
             out0Len,
             out1Len,
-            1n,
-          );
-          // A floor above the ceiling would throw here.
-          await expect(
-            assertPayoutFeeInBand(shape, {
-              implicitFeeSats: Number(floor),
-              out0Len,
-              out1Len,
-            }),
-          ).resolves.toBeUndefined();
-        }
+          }),
+        ).resolves.toBeUndefined();
       }
     },
   );

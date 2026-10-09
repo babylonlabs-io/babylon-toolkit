@@ -134,8 +134,8 @@ export async function readDelegatedClaimVaultContext(
   const { basic, protocol } = vault;
 
   // The stamped vault core version is the graph version (one axis). The
-  // delegated-claim builders exist for version 3 only, so anything else
-  // cannot be claimed by this path.
+  // delegated-claim builders exist for `DELEGATED_CLAIM_TX_GRAPH_VERSION`
+  // only, so anything else cannot be claimed by this path.
   if (protocol.vaultCoreVersion !== DELEGATED_CLAIM_TX_GRAPH_VERSION) {
     throw new Error(
       `Vault ${vaultId} is stamped vault core version ${protocol.vaultCoreVersion}; ` +

@@ -88,9 +88,13 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   // Mirrors the real peginOutputCount: vaultCount + CPFP + (auth-anchor ? 1 : 0).
   peginOutputCount: (vaultCount: number, hasAuthAnchor: boolean) =>
     vaultCount + 1 + (hasAuthAnchor ? 1 : 0),
-  // v1 default: no P2A anchor. Version-2 tests override.
-  peginP2aAnchorOutput: vi.fn(async () => null),
-  supportedTxGraphVersions: vi.fn(async () => [1, 2, 3]),
+  // The real WASM's PegIn P2A anchor, reserved inside each HTLC's value.
+  peginP2aAnchorOutput: vi.fn(async () => ({
+    value: 240n,
+    vout: 2,
+    scriptPubKey: "51024e73",
+  })),
+  supportedTxGraphVersions: vi.fn(async () => [1]),
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
@@ -683,14 +687,14 @@ describe("useDepositPageForm", () => {
       expect(result.current.feeError).toBeNull();
 
       // Without a selected provider AND before the WASM queries resolve,
-      // both depositorClaimValue and minPeginFee default to 0n. Only the
-      // batch buffer is subtracted, so synchronously:
-      //   798_500 (raw) − 0 (claim) − 0 (peginFee) − 3_000 (buffer) = 795_500
+      // depositorClaimValue, minPeginFee and the P2A anchor default to 0n.
+      // Only the batch buffer is subtracted, so synchronously:
+      //   798_500 (raw) − 0 (claim) − 0 (peginFee) − 0 (anchor) − 3_000 (buffer) = 795_500
       // The Max-pin sync effect tightens this down once the queries resolve.
       expect(result.current.maxDepositSats).toBe(795_500n);
     });
 
-    it("subtracts the per-vault claim + PegIn-fee reserve and the batch buffer from maxDepositSats", async () => {
+    it("subtracts the per-vault claim, PegIn-fee and P2A anchor reserves and the batch buffer from maxDepositSats", async () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       // Select a provider so depositorClaimValue query resolves
@@ -701,12 +705,12 @@ describe("useDepositPageForm", () => {
       });
 
       // maxDeposit (mocked) = 798_500
-      // − vaultCount × (depositorClaimValue + minPeginFee from WASM)
-      //   = 1 × (35_000 + 500) = 35_500
+      // − vaultCount × (depositorClaimValue + minPeginFee + P2A anchor from WASM)
+      //   = 1 × (35_000 + 500 + 240) = 35_740
       // − per-batch CPFP + safety buffer = 3_000
-      // = 760_000
+      // = 759_760
       await waitFor(() => {
-        expect(result.current.maxDepositSats).toBe(760_000n);
+        expect(result.current.maxDepositSats).toBe(759_760n);
       });
     });
 
@@ -1021,10 +1025,11 @@ describe("useDepositPageForm", () => {
     //   maxDeposit (fee-adjusted balance)        = 798_500n
     //   depositorClaimValue                       = 35_000n
     //   per-vault minPeginFee (mocked WASM)       =    500n
+    //   per-vault P2A anchor (mocked WASM)        =    240n
     //   per-batch CPFP + safety buffer (flat)     =  3_000n
-    // adjustedMaxDepositSats = max − vaultCount × (claim + minPeginFee) − batchBuffer:
-    //   vaultCount 1 -> 798500 − 1*(35000+500) − 3000 = 760_000n  ("0.0076" BTC)
-    //   vaultCount 2 -> 798500 − 2*(35000+500) − 3000 = 724_500n  ("0.007245" BTC)
+    // adjustedMaxDepositSats = max − vaultCount × (claim + minPeginFee + anchor) − batchBuffer:
+    //   vaultCount 1 -> 798500 − 1*(35000+500+240) − 3000 = 759_760n  ("0.0075976" BTC)
+    //   vaultCount 2 -> 798500 − 2*(35000+500+240) − 3000 = 724_020n  ("0.0072402" BTC)
     it("keeps a pinned Max amount in sync when partial liquidation enables (vaultCount 1->2)", async () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
@@ -1035,23 +1040,23 @@ describe("useDepositPageForm", () => {
       });
 
       await waitFor(() => {
-        expect(result.current.maxDepositSats).toBe(760_000n);
+        expect(result.current.maxDepositSats).toBe(759_760n);
       });
 
       act(() => {
         result.current.applyMaxAmount();
       });
 
-      expect(result.current.formData.amountBtc).toBe("0.0076");
+      expect(result.current.formData.amountBtc).toBe("0.0075976");
 
       act(() => {
         result.current.setIsTwoVaultSplit(true);
       });
 
       await waitFor(() => {
-        expect(result.current.maxDepositSats).toBe(724_500n);
+        expect(result.current.maxDepositSats).toBe(724_020n);
       });
-      expect(result.current.formData.amountBtc).toBe("0.007245");
+      expect(result.current.formData.amountBtc).toBe("0.0072402");
     });
 
     it("detaches the Max pin on a manual amount edit so a later max change does not overwrite it", async () => {
@@ -1064,13 +1069,13 @@ describe("useDepositPageForm", () => {
       });
 
       await waitFor(() => {
-        expect(result.current.maxDepositSats).toBe(760_000n);
+        expect(result.current.maxDepositSats).toBe(759_760n);
       });
 
       act(() => {
         result.current.applyMaxAmount();
       });
-      expect(result.current.formData.amountBtc).toBe("0.0076");
+      expect(result.current.formData.amountBtc).toBe("0.0075976");
 
       act(() => {
         result.current.setFormData({ amountBtc: "0.001" });
@@ -1082,7 +1087,7 @@ describe("useDepositPageForm", () => {
       });
 
       await waitFor(() => {
-        expect(result.current.maxDepositSats).toBe(724_500n);
+        expect(result.current.maxDepositSats).toBe(724_020n);
       });
       expect(result.current.formData.amountBtc).toBe("0.001");
     });
@@ -1107,8 +1112,9 @@ describe("useDepositPageForm", () => {
 
     it("budgets a single vault when partial liquidation is on but the amount cannot split", async () => {
       // Even with the split intent enabled, vaultCount must stay 1 so the Max
-      // is not understated by reserving a second vault's claim + pegin fee.
-      // 798500 − 1*(35000+500) − 3000 = 760_000n (vaultCount 1), NOT 724_500n.
+      // is not understated by reserving a second vault's claim + pegin fee +
+      // anchor. 798500 − 1*(35000+500+240) − 3000 = 759_760n (vaultCount 1),
+      // NOT 724_020n.
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       act(() => {
@@ -1118,7 +1124,7 @@ describe("useDepositPageForm", () => {
       });
 
       await waitFor(() => {
-        expect(result.current.maxDepositSats).toBe(760_000n);
+        expect(result.current.maxDepositSats).toBe(759_760n);
       });
 
       act(() => {
@@ -1129,7 +1135,7 @@ describe("useDepositPageForm", () => {
       await waitFor(() => {
         expect(result.current.canSplit).toBe(false);
       });
-      expect(result.current.maxDepositSats).toBe(760_000n);
+      expect(result.current.maxDepositSats).toBe(759_760n);
     });
   });
 
@@ -1225,7 +1231,7 @@ describe("useDepositPageForm", () => {
   });
 
   describe("funding-input cap", () => {
-    const CAPPED_MAX_SATS = 760_000n;
+    const CAPPED_MAX_SATS = 759_760n;
 
     function mockFee(): void {
       vi.mocked(useEstimatedBtcFee).mockReturnValue({
@@ -1272,7 +1278,7 @@ describe("useDepositPageForm", () => {
       });
     }
 
-    it("flags 1_000_000 sats, above the capped 760_000 max but within the uncapped 1_961_500", async () => {
+    it("flags 1_000_000 sats, above the capped 759_760 max but within the uncapped 1_961_260", async () => {
       mockOverCapWallet();
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
@@ -1292,7 +1298,7 @@ describe("useDepositPageForm", () => {
       expect(result.current.fundingInputCapExceeded).toBe(false);
     });
 
-    it("does not flag 2_000_000 sats, above the uncapped 1_961_500 max, since consolidating could not fund it", async () => {
+    it("does not flag 2_000_000 sats, above the uncapped 1_961_260 max, since consolidating could not fund it", async () => {
       mockOverCapWallet();
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 

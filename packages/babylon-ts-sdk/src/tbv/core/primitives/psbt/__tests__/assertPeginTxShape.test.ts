@@ -17,12 +17,10 @@ import { Buffer } from "buffer";
 const {
   buildPeginTxFromPrePeginMock,
   computeMinClaimValueMock,
-  peginP2aAnchorOutputMock,
   validatePeginP2aAnchorMock,
 } = vi.hoisted(() => ({
   buildPeginTxFromPrePeginMock: vi.fn(),
   computeMinClaimValueMock: vi.fn(),
-  peginP2aAnchorOutputMock: vi.fn(),
   validatePeginP2aAnchorMock: vi.fn(),
 }));
 
@@ -31,7 +29,6 @@ vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
   buildPeginTxFromPrePegin: buildPeginTxFromPrePeginMock,
   computeMinClaimValue: computeMinClaimValueMock,
   createPrePeginTransaction: vi.fn(),
-  peginP2aAnchorOutput: peginP2aAnchorOutputMock,
   validatePeginP2aAnchor: validatePeginP2aAnchorMock,
 }));
 
@@ -40,7 +37,7 @@ import { TEST_AMOUNTS, TEST_KEYS } from "./helpers";
 
 const CLAIM_VALUE = 20_000n;
 // Real payout scriptPubKeys for TEST_KEYS with one keeper and one challenger,
-// produced by the engine for graph versions 1, 2, and 3.
+// produced by the engine for graph version 1.
 const VAULT_SCRIPT_TIMELOCK_100 =
   "51204770efdd795ac685bc070f9f8cfedc8bf8836dc7bc82384fbcfeca781551f14f";
 const VAULT_SCRIPT_TIMELOCK_1 =
@@ -103,6 +100,7 @@ interface DoctorOptions {
   inputSequence?: number;
   inputScriptSig?: Buffer;
   inputWitness?: Buffer[];
+  omitAnchor?: boolean;
   extraOutput?: boolean;
   metadataVaultScript?: string;
   encodedVaultValue?: number;
@@ -112,12 +110,7 @@ interface DoctorOptions {
 }
 
 /** Build the PegIn tx bytes + WASM-reported metadata, honest by default. */
-function makeWasmResult(
-  fundedHex: string,
-  doctor: DoctorOptions = {},
-  vaultCoreVersion = 1,
-) {
-  const params = makePrePeginParams(vaultCoreVersion);
+function makeWasmResult(fundedHex: string, doctor: DoctorOptions = {}) {
   const fundedTxid = bitcoin.Transaction.fromHex(fundedHex).getId();
   const prevoutHash = Buffer.from(fundedTxid, "hex").reverse();
   if (doctor.prevoutTxidByte !== undefined) {
@@ -125,7 +118,7 @@ function makeWasmResult(
   }
 
   const tx = new bitcoin.Transaction();
-  tx.version = doctor.txVersion ?? (vaultCoreVersion === 1 ? 2 : 3);
+  tx.version = doctor.txVersion ?? 3;
   tx.locktime = doctor.txLocktime ?? 0;
   tx.addInput(
     prevoutHash,
@@ -143,10 +136,10 @@ function makeWasmResult(
     doctor.encodedVaultValue ?? Number(TEST_AMOUNTS.PEGIN),
   );
   tx.addOutput(
-    doctor.claimScriptOverride ?? claimScript(params.depositorPubkey),
+    doctor.claimScriptOverride ?? claimScript(TEST_KEYS.DEPOSITOR),
     doctor.claimValue ?? Number(CLAIM_VALUE),
   );
-  if (vaultCoreVersion !== 1) {
+  if (!doctor.omitAnchor) {
     tx.addOutput(Buffer.from("51024e73", "hex"), 240);
   }
   if (doctor.extraOutput) {
@@ -171,7 +164,7 @@ async function buildWith(
   timelockPegin = 100,
 ) {
   buildPeginTxFromPrePeginMock.mockResolvedValue(
-    makeWasmResult(fundedHex, doctor, vaultCoreVersion),
+    makeWasmResult(fundedHex, doctor),
   );
   return buildPeginTxFromFundedPrePegin({
     prePeginParams: makePrePeginParams(vaultCoreVersion),
@@ -187,9 +180,6 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     computeMinClaimValueMock.mockResolvedValue(CLAIM_VALUE);
-    peginP2aAnchorOutputMock.mockImplementation(async (version: number) =>
-      version === 1 ? null : { value: 240n, vout: 2, scriptPubKey: "51024e73" },
-    );
     validatePeginP2aAnchorMock.mockResolvedValue(undefined);
   });
 
@@ -232,20 +222,24 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
     },
   );
 
-  it.each([
-    [3, 1, 2],
-    [2, 2, 3],
-    [2, 3, 3],
-  ] as const)(
-    "rejects tx version %i for Vault Core %i, which requires version %i",
-    async (txVersion, vaultCoreVersion, expectedVersion) => {
-      await expect(
-        buildWith(fundedHex, { txVersion }, vaultCoreVersion),
-      ).rejects.toThrow(
-        `vaultCoreVersion ${vaultCoreVersion}; expected ${expectedVersion}`,
+  // The testnet reset renumbered the active Vault Core from 3 to 1; the
+  // pre-reset numbers 2 and 3 no longer name a PegIn shape.
+  it.each([2, 3])(
+    "refuses Vault Core %i, which has no PegIn shape",
+    async (vaultCoreVersion) => {
+      await expect(buildWith(fundedHex, {}, vaultCoreVersion)).rejects.toThrow(
+        `Unsupported vaultCoreVersion ${vaultCoreVersion} for PegIn tx; ` +
+          `only 1 has a PegIn shape.`,
       );
     },
   );
+
+  // nVersion 2 is the pre-reset Core 1 PegIn, which shared the number 1.
+  it("rejects tx version 2 for Vault Core 1, which requires version 3", async () => {
+    await expect(buildWith(fundedHex, { txVersion: 2 })).rejects.toThrow(
+      "PegIn tx version 2 does not match vaultCoreVersion 1; expected 3.",
+    );
+  });
 
   it("rejects a non-zero transaction locktime", async () => {
     await expect(buildWith(fundedHex, { txLocktime: 1 })).rejects.toThrow(
@@ -289,9 +283,19 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
     ).rejects.toThrow(/input witness must be empty before signing/);
   });
 
-  it("rejects an unexpected output count for the version", async () => {
+  it("rejects a PegIn with an output after the P2A anchor", async () => {
     await expect(buildWith(fundedHex, { extraOutput: true })).rejects.toThrow(
-      /expected exactly 2 for vaultCoreVersion 1/,
+      "PegIn tx has 4 output(s), expected exactly 3 for vaultCoreVersion 1 " +
+        "(vault + depositor claim + P2A anchor).",
+    );
+  });
+
+  // The output count is checked in TypeScript, so a PegIn without the anchor
+  // is refused even when the WASM anchor validator lets it through.
+  it("rejects a PegIn without the P2A anchor output when the anchor validator passes", async () => {
+    await expect(buildWith(fundedHex, { omitAnchor: true })).rejects.toThrow(
+      "PegIn tx has 2 output(s), expected exactly 3 for vaultCoreVersion 1 " +
+        "(vault + depositor claim + P2A anchor).",
     );
   });
 

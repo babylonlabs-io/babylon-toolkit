@@ -10,6 +10,10 @@
  * interface should call them too.
  */
 
+import {
+  MAX_VP_COMMISSION_BPS_EXCLUSIVE,
+  MIN_VP_COMMISSION_BPS,
+} from "../../primitives/psbt/constants";
 import { assertValidVaultCoreVersion } from "../../primitives/vaultCoreVersion";
 
 import type {
@@ -23,9 +27,6 @@ import type {
  * a `NonZeroU16` (`transactions/pegin.rs:33` @ ac4954e7).
  */
 const UINT16_MAX = 65535;
-
-/** Maximum valid value for basis points (100%) */
-const MAX_BASIS_POINTS = 10000;
 
 /** Maximum value for a Solidity uint32. */
 const UINT32_MAX = 4_294_967_295;
@@ -142,12 +143,15 @@ export function validateOffchainParams(params: VersionedOffchainParams): void {
     );
   }
 
+  // The cap on every VP's commission. Mirrors the setter's bound
+  // (`ProtocolParams.sol:548` @ 790c4df6): a value outside it is a
+  // mis-decoded read.
   if (
-    params.minVpCommissionBps < 0 ||
-    params.minVpCommissionBps > MAX_BASIS_POINTS
+    params.maxVpCommissionBps < MIN_VP_COMMISSION_BPS ||
+    params.maxVpCommissionBps >= MAX_VP_COMMISSION_BPS_EXCLUSIVE
   ) {
     errors.push(
-      `minVpCommissionBps must be in [0, ${MAX_BASIS_POINTS}], got ${params.minVpCommissionBps}`,
+      `maxVpCommissionBps must be in [${MIN_VP_COMMISSION_BPS}, ${MAX_VP_COMMISSION_BPS_EXCLUSIVE}), got ${params.maxVpCommissionBps}`,
     );
   }
 

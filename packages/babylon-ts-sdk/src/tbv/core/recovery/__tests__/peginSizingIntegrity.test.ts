@@ -87,7 +87,7 @@ function search(candidateCount: number) {
     maxAcceptableCommissionBps: 250,
     network: "signet" as never,
     candidates: buildPeginParamsCandidates({
-      vaultCoreVersion: 2,
+      vaultCoreVersion: 1,
       offchainParams: Array.from({ length: candidateCount }, (_, i) => ({
         ...OFFCHAIN,
         version: i + 1,
@@ -138,15 +138,5 @@ describe("WASM sizing boundary checks", () => {
     // remaining two were never tried.
     expect(getPrePeginHtlcConnectorInfo).not.toHaveBeenCalled();
     expect(computeMinClaimValue).toHaveBeenCalledTimes(1);
-  });
-
-  it("reads an absent anchor as zero rather than treating it as malformed", async () => {
-    peginP2aAnchorOutput.mockResolvedValue(null);
-    getPrePeginHtlcConnectorInfo.mockRejectedValue(new Error("stub"));
-
-    // Reaching the verifier at all proves the sizing guards passed; the stubbed
-    // connector then rejects the candidate, which is the not-found path.
-    await expect(search(1)).rejects.toThrow(PeginParamsNotFoundError);
-    expect(getPrePeginHtlcConnectorInfo).toHaveBeenCalled();
   });
 });
