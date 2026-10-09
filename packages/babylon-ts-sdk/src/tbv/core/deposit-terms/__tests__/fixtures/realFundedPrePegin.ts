@@ -61,7 +61,7 @@ async function sizing(version: number) {
     f.UCS.length,
     f.MIN_PEGIN_FEE_RATE,
   );
-  const anchor = (await peginP2aAnchorOutput(version))?.value ?? 0n;
+  const { value: anchor } = await peginP2aAnchorOutput(version);
   return { dcv, fee, anchor };
 }
 

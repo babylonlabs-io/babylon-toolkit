@@ -54,9 +54,9 @@ const vault = {
   vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY,
   vaultKeeperBtcPubkeys: [CHALLENGER_A],
   universalChallengerBtcPubkeys: [CHALLENGER_B],
-  txGraphVersion: 3,
+  txGraphVersion: 1,
   proverCircuitVersion: 7,
-  vaultCoreVersion: 3,
+  vaultCoreVersion: 1,
   claimableEventBlockNumber: 10_985_680n,
   peginVaultOutputValueSats: VAULT_UTXO_SATS,
   protocolFeeRate: PROTOCOL_FEE_RATE,
@@ -103,7 +103,7 @@ describe("assembleWatchtowerArtifactsFromSignatures", () => {
 
     expect(out).toBe("{artifacts}");
     expect(wasm.finalizeClaimTx).toHaveBeenCalledWith(
-      3,
+      1,
       "{graph}",
       "sig:claim",
     );
@@ -120,7 +120,7 @@ describe("assembleWatchtowerArtifactsFromSignatures", () => {
       },
       signedClaimTxHex: "signed-claim-tx-hex",
       vaultIdHex: VAULT_ID,
-      expectedVaultCoreVersion: 3,
+      expectedVaultCoreVersion: 1,
     });
   });
 

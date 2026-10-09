@@ -167,73 +167,70 @@ describe("rebuildDepositTermsCore reproduces the production build's DepositTerms
     await initializeWasmForTests();
   });
 
-  it.each([1, 2])(
-    "rebuilds terms deep-equal to preparePegin's for vaultCoreVersion %d",
-    async (vaultCoreVersion) => {
-      const btcWallet = new MockBitcoinWallet({
-        publicKeyHex: TEST_KEYS.DEPOSITOR,
-      });
-      const ethWallet = new MockEthereumWallet();
-      const manager = new PeginManager({
-        btcNetwork: "signet",
-        btcWallet,
-        ethWallet: ethWallet as never,
-        ethChain: TEST_CHAIN,
-        publicClient: TEST_PUBLIC_CLIENT,
-        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
-        mempoolApiUrl: MEMPOOL_API_URLS.signet,
-      });
+  it("rebuilds terms deep-equal to preparePegin's for vaultCoreVersion 1", async () => {
+    const btcWallet = new MockBitcoinWallet({
+      publicKeyHex: TEST_KEYS.DEPOSITOR,
+    });
+    const ethWallet = new MockEthereumWallet();
+    const manager = new PeginManager({
+      btcNetwork: "signet",
+      btcWallet,
+      ethWallet: ethWallet as never,
+      ethChain: TEST_CHAIN,
+      publicClient: TEST_PUBLIC_CLIENT,
+      vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+      mempoolApiUrl: MEMPOOL_API_URLS.signet,
+    });
 
-      const prepared = await manager.preparePegin({
-        amounts: AMOUNTS,
-        vaultCoreVersion,
-        ...PARAMS,
-      });
+    const prepared = await manager.preparePegin({
+      amounts: AMOUNTS,
+      vaultCoreVersion: 1,
+      ...PARAMS,
+    });
 
-      // Resume-side sibling data: hashlock = SHA-256(secret), the exact
-      // mapping expandPerVaultSecrets committed into the HTLC scripts.
-      const siblings = prepared.derivedSecrets.htlcSecretHexes.map(
-        (secretHex, i) => ({
-          hashlock: stripHexPrefix(computeHashlock(ensureHexPrefix(secretHex))),
-          amount: AMOUNTS[i],
-        }),
-      );
+    // Resume-side sibling data: hashlock = SHA-256(secret), the exact
+    // mapping expandPerVaultSecrets committed into the HTLC scripts.
+    const siblings = prepared.derivedSecrets.htlcSecretHexes.map(
+      (secretHex, i) => ({
+        hashlock: stripHexPrefix(computeHashlock(ensureHexPrefix(secretHex))),
+        amount: AMOUNTS[i],
+      }),
+    );
 
-      // Resume-side fee: Σ prevouts − Σ outputs of the funded tx — must equal
-      // the fresh path's published sizing fee (PeginManager asserts this
-      // invariant internally before returning).
-      const tx = bitcoin.Transaction.fromHex(
-        stripHexPrefix(prepared.transaction.fundedPrePeginTxHex),
-      );
-      const fundedTxFee =
-        sumPrevouts(tx.ins) -
-        tx.outs.reduce((sum, o) => sum + BigInt(o.value), 0n);
-      expect(fundedTxFee).toBe(prepared.transaction.fee);
+    // Resume-side fee: Σ prevouts − Σ outputs of the funded tx — must equal
+    // the fresh path's published sizing fee (PeginManager asserts this
+    // invariant internally before returning).
+    const tx = bitcoin.Transaction.fromHex(
+      stripHexPrefix(prepared.transaction.fundedPrePeginTxHex),
+    );
+    const fundedTxFee =
+      sumPrevouts(tx.ins) -
+      tx.outs.reduce((sum, o) => sum + BigInt(o.value), 0n);
+    expect(fundedTxFee).toBe(prepared.transaction.fee);
 
-      const rebuilt = await rebuildDepositTermsCore({
-        vaultCoreVersion,
-        siblings,
-        fundedPrePeginTxHex: prepared.transaction.fundedPrePeginTxHex,
-        depositorBtcPubkey: prepared.depositorBtcPubkey,
-        vaultProviderBtcPubkey: PARAMS.vaultProviderBtcPubkey,
-        vaultKeeperBtcPubkeys: PARAMS.vaultKeeperBtcPubkeys,
-        universalChallengerBtcPubkeys: PARAMS.universalChallengerBtcPubkeys,
-        protocolFeeRate: PARAMS.protocolFeeRate,
-        minPeginFeeRate: PARAMS.minPeginFeeRate,
-        councilQuorum: PARAMS.councilQuorum,
-        councilSize: PARAMS.councilSize,
-        timelockPegin: PARAMS.timelockPegin,
-        timelockAssert: PARAMS.timelockAssert,
-        timelockRefund: PARAMS.timelockRefund,
-        prepeginTxid: prepared.transaction.prePeginTxid,
-        prepeginMaxFee: fundedTxFee,
-        maxAcceptableCommissionBps: EXPECTED_MAX_ACCEPTABLE_BPS,
-        network: "signet",
-      });
+    const rebuilt = await rebuildDepositTermsCore({
+      vaultCoreVersion: 1,
+      siblings,
+      fundedPrePeginTxHex: prepared.transaction.fundedPrePeginTxHex,
+      depositorBtcPubkey: prepared.depositorBtcPubkey,
+      vaultProviderBtcPubkey: PARAMS.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: PARAMS.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: PARAMS.universalChallengerBtcPubkeys,
+      protocolFeeRate: PARAMS.protocolFeeRate,
+      minPeginFeeRate: PARAMS.minPeginFeeRate,
+      councilQuorum: PARAMS.councilQuorum,
+      councilSize: PARAMS.councilSize,
+      timelockPegin: PARAMS.timelockPegin,
+      timelockAssert: PARAMS.timelockAssert,
+      timelockRefund: PARAMS.timelockRefund,
+      prepeginTxid: prepared.transaction.prePeginTxid,
+      prepeginMaxFee: fundedTxFee,
+      maxAcceptableCommissionBps: EXPECTED_MAX_ACCEPTABLE_BPS,
+      network: "signet",
+    });
 
-      // Full deep-compare, zero exclusions: any drift between the standalone
-      // WASM recompute and the production builder shows up here.
-      expect(rebuilt).toEqual(prepared.depositTerms);
-    },
-  );
+    // Full deep-compare, zero exclusions: any drift between the standalone
+    // WASM recompute and the production builder shows up here.
+    expect(rebuilt).toEqual(prepared.depositTerms);
+  });
 });

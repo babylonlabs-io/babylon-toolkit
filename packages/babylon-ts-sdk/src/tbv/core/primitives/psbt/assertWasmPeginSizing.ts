@@ -5,8 +5,7 @@
  *
  * CLAUDE.md critical path #1: the Rust/WASM layer computes
  * `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue +
- * minPeginFee` internally (the anchor term is 0 for graph versions without a
- * P2A anchor, 240 sats for v2/v3) and JS receives the outputs with no runtime
+ * minPeginFee` internally (the anchor term is 240 sats) and JS receives the outputs with no runtime
  * validation. A doctored or buggy binary that returns a different
  * `peginAmount`, an out-of-formula `htlcValue`, or a wrong
  * `depositorClaimValue` would otherwise be committed verbatim - taxing the
@@ -369,13 +368,13 @@ export async function assertWasmPeginSizing(
   }
 
   // The per-HTLC reserve above pegin+claim decomposes into the version's
-  // P2A anchor value (0 when the version has no anchor) plus the exact
-  // minimum PegIn fee. Both terms are Rust-model values fetched through
+  // P2A anchor value plus the exact minimum PegIn fee. Both terms are Rust-model values fetched through
   // independent WASM entry points; the builder must reproduce their sum.
   // The Rust fee model sizes the PegIn input witness from the vault keeper
   // and universal challenger counts (btc-vault `PegInTx::estimate_vsize`).
-  const anchor = await peginP2aAnchorOutput(params.vaultCoreVersion);
-  const anchorValue = anchor?.value ?? 0n;
+  const { value: anchorValue } = await peginP2aAnchorOutput(
+    params.vaultCoreVersion,
+  );
   const expectedPeginFee = await computeMinPeginFee(
     params.vaultCoreVersion,
     params.vaultKeeperPubkeys.length,

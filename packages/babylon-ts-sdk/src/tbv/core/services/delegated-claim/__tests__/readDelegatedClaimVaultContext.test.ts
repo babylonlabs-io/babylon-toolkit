@@ -112,7 +112,7 @@ function vaultData(
       prePeginTxHash: PREPEGIN_TX_HASH,
       vaultProviderCommissionBps: 100,
       claimExpiredUntil: 0n,
-      vaultCoreVersion: 3,
+      vaultCoreVersion: 1,
       ...over,
     },
   };
@@ -126,7 +126,7 @@ function record(
     depositor: DEPOSITOR_ETH,
     vaultProvider: VP_ADDRESS,
     amount: BigInt(PEGIN_VAULT_OUTPUT_SATS),
-    vaultCoreVersion: 3,
+    vaultCoreVersion: 1,
     universalChallengersVersion: 9,
     appVaultKeepersVersion: 7,
     proverCircuitVersion: 11,
@@ -154,7 +154,7 @@ function claimable(
     blockNumber: CLAIMABLE_BLOCK,
     claimerPk: DEPOSITOR as OnChainBtcPubkey,
     peginTxHash: PEGIN_TX_HASH,
-    vaultCoreVersion: 3,
+    vaultCoreVersion: 1,
     proverCircuitVersion: 11,
     offchainParamsVersion: 5,
     universalChallengersVersion: 9,
@@ -172,7 +172,7 @@ function offchainParams(over: Partial<{ timelockAssert: bigint }> = {}) {
     feeRate: 3n,
     babeTotalInstances: 1,
     babeInstancesToFinalize: 1,
-    minVpCommissionBps: 0,
+    maxVpCommissionBps: 500,
     tRefund: 2016,
     tStale: 1,
     minPeginFeeRate: 7n,
@@ -246,9 +246,9 @@ describe("readDelegatedClaimVaultContext", () => {
       vaultProviderBtcPubkey: VP_OPERATION,
       vaultKeeperBtcPubkeys: [KEEPER],
       universalChallengerBtcPubkeys: [CHALLENGER],
-      txGraphVersion: 3,
+      txGraphVersion: 1,
       proverCircuitVersion: 11,
-      vaultCoreVersion: 3,
+      vaultCoreVersion: 1,
       claimableEventBlockNumber: CLAIMABLE_BLOCK,
       peginVaultOutputValueSats: PEGIN_VAULT_OUTPUT_SATS,
       protocolFeeRate: 3n,
@@ -459,7 +459,7 @@ describe("readDelegatedClaimVaultContext", () => {
 
     await expect(
       readDelegatedClaimVaultContext({ vaultId: VAULT_ID, readers: r }),
-    ).rejects.toThrow(/vault core version 2.*delegated claim requires 3/);
+    ).rejects.toThrow(/vault core version 2.*delegated claim requires 1/);
     expect(r.registryReader.getVaultClaimableBy).not.toHaveBeenCalled();
   });
 
@@ -660,7 +660,7 @@ describe("readDelegatedClaimVaultContext", () => {
     await expect(
       readDelegatedClaimVaultContext({ vaultId: VAULT_ID, readers: r }),
     ).rejects.toThrow(
-      /Registration log .* vault core version 2 .* vault record says 3/,
+      /Registration log .* vault core version 2 .* vault record says 1/,
     );
   });
 
@@ -672,7 +672,7 @@ describe("readDelegatedClaimVaultContext", () => {
     await expect(
       readDelegatedClaimVaultContext({ vaultId: VAULT_ID, readers: r }),
     ).rejects.toThrow(
-      /Redemption log .* vault core version 2 .* vault record says 3/,
+      /Redemption log .* vault core version 2 .* vault record says 1/,
     );
   });
 

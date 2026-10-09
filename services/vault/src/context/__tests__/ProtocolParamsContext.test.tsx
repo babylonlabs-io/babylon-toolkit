@@ -26,7 +26,7 @@ const CONFIG = {
   maxPegInAmount: 2n,
   timelockPegin: 3,
   timelockRefund: 4,
-  minVpCommissionBps: 5,
+  maxVpCommissionBps: 500,
 };
 
 function mockProtocolQueries(challengerError: Error) {

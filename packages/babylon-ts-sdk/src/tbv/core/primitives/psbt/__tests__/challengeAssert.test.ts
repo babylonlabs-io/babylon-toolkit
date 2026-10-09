@@ -19,8 +19,8 @@ const ANCHOR_VALUE = 546;
 const OUTPUT_CONNECTOR_SPK = `5120${"ab".repeat(32)}`;
 
 /**
- * An Assert at vault core version 2+: output 0, a ConnectorX then a
- * ConnectorY per challenger, the marker, and the CPFP anchor.
+ * An Assert: output 0, a ConnectorX then a ConnectorY per challenger, the
+ * marker, and the CPFP anchor.
  */
 function buildAssert(challengerCount = CHALLENGER_COUNT): Transaction {
   const tx = new Transaction();

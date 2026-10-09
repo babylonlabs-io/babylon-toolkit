@@ -87,7 +87,8 @@ export interface AssembleWatchtowerArtifactsParams {
  * version if you build on it.
  *
  * @throws If the vault provider's verifying key is not `trustedVerifyingKeyHex`,
- *         if the graph is not version 3, if a binding check fails, if the
+ *         if the graph is not `DELEGATED_CLAIM_TX_GRAPH_VERSION`, if a
+ *         binding check fails, if the
  *         wallet returns a signature that does not verify, or if the graph's
  *         own presignatures are incomplete.
  * @experimental

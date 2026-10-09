@@ -16,11 +16,10 @@ import type { OnChainBtcPubkey } from "../../clients/eth/types";
  */
 export interface WatchtowerArtifactsSummary {
   /**
-   * Vault Core version the file records, absent on files written before the
-   * field existed. `assertArtifactsUsableForVault` refuses a file whose
-   * value differs from the version it verifies under.
+   * Vault Core version the file records. `assertArtifactsUsableForVault`
+   * refuses a file whose value differs from the version it verifies under.
    */
-  vaultCoreVersion?: number;
+  vaultCoreVersion: number;
   /** 32-byte on-chain vault id, as the file records it. */
   vaultId: string;
   /** Txid of the fully signed Claim transaction the file carries. */
@@ -54,7 +53,7 @@ export interface WatchtowerArtifactsSummary {
 /**
  * Whether the file carries BaBe sessions.
  *
- * An unjoined file (`babe_sessions` empty or absent) is the normal output of
+ * An unjoined file (`babe_sessions` empty) is the normal output of
  * a browser assembly, and it cannot defend a claim. Claim, Assert and Payout
  * finalize without the sessions, but answering a `ChallengeAssert` needs
  * them: the watchtower decrypts the hashlock preimage from the joined
@@ -135,7 +134,7 @@ export interface DelegatedClaimVaultContext {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challengers registered on chain. */
   universalChallengerBtcPubkeys: string[];
-  /** Graph (vault core) version of the vault. Delegated claim requires 3. */
+  /** Graph (vault core) version of the vault. Delegated claim requires `DELEGATED_CLAIM_TX_GRAPH_VERSION`. */
   txGraphVersion: number;
   proverCircuitVersion: number;
   /**

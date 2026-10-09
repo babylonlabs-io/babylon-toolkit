@@ -71,7 +71,10 @@ const TRUE_PARTICIPANTS: ParticipantKeySetCandidate = {
   universalChallengerBtcPubkeys: UCS,
 };
 
-const TRUE_CORE_VERSION = 2;
+const TRUE_CORE_VERSION = 1;
+
+/** A tx-graph version the bundled engine refuses to build. */
+const UNSUPPORTED_CORE_VERSION = 2;
 
 interface Sibling {
   hashlock: string;
@@ -105,7 +108,7 @@ async function buildFundedTx(
     numUcs,
     offchain.minPeginFeeRate,
   );
-  const anchor = (await peginP2aAnchorOutput(version))?.value ?? 0n;
+  const anchor = (await peginP2aAnchorOutput(version)).value;
 
   const tx = new Transaction();
   tx.version = 2;
@@ -133,26 +136,6 @@ async function buildFundedTx(
     0,
   );
   return tx.toHex();
-}
-
-/** The amount-independent reserve a given graph version folds into each HTLC. */
-async function reserveFor(version: number): Promise<bigint> {
-  const dcv = await computeMinClaimValue(
-    version,
-    VKS.length,
-    UCS.length,
-    TRUE_OFFCHAIN.councilQuorum,
-    TRUE_OFFCHAIN.councilSize,
-    TRUE_OFFCHAIN.protocolFeeRate,
-  );
-  const fee = await computeMinPeginFee(
-    version,
-    VKS.length,
-    UCS.length,
-    TRUE_OFFCHAIN.minPeginFeeRate,
-  );
-  const anchor = (await peginP2aAnchorOutput(version))?.value ?? 0n;
-  return dcv + fee + anchor;
 }
 
 function search(
@@ -217,26 +200,6 @@ describe("reconstructPeginParams", () => {
       1_000_000n,
       2_500_000n,
     ]);
-  });
-
-  it("recovers a single-vault v1 deposit, where the graph carries no anchor", async () => {
-    const siblings: Sibling[] = [
-      { hashlock: "ef".repeat(32), amount: 750_000n },
-    ];
-    const txHex = await buildFundedTx(1, siblings);
-
-    const result = await search(
-      siblings,
-      txHex,
-      buildPeginParamsCandidates({
-        vaultCoreVersion: 1,
-        offchainParams: [TRUE_OFFCHAIN],
-        participantKeySets: [TRUE_PARTICIPANTS],
-      }),
-    );
-
-    expect(result.candidate.vaultCoreVersion).toBe(1);
-    expect(result.peginAmounts).toEqual([750_000n]);
   });
 
   it("rejects a roster that is one keeper short of the real one", async () => {
@@ -308,7 +271,7 @@ describe("reconstructPeginParams", () => {
     const notFound = error as PeginParamsNotFoundError;
     expect(notFound.candidatesTried).toBe(1);
     expect(notFound.sampleRejections).toHaveLength(1);
-    expect(notFound.sampleRejections[0]).toContain("core=2");
+    expect(notFound.sampleRejections[0]).toContain(`core=${TRUE_CORE_VERSION}`);
     expect(notFound.sampleRejections[0]).toContain("scriptPubKey");
   });
 
@@ -458,38 +421,38 @@ describe("reconstructPeginParams", () => {
     expect(result.peginAmounts).toEqual([850_000n]);
   });
 
-  // The hazard behind taking vaultCoreVersion on trust, pinned so it cannot be
-  // mistaken for a check that exists. v1 and v2 build byte-identical connector
-  // scripts and the amount is inverted with the supplied version's reserve, so
-  // both gates pass and the wrong version is accepted in silence. Read the
-  // version from the orphaned PegInSubmitted log; do not guess it.
-  it("silently accepts a wrong supplied vaultCoreVersion, reporting a shifted split", async () => {
-    const trueAmount = 1_000_000n;
+  // vaultCoreVersion is taken from the log, not read off the transaction: the
+  // HTLC value absorbs whatever reserve the supplied version implies. What
+  // stops a wrong one is the engine, which builds a single graph version and
+  // refuses the rest. A wrong version must therefore surface as a candidate
+  // that was never evaluated, never as a match and never as a rejection that
+  // would imply the transaction was checked against it.
+  it("never matches under a vaultCoreVersion the engine does not build", async () => {
     const siblings: Sibling[] = [
-      { hashlock: "ab".repeat(32), amount: trueAmount },
+      { hashlock: "ab".repeat(32), amount: 1_000_000n },
     ];
-    const txHex = await buildFundedTx(1, siblings);
+    const txHex = await buildFundedTx(TRUE_CORE_VERSION, siblings);
 
-    const result = await search(
+    const error = await search(
       siblings,
       txHex,
       buildPeginParamsCandidates({
-        vaultCoreVersion: 2,
+        vaultCoreVersion: UNSUPPORTED_CORE_VERSION,
         offchainParams: [TRUE_OFFCHAIN],
         participantKeySets: [TRUE_PARTICIPANTS],
       }),
-    );
+    ).catch((err: unknown) => err);
 
-    // Pin the exact shift, not merely "different": the delta is the difference
-    // between the two versions' reserves, so a change in its direction or size
-    // has to fail here rather than slip through an inequality.
-    const [reserveV1, reserveV2] = await Promise.all([
-      reserveFor(1),
-      reserveFor(2),
-    ]);
-    expect(result.candidate.vaultCoreVersion).toBe(2);
-    expect(result.peginAmounts[0]).toBe(trueAmount + reserveV1 - reserveV2);
-    expect(result.terms.vaults[0].peginAmount).toBe(result.peginAmounts[0]);
+    expect(error).toBeInstanceOf(PeginParamsNotFoundError);
+    const notFound = error as PeginParamsNotFoundError;
+    expect(notFound.sampleRejections).toEqual([]);
+    expect(notFound.unresolvedLabels).toHaveLength(1);
+    expect(notFound.unresolvedLabels[0]).toContain(
+      `core=${UNSUPPORTED_CORE_VERSION}`,
+    );
+    expect(notFound.unresolvedLabels[0]).toMatch(
+      /unsupported tx graph version/,
+    );
   });
 
   // Uniqueness only rules out a wrong answer when the right answer was also in
@@ -635,39 +598,6 @@ describe("reconstructPeginParams", () => {
   });
 });
 
-describe("why vaultCoreVersion is supplied rather than searched", () => {
-  beforeAll(async () => {
-    await initializeWasmForTests();
-  });
-
-  it("produces a byte-identical HTLC scriptPubKey for v1 and v2", async () => {
-    const connectorFor = (txGraphVersion: number) =>
-      getPrePeginHtlcConnectorInfo({
-        txGraphVersion,
-        depositorPubkey: DEPOSITOR,
-        vaultProviderPubkey: VP,
-        vaultKeeperPubkeys: VKS,
-        universalChallengerPubkeys: UCS,
-        hashlock: "ab".repeat(32),
-        timelockRefund: TRUE_OFFCHAIN.timelockRefund,
-        network: NETWORK,
-      });
-
-    const [v1, v2] = await Promise.all([connectorFor(1), connectorFor(2)]);
-
-    // The graph version reaches the Pre-PegIn only through the reserve folded
-    // into the HTLC value, which the search inverts back out of that same
-    // value — so with the script identical there is nothing left to
-    // discriminate on. If a future graph version changes the connector, this
-    // fails and the version becomes searchable again.
-    expect(v1.scriptPubKey).toBe(v2.scriptPubKey);
-  });
-
-  it("reserves a different amount per version, which is what the inversion absorbs", async () => {
-    expect(await reserveFor(1)).not.toBe(await reserveFor(2));
-  });
-});
-
 describe("buildPeginParamsCandidates", () => {
   it("expands the two searchable axes into their full product", () => {
     const candidates = buildPeginParamsCandidates({
@@ -699,7 +629,7 @@ describe("buildPeginParamsCandidates", () => {
   it("refuses an empty offchain-params axis", () => {
     expect(() =>
       buildPeginParamsCandidates({
-        vaultCoreVersion: 2,
+        vaultCoreVersion: TRUE_CORE_VERSION,
         offchainParams: [],
         participantKeySets: [TRUE_PARTICIPANTS],
       }),
@@ -709,7 +639,7 @@ describe("buildPeginParamsCandidates", () => {
   it("refuses an empty participant-key-set axis", () => {
     expect(() =>
       buildPeginParamsCandidates({
-        vaultCoreVersion: 2,
+        vaultCoreVersion: TRUE_CORE_VERSION,
         offchainParams: [TRUE_OFFCHAIN],
         participantKeySets: [],
       }),

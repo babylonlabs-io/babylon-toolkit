@@ -381,7 +381,7 @@ export interface VersionedOffchainParams {
   feeRate: bigint;
   babeTotalInstances: number;
   babeInstancesToFinalize: number;
-  minVpCommissionBps: number;
+  maxVpCommissionBps: number;
   tRefund: number;
   tStale: number;
   minPeginFeeRate: bigint;
@@ -403,7 +403,7 @@ export interface PegInConfiguration {
   maxFundingInputCount: number | null;
   timelockPegin: number;
   timelockRefund: number;
-  minVpCommissionBps: number;
+  maxVpCommissionBps: number;
   offchainParams: VersionedOffchainParams;
   /**
    * Version label paired atomically with `offchainParams`.

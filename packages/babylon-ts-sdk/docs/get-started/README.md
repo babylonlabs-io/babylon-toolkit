@@ -254,7 +254,7 @@ Terms used throughout the docs.
 | **Pre-PegIn tx** | First Bitcoin transaction — creates one HTLC output per vault, an optional auth-anchor `OP_RETURN`, and a shared CPFP anchor output |
 | **PegIn tx** | Second Bitcoin transaction — partially signed by the depositor (HTLC leaf 0 input). VP/VKs/UCs add signatures; any of them can finalize and broadcast it with the revealed secret to create the **Vault UTXO** |
 | **Vault UTXO** | The on-chain Bitcoin output produced by the PegIn tx that represents the live vault — the target of later payout transactions |
-| **HTLC** | Hash Time-Lock Contract — the Bitcoin script on the Pre-PegIn output. Locks the vault amount + depositor claim value + P2A anchor (240 sats on vault core 2/3, none on core 1) + minimum peg-in fee. Leaf 0 needs the secret **and** all-party signatures; leaf 1 is the refund after a CSV timelock |
+| **HTLC** | Hash Time-Lock Contract — the Bitcoin script on the Pre-PegIn output. Locks the vault amount + depositor claim value + P2A anchor (240 sats) + minimum peg-in fee. Leaf 0 needs the secret **and** all-party signatures; leaf 1 is the refund after a CSV timelock |
 | **HTLC secret** | 32-byte preimage the depositor reveals on Ethereum to activate the vault. Re-derivable at any time from the wallet plus the Pre-PegIn funding outpoints, via `expandHashlockSecret`; keep the Pre-PegIn transaction, persist no secret |
 | **Hashlock** | `SHA-256(HTLC secret)` — stored on-chain at vault registration |
 | **Activation** | Revealing the HTLC secret on Ethereum to move the vault from `VERIFIED` → `ACTIVE`. Without this the vault expires |

@@ -91,7 +91,7 @@ interface RawOffchainParams {
   feeRate: bigint;
   babeTotalInstances: number;
   babeInstancesToFinalize: number;
-  minVpCommissionBps: number;
+  maxVpCommissionBps: number;
   tRefund: number;
   tStale: number;
   minPeginFeeRate: bigint;
@@ -136,7 +136,7 @@ function mapOffchainParams(result: RawOffchainParams): VersionedOffchainParams {
     feeRate: result.feeRate,
     babeTotalInstances: result.babeTotalInstances,
     babeInstancesToFinalize: result.babeInstancesToFinalize,
-    minVpCommissionBps: result.minVpCommissionBps,
+    maxVpCommissionBps: result.maxVpCommissionBps,
     tRefund: result.tRefund,
     tStale: result.tStale,
     minPeginFeeRate: result.minPeginFeeRate,
@@ -367,7 +367,7 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       maxFundingInputCount: tbvParams.maxFundingInputCount,
       timelockPegin: deriveTimelockPegin(offchainParams.timelockAssert),
       timelockRefund: offchainParams.tRefund,
-      minVpCommissionBps: offchainParams.minVpCommissionBps,
+      maxVpCommissionBps: offchainParams.maxVpCommissionBps,
       offchainParams,
       offchainParamsVersion,
       activeVaultCoreVersion,

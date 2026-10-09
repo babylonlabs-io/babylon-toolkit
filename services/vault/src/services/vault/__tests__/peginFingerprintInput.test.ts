@@ -62,7 +62,7 @@ function buildConfig(
     maxFundingInputCount: 20,
     timelockPegin: 144,
     timelockRefund: 288,
-    minVpCommissionBps: 10,
+    maxVpCommissionBps: 10,
     offchainParams: {} as PegInConfiguration["offchainParams"],
     ...overrides,
   };

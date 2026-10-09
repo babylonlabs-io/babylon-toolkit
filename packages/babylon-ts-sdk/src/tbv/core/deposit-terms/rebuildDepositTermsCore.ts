@@ -147,8 +147,9 @@ export async function rebuildDepositTermsCore(
     numUcs,
     input.minPeginFeeRate,
   );
-  const anchor = await peginP2aAnchorOutput(input.vaultCoreVersion);
-  const anchorValue = anchor?.value ?? 0n;
+  const { value: anchorValue } = await peginP2aAnchorOutput(
+    input.vaultCoreVersion,
+  );
 
   // Independent bounds on the WASM outputs (mirrors assertWasmPeginSizing):
   // Gate 1 only proves the DCV+fee+anchor SUM — these constrain the

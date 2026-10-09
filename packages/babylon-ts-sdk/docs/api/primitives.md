@@ -119,9 +119,7 @@ Error.constructor
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
 A graph version's PegIn P2A (pay-to-anchor) output description, copied out
-of the WASM object into plain JS. v2/v3: 240 sats at vout 2, script
-`51024e73`. Versions without an anchor (v1) yield `null` from
-`peginP2aAnchorOutput`, never a zero-valued record.
+of the WASM object into plain JS: 240 sats at vout 2, script `51024e73`.
 
 #### Properties
 
@@ -133,7 +131,7 @@ value: bigint;
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
-Anchor output value in satoshis (240 for v2/v3)
+Anchor output value in satoshis (240)
 
 ##### vout
 
@@ -143,7 +141,7 @@ vout: number;
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
-Anchor output index in the PegIn transaction (2 for v2/v3)
+Anchor output index in the PegIn transaction (2)
 
 ##### scriptPubKey
 
@@ -153,7 +151,7 @@ scriptPubKey: string;
 
 Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts
 
-Anchor scriptPubKey hex (`51024e73` for v2/v3)
+Anchor scriptPubKey hex (`51024e73`)
 
 ***
 
@@ -1073,8 +1071,7 @@ htlcValues: readonly bigint[];
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
 HTLC output values in satoshis, one per deposit. Each includes
-peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee (the
-anchor term is 0 for graph versions without a P2A anchor, 240 for v2/v3).
+peginAmount + depositorClaimValue + p2aAnchorValue (240) + minPeginFee.
 
 ##### htlcScriptPubKeys
 
@@ -1208,9 +1205,8 @@ txHex: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
-PegIn transaction hex. 1 input spending the HTLC; outputs are
-version-shaped: v1 = vault + depositor claim, v2/v3 = vault + depositor
-claim + P2A anchor at vout 2 (nVersion 3 / TRUC).
+PegIn transaction hex (nVersion 3 / TRUC). 1 input spending the HTLC;
+outputs are vault + depositor claim + P2A anchor at vout 2.
 
 ##### txid
 
@@ -2123,7 +2119,7 @@ Derive the depositor-claim output's spend material in JS, independently of
 WASM — the Rust `SingleKeyConnector` has no WASM wrapper, so this is the
 only derivation available on the JS side.
 
-Takes no graph version: the connector is identical across v1/v2/v3. A future
+Takes no graph version: the connector does not depend on it. A future
 `VAULT_WASM_COMMIT` bump that changed it would break `assertPeginTxShape` at
 peg-in build time, which is where that regression should surface.
 
@@ -3461,7 +3457,7 @@ Compute the minimum PegIn (activation) transaction fee in satoshis.
 `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
 the depositor funds in the Pre-PegIn tx must reserve at least this fee
 inside its value (`htlcValue = peginAmount + depositorClaimValue +
-p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+p2aAnchorValue + minPeginFee`), otherwise the VP
 cannot afford to broadcast the PegIn at
 activation. The vsize comes from a Taproot script-path-spend weight
 prediction whose witness shape depends on the VK + UC signer count.
@@ -3516,16 +3512,14 @@ byte-parity tests, not in a per-call version echo.
 ### peginP2aAnchorOutput()
 
 ```ts
-function peginP2aAnchorOutput(txGraphVersion): Promise<PeginP2aAnchorInfo | null>;
+function peginP2aAnchorOutput(txGraphVersion): Promise<PeginP2aAnchorInfo>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
 
-The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
-`null` when that version's PegIn carries no anchor (v1). The facade returns
-one record per version — never a zero-valued placeholder — so an absent
-anchor can't be mistaken for a real output. For v2/v3: 240 sats at vout 2,
-script `51024e73`.
+The PegIn transaction's P2A (pay-to-anchor) output for a graph version: 240
+sats at vout 2, script `51024e73`. Every supported version's PegIn carries
+the anchor; the engine throws rather than return none.
 
 #### Parameters
 
@@ -3535,7 +3529,7 @@ script `51024e73`.
 
 #### Returns
 
-`Promise`\<[`PeginP2aAnchorInfo`](#peginp2aanchorinfo) \| `null`\>
+`Promise`\<[`PeginP2aAnchorInfo`](#peginp2aanchorinfo)\>
 
 ***
 
@@ -3547,10 +3541,9 @@ function validatePeginP2aAnchor(txGraphVersion, txHex): Promise<void>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
 
-Validate a PegIn transaction's P2A anchor against a graph version's rules:
-v2 and v3 require the exact anchor (240 sats, vout 2, P2A script) and v1
-requires that NO output carries the P2A script. Throws on any mismatch — a
-v2 PegIn checked as v1 fails closed, and vice versa.
+Validate a PegIn transaction's P2A anchor against a graph version's rule:
+the exact anchor (240 sats, vout 2, P2A script). Throws on any mismatch, so
+a PegIn without the anchor fails closed.
 
 #### Parameters
 
@@ -3611,8 +3604,5 @@ const PEGIN_DEPOSITOR_CLAIM_VOUT: 1 = 1;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
 
-Vout of the depositor-claim output in every PegIn version (btc-vault: vault
-at 0, depositor claim at 1, optional P2A anchor appended after).
-
-Version-invariant: the graph version dispatches only the trailing P2A anchor
-(absent in v1, 240 sats at vout 2 in v2/v3). Nothing touches vout 1.
+Vout of the depositor-claim output in the PegIn (btc-vault: vault at 0,
+depositor claim at 1, the 240-sat P2A anchor at 2).
