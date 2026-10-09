@@ -26,6 +26,7 @@ import {
   isResumableDepositError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
+  postRegistrationWalletErrorMessage,
 } from "../depositErrors";
 import {
   DepositorBtcKeyMismatchError,
@@ -544,6 +545,26 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.walletAccountNotSupported);
   });
 
+  it("maps a top-level WALLET_ACCOUNT_CHANGED code to the account-changed copy", () => {
+    expect(mapDepositError({ code: "WALLET_ACCOUNT_CHANGED" })).toEqual(
+      ERRORS.walletAccountChanged,
+    );
+  });
+
+  it("maps a WALLET_ACCOUNT_CHANGED code nested in a cause to the account-changed copy", () => {
+    const err = new Error("Failed to derive the vault secret", {
+      cause: { code: "WALLET_ACCOUNT_CHANGED" },
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.walletAccountChanged);
+  });
+
+  it("maps the SDK's post-derivation account check to the account-changed copy", () => {
+    const err = new Error(
+      "BTC wallet account changed during vault secret derivation. The wallet no longer reports the account this deposit started with, so the derived secrets cannot be used. Restart the deposit with the original account.",
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.walletAccountChanged);
+  });
+
   it("maps a top-level WALLET_METHOD_NOT_SUPPORTED code to the unsupported-wallet callout", () => {
     const err = new FakeWalletError(
       "WALLET_METHOD_NOT_SUPPORTED",
@@ -794,6 +815,16 @@ describe("mapDepositErrorAfterRegistration", () => {
     ).toEqual({ title, body: message });
   });
 
+  it("maps a changed account to the switch-back copy instead of restart", () => {
+    const { title, message } =
+      COPY.deposit.payoutSignatureErrors.walletAccountChanged;
+    expect(
+      mapDepositErrorAfterRegistration({
+        cause: { code: "WALLET_ACCOUNT_CHANGED" },
+      }),
+    ).toEqual({ title, body: message });
+  });
+
   it("keeps an outer rejection ahead of an unsupported account", () => {
     expect(
       mapDepositErrorAfterRegistration({
@@ -814,6 +845,17 @@ describe("mapDepositErrorAfterRegistration", () => {
     // The post-registration wrapper adds one branch and changes nothing else.
     const err = new Error("Failed to get UTXOs for address tb1q: HTTP 502");
     expect(mapDepositErrorAfterRegistration(err)).toEqual(mapDepositError(err));
+  });
+});
+
+describe("postRegistrationWalletErrorMessage", () => {
+  it("returns the switch-back message for a changed account", () => {
+    const err = new Error("Failed to derive the vault secret", {
+      cause: { code: "WALLET_ACCOUNT_CHANGED" },
+    });
+    expect(postRegistrationWalletErrorMessage(err, "fallback")).toBe(
+      COPY.deposit.payoutSignatureErrors.walletAccountChanged.message,
+    );
   });
 });
 

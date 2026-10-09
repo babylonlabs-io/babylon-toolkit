@@ -9,6 +9,7 @@ import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, W
 import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
+import { type LiveBtcIdentity, assertDeriveAccountUnchanged } from "@/core/wallets/btc/assertDeriveAccountUnchanged";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
@@ -108,12 +109,7 @@ export class OneKeyProvider implements IBTCProvider {
 
     this.trackIdentityChanges();
     const identityVersion = this.identityVersion;
-    const address = await withTimeout<string>(this.provider.getAddress(), ONEKEY_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading the address"),
-    );
-    const publicKeyHex = await withTimeout<string>(this.provider.getPublicKeyHex(), ONEKEY_RPC_TIMEOUT_MS, () =>
-      this.timeoutError("reading the public key"),
-    );
+    const { address, publicKeyHex } = await this.readLiveIdentity();
 
     if (publicKeyHex && address) {
       this.walletInfo = {
@@ -128,6 +124,18 @@ export class OneKeyProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  // Reads the extension's selected account without prompting and without
+  // touching `walletInfo`, so the derive check can compare the two.
+  private readLiveIdentity = async (): Promise<LiveBtcIdentity> => {
+    const address = await withTimeout<string>(this.provider.getAddress(), ONEKEY_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the address"),
+    );
+    const publicKeyHex = await withTimeout<string>(this.provider.getPublicKeyHex(), ONEKEY_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading the public key"),
+    );
+    return { address, publicKeyHex };
   };
 
   isIdentityCurrent = (): boolean =>
@@ -461,8 +469,11 @@ export class OneKeyProvider implements IBTCProvider {
       });
     }
 
+    const expectedPublicKeyHex = this.walletInfo.publicKeyHex;
+    const identityVersionAtStart = this.identityVersion;
+    let contextHash: string;
     try {
-      return await this.provider.deriveContextHash(appName, context);
+      contextHash = await this.provider.deriveContextHash(appName, context);
     } catch (error) {
       // User rejection surfaces as EIP-1193 4001 "User rejected the request."
       // (OneKeyHQ/app-monorepo useDappApproveAction -> userRejectedRequest),
@@ -491,5 +502,14 @@ export class OneKeyProvider implements IBTCProvider {
       // spec-validation diagnostics.
       throw error;
     }
+
+    await assertDeriveAccountUnchanged({
+      walletName: WALLET_PROVIDER_NAME,
+      expectedPublicKeyHex,
+      identityVersionAtStart,
+      currentIdentityVersion: () => this.identityVersion,
+      readLiveIdentity: this.readLiveIdentity,
+    });
+    return contextHash;
   };
 }

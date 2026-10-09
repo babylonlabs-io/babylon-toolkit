@@ -280,7 +280,8 @@ sensitive derived material.
 
 ###### Throws
 
-If the wallet rejects, insufficient funds, or an internal
+If the wallet rejects, the BTC wallet account changes during
+        vault-root derivation, insufficient funds, or an internal
         invariant violation.
 
 ##### signAndBroadcast()
@@ -793,6 +794,11 @@ for HD wallets). The conformance vectors in
 `tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts`
 pin the derivation. Throws with code `WALLET_METHOD_NOT_SUPPORTED` if
 unimplemented.
+
+The connected key is the account [getPublicKeyHex](#getpublickeyhex) reports. The
+output cannot show which account produced it, so an implementation MUST
+reject when the selected account changes while the call is in flight
+rather than return a value derived under another account.
 
 ###### Parameters
 

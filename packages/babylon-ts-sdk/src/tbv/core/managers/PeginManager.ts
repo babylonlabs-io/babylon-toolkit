@@ -664,7 +664,8 @@ export class PeginManager {
    * split). Returns broadcast-ready txs, the pubkey snapshot, and the
    * sensitive derived material.
    *
-   * @throws If the wallet rejects, insufficient funds, or an internal
+   * @throws If the wallet rejects, the BTC wallet account changes during
+   *         vault-root derivation, insufficient funds, or an internal
    *         invariant violation.
    */
   async preparePegin(params: PreparePeginParams): Promise<PreparePeginResult> {
@@ -674,7 +675,8 @@ export class PeginManager {
 
     // Raw form for `signInputs[].publicKey` (UniSat/OKX/OneKey reject
     // x-only); x-only form for protocol/HTLC use. One snapshot binds
-    // sizing, root derivation, and PSBT signing to one identity.
+    // sizing, root derivation, and PSBT signing to one identity. The only
+    // other read, right after derivation, is compared with it, never used.
     const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
     const depositorBtcPubkey = normalizeXOnlyPubkey(depositorBtcPubkeyRaw);
 
@@ -747,6 +749,26 @@ export class PeginManager {
       depositorBtcPubkey: hexToUint8Array(depositorBtcPubkey),
       fundingOutpoints,
     });
+
+    // The root carries no trace of the account that derived it, yet every
+    // on-chain commitment below comes from it. A wallet that switched account
+    // during the derive would bind them to a key that cannot re-derive them
+    // later, so refuse the root unless the wallet still reports the snapshot.
+    try {
+      const currentBtcPubkey = normalizeXOnlyPubkey(
+        await this.config.btcWallet.getPublicKeyHex(),
+      );
+      if (currentBtcPubkey !== depositorBtcPubkey) {
+        throw new Error(
+          "BTC wallet account changed during vault secret derivation. " +
+            "The wallet no longer reports the account this deposit started with, " +
+            "so the derived secrets cannot be used. Restart the deposit with the original account.",
+        );
+      }
+    } catch (err) {
+      root.fill(0);
+      throw err;
+    }
 
     // Take ownership of the auth anchor before per-vault expansion (which
     // zeros `root`). Convert to hex immediately, then zero the buffer.

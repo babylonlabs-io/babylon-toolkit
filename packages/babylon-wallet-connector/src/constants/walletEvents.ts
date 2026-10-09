@@ -17,6 +17,9 @@ export function isAccountChangeEvent(eventName: string): eventName is AccountCha
 
 export const NETWORK_CHANGE_EVENT = "networkChanged" as const;
 
+/** UniSat also reports a chain switch to the page under this name. */
+const CHAIN_CHANGE_EVENT = "chainChanged";
+
 /** Event name for disconnect */
 export const DISCONNECT_EVENT = "disconnect" as const;
 
@@ -32,7 +35,11 @@ export function trackProviderIdentityChanges(
     return false;
   }
 
-  [NETWORK_CHANGE_EVENT, DISCONNECT_EVENT].forEach((event) => {
+  // Wallets name the same events differently: OKX's signet and testnet
+  // Bitcoin providers emit only "accountChanged", and UniSat reports chain
+  // switches as "chainChanged" as well as "networkChanged".
+  const otherAccountEvents = ACCOUNT_CHANGE_EVENTS.filter((event) => event !== "accountsChanged");
+  [...otherAccountEvents, NETWORK_CHANGE_EVENT, CHAIN_CHANGE_EVENT, DISCONNECT_EVENT].forEach((event) => {
     try {
       provider.on?.(event, callback);
     } catch {

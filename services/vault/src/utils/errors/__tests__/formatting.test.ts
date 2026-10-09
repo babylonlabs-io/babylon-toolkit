@@ -920,6 +920,27 @@ describe("Error Formatting", () => {
       );
     });
 
+    it("inlined WALLET_ACCOUNT_CHANGED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/WALLET_ACCOUNT_CHANGED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("WALLET_ACCOUNT_CHANGED");
+    });
+
+    it("maps a WALLET_ACCOUNT_CHANGED code nested in a cause to the resume copy", () => {
+      const err = new Error("payout signing failed", {
+        cause: { code: "WALLET_ACCOUNT_CHANGED" },
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.walletAccountChanged,
+      );
+    });
+
     it("maps a top-level WALLET_ACCOUNT_NOT_SUPPORTED code to the resume copy", () => {
       expect(
         formatPayoutSignatureError({ code: "WALLET_ACCOUNT_NOT_SUPPORTED" }),

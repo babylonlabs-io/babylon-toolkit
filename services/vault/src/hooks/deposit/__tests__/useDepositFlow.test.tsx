@@ -779,6 +779,33 @@ describe("useDepositFlow", () => {
       });
     });
 
+    it("stops before the PoP and registration when the run is aborted during preparation", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      preparePeginTransaction.mockImplementationOnce(async () => {
+        // An account switch while the derive popup is open resets the wallet
+        // connection, which aborts the run before preparation returns.
+        result.current.abort();
+        return MOCK_BATCH_RESULT as unknown as Awaited<
+          ReturnType<typeof preparePeginTransaction>
+        >;
+      });
+
+      await act(async () => {
+        await result.current.executeDeposit();
+      });
+
+      expect(preparePeginTransaction).toHaveBeenCalledTimes(1);
+      expect(signProofOfPossession).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+    });
+
     it("should call registerPeginBatchAndWait once with all vaults", async () => {
       const { registerPeginBatchAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
