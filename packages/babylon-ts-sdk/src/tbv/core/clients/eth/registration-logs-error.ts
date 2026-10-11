@@ -24,8 +24,8 @@ export class RegistrationLogsUnavailableError extends Error {
   readonly blockNumber: bigint;
 
   /**
-   * `message` replaces the empty-answer wording for the partial-answer shapes
-   * that are not "no logs at all"; the caller names which logs it did get.
+   * `message` replaces the empty-answer wording when the block's logs arrived
+   * but none is for the vault asked for; the caller names that vault.
    */
   constructor(blockNumber: bigint, message?: string) {
     super(

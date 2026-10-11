@@ -571,8 +571,8 @@ new RegistrationLogsUnavailableError(blockNumber, message?): RegistrationLogsUna
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts)
 
-`message` replaces the empty-answer wording for the partial-answer shapes
-that are not "no logs at all"; the caller names which logs it did get.
+`message` replaces the empty-answer wording when the block's logs arrived
+but none is for the vault asked for; the caller names that vault.
 
 ###### Parameters
 
