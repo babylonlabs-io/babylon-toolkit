@@ -3,7 +3,7 @@
  * quoted VP commission + drift headroom, capped below the contract's
  * exclusive bound. Shared by `PeginManager` (the approved terms) and the
  * registration calldata so both carry the same ceiling; a resume rebuild reads
- * that submitted value back from the `PegInSubmittedV2` log instead.
+ * that submitted value back from the `PegInSubmitted` log instead.
  *
  * @module deposit-terms/commissionCeiling
  */

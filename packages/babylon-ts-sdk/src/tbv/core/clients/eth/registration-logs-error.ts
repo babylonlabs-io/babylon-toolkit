@@ -8,10 +8,10 @@
  * transport retry cannot see (it retries errors only). Callers may retry.
  *
  * The same holds for an answer that is merely incomplete: the registry emits
- * `PegInSubmitted` and `PegInSubmittedV2` together on every submission
- * (vault-contracts-aave-v4 `PeginLogic.sol:144-147` @ c559f5c2), so a block
- * answer carrying only some of them is a partial answer as readily as it is
- * an old registry. Those shapes carry their own message.
+ * one `PegInSubmitted` on every submission (vault-contracts-aave-v4
+ * `PeginLogic.sol:144` @ a20b5e0d), so a block answer without the log a
+ * caller needs is a partial answer as readily as it is a vault registered
+ * elsewhere. That shape carries its own message.
  *
  * @module clients/eth/registration-logs-error
  */

@@ -1981,7 +1981,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readD
 
 **`Experimental`**
 
-The target's own `PegInSubmittedV2` log.
+The target's own `PegInSubmitted` log.
 
 ##### registrationRecords
 

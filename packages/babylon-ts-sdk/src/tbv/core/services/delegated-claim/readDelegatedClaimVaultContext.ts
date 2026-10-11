@@ -3,7 +3,7 @@
  * deposit, with no vault provider and no indexer in the loop.
  *
  * Every field of {@link DelegatedClaimVaultContext} comes from the registry:
- * the vault record, its `PegInSubmittedV2` registration log, its finalized
+ * the vault record, its `PegInSubmitted` registration log, its finalized
  * `VaultClaimableBy` redemption log, the offchain params the vault stamped,
  * and the participant rosters at the versions and epochs the vault froze.
  * Where two of those sources carry the same value they are compared, and a
@@ -85,7 +85,7 @@ export interface DelegatedClaimVaultRead {
   context: DelegatedClaimVaultContext;
   /** The target's registry record, as read here. */
   vault: VaultData;
-  /** The target's own `PegInSubmittedV2` log. */
+  /** The target's own `PegInSubmitted` log. */
   registrationRecord: PeginRegistrationRecord;
   /** Every log in the target's registration block, the batch's siblings among them. */
   registrationRecords: readonly PeginRegistrationRecord[];
