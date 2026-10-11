@@ -31,7 +31,7 @@ export interface DeriveClaimerWotsKeypairParams {
   htlcVout: number;
   /** JSON-serialized TxGraph the keypair must match. */
   txGraphJson: string;
-  /** Graph version. Delegated claim requires 3. */
+  /** Graph version. Delegated claim requires `DELEGATED_CLAIM_TX_GRAPH_VERSION`. */
   txGraphVersion: number;
   /**
    * `depositorWotsPkHash` as the vault records it on chain, `0x`-prefixed.

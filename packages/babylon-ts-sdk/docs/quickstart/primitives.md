@@ -56,7 +56,7 @@ import {
 
 // Step 1: unfunded Pre-PegIn tx
 const prePegin = await buildPrePeginPsbt({
-  vaultCoreVersion: 3,                  // on-chain activeVaultCoreVersion; drives HTLC sizing
+  vaultCoreVersion: 1,                  // on-chain activeVaultCoreVersion; drives HTLC sizing
   depositorPubkey: "abc123...",         // x-only, 64 hex chars, no 0x
   vaultProviderPubkey: "def456...",
   vaultKeeperPubkeys: ["ghi789..."],
@@ -96,7 +96,7 @@ Payout ends two of the peg-out paths: the happy path (`Claim → Assert → Payo
 import { buildPayoutPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
 const result = await buildPayoutPsbt({
-  vaultCoreVersion: 3,
+  vaultCoreVersion: 1,
   payoutTxHex: "...",            // From vault provider
   peginTxHex: "...",             // Your peg-in transaction
   assertTxHex: "...",            // Assert transaction from VP
@@ -180,7 +180,7 @@ const noPayoutPsbtHex = await buildNoPayoutPsbt({
     { script_pubkey: "...", value: 688 },      // e.g. ChallengeAssertY:0 — outs[0] of that tx
   ],
   connectorParams: {                // AssertPayoutNoPayoutConnector params
-    txGraphVersion: 3,              // REQUIRED — the vault-core version
+    txGraphVersion: 1,              // REQUIRED — the vault-core version
     claimer: depositorPubkey,
     localChallengers: ["..."],      // the vault keepers; never empty
     universalChallengers: ["..."],
@@ -199,7 +199,7 @@ const caPsbtHex = await buildChallengeAssertPsbt({
   assertTxHex: "...",               // Authoritative — every input must spend an Assert output
   connectorParamsPerInput: [        // One entry per input of the supplied tx
     {
-      txGraphVersion: 3,            // REQUIRED
+      txGraphVersion: 1,            // REQUIRED
       claimer: depositorPubkey,
       challenger: "def456...",
       claimerWotsKeysJson: "...",

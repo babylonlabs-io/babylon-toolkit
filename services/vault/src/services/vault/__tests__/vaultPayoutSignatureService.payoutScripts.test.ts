@@ -35,7 +35,7 @@ vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
       timelockChallengeAssert: 108n,
       securityCouncilKeys: ["0xcouncil"],
       councilQuorum: 1,
-      minVpCommissionBps: 10,
+      maxVpCommissionBps: 10,
     }),
   }),
   getVaultKeeperReader: vi.fn().mockResolvedValue({

@@ -8,15 +8,15 @@
  *
  * Two parameters are deliberately NOT axes here.
  *
- * `vaultCoreVersion` is supplied, not searched. The Pre-PegIn carries no
- * evidence of it: `getPrePeginHtlcConnectorInfo` produces a byte-identical
- * scriptPubKey for v1 and v2, and the version's only other effect on the
- * transaction is the size of the reserve folded into the HTLC value — which
- * the search inverts back out of that same value, so it matches by
- * construction. Enumerating it would guarantee an ambiguous result rather than
- * narrow one. See `__tests__/reconstructPeginParams.test.ts`, which pins the
- * identical-scriptPubKey fact so a future graph version that DOES change the
- * connector fails loudly here.
+ * `vaultCoreVersion` is supplied, not searched. Its effect on each HTLC value
+ * is the size of the reserve folded into it, which the search inverts back out
+ * of that same value, so the value check passes under any version by
+ * construction. The bundled engine builds a single graph version and refuses
+ * every other, so a candidate carrying a different one is never evaluated: it
+ * surfaces as a gap, not as a match. `__tests__/reconstructPeginParams.test.ts`
+ * pins that refusal. If the engine ever builds two versions again, whether
+ * their HTLC connector scriptPubKeys differ decides whether a wrong supplied
+ * version can still be told apart.
  *
  * The RFC-006 operation-key epochs are not enumerable at all. Every
  * epoch-keyed read needs `getVaultKeyEpochs(vaultId)` — the destroyed row —
@@ -83,7 +83,7 @@ export interface PeginParamsCandidate {
   /**
    * Stamped tx-graph version (NOT the chain-active one). Carried so the result
    * describes itself, but constant across a candidate space — see the module
-   * note on why it cannot be searched.
+   * note on why it is supplied rather than searched.
    */
   vaultCoreVersion: number;
   offchainParams: OffchainParamsCandidate;

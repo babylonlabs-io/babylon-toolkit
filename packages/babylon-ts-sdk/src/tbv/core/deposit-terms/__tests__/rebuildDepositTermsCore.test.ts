@@ -10,7 +10,7 @@
  *    through the whole pipeline (Gate 0 → OP_RETURN anchor → Gate 1 byte-match →
  *    projection). Proves the happy path executes end-to-end and projects the
  *    correct DepositTerms, complementing the guards. Two-vault (mandatory for
- *    chain logic) + both anchor branches (v1 = 0, v2 = P2A anchor).
+ *    chain logic).
  */
 
 import { Transaction } from "bitcoinjs-lib";
@@ -62,7 +62,7 @@ function makeInput(
   },
 ): RebuildDepositTermsCoreInput {
   return {
-    vaultCoreVersion: 2,
+    vaultCoreVersion: 1,
     siblings: [{ hashlock: "ab".repeat(32), amount: 1_000_000n }],
     depositorBtcPubkey: "ab".repeat(32),
     vaultProviderBtcPubkey: "cc".repeat(32),
@@ -188,12 +188,11 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
   } = REAL_FUNDED_PREPEGIN;
 
   function baseInput(
-    version: number,
     siblings: Sibling[],
     txHex: string,
   ): RebuildDepositTermsCoreInput {
     return {
-      vaultCoreVersion: version,
+      vaultCoreVersion: 1,
       siblings,
       fundedPrePeginTxHex: txHex,
       depositorBtcPubkey: DEPOSITOR,
@@ -214,17 +213,17 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     };
   }
 
-  it("rebuilds two-vault v2 terms with per-vault sizing, ordering, and commission ceiling", async () => {
+  it("rebuilds two-vault Core 1 terms with per-vault sizing, ordering, and commission ceiling", async () => {
     const siblings: Sibling[] = [
       { hashlock: "ab".repeat(32), amount: 1_000_000n },
       { hashlock: "cd".repeat(32), amount: 2_500_000n },
     ];
-    const { txHex, dcv, fee, anchor } = await buildRealFundedTx(2, siblings);
-    const input = baseInput(2, siblings, txHex);
+    const { txHex, dcv, fee } = await buildRealFundedTx(1, siblings);
+    const input = baseInput(siblings, txHex);
 
     const terms = await rebuildDepositTermsCore(input);
 
-    expect(terms.vaultCoreVersion).toBe(2);
+    expect(terms.vaultCoreVersion).toBe(1);
     expect(terms.prepeginTxid).toBe(input.prepeginTxid);
     expect(terms.prepeginMaxFee).toBe(PREPEGIN_MAX_FEE);
     expect(terms.timelockPegin).toBe(TIMELOCK_PEGIN);
@@ -232,7 +231,6 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     expect(terms.timelockRefund).toBe(TIMELOCK_REFUND);
     expect(terms.vaultKeeperBtcPubkeys).toEqual(VKS);
     expect(terms.universalChallengerBtcPubkeys).toEqual(UCS);
-    expect(anchor).toBeGreaterThan(0n); // v2 carries the P2A anchor
     expect(terms.vaults).toHaveLength(2);
 
     terms.vaults.forEach((v, i) => {
@@ -247,23 +245,6 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     });
   });
 
-  it("rebuilds single-vault v1 terms (zero-anchor branch)", async () => {
-    const siblings: Sibling[] = [
-      { hashlock: "ef".repeat(32), amount: 750_000n },
-    ];
-    const { txHex, dcv, fee, anchor } = await buildRealFundedTx(1, siblings);
-    const input = baseInput(1, siblings, txHex);
-
-    const terms = await rebuildDepositTermsCore(input);
-
-    expect(anchor).toBe(0n); // v1 has no P2A anchor
-    expect(terms.vaultCoreVersion).toBe(1);
-    expect(terms.vaults).toHaveLength(1);
-    expect(terms.vaults[0].peginAmount).toBe(750_000n);
-    expect(terms.vaults[0].depositorClaimValue).toBe(dcv);
-    expect(terms.vaults[0].peginMaxFee).toBe(fee);
-  });
-
   // Gate 1 negatives THROUGH the core (not just the helper's own unit tests):
   // prove the core feeds the funded tx's actual outputs to the byte-match.
   // The txid is recomputed from the tampered hex so Gate 0 passes and the
@@ -273,13 +254,13 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     const siblings: Sibling[] = [
       { hashlock: "ab".repeat(32), amount: 400_000n },
     ];
-    const { txHex } = await buildRealFundedTx(2, siblings);
+    const { txHex } = await buildRealFundedTx(1, siblings);
     const tampered = Transaction.fromHex(txHex);
     tampered.outs[0].value += 1;
     const tamperedHex = tampered.toHex();
 
     await expect(
-      rebuildDepositTermsCore(baseInput(2, siblings, tamperedHex)),
+      rebuildDepositTermsCore(baseInput(siblings, tamperedHex)),
     ).rejects.toThrow(/value .* does not|does not match the cross-checked/);
   });
 
@@ -287,7 +268,7 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     const siblings: Sibling[] = [
       { hashlock: "ab".repeat(32), amount: 400_000n },
     ];
-    const { txHex } = await buildRealFundedTx(2, siblings);
+    const { txHex } = await buildRealFundedTx(1, siblings);
     const tampered = Transaction.fromHex(txHex);
     const script = Buffer.from(tampered.outs[0].script);
     script[script.length - 1] ^= 0x01;
@@ -295,7 +276,7 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     const tamperedHex = tampered.toHex();
 
     await expect(
-      rebuildDepositTermsCore(baseInput(2, siblings, tamperedHex)),
+      rebuildDepositTermsCore(baseInput(siblings, tamperedHex)),
     ).rejects.toThrow(/scriptPubKey .* does not match/);
   });
 });

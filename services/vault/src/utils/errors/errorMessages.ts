@@ -64,7 +64,6 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidApplicationStatus: "Invalid application status.",
   OnlyApplicationEntryPoint:
     "Only the application entry point can perform this action.",
-  AaveAdapterNotSet: "Aave adapter is not set.",
 
   // ============================================================================
   // Aave Spoke errors
@@ -128,7 +127,6 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   AddressEmptyCode: "Address has no code (not a contract).",
   VersionAlreadyExists: "This version already exists.",
   InvalidRegistrationFee: "Invalid registration fee.",
-  AmountMismatch: "Amount mismatch.",
   AmountBelowMinimumThreshold: "Amount is below the minimum threshold.",
   InvalidAction: "Invalid action.",
 

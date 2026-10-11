@@ -39,8 +39,8 @@ export class PeginP2aAnchorOutput {
         }
     }
     /**
-     * Anchor value in satoshis (240, [`btc_vault_v2::P2A_ANCHOR_VALUE`] on
-     * graph v2). The front-end needs this to reproduce the HTLC value
+     * Anchor value in satoshis (240, [`btc_vault_v1::P2A_ANCHOR_VALUE`] on
+     * graph v1). The front-end needs this to reproduce the HTLC value
      * decomposition (amount + depositor claim + anchor + pegin fee).
      * @returns {bigint}
      */
@@ -49,8 +49,8 @@ export class PeginP2aAnchorOutput {
         return BigInt.asUintN(64, ret);
     }
     /**
-     * Output index of the anchor (2, [`btc_vault_v2::P2A_ANCHOR_VOUT`] on
-     * graph v2) — read it from here instead of assuming the position.
+     * Output index of the anchor (2, [`btc_vault_v1::P2A_ANCHOR_VOUT`] on
+     * graph v1) — read it from here instead of assuming the position.
      * @returns {number}
      */
     get vout() {
@@ -503,15 +503,13 @@ export class WasmPayoutTx {
     /**
      * Estimates the Payout vsize under `tx_graph_version` for fee planning.
      *
-     * `payout_script_hex` is the union parameter for the versions whose
-     * estimator is script-aware (btc-vault #2440+, i.e. graph v2 and v3):
-     * **required** there, and **rejected** on graph v1, whose estimator
-     * predates it and always sizes output 0 as a 34-byte P2TR script. Both
-     * directions throw rather than silently ignoring the argument.
+     * `payout_script_hex` is **required**: graph v1's estimator is
+     * script-aware (btc-vault #2440+) and sizes output 0 by the payout
+     * receiver's real script. A missing script throws rather than assuming a
+     * P2TR length.
      *
-     * The same applies to `commission_json`: graph v1 expects a `receiver`
-     * x-only pubkey, graph v2/v3 a `receiver_script` scriptPubKey hex. A
-     * mismatch is rejected by the version's own deserializer.
+     * `commission_json` carries a `receiver_script` scriptPubKey hex; a
+     * malformed value is rejected by the version's own deserializer.
      * @param {number} tx_graph_version
      * @param {number} num_vault_keepers
      * @param {number} num_universal_challengers
@@ -536,10 +534,10 @@ export class WasmPayoutTx {
      * Creates a WasmPayoutTx from a JSON string serialized under
      * `tx_graph_version`.
      *
-     * Payout transactions have the same wire shape under both supported
-     * tx graph versions, so unlike `WasmPeginTx.fromJson` there is no
-     * structural cross-check — the caller-supplied version selects the
-     * deserializer and is stamped on the result.
+     * Payout transactions carry no tx-graph-version discriminator in their
+     * wire shape, so unlike `WasmPeginTx.fromJson` there is no structural
+     * cross-check — the caller-supplied version selects the deserializer
+     * and is stamped on the result.
      * @param {number} tx_graph_version
      * @param {string} json
      * @returns {WasmPayoutTx}
@@ -2197,9 +2195,10 @@ export function init_panic_hook() {
 
 /**
  * Returns the P2A anchor output a canonical PegIn reserves under
- * `tx_graph_version`, or `undefined` for versions whose PegIns carry no
- * anchor (graph v1) — one record instead of per-field defaults, so an
- * absent anchor cannot be mistaken for a zero-valued one.
+ * `tx_graph_version`. Every supported version's PegIn carries the anchor;
+ * `undefined` is reserved for a version whose PegIns carry none — one record
+ * instead of per-field defaults, so an absent anchor cannot be mistaken for
+ * a zero-valued one.
  * @param {number} tx_graph_version
  * @returns {PeginP2aAnchorOutput | undefined}
  */
@@ -2264,11 +2263,10 @@ export function supportedTxGraphVersions() {
  * `tx_graph_version`, per that version's anchor rule (see
  * `check_pegin_p2a_anchor` in each version's module).
  *
- * Graph v2: the output at [`btc_vault_v2::P2A_ANCHOR_VOUT`] must exist,
+ * Graph v1: the output at [`btc_vault_v1::P2A_ANCHOR_VOUT`] must exist,
  * carry the P2A scriptPubKey, and hold exactly
- * [`btc_vault_v2::P2A_ANCHOR_VALUE`] sats. Graph v1: the transaction must
- * carry no P2A output at all — so a graph-v2 PegIn checked under v1 fails
- * closed instead of validating vacuously.
+ * [`btc_vault_v1::P2A_ANCHOR_VALUE`] sats — so a pre-reset Core 1 PegIn,
+ * which carries no anchor, fails closed.
  * @param {number} tx_graph_version
  * @param {string} tx_hex
  */

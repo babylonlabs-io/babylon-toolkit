@@ -235,7 +235,7 @@ export async function computeMinClaimValue(
  * `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
  * the depositor funds in the Pre-PegIn tx must reserve at least this fee
  * inside its value (`htlcValue = peginAmount + depositorClaimValue +
- * p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+ * p2aAnchorValue + minPeginFee`), otherwise the VP
  * cannot afford to broadcast the PegIn at
  * activation. The vsize comes from a Taproot script-path-spend weight
  * prediction whose witness shape depends on the VK + UC signer count.
@@ -302,15 +302,14 @@ export async function computePayoutFeeFloor(
 }
 
 /**
- * The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
- * `null` when that version's PegIn carries no anchor (v1). The facade returns
- * one record per version — never a zero-valued placeholder — so an absent
- * anchor can't be mistaken for a real output. For v2/v3: 240 sats at vout 2,
- * script `51024e73`.
+ * The PegIn transaction's P2A (pay-to-anchor) output for a graph version: 240
+ * sats at vout 2, script `51024e73`. Every supported version's PegIn carries
+ * the anchor, so a facade that returns none throws instead of yielding a
+ * zero-valued placeholder.
  */
 export async function peginP2aAnchorOutput(
   txGraphVersion: number,
-): Promise<PeginP2aAnchorInfo | null> {
+): Promise<PeginP2aAnchorInfo> {
   const { peginP2aAnchorOutput: wasmPeginP2aAnchorOutput } =
     await getWasmBindings();
   let anchor;
@@ -319,7 +318,12 @@ export async function peginP2aAnchorOutput(
   } catch (err) {
     throw toError(err, 'peginP2aAnchorOutput');
   }
-  if (anchor === undefined) return null;
+  if (anchor === undefined) {
+    throw new Error(
+      `peginP2aAnchorOutput: tx graph version ${txGraphVersion} returned no ` +
+        'P2A anchor, but every supported PegIn carries one',
+    );
+  }
   try {
     return {
       value: assertWasmBigint(anchor.value, 'p2aAnchorValue'),
@@ -332,10 +336,9 @@ export async function peginP2aAnchorOutput(
 }
 
 /**
- * Validate a PegIn transaction's P2A anchor against a graph version's rules:
- * v2 and v3 require the exact anchor (240 sats, vout 2, P2A script) and v1
- * requires that NO output carries the P2A script. Throws on any mismatch — a
- * v2 PegIn checked as v1 fails closed, and vice versa.
+ * Validate a PegIn transaction's P2A anchor against a graph version's rule:
+ * the exact anchor (240 sats, vout 2, P2A script). Throws on any mismatch, so
+ * a PegIn without the anchor fails closed.
  */
 export async function validatePeginP2aAnchor(
   txGraphVersion: number,
@@ -504,7 +507,7 @@ export { getChallengeAssertScriptInfo } from './challengeAssertConnector.js';
 export const { getChallengeAssertOutputScriptPubKey } =
   createChallengeAssertOutputConnectorApi(getWasmBindings);
 
-// The delegated-claim surface (graph v3 only): assembly of the two files the
+// The delegated-claim surface: assembly of the two files the
 // `vaultd vp wt` watchtower CLI reads, and the claim-time execution that runs
 // from those same files without the CLI.
 //

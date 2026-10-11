@@ -49,7 +49,7 @@ function plan(): DelegatedClaimSigningPlan {
       vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY,
       vaultKeeperBtcPubkeys: [VAULT_KEEPER],
       universalChallengerBtcPubkeys: [UNIVERSAL_CHALLENGER],
-      vaultCoreVersion: 3,
+      vaultCoreVersion: 1,
       timelockPegin: 144,
       timelockAssert: 288,
       protocolFeeRate: 2n,
@@ -230,7 +230,7 @@ describe("signDelegatedClaimPlan — software wallet", () => {
 });
 
 const TERMS = {
-  vaultCoreVersion: 3,
+  vaultCoreVersion: 1,
   timelockPegin: 144,
   timelockAssert: 288,
   protocolFeeRate: 2n,
@@ -480,7 +480,7 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
         vaultContext: CONTEXT,
       }),
     ).rejects.toThrow(
-      /vault core version 2 but the vault context has version 3/,
+      /vault core version 2 but the vault context has version 1/,
     );
     expect(calls).toEqual([]);
   });

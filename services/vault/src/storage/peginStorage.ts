@@ -90,9 +90,7 @@ export interface PendingPeginRequest {
   // For broadcastable statuses (PENDING / PAYOUT_SIGNED / CONFIRMING) the
   // storage validator requires all of them; legacy entries from before this
   // guard land without them and are filtered out of `getPendingPegins`,
-  // making them non-broadcastable through the in-app button. Exception:
-  // records missing ONLY `buildVaultCoreVersion` are backfilled to 1 on
-  // read (see `backfillBuildVaultCoreVersion`).
+  // making them non-broadcastable through the in-app button.
   buildOffchainParamsVersion?: number;
   buildAppVaultKeepersVersion?: number;
   buildUniversalChallengersVersion?: number;
@@ -317,9 +315,8 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
       if (versionsRequired) return false;
       continue;
     }
-    // vaultCoreVersion 0 is never valid (the contract stamps ≥ 1 and
-    // pre-stamp records backfill to 1) — fail closed like every other
-    // 0-version in the app. The other three fields keep their historical
+    // vaultCoreVersion 0 is never valid (the contract stamps ≥ 1) — fail
+    // closed like every other 0-version in the app. The other three fields keep their historical
     // ≥ 0 acceptance.
     const min = field === "buildVaultCoreVersion" ? 1 : 0;
     if (typeof v !== "number" || !Number.isInteger(v) || v < min) {
@@ -397,34 +394,6 @@ function dispatchStorageUpdateEvent(ethAddress: string): void {
       detail: { ethAddress },
     }),
   );
-}
-
-/**
- * Every build before the `buildVaultCoreVersion` stamp shipped had all its
- * WASM construction sites hard-pinned to graph v1 (`TX_GRAPH_VERSION_V1 = 1`),
- * so a record carrying the other three build fields was built with v1 as a
- * matter of fact — backfilling is not a guess.
- */
-const PRE_STAMP_BUILD_VAULT_CORE_VERSION = 1;
-
-/**
- * Backfill `buildVaultCoreVersion` on records written before the field
- * existed. Only fires when the record carries the other three build fields
- * (proving it came from the previous guard's era, not arbitrary data) —
- * anything else falls through to normal validation.
- */
-function backfillBuildVaultCoreVersion(entry: unknown): unknown {
-  if (!entry || typeof entry !== "object") return entry;
-  const e = entry as Record<string, unknown>;
-  if (
-    e.buildVaultCoreVersion === undefined &&
-    typeof e.buildOffchainParamsVersion === "number" &&
-    typeof e.buildAppVaultKeepersVersion === "number" &&
-    typeof e.buildUniversalChallengersVersion === "number"
-  ) {
-    return { ...e, buildVaultCoreVersion: PRE_STAMP_BUILD_VAULT_CORE_VERSION };
-  }
-  return entry;
 }
 
 /**
@@ -515,9 +484,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     throw new PendingPeginStorageReadError(ethAddress, stored, error);
   }
 
-  const migrated = parsed.map((entry) =>
-    backfillConstructionIndex(backfillBuildVaultCoreVersion(entry)),
-  );
+  const migrated = parsed.map(backfillConstructionIndex);
 
   // Filter out entries whose security-critical fields (unsignedTxHex,
   // selectedUTXOs) fail a strict format check. A tampered entry would
@@ -820,7 +787,7 @@ export function recordSignedGraphFingerprint(
     // Write only where `getSignedGraphFingerprint` will look. An entry that
     // fails the read filter is hidden from it, so a fingerprint written there
     // could never be read back; report it as no entry instead.
-    if (!hasValidSecurityFields(backfillBuildVaultCoreVersion(entry))) {
+    if (!hasValidSecurityFields(entry)) {
       return entry;
     }
     found = true;

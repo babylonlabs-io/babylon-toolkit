@@ -204,17 +204,16 @@ const REGISTRATION_LOGS_RETRY_DELAYS_MS = [
 
 /**
  * Read the depositor's commission ceilings of the vaults registered in block
- * `createdAt`, from their `PegInSubmittedV2` logs, in `vaultIds` order. The
+ * `createdAt`, from their `PegInSubmitted` logs, in `vaultIds` order. The
  * contract discards the value after bound-checking it, so the log is its only
  * on-chain source.
  *
- * Retries **only** the SDK's typed registration-logs error, which covers three
- * shapes: no registration logs for the block at all, `PegInSubmitted` logs with
- * no `PegInSubmittedV2` among them, and an answer without the target vault's V2
- * log. The registry emits both events on every submission
- * (vault-contracts-aave-v4 `PeginLogic.sol:144-147` @ c559f5c2), so each shape
- * is as readily a node's partial answer as a permanent condition — a pre-#548
- * registry, or a vault registered in another block. The full backoff schedule
+ * Retries **only** the SDK's typed registration-logs error, which covers two
+ * shapes: no registration logs for the block at all, and an answer without the
+ * target vault's log. The registry emits one on every submission
+ * (vault-contracts-aave-v4 `PeginLogic.sol:144` @ a20b5e0d), so each shape is
+ * as readily a node's partial answer as a permanent condition — a vault
+ * registered in another block. The full backoff schedule
  * is therefore also spent when the condition is permanent, before the same
  * message surfaces. Every other error propagates on the first attempt.
  * Aborting `signal` ends a pending backoff with its reason.

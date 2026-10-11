@@ -19,7 +19,6 @@ import {
   buildPeginTxFromPrePegin,
   computeMinClaimValue,
   createPrePeginTransaction,
-  peginP2aAnchorOutput,
   validatePeginP2aAnchor,
   type Network,
 } from "../../wasm";
@@ -34,9 +33,10 @@ import {
 } from "./assertWasmPeginSizing";
 import {
   PEGIN_INPUT_SEQUENCE,
+  PEGIN_OUTPUT_COUNT,
   PEGIN_TX_LOCKTIME,
-  PEGIN_TX_VERSION_CORE_1,
-  PEGIN_TX_VERSION_CORE_2_AND_3,
+  PEGIN_TX_VERSION,
+  PEGIN_VAULT_CORE_VERSION,
 } from "./constants";
 import {
   PEGIN_DEPOSITOR_CLAIM_VOUT,
@@ -121,8 +121,7 @@ export interface PrePeginPsbtResult {
   totalOutputValue: bigint;
   /**
    * HTLC output values in satoshis, one per deposit. Each includes
-   * peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee (the
-   * anchor term is 0 for graph versions without a P2A anchor, 240 for v2/v3).
+   * peginAmount + depositorClaimValue + p2aAnchorValue (240) + minPeginFee.
    */
   htlcValues: readonly bigint[];
   /** HTLC output scriptPubKeys (hex encoded), one per deposit */
@@ -166,9 +165,8 @@ export interface BuildPeginTxParams {
  */
 export interface PeginTxResult {
   /**
-   * PegIn transaction hex. 1 input spending the HTLC; outputs are
-   * version-shaped: v1 = vault + depositor claim, v2/v3 = vault + depositor
-   * claim + P2A anchor at vout 2 (nVersion 3 / TRUC).
+   * PegIn transaction hex (nVersion 3 / TRUC). 1 input spending the HTLC;
+   * outputs are vault + depositor claim + P2A anchor at vout 2.
    */
   txHex: string;
   /** PegIn transaction ID */
@@ -353,13 +351,6 @@ export async function buildPeginTxFromFundedPrePegin(
 }
 
 /**
- * PegIn outputs common to every graph version: the vault output (vout 0)
- * and the depositor claim output (vout 1). Versions with a P2A anchor (v2)
- * append it after these.
- */
-const PEGIN_BASE_OUTPUT_COUNT = 2;
-
-/**
  * Cross-check the WASM-built PegIn transaction's header, input, and outputs
  * against the request before the depositor signs it.
  *
@@ -370,9 +361,10 @@ const PEGIN_BASE_OUTPUT_COUNT = 2;
  * vault scriptPubKey must both equal the payout scriptPubKey that TypeScript
  * derives from the request. The vault output value is the
  * exact on-chain vault amount, so it must equal the requested peg-in amount
- * (btc-vault: PegIn vout 0 carries `pegin_amount` verbatim). The P2A anchor
- * (exact value/vout/script for v2; complete absence for v1) is enforced by
- * the version-dispatched `validatePeginP2aAnchor`.
+ * (btc-vault: PegIn vout 0 carries `pegin_amount` verbatim). The nVersion
+ * and output count are checked against TypeScript constants, independently of
+ * WASM; the P2A anchor's exact value, vout and script are enforced by the
+ * version-dispatched `validatePeginP2aAnchor`.
  *
  * @throws If the encoded transaction disagrees with the request, metadata,
  *   or canonical shape for its Vault Core version.
@@ -387,27 +379,21 @@ async function assertPeginTxShape(
   params: BuildPeginTxParams,
 ): Promise<void> {
   const version = params.prePeginParams.vaultCoreVersion;
-  const expectedTxVersion =
-    version === 1
-      ? PEGIN_TX_VERSION_CORE_1
-      : version === 2 || version === 3
-        ? PEGIN_TX_VERSION_CORE_2_AND_3
-        : undefined;
-  if (expectedTxVersion === undefined) {
-    throw new Error(`Unsupported vaultCoreVersion ${version} for PegIn tx.`);
+  if (version !== PEGIN_VAULT_CORE_VERSION) {
+    throw new Error(
+      `Unsupported vaultCoreVersion ${version} for PegIn tx; only ` +
+        `${PEGIN_VAULT_CORE_VERSION} has a PegIn shape.`,
+    );
   }
 
   await validatePeginP2aAnchor(version, result.txHex);
 
-  const anchor = await peginP2aAnchorOutput(version);
-  const expectedOutputCount = PEGIN_BASE_OUTPUT_COUNT + (anchor ? 1 : 0);
-
   const peginTx = Transaction.fromHex(stripHexPrefix(result.txHex));
 
-  if (peginTx.version !== expectedTxVersion) {
+  if (peginTx.version !== PEGIN_TX_VERSION) {
     throw new Error(
       `PegIn tx version ${peginTx.version} does not match ` +
-        `vaultCoreVersion ${version}; expected ${expectedTxVersion}.`,
+        `vaultCoreVersion ${version}; expected ${PEGIN_TX_VERSION}.`,
     );
   }
   if (peginTx.locktime !== PEGIN_TX_LOCKTIME) {
@@ -460,11 +446,11 @@ async function assertPeginTxShape(
     throw new Error("PegIn input witness must be empty before signing.");
   }
 
-  if (peginTx.outs.length !== expectedOutputCount) {
+  if (peginTx.outs.length !== PEGIN_OUTPUT_COUNT) {
     throw new Error(
       `PegIn tx has ${peginTx.outs.length} output(s), expected exactly ` +
-        `${expectedOutputCount} for vaultCoreVersion ${version} (vault + ` +
-        `depositor claim${anchor ? " + P2A anchor" : ""}).`,
+        `${PEGIN_OUTPUT_COUNT} for vaultCoreVersion ${version} (vault + ` +
+        `depositor claim + P2A anchor).`,
     );
   }
 

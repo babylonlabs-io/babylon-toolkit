@@ -1304,7 +1304,7 @@ getRegistrationRecordsAtBlock(createdAt): Promise<PeginRegistrationRecord[]>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
 
-Decode every `PegInSubmittedV2` registration in block `createdAt`, the
+Decode every `PegInSubmitted` registration in block `createdAt`, the
 `block.number` stamped on the vault at registration. One query at exactly
 that block, so no range scan is needed and public-RPC range caps do not
 apply. Records are keyed by lowercase vault id; use
@@ -1323,13 +1323,12 @@ apply. Records are keyed by lowercase vault id; use
 ###### Throws
 
 (transient, retry) when the
-node answers with no registration logs for the block at all, or with V1
-registrations only — the registry emits both shapes together, so either
-can be a partial answer.
+node answers with no registration logs for the block at all, which a
+block holding a registration cannot have.
 
 ###### Throws
 
-when a vault has more than one V2 log. Records are decoded
+when a vault has more than one registration log. Records are decoded
 leniently: no transaction is parsed and no script is bound-checked here
 (see `registration-records.ts`).
 
@@ -1346,7 +1345,7 @@ getMaxAcceptableCommissionBpsBatch(vaultIds, createdAt): Promise<number[]>;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
 
 Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
-for vaults registered in the same block, from their `PegInSubmittedV2`
+for vaults registered in the same block, from their `PegInSubmitted`
 logs. Returned in `vaultIds` order.
 
 The contract bound-checks the ceiling and discards it (PeginLogic.sol,
@@ -2849,7 +2848,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 
 **`Experimental`**
 
-One vault's `PegInSubmittedV2` registration log, decoded.
+One vault's `PegInSubmitted` registration log, decoded.
 
 The registry discards several of these values after using them
 (`maxAcceptableCommissionBps` is bound-checked and dropped), so the log is
@@ -3435,7 +3434,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 
 Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
 for vaults registered in the same block `createdAt`, from their
-`PegInSubmittedV2` logs, in `vaultIds` order. The contract discards the
+`PegInSubmitted` logs, in `vaultIds` order. The contract discards the
 ceiling after bound-checking it, so the log is its only on-chain source.
 
 ###### Parameters
@@ -3455,13 +3454,13 @@ readonly `` `0x${string}` ``[]
 ###### Throws
 
 (transient, retry) when the
-node answers with no registration logs for the block at all, with none
-for a vault asked for, or with V1 logs only — the registry emits both
-shapes together, so every one of those can be a partial answer.
+node answers with no registration logs for the block at all, or with none
+for a vault asked for — the registry emits one on every submission, so
+either can be a partial answer.
 
 ###### Throws
 
-when a vault has more than one V2 log.
+when a vault has more than one registration log.
 
 ##### getRegistrationRecordsAtBlock()
 
@@ -3471,7 +3470,7 @@ getRegistrationRecordsAtBlock(createdAt): Promise<PeginRegistrationRecord[]>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
-Decode every `PegInSubmittedV2` registration in block `createdAt`, the
+Decode every `PegInSubmitted` registration in block `createdAt`, the
 `block.number` stamped on the vault at registration. One query at exactly
 that block, so no range scan is needed and public-RPC range caps do not
 apply. Records are keyed by lowercase vault id; use
@@ -3490,13 +3489,12 @@ apply. Records are keyed by lowercase vault id; use
 ###### Throws
 
 (transient, retry) when the
-node answers with no registration logs for the block at all, or with V1
-registrations only — the registry emits both shapes together, so either
-can be a partial answer.
+node answers with no registration logs for the block at all, which a
+block holding a registration cannot have.
 
 ###### Throws
 
-when a vault has more than one V2 log. Records are decoded
+when a vault has more than one registration log. Records are decoded
 leniently: no transaction is parsed and no script is bound-checked here
 (see `registration-records.ts`).
 
@@ -3744,10 +3742,10 @@ babeInstancesToFinalize: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
-##### minVpCommissionBps
+##### maxVpCommissionBps
 
 ```ts
-minVpCommissionBps: number;
+maxVpCommissionBps: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -3875,10 +3873,10 @@ timelockRefund: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
-##### minVpCommissionBps
+##### maxVpCommissionBps
 
 ```ts
-minVpCommissionBps: number;
+maxVpCommissionBps: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -7640,7 +7638,7 @@ readonly [`PeginRegistrationRecord`](#peginregistrationrecord)[]
 
 (transient, retry) when the
 block's registration logs do not include the vault: the registry emits a
-`PegInSubmittedV2` on every submission, so an answer without the target's
+`PegInSubmitted` on every submission, so an answer without the target's
 is as readily a node's partial answer as a vault registered elsewhere.
 
 ***

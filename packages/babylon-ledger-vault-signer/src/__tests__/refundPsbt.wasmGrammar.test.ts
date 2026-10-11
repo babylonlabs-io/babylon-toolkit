@@ -25,7 +25,7 @@ const VP_XONLY = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817
 const KEEPER_XONLY = "25d1dff95105f5253c4022f628a996ad3a0d95fbf21d468a1b33f8c160d8f517";
 const CHALLENGER_XONLY = "2f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01";
 const TIMELOCK_REFUND = 144;
-const TX_GRAPH_VERSION = 2;
+const TX_GRAPH_VERSION = 1;
 
 describe("refund-leaf grammar ↔ WASM builder contract", () => {
   it("parses the WASM-built refund leaf byte-for-byte", async () => {

@@ -173,10 +173,6 @@ function sizingCacheKey(candidate: PeginParamsCandidate): string {
  * reserve is deliberately NOT duplicated: it depends on the candidate's own
  * `minPeginFeeRate`, so a candidate can legitimately fail it, and the verifier
  * applies it where it belongs — as a candidate filter.
- *
- * An absent anchor reads as `0n` because the facade returns `null` for graph
- * versions whose PegIn carries no anchor and never a zero-valued placeholder,
- * which is the same reading `rebuildDepositTermsCore` takes.
  */
 async function computePeginSizing(
   candidate: PeginParamsCandidate,
@@ -203,7 +199,7 @@ async function computePeginSizing(
     ),
     peginP2aAnchorOutput(candidate.vaultCoreVersion),
   ]);
-  const p2aAnchorValue = anchorOutput?.value ?? 0n;
+  const p2aAnchorValue = anchorOutput.value;
 
   if (depositorClaimValue <= 0n) {
     throw new PeginSizingIntegrityError(

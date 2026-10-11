@@ -75,7 +75,7 @@ If the log is unavailable, step 2 becomes a search: enumerate the version-keyed 
 
 ## Limits, honestly
 
-- **`vaultCoreVersion` is taken on trust.** v1 and v2 produce byte-identical HTLC scriptPubKeys, and the amount is inverted using the supplied version's reserve, so both gates pass either way and a wrong value is accepted in silence — the refund is unaffected, but the reported amount split is wrong. Read it from the log. `activeVaultCoreVersion()` is the *current* version and is wrong for any deposit predating a bump. Pinned by a test.
+- **`vaultCoreVersion` is taken from the log, not from the transaction.** The amount is inverted using the supplied version's reserve, so the value check passes whatever version is supplied. What refuses a wrong one is the engine: it builds a single graph version, and a candidate under any other is never evaluated — it is named in the `unresolvedLabels` of a `PeginParamsNotFoundError`, not matched. Read it from the log. `activeVaultCoreVersion()` is the *current* version and is wrong for any deposit predating a bump. Pinned by a test.
 - **`timelockRefund` is the only offchain-params scalar reaching the scriptPubKey.** Two params versions sharing it are indistinguishable to a search. Another reason to use the log.
 - **A multi-vault Pre-PegIn must be recovered whole.** The refund path's anchor check is fail-closed; reconstructing one sibling of a batch is rejected outright.
 - **Some wallets cannot be rescued.** The root depends on the wallet's derivation, so an MPC wallet the depositor has lost access to, or a wallet build implementing an earlier derivation spec, will not reproduce it.

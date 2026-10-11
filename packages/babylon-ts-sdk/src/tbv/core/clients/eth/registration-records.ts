@@ -26,7 +26,7 @@ const HEX_PREFIX_LEN = 2;
  *
  * @throws {RegistrationLogsUnavailableError} (transient, retry) when the
  * block's registration logs do not include the vault: the registry emits a
- * `PegInSubmittedV2` on every submission, so an answer without the target's
+ * `PegInSubmitted` on every submission, so an answer without the target's
  * is as readily a node's partial answer as a vault registered elsewhere.
  * @experimental
  */
@@ -38,11 +38,11 @@ export function findRegistrationRecord(
   const wanted = vaultId.toLowerCase();
   const record = records.find((r) => r.vaultId === wanted);
   if (record === undefined) {
-    // Both shapes are emitted together on every submission
-    // (vault-contracts-aave-v4 `PeginLogic.sol:144-147` @ c559f5c2).
+    // Every submission emits one (vault-contracts-aave-v4
+    // `PeginLogic.sol:144` @ a20b5e0d).
     throw new RegistrationLogsUnavailableError(
       createdAt,
-      `Vault ${vaultId} has no PegInSubmittedV2 registration log at its on-chain registration ` +
+      `Vault ${vaultId} has no PegInSubmitted registration log at its on-chain registration ` +
         `block ${createdAt}: either the node served a partial answer for block ${createdAt} ` +
         `(retry, preferably another node) or the vault was not registered in this block`,
     );
@@ -77,7 +77,7 @@ export function assertRegisteredPayoutScriptBounds(
     (record.depositorPayoutScriptPubKey.length - HEX_PREFIX_LEN) / 2;
   if (bytes === 0 || bytes > MAX_PAYOUT_SCRIPT_LEN) {
     throw new Error(
-      `PegInSubmittedV2 log for vault ${record.vaultId} carries a ${bytes}-byte ` +
+      `PegInSubmitted log for vault ${record.vaultId} carries a ${bytes}-byte ` +
         `depositorPayoutBtcAddress; expected 1..${MAX_PAYOUT_SCRIPT_LEN} bytes`,
     );
   }

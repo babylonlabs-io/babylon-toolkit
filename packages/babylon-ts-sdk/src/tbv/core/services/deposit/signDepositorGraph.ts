@@ -39,7 +39,7 @@ import {
 } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
 import { assertChallengeAssertIsCanonical } from "../../primitives/psbt/challengeAssert";
 import {
-  ASSERT_MARKER_FIRST_VAULT_CORE_VERSION,
+  ASSERT_MARKER_OUTPUT_COUNT,
   ASSERT_NON_CHALLENGER_OUTPUT_COUNT,
   ASSERT_PAYOUT_OUTPUT_INDEX,
   CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER,
@@ -153,26 +153,23 @@ function assertChallengerSetMatchesExpected(
 
 /**
  * Require the Assert to carry exactly one ConnectorX and one ConnectorY per
- * challenger, around output 0 and the CPFP anchor (plus the RFC-008 marker
- * from vault core version 2). The ChallengeAssert vouts are derived from the
- * challenger count, so an Assert built for a different count would shift
- * which connector each ChallengeAssert spends.
+ * challenger, around output 0, the RFC-008 marker and the CPFP anchor. The
+ * ChallengeAssert vouts are derived from the challenger count, so an Assert
+ * built for a different count would shift which connector each
+ * ChallengeAssert spends.
  */
 function assertAssertChallengerOutputCount(
   assertTx: Transaction,
   challengerCount: number,
-  vaultCoreVersion: number,
 ): void {
-  const markerOutputs =
-    vaultCoreVersion >= ASSERT_MARKER_FIRST_VAULT_CORE_VERSION ? 1 : 0;
   const expected =
     ASSERT_NON_CHALLENGER_OUTPUT_COUNT +
     CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER * challengerCount +
-    markerOutputs;
+    ASSERT_MARKER_OUTPUT_COUNT;
   if (assertTx.outs.length !== expected) {
     throw new Error(
-      `Assert must have ${expected} outputs for ${challengerCount} challengers ` +
-        `(vault core version ${vaultCoreVersion}), got ${assertTx.outs.length}`,
+      `Assert must have ${expected} outputs for ${challengerCount} challengers, ` +
+        `got ${assertTx.outs.length}`,
     );
   }
 }
@@ -236,11 +233,7 @@ export async function assertDepositorGraphNoPayoutsCanonical(
   const assertTx = Transaction.fromHex(
     stripHexPrefix(depositorGraph.assert_tx.tx_hex),
   );
-  assertAssertChallengerOutputCount(
-    assertTx,
-    sortedChallengers.length,
-    ctx.vaultCoreVersion,
-  );
+  assertAssertChallengerOutputCount(assertTx, sortedChallengers.length);
 
   const noPayouts: CheckedNoPayout[] = [];
   for (const challenger of depositorGraph.challenger_presign_data) {

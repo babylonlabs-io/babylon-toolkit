@@ -1,5 +1,5 @@
 /**
- * End to end, WASM-backed: a real funded Pre-PegIn (two siblings, graph v3)
+ * End to end, WASM-backed: a real funded Pre-PegIn (two siblings, graph v1)
  * through the claim-time rebuild, and the same chain fixture through the
  * claim-time context reader; the two must pass `assertTermsMatchVault`, the
  * exact check `signDelegatedClaimPlan` runs before loading the intent.
@@ -30,7 +30,7 @@ const mempool = vi.hoisted(() => ({ getUtxoInfo: vi.fn() }));
 vi.mock("../../clients/mempool", () => mempool);
 
 const F = REAL_FUNDED_PREPEGIN;
-const VERSION = 3;
+const VERSION = 1;
 const DEPOSITOR_ETH = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address;
 const APP = "0xaaaa000000000000000000000000000000000001" as Address;
 const VP_ADDRESS = "0xbbbb000000000000000000000000000000000002" as Address;
@@ -207,7 +207,7 @@ function readers(fx: ChainFixture) {
         feeRate: F.PROTOCOL_FEE_RATE,
         babeTotalInstances: 1,
         babeInstancesToFinalize: 1,
-        minVpCommissionBps: 0,
+        maxVpCommissionBps: 500,
         tRefund: F.TIMELOCK_REFUND,
         tStale: 1,
         minPeginFeeRate: F.MIN_PEGIN_FEE_RATE,
@@ -226,7 +226,7 @@ describe("rebuildDepositTermsForClaim golden (WASM-backed, matched against the c
     vi.clearAllMocks();
   });
 
-  it("rebuilds two-vault v3 terms from chain fixtures that pass assertTermsMatchVault against the context read from the same fixtures", async () => {
+  it("rebuilds two-vault Core 1 terms from chain fixtures that pass assertTermsMatchVault against the context read from the same fixtures", async () => {
     const { txHex, dcv, fee, anchor } = await buildRealFundedTx(
       VERSION,
       SIBLINGS,

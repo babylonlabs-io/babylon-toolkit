@@ -68,7 +68,7 @@ export interface PrePeginResult {
   txHex: string;
   /** Transaction ID of the unfunded Pre-PegIn transaction */
   txid: string;
-  /** Per-HTLC output values in satoshis (peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee each; anchor is 0 on vault core 1) */
+  /** Per-HTLC output values in satoshis (peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee each) */
   htlcValues: readonly bigint[];
   /** Per-HTLC output scriptPubKeys (hex encoded) */
   htlcScriptPubKeys: readonly string[];
@@ -85,10 +85,8 @@ export interface PrePeginResult {
  */
 export interface PeginTxResult {
   /**
-   * PegIn transaction hex. 1 input spending the HTLC output; outputs are
-   * version-shaped: v1 = vault + depositor claim (nVersion 2), v2/v3 = vault +
-   * depositor claim + P2A anchor at vout 2 (nVersion 3 / TRUC). Vault Core 3
-   * reuses Core 2's shape verbatim — only the off-chain BaBe backend differs.
+   * PegIn transaction hex (nVersion 3 / TRUC). 1 input spending the HTLC
+   * output; outputs are vault + depositor claim + P2A anchor at vout 2.
    */
   txHex: string;
   /** PegIn transaction ID */
@@ -101,16 +99,14 @@ export interface PeginTxResult {
 
 /**
  * A graph version's PegIn P2A (pay-to-anchor) output description, copied out
- * of the WASM object into plain JS. v2/v3: 240 sats at vout 2, script
- * `51024e73`. Versions without an anchor (v1) yield `null` from
- * `peginP2aAnchorOutput`, never a zero-valued record.
+ * of the WASM object into plain JS: 240 sats at vout 2, script `51024e73`.
  */
 export interface PeginP2aAnchorInfo {
-  /** Anchor output value in satoshis (240 for v2/v3) */
+  /** Anchor output value in satoshis (240) */
   value: bigint;
-  /** Anchor output index in the PegIn transaction (2 for v2/v3) */
+  /** Anchor output index in the PegIn transaction (2) */
   vout: number;
-  /** Anchor scriptPubKey hex (`51024e73` for v2/v3) */
+  /** Anchor scriptPubKey hex (`51024e73`) */
   scriptPubKey: string;
 }
 
@@ -336,7 +332,7 @@ export interface WotsKeypairDerivation {
  * WASM boundary takes.
  */
 export interface WatchtowerArtifactsInputs {
-  /** Graph version selecting the builder. Delegated claim requires 3. */
+  /** Graph version selecting the builder: the vault's stamped `vaultCoreVersion`. */
   txGraphVersion: number;
   /** JSON-serialized TxGraph exactly as the vault provider returned it. */
   graphJson: string;
