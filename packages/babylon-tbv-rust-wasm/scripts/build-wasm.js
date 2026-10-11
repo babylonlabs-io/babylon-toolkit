@@ -22,12 +22,10 @@ const VAULT_WASM_BRANCH = 'main';
 // (v1 @ 2c1177ec, v2 @ 27c0062b, v3 @ b534ff9e) are gone. Post-reset Core 1
 // is the pre-reset Core 3 graph under a new number, so for the same inputs
 // graph v1 now builds the bytes graph v3 built (pinned by vault-wasm's golden
-// test); the vault-secret derivations are unchanged. The only btc-vault rev it
-// bundles, 5bc96f5c, is reachable from btc-vault main.
-// TODO: this is the head of the vault-wasm re-pin branch, reachable from that
-// branch only, not from main; set it to the vault-wasm main commit that lands
-// the re-pin before merge.
-const VAULT_WASM_COMMIT = '63e5f4c9393b40a655f7ff69e071fe91f87a2269';
+// test); the vault-secret derivations are unchanged. The commit is on
+// vault-wasm main, and the only btc-vault rev it bundles, 5bc96f5c, is on
+// btc-vault main.
+const VAULT_WASM_COMMIT = '7a0e88715ddd0a50ecb1c177c3f389cc46cf3bd8';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');

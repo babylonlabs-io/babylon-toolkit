@@ -277,7 +277,7 @@ function leafKeyHexOf(script: Uint8Array): string {
  *   leaf parsed by {@link parsePayoutLeafScript}, requested index 1, AND
  *   input 0 carrying no leaf and no derivation entry for D — the shape the
  *   claimer builder emits: btc-vault `5bc96f5c` (the rev the facade bundles,
- *   `build-wasm.js:20-30`) populates taproot metadata on `ASSERT_PAYOUT_INPUT`
+ *   `build-wasm.js:20-28`) populates taproot metadata on `ASSERT_PAYOUT_INPUT`
  *   only (`transactions/payout.rs:449-466`; `psbt.rs:125-144` sets
  *   `witness_utxo` on every input, leaf and key origins on listed ones).
  *   The depositor Payout is the same unsigned transaction with a leaf on

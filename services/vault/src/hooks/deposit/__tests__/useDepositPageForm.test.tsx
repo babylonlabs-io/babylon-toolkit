@@ -565,7 +565,7 @@ describe("useDepositPageForm", () => {
       const originalImpl = ctxMock.getMockImplementation();
       ctxMock.mockReturnValue({
         config: {
-          // Real WASM is mocked to support [1, 2]; 99 must fail closed.
+          // Real WASM is mocked to support [1]; 99 must fail closed.
           activeVaultCoreVersion: 99,
           offchainParams: {
             babeInstancesToFinalize: 2,
