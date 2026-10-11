@@ -25,10 +25,10 @@ import { fileURLToPath } from "node:url";
 import { toFunctionSelector } from "viem";
 
 /**
- * Contract revisions the dApp decodes: aave-v4 main, which devnet is being
- * upgraded to. Update when the dApp moves to a newer contracts revision.
+ * Contract revisions the dApp decodes: vault-contracts-aave-v4 main, which
+ * devnet runs. Update when the dApp moves to a newer contracts revision.
  */
-const REVISIONS = [{ rev: "0e4ed2e5", note: "main" }];
+const REVISIONS = [{ rev: "a20b5e0d", note: "main" }];
 
 /** Aave v4 sources compiled alongside `src/` so their errors are collected. */
 const AAVE_EXTRA_SOURCES = ["lib/aave-v4/src/spoke/Spoke.sol", "lib/aave-v4/src/hub/Hub.sol"];

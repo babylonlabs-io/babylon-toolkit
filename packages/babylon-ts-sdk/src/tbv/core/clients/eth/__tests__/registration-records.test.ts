@@ -48,7 +48,7 @@ describe("findRegistrationRecord", () => {
     ).toEqual(record());
   });
 
-  // The registry emits a PegInSubmittedV2 on every submission, so a missing
+  // The registry emits a PegInSubmitted on every submission, so a missing
   // one is as readily a node's partial answer as a vault registered elsewhere.
   it("throws the typed transient error when the block's records do not include the vault", () => {
     expect(() =>
