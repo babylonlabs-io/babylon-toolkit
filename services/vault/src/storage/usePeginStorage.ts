@@ -99,7 +99,11 @@ export interface UsePeginStorageResult {
    * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
    * optimistic-suppression TTL.
    */
-  markRefundBroadcast: (vaultId: string, refundBroadcastAt: number) => void;
+  markRefundBroadcast: (
+    vaultId: string,
+    refundBroadcastAt: number,
+    refundTxId?: string,
+  ) => void;
 }
 
 /** The error code last reported this session, per address. */
@@ -367,9 +371,14 @@ export function usePeginStorage({
   );
 
   const markRefundBroadcast = useCallback(
-    (vaultId: string, refundBroadcastAt: number) => {
+    (vaultId: string, refundBroadcastAt: number, refundTxId?: string) => {
       if (!ethAddress) return;
-      markRefundBroadcastInStorage(ethAddress, vaultId, refundBroadcastAt);
+      markRefundBroadcastInStorage(
+        ethAddress,
+        vaultId,
+        refundBroadcastAt,
+        refundTxId,
+      );
     },
     [ethAddress],
   );

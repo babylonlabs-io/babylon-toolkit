@@ -43,6 +43,7 @@ import {
   LIQUIDATION_CHART_STOP,
   LIQUIDATION_TOUR_STOPS,
   screenshotFileName,
+  VAULT_REFUND_STOPS,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
 } from "./targets";
@@ -434,6 +435,7 @@ export async function ensureOutputDir(): Promise<void> {
       ),
     ),
     ...[
+      ...Object.values(VAULT_REFUND_STOPS),
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
       LIQUIDATION_CHART_STOP,

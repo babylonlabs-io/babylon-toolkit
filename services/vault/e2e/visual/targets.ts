@@ -19,7 +19,7 @@
  * claim nothing changed.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import type { RecordedBackend } from "../fixtures/replay/recording";
 
@@ -154,6 +154,24 @@ export const DEPOSIT_PROGRESS_STOPS = {
   /** The stepper for a two-vault batch whose lanes sit on different steps. */
   split: "deposit-progress-split",
 } as const;
+
+export const VAULT_REFUND_STOPS = {
+  refunding: "vaults-refunding",
+  refunded: "vaults-refunded",
+} as const;
+
+// CI runs this test harness against the earlier UI too.
+const vaultsLifecycleSource = readFileSync(
+  new URL(
+    "../../src/components/vaults/VaultsLifecycleSections.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+export const HAS_REFUND_TX_LINK = vaultsLifecycleSource.includes("refundTxId");
+export const HAS_CONFIRMED_REFUND = vaultsLifecycleSource.includes(
+  "isRefundInFlightOrSettled",
+);
 
 /**
  * The liquidations chart, charted from the god-mode cascade simulator over

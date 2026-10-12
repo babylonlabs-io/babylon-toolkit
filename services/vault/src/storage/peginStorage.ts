@@ -42,6 +42,7 @@ export interface PendingPeginRequest {
   // can be evicted from the mempool and never confirm, so the suppression must
   // expire to let the user retry instead of permanently hiding the action.
   refundBroadcastAt?: number;
+  refundTxId?: string;
   payoutSignedAt?: number;
   /**
    * `"returned"` when this browser's normal activation landed but its receipt
@@ -950,6 +951,7 @@ export function markRefundBroadcast(
   ethAddress: string,
   vaultId: string,
   refundBroadcastAt: number,
+  refundTxId?: string,
 ): void {
   if (!ethAddress) return;
 
@@ -963,6 +965,7 @@ export function markRefundBroadcast(
           ...(entry as object),
           status: LocalStorageStatus.REFUND_BROADCAST,
           refundBroadcastAt,
+          refundTxId,
           // Qualifies CONFIRMED only; the read filter rejects it on any other
           // status, which would hide this record and its refund marker.
           activationOutcome: undefined,

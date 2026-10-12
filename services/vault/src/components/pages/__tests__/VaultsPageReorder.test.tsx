@@ -38,11 +38,9 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: () => undefined,
 }));
 
-// The real useVaultsPageEmptiness reads useActionableExpiredDeposits, which
-// needs the polling context. No case here has an expired deposit, so an empty
-// result keeps every expired activity actionable.
-vi.mock("@/context/deposit/PeginPollingContext", () => ({
-  usePeginPolling: () => ({ getPollingResult: () => undefined }),
+// Reclaim checks read this module before the test renders a row.
+vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
+  isLedgerVaultConnector: () => false,
 }));
 
 // The real gate decides what this page treats as connected. A hand-supplied
