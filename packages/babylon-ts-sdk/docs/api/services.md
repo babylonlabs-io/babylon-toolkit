@@ -1598,7 +1598,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriv
 
 **`Experimental`**
 
-Graph version. Delegated claim requires 3.
+Graph version. Delegated claim requires `DELEGATED_CLAIM_TX_GRAPH_VERSION`.
 
 ##### expectedWotsPkHash
 
@@ -1981,7 +1981,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readD
 
 **`Experimental`**
 
-The target's own `PegInSubmittedV2` log.
+The target's own `PegInSubmitted` log.
 
 ##### registrationRecords
 
@@ -2326,19 +2326,18 @@ The small, non-opaque fields of an `artifacts.json` file.
 
 #### Properties
 
-##### vaultCoreVersion?
+##### vaultCoreVersion
 
 ```ts
-optional vaultCoreVersion: number;
+vaultCoreVersion: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 **`Experimental`**
 
-Vault Core version the file records, absent on files written before the
-field existed. `assertArtifactsUsableForVault` refuses a file whose
-value differs from the version it verifies under.
+Vault Core version the file records. `assertArtifactsUsableForVault`
+refuses a file whose value differs from the version it verifies under.
 
 ##### vaultId
 
@@ -2584,7 +2583,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 **`Experimental`**
 
-Graph (vault core) version of the vault. Delegated claim requires 3.
+Graph (vault core) version of the vault. Delegated claim requires `DELEGATED_CLAIM_TX_GRAPH_VERSION`.
 
 ##### proverCircuitVersion
 
@@ -5666,7 +5665,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 Whether the file carries BaBe sessions.
 
-An unjoined file (`babe_sessions` empty or absent) is the normal output of
+An unjoined file (`babe_sessions` empty) is the normal output of
 a browser assembly, and it cannot defend a claim. Claim, Assert and Payout
 finalize without the sessions, but answering a `ChallengeAssert` needs
 them: the watchtower decrypts the hashlock preimage from the joined
@@ -6038,7 +6037,8 @@ version if you build on it.
 #### Throws
 
 If the vault provider's verifying key is not `trustedVerifyingKeyHex`,
-        if the graph is not version 3, if a binding check fails, if the
+        if the graph is not `DELEGATED_CLAIM_TX_GRAPH_VERSION`, if a
+        binding check fails, if the
         wallet returns a signature that does not verify, or if the graph's
         own presignatures are incomplete.
 
@@ -6276,7 +6276,8 @@ If the vault provider's verifying key is not the trusted one, if
         `depositorPublicKey` is not the vault's registered depositor key,
         the registered payout script is not derived from it,
         the graph version and the vault context's vault core version
-        disagree, the graph is not version 3, any binding check fails, or
+        disagree, the graph is not `DELEGATED_CLAIM_TX_GRAPH_VERSION`, any
+        binding check fails, or
         the Payout's CSV sequences, declared prevout amounts or implicit fee
         do not match the vault's stamped timelocks, its PegIn and Assert
         outputs, and the fee band.
@@ -8081,15 +8082,15 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](http
 ### DELEGATED\_CLAIM\_TX\_GRAPH\_VERSION
 
 ```ts
-const DELEGATED_CLAIM_TX_GRAPH_VERSION: 3 = 3;
+const DELEGATED_CLAIM_TX_GRAPH_VERSION: 1 = 1;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 **`Experimental`**
 
-Graph version the delegated-claim artifacts format exists for. Vaults on
-graph v1 and v2 predate it and have no artifacts path at all.
+Graph version the delegated-claim artifacts format exists for: post-reset
+Vault Core 1, the only graph the bundled WASM builds.
 
 ***
 

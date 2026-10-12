@@ -40,9 +40,9 @@ export async function readWithdrawCommissionSats(
 
   return vaultIds.reduce((total, vaultId, i) => {
     const bps = protocolInfos[i].vaultProviderCommissionBps;
-    // The vault's snapshot is the only rate that applies, so no minimum is
-    // passed: this checks only that the read is a realizable rate.
-    assertVpCommissionInProtocolRange(bps, 0);
+    // The vault's snapshot is the only rate that applies: this checks only
+    // that the read is a rate the registry could have accepted.
+    assertVpCommissionInProtocolRange(bps);
     const basicInfo = basicInfos.get(vaultId.toLowerCase() as Hex);
     if (!basicInfo) {
       throw new Error(`No on-chain amount read for vault ${vaultId}`);

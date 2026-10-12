@@ -37,7 +37,7 @@ import {
 
 /**
  * nVersion for the reclaim transaction. Plain v2, not TRUC: the reserve is only
- * offered once its PegIn is deeply confirmed, so the v2/v3 PegIn's nVersion-3
+ * offered once its PegIn is deeply confirmed, so the PegIn's nVersion-3
  * topology limits no longer constrain its children.
  */
 const RECLAIM_TX_VERSION = 2;

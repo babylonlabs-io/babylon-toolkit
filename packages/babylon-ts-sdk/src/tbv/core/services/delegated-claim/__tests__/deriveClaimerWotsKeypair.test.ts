@@ -51,7 +51,7 @@ async function derive(expectedWotsPkHash = PK_HASH) {
     vaultContext: VAULT_CONTEXT,
     htlcVout: 0,
     txGraphJson: "{graph}",
-    txGraphVersion: 3,
+    txGraphVersion: 1,
     expectedWotsPkHash,
   });
 }
@@ -91,7 +91,7 @@ describe("deriveClaimerWotsKeypair", () => {
     await derive();
 
     expect(wasm.validateWotsKeypairAgainstGraph).toHaveBeenCalledWith(
-      3,
+      1,
       { blocks: [["00"]] },
       "{graph}",
     );

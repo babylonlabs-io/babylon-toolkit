@@ -34,11 +34,8 @@ import {
 } from "../utils/bitcoin";
 
 /**
- * Vout of the depositor-claim output in every PegIn version (btc-vault: vault
- * at 0, depositor claim at 1, optional P2A anchor appended after).
- *
- * Version-invariant: the graph version dispatches only the trailing P2A anchor
- * (absent in v1, 240 sats at vout 2 in v2/v3). Nothing touches vout 1.
+ * Vout of the depositor-claim output in the PegIn (btc-vault: vault at 0,
+ * depositor claim at 1, the 240-sat P2A anchor at 2).
  */
 export const PEGIN_DEPOSITOR_CLAIM_VOUT = 1;
 
@@ -67,7 +64,7 @@ export interface DepositorClaimDescriptor {
  * WASM — the Rust `SingleKeyConnector` has no WASM wrapper, so this is the
  * only derivation available on the JS side.
  *
- * Takes no graph version: the connector is identical across v1/v2/v3. A future
+ * Takes no graph version: the connector does not depend on it. A future
  * `VAULT_WASM_COMMIT` bump that changed it would break `assertPeginTxShape` at
  * peg-in build time, which is where that regression should surface.
  *

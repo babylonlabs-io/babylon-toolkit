@@ -467,12 +467,7 @@ describe("ViemVaultRegistryReader", () => {
 
     // Decoded logs as viem's strict getLogs hands them back: args keyed by the
     // ABI input names, topics lowercase.
-    const v1Log = (vaultId: Hex) => ({
-      eventName: "PegInSubmitted",
-      args: { vaultId },
-      blockNumber: CREATED_AT,
-    });
-    const v2Log = (
+    const registrationLog = (
       vaultId: Hex,
       maxAcceptableCommissionBps: number,
       over: Partial<{
@@ -482,14 +477,14 @@ describe("ViemVaultRegistryReader", () => {
         unsignedPrePeginTx: Hex;
       }> = {},
     ) => ({
-      eventName: "PegInSubmittedV2",
+      eventName: "PegInSubmitted",
       args: {
         vaultId,
         peginTxHash: `0x${"ee".repeat(32)}` as Hex,
         depositor: DEPOSITOR,
         vaultProvider: VAULT_PROVIDER,
         amount: 1_000_000n,
-        vaultCoreVersion: 3,
+        vaultCoreVersion: 1,
         universalChallengersVersion: 5,
         appVaultKeepersVersion: 4,
         proverCircuitVersion: 7,
@@ -521,12 +516,10 @@ describe("ViemVaultRegistryReader", () => {
     }
 
     describe("getRegistrationRecordsAtBlock", () => {
-      it("decodes every V2 registration in the block: payout script, circuit version, ceiling, and the logged unsigned Pre-PegIn", async () => {
+      it("decodes every registration in the block: payout script, circuit version, ceiling, and the logged unsigned Pre-PegIn", async () => {
         const { publicClient, reader } = readerWithLogs([
-          v1Log(VAULT_A),
-          v2Log(VAULT_A, 35),
-          v1Log(VAULT_B),
-          v2Log(VAULT_B, 125, { htlcVout: 1 }),
+          registrationLog(VAULT_A, 35),
+          registrationLog(VAULT_B, 125, { htlcVout: 1 }),
         ]);
 
         const records = await reader.getRegistrationRecordsAtBlock(CREATED_AT);
@@ -536,7 +529,7 @@ describe("ViemVaultRegistryReader", () => {
           depositor: DEPOSITOR,
           vaultProvider: VAULT_PROVIDER,
           amount: 1_000_000n,
-          vaultCoreVersion: 3,
+          vaultCoreVersion: 1,
           proverCircuitVersion: 7,
           peginTxHash: `0x${"ee".repeat(32)}`,
           depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
@@ -545,16 +538,14 @@ describe("ViemVaultRegistryReader", () => {
           blockNumber: CREATED_AT,
         });
         expect(records).toHaveLength(2);
-        // One answer must carry BOTH events so "no V2" can be told apart from
-        // "the node served nothing": exactly the registration block, strict so
-        // a log that does not decode against the ABI cannot pass as args: {}.
+        // One unfiltered answer for exactly the registration block, so "the
+        // node served nothing" can be told apart from "no log for this vault";
+        // strict so a log that does not decode against the ABI cannot pass as
+        // args: {}.
         expect(publicClient.getLogs).toHaveBeenCalledTimes(1);
         expect(publicClient.getLogs).toHaveBeenCalledWith({
           address: MOCK_ADDRESS,
-          events: [
-            getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
-            getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmittedV2" }),
-          ],
+          event: getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
           fromBlock: CREATED_AT,
           toBlock: CREATED_AT,
           strict: true,
@@ -578,45 +569,23 @@ describe("ViemVaultRegistryReader", () => {
         expect(isRegistrationLogsUnavailableError(caught)).toBe(true);
       });
 
-      // The registry emits V1 and V2 together on every submission
-      // (vault-contracts-aave-v4 PeginLogic.sol:144-147 @ c559f5c2), so a
-      // V1-only answer is as readily a partial one as a pre-#548 registry.
-      it("throws the typed transient error when the block carries V1 registrations only", async () => {
-        const { reader } = readerWithLogs([v1Log(VAULT_A)]);
-
-        const caught = await reader
-          .getRegistrationRecordsAtBlock(CREATED_AT)
-          .then(
-            () => null,
-            (err: unknown) => err,
-          );
-
-        expect(caught).toBeInstanceOf(RegistrationLogsUnavailableError);
-        expect((caught as Error).message).toContain(
-          `either the node served a partial answer for block ${CREATED_AT} (retry, preferably another node) or the registry predates the depositor's commission ceiling`,
-        );
-      });
-
-      it("throws when a vault has more than one V2 log at the block", async () => {
+      it("throws when a vault has more than one registration log at the block", async () => {
         const { reader } = readerWithLogs([
-          v1Log(VAULT_A),
-          v2Log(VAULT_A, 35),
-          v2Log(VAULT_A, 35),
+          registrationLog(VAULT_A, 35),
+          registrationLog(VAULT_A, 35),
         ]);
 
         await expect(
           reader.getRegistrationRecordsAtBlock(CREATED_AT),
         ).rejects.toThrow(
-          `Expected one PegInSubmittedV2 log for vault ${VAULT_A} at block ${CREATED_AT}, found more than one`,
+          `Expected one PegInSubmitted log for vault ${VAULT_A} at block ${CREATED_AT}, found more than one`,
         );
       });
 
       it("decodes a stranger's odd registration in the same block without failing the read", async () => {
         const { reader } = readerWithLogs([
-          v1Log(VAULT_A),
-          v2Log(VAULT_A, 35),
-          v1Log(VAULT_B),
-          v2Log(VAULT_B, 40, {
+          registrationLog(VAULT_A, 35),
+          registrationLog(VAULT_B, 40, {
             depositor: OTHER_DEPOSITOR,
             depositorPayoutBtcAddress: "0x" as Hex,
             unsignedPrePeginTx: "0x00" as Hex,
@@ -632,10 +601,8 @@ describe("ViemVaultRegistryReader", () => {
     describe("getMaxAcceptableCommissionBpsBatch", () => {
       it("returns each vault's ceiling aligned to the input order", async () => {
         const { reader } = readerWithLogs([
-          v1Log(VAULT_A),
-          v2Log(VAULT_A, 35),
-          v1Log(VAULT_B),
-          v2Log(VAULT_B, 125),
+          registrationLog(VAULT_A, 35),
+          registrationLog(VAULT_B, 125),
         ]);
 
         await expect(
@@ -649,7 +616,7 @@ describe("ViemVaultRegistryReader", () => {
       // The node returns lowercase topics; a checksummed or uppercase caller id
       // must still match rather than read as "no log".
       it("matches vault ids case-insensitively", async () => {
-        const { reader } = readerWithLogs([v1Log(VAULT_A), v2Log(VAULT_A, 35)]);
+        const { reader } = readerWithLogs([registrationLog(VAULT_A, 35)]);
 
         await expect(
           reader.getMaxAcceptableCommissionBpsBatch(
@@ -660,10 +627,7 @@ describe("ViemVaultRegistryReader", () => {
       });
 
       it("throws the typed transient error when the block's registration logs do not include the vault at all", async () => {
-        const { reader } = readerWithLogs([
-          v1Log(OTHER_VAULT),
-          v2Log(OTHER_VAULT, 5),
-        ]);
+        const { reader } = readerWithLogs([registrationLog(OTHER_VAULT, 5)]);
 
         const caught = await reader
           .getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT)
@@ -674,7 +638,7 @@ describe("ViemVaultRegistryReader", () => {
 
         expect(caught).toBeInstanceOf(RegistrationLogsUnavailableError);
         expect((caught as Error).message).toContain(
-          `Vault ${VAULT_A} has no PegInSubmittedV2 registration log at its on-chain registration block ${CREATED_AT}`,
+          `Vault ${VAULT_A} has no PegInSubmitted registration log at its on-chain registration block ${CREATED_AT}`,
         );
       });
 
@@ -689,17 +653,13 @@ describe("ViemVaultRegistryReader", () => {
     });
   });
 
-  // Pins both ABI entries to the deployed contract: these are the topic0
-  // values of the V1 and V2 logs observed side by side in one registration
-  // block on the devnet registry (Sepolia, vault-contracts-aave-v4 #548).
+  // Pins the ABI entry to the deployed contract: the topic0 that
+  // vault-contracts-aave-v4 `snapshots/selectors.md:1348` @ a20b5e0d lists for
+  // PegInSubmitted, and that the devnet registry's registration logs carry.
   it.each([
     [
       "PegInSubmitted",
-      "0x01a09d956e6fb4dce99bc1a91b2a9b1bc7d3345f3a69e13029cf365d4231a19b",
-    ],
-    [
-      "PegInSubmittedV2",
-      "0x4507e4ff3dfdfa42e9b1daf5469138047f35e6a7bf13840ce822d4ddeb5e79ea",
+      "0xd9f9a12f54708dccc88ce15eafeab0fe546c0646cfe65191b0c15ff27a0cce75",
     ],
     // keccak256 of the signature read off vault-contracts-aave-v4
     // Events.sol: VaultClaimableBy(bytes32,bytes32,bytes32,uint16,uint16,

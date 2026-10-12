@@ -103,7 +103,7 @@ function makeVault(over: Partial<OnChainVaultData> = {}): OnChainVaultData {
   } as OnChainVaultData;
 }
 
-// Chain record + the PegInSubmittedV2 ceiling, as the homogeneity gate sees it.
+// Chain record + the PegInSubmitted ceiling, as the homogeneity gate sees it.
 function makeRecord(
   over: Partial<RebuildVaultRecord> = {},
 ): RebuildVaultRecord {
@@ -387,7 +387,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
         securityCouncilKeys: ["c1", "c2", "c3"],
         timelockAssert: 150n,
         tRefund: 144,
-        minVpCommissionBps: 10,
+        maxVpCommissionBps: 10,
       }),
       getTimelockPeginByVersion: vi.fn().mockResolvedValue(100),
       getTBVProtocolParams: mockGetTBVProtocolParams,
@@ -437,7 +437,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       timelockRefund: 144, // tRefund mapping
       prepeginTxid: "12".repeat(32), // stripped + lowercased
       prepeginMaxFee: 1234n,
-      maxAcceptableCommissionBps: 300, // the emitted PegInSubmittedV2 ceiling, verbatim
+      maxAcceptableCommissionBps: 300, // the emitted PegInSubmitted ceiling, verbatim
       network: "signet",
     });
     // Each member's ceiling is read from its own registration block.

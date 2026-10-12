@@ -11,12 +11,18 @@
  */
 
 /**
- * Vault-core (tx-graph) versions the device can sign: v2 is the firmware's
- * Core-2 tx shape; v3 is byte-identical (btc-vault e1e50f66; SDK parity vector
- * pegin.test.ts). Widen only on evidence a future version is device-compatible.
+ * Vault-core (tx-graph) versions the device can sign. Unlike the caps above,
+ * the firmware has no version field: the intent TLV carries no Core, and the
+ * device accepts one PegIn shape — nVersion 3, one input, three outputs with
+ * a 240-sat P2A anchor (`sign_psbt_validate.c:1426-1432`,
+ * `vault_constants.h:118,134`). Post-reset Core 1 is that shape (btc-vault
+ * `PegInTx::expected_tx_version` / `expected_num_outputs`,
+ * `crates/vault/src/transactions/pegin.rs:92-106` @ 5bc96f5c), and every other
+ * Core is refused by btc-vault. Widen only on evidence a future version keeps
+ * the shape.
  */
-export const DEVICE_MIN_VAULT_CORE_VERSION = 2;
-export const DEVICE_MAX_VAULT_CORE_VERSION = 3;
+export const DEVICE_MIN_VAULT_CORE_VERSION = 1;
+export const DEVICE_MAX_VAULT_CORE_VERSION = 1;
 
 /**
  * Keeper and universal-challenger counts, each `[1, 32]` (`vault_intent.h:8-9`,

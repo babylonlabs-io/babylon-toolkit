@@ -1,5 +1,5 @@
 /**
- * Pins the tx-graph versions the vendored vault-wasm binary supports and
+ * Pins the tx-graph version the vendored vault-wasm binary supports and
  * that the facade fails closed on anything else (a pin bump that drops v1
  * would strand in-flight deposits), plus the on-chain-value validation
  * every version source runs before a version reaches a WASM builder.
@@ -16,86 +16,60 @@ import { describe, expect, it } from "vitest";
 import { assertValidVaultCoreVersion } from "../vaultCoreVersion";
 
 describe("tx graph version surface (vendored vault-wasm binary)", () => {
-  it("supports exactly graph versions 1, 2 and 3", async () => {
-    expect(await supportedTxGraphVersions()).toEqual([1, 2, 3]);
+  it("supports exactly graph version 1", async () => {
+    expect(await supportedTxGraphVersions()).toEqual([1]);
   });
 
-  it("fails closed on a version the binary does not support", async () => {
-    await expect(computeMinPeginFee(4, 2, 1, 1n)).rejects.toThrow(
-      /unsupported tx graph version/,
-    );
-  });
+  // The testnet reset renumbered the active Vault Core from 3 to 1, so the
+  // binary refuses the pre-reset numbers 2 and 3 as well as unknown ones.
+  it.each([2, 3, 4])(
+    "fails closed on graph version %i, which the binary does not support",
+    async (version) => {
+      await expect(computeMinPeginFee(version, 2, 1, 1n)).rejects.toThrow(
+        `unsupported tx graph version: ${version} (supported: 1)`,
+      );
+    },
+  );
 });
 
 describe("PegIn P2A anchor surface (vendored vault-wasm binary)", () => {
-  it("v1 has no anchor (null), never a zero-valued placeholder", async () => {
-    expect(await peginP2aAnchorOutput(1)).toBeNull();
-  });
-
-  it("v2 anchor pins to 240 sats at vout 2 with the P2A script", async () => {
-    expect(await peginP2aAnchorOutput(2)).toEqual({
+  it("v1 anchor pins to 240 sats at vout 2 with the P2A script", async () => {
+    expect(await peginP2aAnchorOutput(1)).toEqual({
       value: 240n,
       vout: 2,
       scriptPubKey: "51024e73",
     });
   });
 
-  // Vault Core 3 reuses Core 2's Bitcoin shape verbatim (btc-vault #2634
-  // changes only the off-chain BaBe backend), so its anchor record is the v2
-  // one. A divergence here means the shapes have parted and the v3 parity
-  // vector in pegin.test.ts is no longer valid.
-  it("v3 anchor is identical to v2 (Core 3 reuses Core 2's shape)", async () => {
-    expect(await peginP2aAnchorOutput(3)).toEqual({
-      value: 240n,
-      vout: 2,
-      scriptPubKey: "51024e73",
-    });
-  });
-
-  it("fails closed on an unsupported version instead of returning null", async () => {
-    await expect(peginP2aAnchorOutput(4)).rejects.toThrow(
-      /unsupported tx graph version/,
+  it("fails closed on an unsupported version instead of returning no anchor", async () => {
+    await expect(peginP2aAnchorOutput(2)).rejects.toThrow(
+      "unsupported tx graph version: 2 (supported: 1)",
     );
   });
 
-  // The pinned golden PegIn hexes from pegin.test.ts, reused to pin the
-  // validator's cross-version fail-closed behavior against the real binary.
-  const V1_PEGIN_HEX =
-    "0200000001c66b93ce2325af6f2e8488d50fb2d48e7e320d5c5206de5152c859ad3b189da90000000000feffffff02a086010000000000225120367fb4fcbbe8a43626f4fb89398f47407d7e8e0318985c7a0d8fdb74b718bfc0fe5000000000000022512089b13f1de2d5bc700695813283363c8c3464dd9597994c072ca5e4df022c394700000000";
-  const V2_PEGIN_HEX =
+  // The pinned Core 1 golden PegIn hex from pegin.test.ts, and an anchorless
+  // two-output nVersion-2 PegIn: the pre-reset Core 1 shape, which the reset
+  // retired while reusing its version number.
+  const CORE_1_PEGIN_HEX =
     "030000000173ce2a94c3e428d7e7bdc83db4427f790c78e623397566c16834c984da4d0ff50000000000feffffff03a086010000000000225120367fb4fcbbe8a43626f4fb89398f47407d7e8e0318985c7a0d8fdb74b718bfc06e5100000000000022512089b13f1de2d5bc700695813283363c8c3464dd9597994c072ca5e4df022c3947f0000000000000000451024e7300000000";
+  const ANCHORLESS_PEGIN_HEX =
+    "0200000001c66b93ce2325af6f2e8488d50fb2d48e7e320d5c5206de5152c859ad3b189da90000000000feffffff02a086010000000000225120367fb4fcbbe8a43626f4fb89398f47407d7e8e0318985c7a0d8fdb74b718bfc0fe5000000000000022512089b13f1de2d5bc700695813283363c8c3464dd9597994c072ca5e4df022c394700000000";
 
-  it("accepts the v2 golden PegIn under v2 rules", async () => {
+  it("accepts the Core 1 golden PegIn under v1 rules", async () => {
     await expect(
-      validatePeginP2aAnchor(2, V2_PEGIN_HEX),
+      validatePeginP2aAnchor(1, CORE_1_PEGIN_HEX),
     ).resolves.toBeUndefined();
   });
 
-  it("rejects the v1 golden PegIn under v2 rules (missing anchor)", async () => {
-    await expect(validatePeginP2aAnchor(2, V1_PEGIN_HEX)).rejects.toThrow(
-      /missing P2A anchor/,
-    );
-  });
-
-  it("rejects the v2 golden PegIn under v1 rules (anchor must be absent)", async () => {
-    await expect(validatePeginP2aAnchor(1, V2_PEGIN_HEX)).rejects.toThrow(
-      /carry no P2A anchor/,
-    );
-  });
-
-  // v3 shares v2's anchor rule, so the v2 golden PegIn passes under v3 and the
-  // v1 one still fails. The validator discriminates on transaction shape, so
-  // it separates v1 from {v2, v3} but cannot separate v2 from v3 — the two
-  // pinned builders emit identical bytes, so there is nothing to separate.
-  it("accepts the v2 golden PegIn under v3 rules (shared anchor rule)", async () => {
+  it("rejects an anchorless PegIn under v1 rules (missing anchor)", async () => {
     await expect(
-      validatePeginP2aAnchor(3, V2_PEGIN_HEX),
-    ).resolves.toBeUndefined();
+      validatePeginP2aAnchor(1, ANCHORLESS_PEGIN_HEX),
+    ).rejects.toThrow(/missing P2A anchor/);
   });
 
-  it("rejects the v1 golden PegIn under v3 rules (missing anchor)", async () => {
-    await expect(validatePeginP2aAnchor(3, V1_PEGIN_HEX)).rejects.toThrow(
-      /missing P2A anchor/,
+  it("refuses to validate the Core 1 golden PegIn under graph version 3", async () => {
+    await expect(validatePeginP2aAnchor(3, CORE_1_PEGIN_HEX)).rejects.toThrow(
+      "unsupported tx graph version: 3 (supported: 1)",
     );
   });
 });

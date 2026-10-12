@@ -5,7 +5,7 @@
  * an intent (Ledger) wallet has nothing to approve. Reconstructs them from
  * chain + WASM only — never browser storage — at the vault's STAMPED versions;
  * the commission ceiling, which the contract discards, comes from each vault's
- * `PegInSubmittedV2` log (see `getMaxAcceptableCommissionBpsFromChainWithGrace`).
+ * `PegInSubmitted` log (see `getMaxAcceptableCommissionBpsFromChainWithGrace`).
  * This orchestrator does the chain reads + sibling discovery (mirrors `discoverBatch` /
  * `prepareSigningContext` — shared-helper dedupe deferred); the WASM recompute +
  * Gate 0/1 byte-checks live in ts-sdk `rebuildDepositTermsCore`.
@@ -92,7 +92,7 @@ interface OrderedSibling extends RebuildSibling {
 
 /** Chain record plus the registration-event field the terms carry. */
 export interface RebuildVaultRecord extends OnChainVaultData {
-  /** Depositor's commission ceiling from `PegInSubmittedV2` at `createdAt`. */
+  /** Depositor's commission ceiling from `PegInSubmitted` at `createdAt`. */
   maxAcceptableCommissionBps: number;
 }
 

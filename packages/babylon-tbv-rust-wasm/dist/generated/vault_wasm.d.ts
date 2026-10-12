@@ -15,14 +15,14 @@ export class PeginP2aAnchorOutput {
      */
     readonly scriptPubKey: string;
     /**
-     * Anchor value in satoshis (240, [`btc_vault_v2::P2A_ANCHOR_VALUE`] on
-     * graph v2). The front-end needs this to reproduce the HTLC value
+     * Anchor value in satoshis (240, [`btc_vault_v1::P2A_ANCHOR_VALUE`] on
+     * graph v1). The front-end needs this to reproduce the HTLC value
      * decomposition (amount + depositor claim + anchor + pegin fee).
      */
     readonly value: bigint;
     /**
-     * Output index of the anchor (2, [`btc_vault_v2::P2A_ANCHOR_VOUT`] on
-     * graph v2) — read it from here instead of assuming the position.
+     * Output index of the anchor (2, [`btc_vault_v1::P2A_ANCHOR_VOUT`] on
+     * graph v1) — read it from here instead of assuming the position.
      */
     readonly vout: number;
 }
@@ -162,25 +162,23 @@ export class WasmPayoutTx {
     /**
      * Estimates the Payout vsize under `tx_graph_version` for fee planning.
      *
-     * `payout_script_hex` is the union parameter for the versions whose
-     * estimator is script-aware (btc-vault #2440+, i.e. graph v2 and v3):
-     * **required** there, and **rejected** on graph v1, whose estimator
-     * predates it and always sizes output 0 as a 34-byte P2TR script. Both
-     * directions throw rather than silently ignoring the argument.
+     * `payout_script_hex` is **required**: graph v1's estimator is
+     * script-aware (btc-vault #2440+) and sizes output 0 by the payout
+     * receiver's real script. A missing script throws rather than assuming a
+     * P2TR length.
      *
-     * The same applies to `commission_json`: graph v1 expects a `receiver`
-     * x-only pubkey, graph v2/v3 a `receiver_script` scriptPubKey hex. A
-     * mismatch is rejected by the version's own deserializer.
+     * `commission_json` carries a `receiver_script` scriptPubKey hex; a
+     * malformed value is rejected by the version's own deserializer.
      */
     static estimateVsize(tx_graph_version: number, num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number, council_size: number, commission_json?: string | null, payout_script_hex?: string | null): bigint;
     /**
      * Creates a WasmPayoutTx from a JSON string serialized under
      * `tx_graph_version`.
      *
-     * Payout transactions have the same wire shape under both supported
-     * tx graph versions, so unlike `WasmPeginTx.fromJson` there is no
-     * structural cross-check — the caller-supplied version selects the
-     * deserializer and is stamped on the result.
+     * Payout transactions carry no tx-graph-version discriminator in their
+     * wire shape, so unlike `WasmPeginTx.fromJson` there is no structural
+     * cross-check — the caller-supplied version selects the deserializer
+     * and is stamped on the result.
      */
     static fromJson(tx_graph_version: number, json: string): WasmPayoutTx;
     /**
@@ -656,9 +654,10 @@ export function init_panic_hook(): void;
 
 /**
  * Returns the P2A anchor output a canonical PegIn reserves under
- * `tx_graph_version`, or `undefined` for versions whose PegIns carry no
- * anchor (graph v1) — one record instead of per-field defaults, so an
- * absent anchor cannot be mistaken for a zero-valued one.
+ * `tx_graph_version`. Every supported version's PegIn carries the anchor;
+ * `undefined` is reserved for a version whose PegIns carry none — one record
+ * instead of per-field defaults, so an absent anchor cannot be mistaken for
+ * a zero-valued one.
  */
 export function peginP2aAnchorOutput(tx_graph_version: number): PeginP2aAnchorOutput | undefined;
 
@@ -684,11 +683,10 @@ export function supportedTxGraphVersions(): Uint16Array;
  * `tx_graph_version`, per that version's anchor rule (see
  * `check_pegin_p2a_anchor` in each version's module).
  *
- * Graph v2: the output at [`btc_vault_v2::P2A_ANCHOR_VOUT`] must exist,
+ * Graph v1: the output at [`btc_vault_v1::P2A_ANCHOR_VOUT`] must exist,
  * carry the P2A scriptPubKey, and hold exactly
- * [`btc_vault_v2::P2A_ANCHOR_VALUE`] sats. Graph v1: the transaction must
- * carry no P2A output at all — so a graph-v2 PegIn checked under v1 fails
- * closed instead of validating vacuously.
+ * [`btc_vault_v1::P2A_ANCHOR_VALUE`] sats — so a pre-reset Core 1 PegIn,
+ * which carries no anchor, fails closed.
  */
 export function validatePeginP2aAnchor(tx_graph_version: number, tx_hex: string): void;
 
@@ -740,6 +738,55 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly attachFinalizedAssert: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number, v: number) => [number, number, number, number];
+    readonly buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly extractGraphSummary: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly finalizePayout: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly finalizeWronglyChallenged: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly pinPegoutProof: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+    readonly verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
+    readonly __wbg_peginp2aanchoroutput_free: (a: number, b: number) => void;
+    readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
+    readonly computeMinPeginFee: (a: number, b: number, c: number, d: bigint) => [bigint, number, number];
+    readonly computePeginInputSighash: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly peginP2aAnchorOutput: (a: number) => [number, number, number];
+    readonly peginp2aanchoroutput_scriptPubKey: (a: number) => [number, number];
+    readonly peginp2aanchoroutput_value: (a: number) => bigint;
+    readonly peginp2aanchoroutput_vout: (a: number) => number;
+    readonly validatePeginP2aAnchor: (a: number, b: number, c: number) => [number, number];
+    readonly wasmpegintx_fromJson: (a: number, b: number, c: number) => [number, number, number];
+    readonly wasmpegintx_getTxGraphVersion: (a: number) => number;
+    readonly wasmpegintx_getTxid: (a: number) => [number, number];
+    readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
+    readonly wasmpegintx_getVaultValue: (a: number) => bigint;
+    readonly wasmpegintx_toHex: (a: number) => [number, number];
+    readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
+    readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
+    readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
+    readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmpeginpayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
+    readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
+    readonly wasmpeginpayoutconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
+    readonly wasmprepeginhtlcconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_getHashlockControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_getHashlockScript: (a: number) => [number, number];
+    readonly wasmprepeginhtlcconnector_getRefundControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_getRefundScript: (a: number) => [number, number];
+    readonly wasmprepeginhtlcconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly wasmprepeginhtlcconnector_getTxGraphVersion: (a: number) => number;
     readonly __wbg_wasmprepegintx_free: (a: number, b: number) => void;
     readonly computeMinClaimValue: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [bigint, number, number];
     readonly deriveVaultId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
@@ -774,80 +821,31 @@ export interface InitOutput {
     readonly wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly wasmpayouttx_toHex: (a: number) => [number, number];
     readonly wasmpayouttx_toJson: (a: number) => [number, number, number, number];
-    readonly attachFinalizedAssert: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number, v: number) => [number, number, number, number];
-    readonly buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly extractGraphSummary: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly finalizePayout: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly finalizeWronglyChallenged: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
-    readonly pinPegoutProof: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
-    readonly verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
-    readonly __wbg_peginp2aanchoroutput_free: (a: number, b: number) => void;
-    readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
-    readonly computeMinPeginFee: (a: number, b: number, c: number, d: bigint) => [bigint, number, number];
-    readonly computePeginInputSighash: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-    readonly peginP2aAnchorOutput: (a: number) => [number, number, number];
-    readonly peginp2aanchoroutput_scriptPubKey: (a: number) => [number, number];
-    readonly peginp2aanchoroutput_value: (a: number) => bigint;
-    readonly peginp2aanchoroutput_vout: (a: number) => number;
-    readonly validatePeginP2aAnchor: (a: number, b: number, c: number) => [number, number];
-    readonly wasmpegintx_fromJson: (a: number, b: number, c: number) => [number, number, number];
-    readonly wasmpegintx_getTxGraphVersion: (a: number) => number;
-    readonly wasmpegintx_getTxid: (a: number) => [number, number];
-    readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
-    readonly wasmpegintx_getVaultValue: (a: number) => bigint;
-    readonly wasmpegintx_toHex: (a: number) => [number, number];
-    readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
+    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
     readonly __wbg_wasmassertpayoutnopayoutconnector_free: (a: number, b: number) => void;
-    readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
     readonly computeAssertClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
     readonly computeNoPayoutClaimerSighash: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly wasmassertpayoutnopayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
     readonly wasmassertpayoutnopayoutconnector_getNoPayoutControlBlock: (a: number, b: number, c: number) => [number, number, number, number];
     readonly wasmassertpayoutnopayoutconnector_getNoPayoutScript: (a: number, b: number, c: number) => [number, number, number, number];
     readonly wasmassertpayoutnopayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
     readonly wasmassertpayoutnopayoutconnector_getPayoutScript: (a: number) => [number, number];
     readonly wasmassertpayoutnopayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getTxGraphVersion: (a: number) => number;
     readonly wasmassertpayoutnopayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
-    readonly wasmprepeginhtlcconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getHashlockControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getHashlockScript: (a: number) => [number, number];
-    readonly wasmprepeginhtlcconnector_getRefundControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getRefundScript: (a: number) => [number, number];
-    readonly wasmprepeginhtlcconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmprepeginhtlcconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
-    readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmpeginpayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
-    readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
-    readonly wasmpeginpayoutconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getTxGraphVersion: (a: number) => number;
     readonly __wbg_wasmchallengeassertoutputconnector_free: (a: number, b: number) => void;
+    readonly wasmchallengeassertoutputconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmchallengeassertoutputconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmchallengeassertoutputconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
     readonly supportedTxGraphVersions: () => [number, number];
     readonly validateTxGraphParams: (a: number, b: number, c: number) => [number, number];
     readonly verifyClaimerPresignatures: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
     readonly verifyP2trScriptSpendSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number];
-    readonly wasmchallengeassertoutputconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmchallengeassertoutputconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmchallengeassertoutputconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
-    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
-    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
     readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
     readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;

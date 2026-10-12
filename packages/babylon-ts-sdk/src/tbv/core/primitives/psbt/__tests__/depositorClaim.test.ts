@@ -182,9 +182,9 @@ describe("deriveDepositorClaimDescriptor", () => {
   });
 
   it("derives the same script regardless of graph version, having no version input", () => {
-    // The reserve's connector is identical across v1/v2/v3 — only the trailing
-    // P2A anchor is version-shaped. If a VAULT_WASM_COMMIT bump ever changed
-    // that, this function's signature would have to change with it, and this
+    // The reserve's connector does not depend on the graph version. If a
+    // VAULT_WASM_COMMIT bump ever made it version-dependent, this function's
+    // signature would have to change with it, and this
     // assertion is what makes that a deliberate act rather than a silent one.
     expect(deriveDepositorClaimDescriptor).toHaveLength(1);
   });

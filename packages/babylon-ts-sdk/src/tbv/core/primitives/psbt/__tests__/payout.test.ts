@@ -1741,32 +1741,25 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
     ).rejects.toThrow(/exceeds the safety cap/);
   });
 
-  it("builds a v2 payout — the graph version must reach the connector", async () => {
-    // Every other payout fixture is vaultCoreVersion 1. btc-vault keeps
-    // separate per-version connector code (vault-wasm tx_graph.rs v1 vs v2),
-    // so a version that never varies in tests would let a hardcoded 1 pass.
+  it("refuses a payout for graph version 2, which the engine no longer supports", async () => {
+    // Every other payout fixture is vaultCoreVersion 1. The testnet reset
+    // renumbered the active Vault Core from 3 to 1, so a vault stamped with a
+    // pre-reset number must fail closed; a builder that hardcoded graph
+    // version 1 would build it instead.
     const peginTxHex = createTestPeginTransaction();
     const assertTxHex = await createTestAssertTransaction();
     const payoutTxHex = makePayoutWithFee(peginTxHex, assertTxHex, 5_000);
 
-    const v1 = await buildPayoutPsbt(
-      baseParams({ payoutTxHex, assertTxHex, peginTxHex, vaultCoreVersion: 1 }),
-    );
-    const v2 = await buildPayoutPsbt(
-      baseParams({ payoutTxHex, assertTxHex, peginTxHex, vaultCoreVersion: 2 }),
-    );
-    expect(v1.psbtHex).toBeDefined();
-    expect(v2.psbtHex).toBeDefined();
-    // Observed invariant at the current pins (a0ad5503 / d7e33b26): the
-    // PAYOUT connector is version-invariant — v1 and v2 differ in the PegIn
-    // shape (TRUC, P2A anchor, Assert marker), not in the payout leaf. Pin it
-    // so a future graph version that DOES change the payout connector
-    // surfaces here instead of silently changing what the depositor signs.
-    const leafOf = (hex: string) =>
-      Psbt.fromHex(hex).data.inputs[0].tapLeafScript?.[0].script.toString(
-        "hex",
-      );
-    expect(leafOf(v2.psbtHex)).toBe(leafOf(v1.psbtHex));
+    await expect(
+      buildPayoutPsbt(
+        baseParams({
+          payoutTxHex,
+          assertTxHex,
+          peginTxHex,
+          vaultCoreVersion: 2,
+        }),
+      ),
+    ).rejects.toThrow("unsupported tx graph version: 2 (supported: 1)");
   });
 
   it("rejects a payout whose tx literals differ from btc-vault's construction", async () => {

@@ -306,7 +306,7 @@ describe("vaultRefundService - adapter wiring", () => {
   it("aborts the refund before signing when the stamped vaultCoreVersion is unsupported", async () => {
     (getVaultFromChain as Mock).mockResolvedValue({
       ...ON_CHAIN_VAULT,
-      vaultCoreVersion: 4, // real WASM supports [1, 2, 3] — fail closed
+      vaultCoreVersion: 4, // real WASM supports [1] — fail closed
     });
 
     await expect(

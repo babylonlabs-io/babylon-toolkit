@@ -157,7 +157,7 @@ function read(): DelegatedClaimVaultRead {
       feeRate: 3n,
       babeTotalInstances: 1,
       babeInstancesToFinalize: 1,
-      minVpCommissionBps: 0,
+      maxVpCommissionBps: 500,
       tRefund: 2016,
       tStale: 1,
       minPeginFeeRate: 7n,

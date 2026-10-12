@@ -46,7 +46,7 @@ const CLAIM_TX_HEX = CLAIM_TX.toHex();
 
 function artifactsFile(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
-    vault_core_version: 3,
+    vault_core_version: 1,
     tx_graph: "{graph}",
     claim_tx: CLAIM_TX_HEX,
     signatures: {},
@@ -82,12 +82,23 @@ describe("summarizeWatchtowerArtifacts", () => {
     expect(summary.peginTxid).toBe(PEGIN_TXID);
   });
 
-  it("reports block 0 when the file predates the claimable event", () => {
+  it("reports block 0 when the file records the claimable event block as 0", () => {
     const summary = summarizeWatchtowerArtifacts(
-      artifactsFile({ claimable_event_block_number: undefined }),
+      artifactsFile({ claimable_event_block_number: 0 }),
     );
 
     expect(summary.claimableEventBlockNumber).toBe(0n);
+  });
+
+  it("rejects a file with no claimable_event_block_number", () => {
+    // btc-vault refuses to parse a file without the key; it has no default.
+    expect(() =>
+      summarizeWatchtowerArtifacts(
+        artifactsFile({ claimable_event_block_number: undefined }),
+      ),
+    ).toThrow(
+      'Artifacts file is missing a usable "claimable_event_block_number".',
+    );
   });
 
   it("rejects a file that is not JSON", () => {
@@ -133,9 +144,24 @@ describe("summarizeWatchtowerArtifacts", () => {
     ).toThrow(/claimable_event_block_number/);
   });
 
+  it("reports the vault core version the file records", () => {
+    const summary = summarizeWatchtowerArtifacts(artifactsFile());
+
+    expect(summary.vaultCoreVersion).toBe(1);
+  });
+
+  it("rejects a file with no vault_core_version", () => {
+    // btc-vault refuses to parse a file without the key; it has no default.
+    expect(() =>
+      summarizeWatchtowerArtifacts(
+        artifactsFile({ vault_core_version: undefined }),
+      ),
+    ).toThrow('Artifacts file is missing a usable "vault_core_version".');
+  });
+
   it("rejects a vault_core_version that is not a number", () => {
     expect(() =>
-      summarizeWatchtowerArtifacts(artifactsFile({ vault_core_version: "3" })),
+      summarizeWatchtowerArtifacts(artifactsFile({ vault_core_version: "1" })),
     ).toThrow(/vault_core_version/);
   });
 
@@ -186,13 +212,12 @@ describe("summarizeWatchtowerArtifacts", () => {
     expect(summary.babeSessions).toEqual({ joined: false });
   });
 
-  it("reports an absent babe_sessions field as unjoined", () => {
-    // btc-vault defaults an absent field to `{}` on read.
-    const summary = summarizeWatchtowerArtifacts(
-      artifactsFile({ babe_sessions: undefined }),
-    );
-
-    expect(summary.babeSessions).toEqual({ joined: false });
+  it("rejects a file with no babe_sessions rather than reading it as unjoined", () => {
+    // btc-vault refuses to parse a file without the key; only an explicit
+    // `{}` is an unjoined file.
+    expect(() =>
+      summarizeWatchtowerArtifacts(artifactsFile({ babe_sessions: undefined })),
+    ).toThrow('Artifacts file is missing a usable "babe_sessions".');
   });
 });
 
@@ -213,7 +238,7 @@ describe("assertArtifactsUsableForVault", () => {
     });
 
     expect(summary.vaultId).toBe(VAULT_ID);
-    expect(verifyWatchtowerArtifacts).toHaveBeenCalledWith(3, artifactsFile());
+    expect(verifyWatchtowerArtifacts).toHaveBeenCalledWith(1, artifactsFile());
   });
 
   it("matches vault ids that differ only in prefix and case", async () => {
@@ -291,6 +316,22 @@ describe("assertArtifactsUsableForVault", () => {
         expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).resolves.toBeDefined();
+  });
+
+  it("rejects a file that records a vault core version other than the one it is verified under", async () => {
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({ vault_core_version: 3 }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
+      }),
+    ).rejects.toThrow(
+      "Artifacts record vault core version 3, but verification was asked for version 1.",
+    );
+    expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
   });
 
   it("rejects a file whose prover circuit version is not the vault's stamped one", async () => {

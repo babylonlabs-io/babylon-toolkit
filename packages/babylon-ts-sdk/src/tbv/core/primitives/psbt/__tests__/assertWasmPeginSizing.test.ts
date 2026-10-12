@@ -46,7 +46,7 @@ const PEGIN_AMOUNT = 100_000n;
 const PEGIN_FEE = 1_000n;
 const DEPOSITOR =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
-// v2 and v3 P2A anchor value returned by the mocked WASM facade.
+// P2A anchor value returned by the mocked WASM facade.
 const ANCHOR_VALUE = 240n;
 // makeParams uses minPeginFeeRate = 10n. The independent cap is
 // 10 x MAX_REASONABLE_PEGIN_VBYTES (100,000), or 1,000,000 sats.
@@ -87,7 +87,7 @@ function makeResult(overrides?: Partial<PrePeginResult>): PrePeginResult {
   return {
     txHex: "00",
     txid: "ff".repeat(32),
-    htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE],
+    htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE],
     htlcScriptPubKeys: ["5120" + "11".repeat(32)],
     htlcAddresses: ["tb1pexampleaddress"],
     peginAmounts: [PEGIN_AMOUNT],
@@ -106,11 +106,11 @@ beforeEach(() => {
     async (params: WasmPrePeginParams) => makeWasmResult(params),
   );
   peginP2aAnchorOutputMock.mockReset();
-  peginP2aAnchorOutputMock.mockImplementation(async (version: number) =>
-    version === 1
-      ? null
-      : { value: ANCHOR_VALUE, vout: 2, scriptPubKey: "51024e73" },
-  );
+  peginP2aAnchorOutputMock.mockResolvedValue({
+    value: ANCHOR_VALUE,
+    vout: 2,
+    scriptPubKey: "51024e73",
+  });
   outputMutation = undefined;
   htlcScriptOverride = undefined;
   unfundedTxVersion = 2;
@@ -130,8 +130,8 @@ describe("assertWasmPeginSizing", () => {
       assertWasmPeginSizing(
         makeResult({
           htlcValues: [
-            PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE,
-            PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE,
+            PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE,
+            PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE,
           ],
         }),
         makeParams(),
@@ -176,7 +176,9 @@ describe("assertWasmPeginSizing", () => {
         makeResult({
           peginAmounts: [PEGIN_AMOUNT - 1n],
           // keep htlcValue consistent so the amount check is what trips
-          htlcValues: [PEGIN_AMOUNT - 1n + CLAIM_VALUE + PEGIN_FEE],
+          htlcValues: [
+            PEGIN_AMOUNT - 1n + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE,
+          ],
         }),
         makeParams(),
       ),
@@ -204,7 +206,11 @@ describe("assertWasmPeginSizing", () => {
       assertWasmPeginSizing(
         makeResult({
           htlcValues: [
-            PEGIN_AMOUNT + CLAIM_VALUE + RESERVE_PLAUSIBILITY_CAP + 1n,
+            PEGIN_AMOUNT +
+              CLAIM_VALUE +
+              RESERVE_PLAUSIBILITY_CAP +
+              1n +
+              ANCHOR_VALUE,
           ],
         }),
         makeParams(),
@@ -216,41 +222,22 @@ describe("assertWasmPeginSizing", () => {
     await expect(
       assertWasmPeginSizing(
         makeResult({
-          htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + 1n],
+          htlcValues: [
+            PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE + 1n,
+          ],
         }),
         makeParams(),
       ),
     ).rejects.toThrow(/expected exactly/);
   });
 
-  it("v2: accepts a reserve of exactly minPeginFee + anchor value", async () => {
-    peginP2aAnchorOutputMock.mockResolvedValue({
-      value: ANCHOR_VALUE,
-      vout: 2,
-      scriptPubKey: "51024e73",
-    });
-    await expect(
-      assertWasmPeginSizing(
-        makeResult({
-          htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE],
-        }),
-        makeParams({ vaultCoreVersion: 2 }),
-      ),
-    ).resolves.toBe(PEGIN_FEE);
-  });
-
-  it("v2: throws when the htlcValue omits the anchor value (v1 formula)", async () => {
-    peginP2aAnchorOutputMock.mockResolvedValue({
-      value: ANCHOR_VALUE,
-      vout: 2,
-      scriptPubKey: "51024e73",
-    });
+  it("throws when the htlcValue omits the P2A anchor value", async () => {
     await expect(
       assertWasmPeginSizing(
         makeResult({
           htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE + PEGIN_FEE],
         }),
-        makeParams({ vaultCoreVersion: 2 }),
+        makeParams(),
       ),
     ).rejects.toThrow(/expected exactly/);
   });
@@ -271,8 +258,8 @@ describe("assertWasmPeginSizing", () => {
     ): PrePeginResult {
       return makeResult({
         htlcValues: [
-          PEGIN_A + CLAIM_VALUE + PEGIN_FEE,
-          PEGIN_B + CLAIM_VALUE + PEGIN_FEE,
+          PEGIN_A + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE,
+          PEGIN_B + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE,
         ],
         htlcScriptPubKeys: ["5120" + "11".repeat(32), "5120" + "22".repeat(32)],
         htlcAddresses: ["tb1pvaulta", "tb1pvaultb"],
@@ -305,8 +292,8 @@ describe("assertWasmPeginSizing", () => {
         assertWasmPeginSizing(
           makeTwoVaultResult({
             htlcValues: [
-              PEGIN_A + CLAIM_VALUE + PEGIN_FEE,
-              PEGIN_B + CLAIM_VALUE + PEGIN_FEE + 1n,
+              PEGIN_A + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE,
+              PEGIN_B + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE + 1n,
             ],
           }),
           makeTwoVaultParams(),
@@ -349,9 +336,8 @@ function encodeUnfundedTransaction(outputs: readonly EncodedOutput[]): string {
 }
 
 function makeWasmResult(params: WasmPrePeginParams): PrePeginResult {
-  const graphAnchorValue = params.txGraphVersion === 1 ? 0n : ANCHOR_VALUE;
   const htlcValues = params.pegInAmounts.map(
-    (amount) => amount + CLAIM_VALUE + PEGIN_FEE + graphAnchorValue,
+    (amount) => amount + CLAIM_VALUE + PEGIN_FEE + ANCHOR_VALUE,
   );
   const htlcScriptPubKeys = params.hashlocks.map(
     (hashlock) =>
@@ -475,12 +461,12 @@ describe("buildPrePeginPsbt encoded output checks", () => {
     ],
     [
       "a wrong HTLC value",
-      replaceOutput(1, output(255_999, SCRIPT_B)),
-      /HTLC output\[1\] value 255999 does not match.*256000/s,
+      replaceOutput(1, output(256_239, SCRIPT_B)),
+      /HTLC output\[1\] value 256239 does not match.*256240/s,
     ],
     [
       "a wrong HTLC script",
-      replaceOutput(0, output(106_000, SCRIPT_B)),
+      replaceOutput(0, output(106_240, SCRIPT_B)),
       /HTLC output\[0\] scriptPubKey .* does not match/s,
     ],
     [

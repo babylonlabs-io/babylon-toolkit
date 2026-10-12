@@ -17,9 +17,8 @@
  * stay outside: the proof comes from the prover service, and nothing here
  * watches the chain for a ChallengeAssert.
  *
- * Every graph-taking export is graph v3 only and fails closed on v1/v2 with
- * `unsupported tx graph version for delegated claim: <v> (supported: 3)` —
- * those vaults predate the artifacts format.
+ * Every graph-taking export fails closed on an unsupported graph version with
+ * `unsupported tx graph version: <v> (supported: …)`.
  *
  * @see btc-vault docs/operations/delegated_claim.md
  */
@@ -80,7 +79,7 @@ function assertU16(value: number, label: string): void {
  *
  * The same u16 hazard as {@link assertU16}, and worse here: a wrapped value
  * can land on a supported version and succeed, which would defeat this
- * surface's own contract that v1 and v2 fail closed.
+ * surface's own contract that unsupported versions fail closed.
  */
 function assertTxGraphVersion(txGraphVersion: number): void {
   assertU16(txGraphVersion, 'txGraphVersion');

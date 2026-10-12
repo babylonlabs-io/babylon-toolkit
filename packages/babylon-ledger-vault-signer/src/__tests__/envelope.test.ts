@@ -38,7 +38,7 @@ const BASE_VAULT = {
 
 function makeTerms(over: Partial<DepositTerms> = {}): DepositTerms {
   return {
-    vaultCoreVersion: 2,
+    vaultCoreVersion: 1,
     protocolFeeRate: 2n,
     timelockPegin: 684,
     timelockAssert: 684,
@@ -68,19 +68,18 @@ describe("assertDepositTermsDeviceCompatible", () => {
     }
   });
 
-  it("accepts the device-signable tx-graph versions 2 and 3", () => {
-    // v2 is the firmware's Core-2 tx shape; v3 is byte-identical (btc-vault
-    // e1e50f66; SDK parity vector pegin.test.ts "builds the v3 Pre-PegIn
-    // byte-identical to the v2 vector").
+  it("accepts the device-signable tx-graph version 1", () => {
+    // Post-reset Core 1 is the one PegIn shape the firmware signs: nVersion 3,
+    // three outputs with the 240-sat P2A anchor.
     for (const vaultCoreVersion of [DEVICE_MIN_VAULT_CORE_VERSION, DEVICE_MAX_VAULT_CORE_VERSION]) {
       expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion }))).not.toThrow();
     }
   });
 
   it("rejects tx-graph versions outside the device band with the seam's typed error", () => {
-    // v1's tx shape differs (no P2A anchor) and v4+ has no device-compat
-    // evidence — either must fail BEFORE any device I/O, not mid-ceremony.
-    for (const vaultCoreVersion of [DEVICE_MIN_VAULT_CORE_VERSION - 1, DEVICE_MAX_VAULT_CORE_VERSION + 1]) {
+    // 0 is no Core, and btc-vault refuses the pre-reset Core numbers 2 and 3 —
+    // each must fail BEFORE any device I/O, not mid-ceremony.
+    for (const vaultCoreVersion of [DEVICE_MIN_VAULT_CORE_VERSION - 1, DEVICE_MAX_VAULT_CORE_VERSION + 1, 3]) {
       expect(() => assertDepositTermsDeviceCompatible(makeTerms({ vaultCoreVersion }))).toThrow(
         DepositTermsRejectedError,
       );

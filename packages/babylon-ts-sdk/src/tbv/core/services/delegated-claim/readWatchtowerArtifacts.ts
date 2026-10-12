@@ -26,12 +26,12 @@ import {
 import { normalizeVerifyingKeyHex } from "./verifyingKeyBinding";
 
 /**
- * Graph version the delegated-claim artifacts format exists for. Vaults on
- * graph v1 and v2 predate it and have no artifacts path at all.
+ * Graph version the delegated-claim artifacts format exists for: post-reset
+ * Vault Core 1, the only graph the bundled WASM builds.
  *
  * @experimental
  */
-export const DELEGATED_CLAIM_TX_GRAPH_VERSION = 3;
+export const DELEGATED_CLAIM_TX_GRAPH_VERSION = 1;
 
 /**
  * Thrown when an artifacts file does not describe the vault being claimed.
@@ -68,7 +68,8 @@ const HEX_BYTES = /^(?:[0-9a-fA-F]{2})+$/;
 /**
  * Whether the file carries BaBe sessions, checking each entry's shape.
  *
- * An empty or absent map is an unjoined file. For any other map btc-vault
+ * An empty map is an unjoined file; an absent one is not a file btc-vault
+ * reads. For any other map btc-vault
  * requires each value to be an object whose `decryptor_artifacts_hex` is a
  * non-empty hex string (`delegated_claim.rs:482-492` @ b534ff9e); checking
  * it here names the bad entry instead of surfacing an opaque Rust error.
@@ -127,26 +128,24 @@ export function summarizeWatchtowerArtifacts(
     parsed.prover_circuit_version,
     "prover_circuit_version",
   );
-  // Absent on files written before the field existed; the CLI reads an
-  // absent value as 0, which means "not yet known from chain". Anything
-  // present must be a block number: `JSON.parse` has already rounded
-  // anything above 2^53, and a negative or fractional value would otherwise
-  // reach `BigInt` and throw without naming the field.
-  const claimableEventBlockNumber =
-    parsed.claimable_event_block_number === undefined
-      ? 0n
-      : BigInt(
-          requireSafeInteger(
-            parsed.claimable_event_block_number,
-            "claimable_event_block_number",
-          ),
-        );
+  // Required, like `vault_core_version` and `babe_sessions`: btc-vault reads
+  // a file without the key as a parse error, not as a default. An explicit 0
+  // means "not yet known from chain". The value must be a block number:
+  // `JSON.parse` has already rounded anything above 2^53, and a negative or
+  // fractional value would otherwise reach `BigInt` and throw without naming
+  // the field.
+  const claimableEventBlockNumber = BigInt(
+    requireSafeInteger(
+      parsed.claimable_event_block_number,
+      "claimable_event_block_number",
+    ),
+  );
 
   return {
-    vaultCoreVersion:
-      parsed.vault_core_version === undefined
-        ? undefined
-        : requireSafeInteger(parsed.vault_core_version, "vault_core_version"),
+    vaultCoreVersion: requireSafeInteger(
+      parsed.vault_core_version,
+      "vault_core_version",
+    ),
     vaultId,
     claimTxid: claimTx.getId(),
     peginTxid: peginTxidFromClaimTx(claimTx),
@@ -254,10 +253,7 @@ export async function assertArtifactsUsableForVault(
   // Verifying a file under a version it does not claim yields, at best, an
   // opaque Rust error. The file states its own version, so compare it.
   const resolved = params.txGraphVersion ?? DELEGATED_CLAIM_TX_GRAPH_VERSION;
-  if (
-    summary.vaultCoreVersion !== undefined &&
-    summary.vaultCoreVersion !== resolved
-  ) {
+  if (summary.vaultCoreVersion !== resolved) {
     throw new Error(
       `Artifacts record vault core version ${summary.vaultCoreVersion}, ` +
         `but verification was asked for version ${resolved}.`,
@@ -355,7 +351,6 @@ function requireSafeInteger(value: unknown, field: string): number {
  * index positions, which would pass as challenger public keys.
  */
 function requireRecord(value: unknown, field: string): Record<string, unknown> {
-  if (value === undefined) return {};
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`Artifacts file is missing a usable "${field}".`);
   }

@@ -133,15 +133,10 @@ const UINT64_EXCLUSIVE_UPPER_BOUND = 1n << 64n;
  */
 const VP_GENESIS_KEY_EPOCH = 0n;
 
-/**
- * Both registration events, queried together so one answer settles whether a
- * vault's V2 log is missing (pre-upgrade registration) or the node served no
- * logs for the block at all.
- */
-const PEGIN_SUBMITTED_EVENTS = [
-  getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
-  getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmittedV2" }),
-] as const;
+const PEGIN_SUBMITTED_EVENT = getAbiItem({
+  abi: BTCVaultRegistryABI,
+  name: "PegInSubmitted",
+});
 
 const VAULT_CLAIMABLE_BY_EVENT = getAbiItem({
   abi: BTCVaultRegistryABI,
@@ -165,11 +160,8 @@ function maxBigint(a: bigint, b: bigint): bigint {
   return a > b ? a : b;
 }
 
-/**
- * A `PegInSubmittedV2` log's decoded args, as viem's strict `getLogs` hands
- * them back after the `eventName` narrowing.
- */
-interface PegInSubmittedV2Args {
+/** A `PegInSubmitted` log's decoded args, as viem's strict `getLogs` hands them back. */
+interface PegInSubmittedArgs {
   vaultId: Hex;
   peginTxHash: Hex;
   depositor: Address;
@@ -189,15 +181,16 @@ interface PegInSubmittedV2Args {
 }
 
 function mapRegistrationRecord(
-  args: PegInSubmittedV2Args,
+  args: PegInSubmittedArgs,
   blockNumber: bigint,
 ): PeginRegistrationRecord {
-  // A plain decode of every V2 log in the block, strangers' included: nothing
-  // here parses a transaction or bound-checks a script, so one malformed
-  // registration elsewhere in the block cannot fail the caller's read. The
-  // strict per-record checks live in registration-records.ts. A duplicate
-  // vault id is not covered: a vault registers once, so two logs for one id
-  // are an inconsistent node and fail the read closed (see the caller).
+  // A plain decode of every registration log in the block, strangers'
+  // included: nothing here parses a transaction or bound-checks a script, so
+  // one malformed registration elsewhere in the block cannot fail the
+  // caller's read. The strict per-record checks live in
+  // registration-records.ts. A duplicate vault id is not covered: a vault
+  // registers once, so two logs for one id are an inconsistent node and fail
+  // the read closed (see the caller).
   return {
     vaultId: args.vaultId.toLowerCase() as Hex,
     depositor: args.depositor,
@@ -550,15 +543,15 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
   async getRegistrationRecordsAtBlock(
     createdAt: bigint,
   ): Promise<PeginRegistrationRecord[]> {
-    // Deliberately no `vaultId` topic filter: both events must come back in
-    // ONE answer for the empty-vs-missing discriminator below to hold, and
-    // viem's multi-event form takes no `args` — so the block's registration
-    // logs are fetched whole and ids are matched client-side. strict: a log
-    // whose data does not decode against the ABI is dropped (viem
+    // Deliberately no `vaultId` topic filter: the block holds the target's
+    // registration, so only an unfiltered answer can tell a node that served
+    // nothing (empty) from one that lacks the target (findRegistrationRecord),
+    // and one query serves every vault a caller reads from the block. strict:
+    // a log whose data does not decode against the ABI is dropped (viem
     // parseEventLogs) instead of surfacing as `args: {}`.
     const logs = await this.publicClient.getLogs({
       address: this.contractAddress,
-      events: PEGIN_SUBMITTED_EVENTS,
+      event: PEGIN_SUBMITTED_EVENT,
       fromBlock: createdAt,
       toBlock: createdAt,
       strict: true,
@@ -569,38 +562,24 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
 
     const records = new Map<string, PeginRegistrationRecord>();
     for (const log of logs) {
-      if (log.eventName !== "PegInSubmittedV2") continue;
       const record = mapRegistrationRecord(log.args, log.blockNumber);
       // Lenient decoding covers a malformed log, not a duplicate: a vault
       // registers once, so two logs for any id mean the node is inconsistent
       // and every record from this block is suspect — fail closed by design.
       if (records.has(record.vaultId)) {
         throw new Error(
-          `Expected one PegInSubmittedV2 log for vault ${record.vaultId} at block ${createdAt}, ` +
+          `Expected one PegInSubmitted log for vault ${record.vaultId} at block ${createdAt}, ` +
             `found more than one`,
         );
       }
       records.set(record.vaultId, record);
-    }
-    // The registry emits V1 and V2 together on every submission
-    // (vault-contracts-aave-v4 `PeginLogic.sol:144-147` @ c559f5c2), so this
-    // is as readily a node that served only part of the block as a pre-#548
-    // registry — retryable either way.
-    if (records.size === 0) {
-      throw new RegistrationLogsUnavailableError(
-        createdAt,
-        `Block ${createdAt} holds ${logs.length} PegInSubmitted registration log(s) but no ` +
-          `PegInSubmittedV2 log: either the node served a partial answer for block ${createdAt} ` +
-          `(retry, preferably another node) or the registry predates the depositor's commission ` +
-          `ceiling (vault-contracts-aave-v4 #548) and the ceiling cannot be recovered on-chain`,
-      );
     }
     return [...records.values()];
   }
 
   /**
    * Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
-   * for vaults registered in the same block, from their `PegInSubmittedV2`
+   * for vaults registered in the same block, from their `PegInSubmitted`
    * logs. Returned in `vaultIds` order.
    *
    * The contract bound-checks the ceiling and discards it (PeginLogic.sol,

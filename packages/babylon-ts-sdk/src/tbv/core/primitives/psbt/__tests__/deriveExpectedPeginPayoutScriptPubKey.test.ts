@@ -2,7 +2,7 @@
  * Differential tests for deriveExpectedPeginPayoutScriptPubKey (CLAUDE.md
  * critical path #9): the TypeScript derivation must equal the real engine's
  * payout connector scriptPubKey over the golden vectors and seeded random
- * inputs, for every supported graph version.
+ * inputs, under graph version 1 (the only one the engine supports).
  */
 
 import { createPayoutConnector } from "@babylonlabs-io/babylon-tbv-rust-wasm";
@@ -13,7 +13,6 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { deriveExpectedPeginPayoutScriptPubKey } from "../assertWasmPeginSizing";
 import { TEST_KEYS, initializeWasmForTests } from "./helpers";
 
-const GRAPH_VERSIONS = [1, 2, 3] as const;
 const DIFFERENTIAL_SEED = 0x2481;
 const RANDOM_CASE_COUNT = 40;
 // 16 is the largest count that compiles to OP_16, and 17 is the first pushed
@@ -94,13 +93,10 @@ function seededCases(): PayoutCase[] {
   return cases;
 }
 
-async function engineScriptPubKey(
-  txGraphVersion: number,
-  payoutCase: PayoutCase,
-): Promise<string> {
+async function engineScriptPubKey(payoutCase: PayoutCase): Promise<string> {
   const connector = await createPayoutConnector(
     {
-      txGraphVersion,
+      txGraphVersion: 1,
       depositor: payoutCase.depositorPubkey,
       vaultProvider: payoutCase.vaultProviderPubkey,
       vaultKeepers: payoutCase.vaultKeeperPubkeys,
@@ -124,37 +120,28 @@ describe("deriveExpectedPeginPayoutScriptPubKey", () => {
     await initializeWasmForTests();
   });
 
-  // The v1 and v2 PegIn golden vectors in pegin.test.ts encode this vault
+  // The Core 1 PegIn golden vector in pegin.test.ts encodes this vault
   // output for these inputs.
-  it.each(GRAPH_VERSIONS)(
-    "matches the engine and the PegIn golden vault script for graph version %i",
-    async (version) => {
-      const goldenCase: PayoutCase = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [
-          TEST_KEYS.VAULT_KEEPER_1,
-          TEST_KEYS.VAULT_KEEPER_2,
-        ],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-      };
-      const goldenScript =
-        "5120367fb4fcbbe8a43626f4fb89398f47407d7e8e0318985c7a0d8fdb74b718bfc0";
+  it("matches the engine and the PegIn golden vault script", async () => {
+    const goldenCase: PayoutCase = {
+      depositorPubkey: TEST_KEYS.DEPOSITOR,
+      vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+      vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+      universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+      timelockPegin: 100,
+    };
+    const goldenScript =
+      "5120367fb4fcbbe8a43626f4fb89398f47407d7e8e0318985c7a0d8fdb74b718bfc0";
 
-      expect(derivedScriptPubKey(goldenCase)).toBe(goldenScript);
-      expect(await engineScriptPubKey(version, goldenCase)).toBe(goldenScript);
-    },
-  );
+    expect(derivedScriptPubKey(goldenCase)).toBe(goldenScript);
+    expect(await engineScriptPubKey(goldenCase)).toBe(goldenScript);
+  });
 
-  it.each(GRAPH_VERSIONS)(
-    "matches the engine for seeded random keys, key counts, and timelocks on graph version %i",
-    async (version) => {
-      for (const payoutCase of seededCases()) {
-        expect(derivedScriptPubKey(payoutCase)).toBe(
-          await engineScriptPubKey(version, payoutCase),
-        );
-      }
-    },
-  );
+  it("matches the engine for seeded random keys, key counts, and timelocks", async () => {
+    for (const payoutCase of seededCases()) {
+      expect(derivedScriptPubKey(payoutCase)).toBe(
+        await engineScriptPubKey(payoutCase),
+      );
+    }
+  });
 });

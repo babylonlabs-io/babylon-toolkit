@@ -243,8 +243,8 @@ function registerStandardMocks(challengerPubkeys: string[]): void {
     getId: () => CLAIM_TXID,
   });
 
-  // Assert tx at vault core version 2: output 0 (NoPayout input 0's prevout),
-  // a ConnectorX and a ConnectorY per challenger, the marker, the anchor.
+  // Assert tx: output 0 (NoPayout input 0's prevout), a ConnectorX and a
+  // ConnectorY per challenger, the marker, the anchor.
   registerMockTx(ASSERT_TX_HEX, {
     ins: [
       {
@@ -810,45 +810,16 @@ describe("signDepositorGraph", () => {
         btcWallet: wallet,
         signingContext: createSigningContext(),
       }),
-    ).rejects.toThrow("Assert must have 7 outputs for 2 challengers");
+    ).rejects.toThrow("Assert must have 7 outputs for 2 challengers, got 9");
 
     expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 
-  it("expects no marker output on a vault core version 1 Assert", async () => {
+  it("rejects a vault core version 1 Assert without the marker output", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    // assertOutputs(2) carries the marker that only vault core version 2
-    // and later emit, so a version 1 Assert must have one output fewer.
-    registerMockTx(ASSERT_TX_HEX, {
-      ins: [
-        {
-          hash: makeReversedHash(CLAIM_TXID),
-          index: 0,
-          sequence: 0xffffffff,
-        },
-      ],
-      outs: assertOutputs(2),
-      getId: () => ASSERT_TXID,
-    });
-    const wallet = createMockWallet({ supportsBatch: true });
-
-    await expect(
-      signDepositorGraph({
-        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
-        btcWallet: wallet,
-        signingContext: createSigningContext({ vaultCoreVersion: 1 }),
-      }),
-    ).rejects.toThrow(
-      "Assert must have 6 outputs for 2 challengers (vault core version 1), got 7",
-    );
-
-    expect(wallet.signPsbts).not.toHaveBeenCalled();
-  });
-
-  it("accepts a vault core version 1 Assert without the marker output", async () => {
-    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
-    // A version 1 Assert: output 0, a ConnectorX and a ConnectorY per
-    // challenger, and the anchor, with no marker before it.
+    // Output 0, a ConnectorX and a ConnectorY per challenger, and the anchor,
+    // with no marker before it: one output short of the Assert every vault
+    // core version builds.
     registerMockTx(ASSERT_TX_HEX, {
       ins: [
         {
@@ -869,13 +840,15 @@ describe("signDepositorGraph", () => {
     });
     const wallet = createMockWallet({ supportsBatch: true });
 
-    await signDepositorGraph({
-      depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
-      btcWallet: wallet,
-      signingContext: createSigningContext({ vaultCoreVersion: 1 }),
-    });
+    await expect(
+      signDepositorGraph({
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+        btcWallet: wallet,
+        signingContext: createSigningContext({ vaultCoreVersion: 1 }),
+      }),
+    ).rejects.toThrow("Assert must have 7 outputs for 2 challengers, got 6");
 
-    expect(wallet.signPsbts).toHaveBeenCalledOnce();
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 
   it("derives localChallengers as VKs \\ {depositor} (depositor-as-claimer special case)", async () => {

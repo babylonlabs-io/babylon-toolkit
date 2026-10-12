@@ -11,9 +11,9 @@ publish = false
 exclude = ["btc-vault-src"]
 
 [dependencies]
-# btc-vault @ b534ff9e846d93367fbaabe0f54517db200326fd, exported with
+# btc-vault @ 5bc96f5cf2f8e6a323b69821368daaa04b8f4106, exported with
 # `git archive` into ./btc-vault-src (see README.md). A path dep into that
-# tree resolves babe-daemons and the other workspace members locally.
+# tree resolves btc-signer and the other workspace members locally.
 btc-vault = { path = "btc-vault-src/crates/vault", features = ["test-utils"] }
 btc-vault-crypto = { path = "btc-vault-src/crates/crypto" }
 # Exact versions, as btc-vault's own Cargo.lock at that rev resolves them.

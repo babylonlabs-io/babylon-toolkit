@@ -8,10 +8,10 @@
  * transport retry cannot see (it retries errors only). Callers may retry.
  *
  * The same holds for an answer that is merely incomplete: the registry emits
- * `PegInSubmitted` and `PegInSubmittedV2` together on every submission
- * (vault-contracts-aave-v4 `PeginLogic.sol:144-147` @ c559f5c2), so a block
- * answer carrying only some of them is a partial answer as readily as it is
- * an old registry. Those shapes carry their own message.
+ * one `PegInSubmitted` on every submission (vault-contracts-aave-v4
+ * `PeginLogic.sol:144` @ a20b5e0d), so a block answer without the log a
+ * caller needs is a partial answer as readily as it is a vault registered
+ * elsewhere. That shape carries its own message.
  *
  * @module clients/eth/registration-logs-error
  */
@@ -24,8 +24,8 @@ export class RegistrationLogsUnavailableError extends Error {
   readonly blockNumber: bigint;
 
   /**
-   * `message` replaces the empty-answer wording for the partial-answer shapes
-   * that are not "no logs at all"; the caller names which logs it did get.
+   * `message` replaces the empty-answer wording when the block's logs arrived
+   * but none is for the vault asked for; the caller names that vault.
    */
   constructor(blockNumber: bigint, message?: string) {
     super(
