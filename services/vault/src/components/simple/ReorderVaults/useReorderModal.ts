@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
 import { useReorderVaults } from "@/applications/aave/hooks";
+import type { PendingAaveWrite } from "@/applications/aave/services/pendingAaveWrite";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 interface UseReorderModalParams {
@@ -17,8 +18,12 @@ export interface UseReorderModalResult {
   handleDragEnd: (event: DragEndEvent) => void;
   handleConfirm: () => Promise<boolean>;
   isProcessing: boolean;
+  /** The account's Aave write in progress, which keeps the confirm disabled. */
+  pendingWrite: PendingAaveWrite | null;
   /** Last failure message, shown inline under the action (null when none). */
   error: string | null;
+  /** Last outcome that is not a failure (null when none). */
+  notice: string | null;
 }
 
 export function useReorderModal({
@@ -34,7 +39,8 @@ export function useReorderModal({
   const [baselineVaultIds, setBaselineVaultIds] = useState<readonly Hex[]>(() =>
     vaults.map((v) => v.vaultId as Hex),
   );
-  const { executeReorder, isProcessing, error } = useReorderVaults();
+  const { executeReorder, isProcessing, pendingWrite, error, notice } =
+    useReorderVaults();
 
   // Initialize order only when modal opens — intentionally excludes `vaults`
   // to prevent background React Query refetches from resetting user's drag order
@@ -75,6 +81,8 @@ export function useReorderModal({
     handleDragEnd,
     handleConfirm,
     isProcessing,
+    pendingWrite,
     error,
+    notice,
   };
 }

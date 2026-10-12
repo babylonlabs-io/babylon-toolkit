@@ -33,7 +33,9 @@ const baseProps = {
     commissionSats: 1_500_000n,
   },
   isProcessing: false,
+  unconfirmedWrite: null,
   error: null,
+  notice: null,
   hubBlockMessage: null,
   acknowledged: true,
   onAcknowledgedChange: vi.fn(),
@@ -190,5 +192,41 @@ describe("WithdrawReviewContent", () => {
       "Could not read the vault provider commission",
     );
     expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("shows a broadcast withdrawal that has not confirmed as still confirming, not as failed", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        isProcessing
+        unconfirmedWrite={{
+          phase: "unconfirmed",
+          hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          stopWaiting: null,
+        }}
+        error="An earlier failure"
+      />,
+    );
+
+    expect(screen.getByText("Waiting for confirmation")).toBeInTheDocument();
+    expect(screen.queryByText("Transaction failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("An earlier failure")).not.toBeInTheDocument();
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("shows a refusal while another transaction is pending as a notice, not as a failed transaction", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        notice="Your wallet has a transaction that hasn't confirmed yet."
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Your wallet has a transaction that hasn't confirmed yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Transaction failed")).not.toBeInTheDocument();
   });
 });

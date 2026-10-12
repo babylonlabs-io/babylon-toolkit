@@ -63,7 +63,7 @@ const walletClient = {
   writeContract: vi.fn(),
 } as any;
 
-const write = () =>
+const write = (options: { safePollTimeoutMs?: number } = {}) =>
   executeWrite({
     walletClient,
     chain: { id: 1 } as any,
@@ -72,6 +72,7 @@ const write = () =>
     functionName: "approve",
     args: ["0x3000000000000000000000000000000000000003", 1n],
     errorContext: "approve ERC20",
+    ...options,
   });
 
 beforeEach(() => {
@@ -148,6 +149,31 @@ describe("executeWrite simulation-phase tagging", () => {
         receipt: expect.objectContaining({ transactionHash: "0xabc" }),
       }),
     );
+  });
+});
+
+describe("executeWrite Safe polling bound", () => {
+  beforeEach(() => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    walletClient.writeContract.mockResolvedValue("0xsent");
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xmined",
+    });
+  });
+
+  it("bounds the receipt wait's Safe polling when the caller gives a bound", async () => {
+    await write({ safePollTimeoutMs: 60_000 });
+
+    expect(mockWaitReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({ hash: "0xsent", safePollTimeoutMs: 60_000 }),
+    );
+  });
+
+  it("leaves the SDK's own Safe polling budget when the caller gives none", async () => {
+    await write();
+
+    expect(mockWaitReceipt.mock.calls[0][0].safePollTimeoutMs).toBeUndefined();
   });
 });
 

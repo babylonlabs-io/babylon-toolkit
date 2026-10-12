@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import type { Hex } from "viem";
 
+import { UnconfirmedTransactionCallout } from "@/applications/aave/components/UnconfirmedTransactionCallout";
 import { useReorderOverride } from "@/applications/aave/context";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
 import { useReorderVaults } from "@/applications/aave/hooks/useReorderVaults";
@@ -59,7 +60,8 @@ export function SplitVaultOrderWarning({
   const { expectedVaultIds, hasMismatch, isError } =
     useSplitVaultOrder(currentVaultIds);
   const { params } = usePositionNotifications(connectedAddress);
-  const { executeReorder, isProcessing, error } = useReorderVaults();
+  const { executeReorder, isProcessing, pendingWrite, error, notice } =
+    useReorderVaults();
   const { applyReorderedOrder } = useReorderOverride();
   const gate = useProtocolGateState();
   const queryClient = useQueryClient();
@@ -118,6 +120,7 @@ export function SplitVaultOrderWarning({
           emphasis: "primary",
           disabled:
             isProcessing ||
+            pendingWrite !== null ||
             optimizerVerdict === null ||
             repairedOrderKey === currentOrderKey ||
             isReorderBlocked(gate),
@@ -126,10 +129,14 @@ export function SplitVaultOrderWarning({
     >
       <div className="flex flex-col gap-3">
         <span>{COPY.vaults.splitOrderWarning.body}</span>
-        {error && (
+        {pendingWrite?.phase === "unconfirmed" ? (
+          <UnconfirmedTransactionCallout write={pendingWrite} />
+        ) : error ? (
           <Callout variant="error" title={COPY.common.transactionFailedTitle}>
             {error}
           </Callout>
+        ) : (
+          notice && <Callout variant="warning">{notice}</Callout>
         )}
       </div>
     </NotificationCard>

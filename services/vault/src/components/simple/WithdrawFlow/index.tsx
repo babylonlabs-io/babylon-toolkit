@@ -49,7 +49,7 @@ function WithdrawFlowContent({
 }: WithdrawFlowProps) {
   const { step, goToSelect, goToReview, goToProgress, reset } =
     useWithdrawFlow();
-  const { executeWithdraw, isProcessing, error } =
+  const { executeWithdraw, isProcessing, pendingWrite, error, notice } =
     useWithdrawCollateralTransaction();
   const hubBlockMessage = useWithdrawHubBlockMessage();
   const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
@@ -195,12 +195,18 @@ function WithdrawFlowContent({
       collateralValueUsd,
       currentHealthFactor,
     });
-    const success = await executeWithdraw(vpCommission.vaultIds);
-    if (!success) {
-      setConfirmed(null);
+    const result = await executeWithdraw(vpCommission.vaultIds);
+    if (result === "succeeded") {
+      goToProgress();
       return;
     }
-    goToProgress();
+    setConfirmed(null);
+    // The withdrawal may still be mined, so the same one is not offered
+    // again: the user picks vaults afresh, with the notice saying why.
+    if (result === "unknown") {
+      setSelectedVaultIds([]);
+      goToSelect();
+    }
   }, [
     executeWithdraw,
     vpCommission,
@@ -209,6 +215,7 @@ function WithdrawFlowContent({
     collateralValueUsd,
     currentHealthFactor,
     goToProgress,
+    goToSelect,
   ]);
 
   // Review reached from Select can return to it; not while a submit is in flight.
@@ -231,6 +238,7 @@ function WithdrawFlowContent({
               totalAmountBtc={selectedBtc}
               projectedHealthFactor={projectedHealthFactor}
               acknowledged={acknowledged}
+              notice={notice}
               onToggleVault={toggleVault}
               onAcknowledgedChange={setAcknowledged}
               onContinue={goToReview}
@@ -247,8 +255,14 @@ function WithdrawFlowContent({
               payoutAddresses={selectedPayoutAddresses}
               assertTimelockBlocks={selectedAssertTimelockBlocks}
               vpCommission={vpCommission}
-              isProcessing={isProcessing}
+              // Another Aave transaction from this wallet locks the confirm
+              // button too, not only this withdrawal.
+              isProcessing={isProcessing || pendingWrite !== null}
+              unconfirmedWrite={
+                pendingWrite?.phase === "unconfirmed" ? pendingWrite : null
+              }
               error={error}
+              notice={notice}
               hubBlockMessage={hubBlockMessage}
               acknowledged={acknowledged}
               onAcknowledgedChange={setAcknowledged}

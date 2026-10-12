@@ -14,7 +14,10 @@ interface BuildBannerActionsArgs {
   onRepay: () => void;
   onApplyOrder: () => void;
   isReordering: boolean;
-  /** Freeze/Pause blocks `reorderVaults`; disables the "Apply Optimal Order" CTA. */
+  /**
+   * Freeze/Pause blocks `reorderVaults`, or another Aave transaction from this
+   * wallet is still in progress; disables the "Apply Optimal Order" CTA.
+   */
   reorderBlocked: boolean;
   /**
    * The optimal order can be submitted only together with the calculator inputs
@@ -26,6 +29,14 @@ interface BuildBannerActionsArgs {
   depositBlocked: boolean;
   /** An aave Pause blocks repay; disables the "Repay Debt" CTA. */
   repayBlocked: boolean;
+}
+
+/** Whether the banner card offers "Apply Optimal Order". */
+export function offersApplyOrder(
+  result: CalculatorResult,
+  bannerState: BannerState,
+): boolean {
+  return bannerState.suggestReorder && result.optimalVaultOrder !== null;
 }
 
 /**
@@ -54,9 +65,8 @@ export function buildBannerActions({
   depositBlocked,
   repayBlocked,
 }: BuildBannerActionsArgs): NotificationAction[] {
-  const { primaryWarning, suggestReorder } = bannerState;
-  const isUrgent = primaryWarning?.type === "urgent";
-  const showApplyOrder = suggestReorder && result.optimalVaultOrder !== null;
+  const isUrgent = bannerState.primaryWarning?.type === "urgent";
+  const showApplyOrder = offersApplyOrder(result, bannerState);
 
   const actions: NotificationAction[] = [];
 
@@ -110,8 +120,9 @@ export function buildBannerActions({
       onClick: onApplyOrder,
       emphasis: isUrgent ? "secondary" : "primary",
       // Disabled while a reorder is in flight, when Freeze/Pause blocks
-      // `reorderVaults` entirely (the protocol status banner explains why), or
-      // when the order can't be verified — clicking then would do nothing.
+      // `reorderVaults` entirely (the protocol status banner explains why) or
+      // another Aave transaction is in progress, or when the order can't be
+      // verified — clicking then would do nothing.
       disabled: isReordering || reorderBlocked || !orderVerifiable,
     });
   }

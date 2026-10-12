@@ -53,6 +53,11 @@ export interface ExecuteWriteOptions {
   args: readonly unknown[];
   /** Error context for mapViemErrorToContractError */
   errorContext: string;
+  /**
+   * How long to poll the Safe Transaction Service for a Safe proposal before
+   * the receipt wait fails. Omitted, the SDK's own default applies (hours).
+   */
+  safePollTimeoutMs?: number;
 }
 
 /**
@@ -76,6 +81,7 @@ export async function executeWrite(
     functionName,
     args,
     errorContext,
+    safePollTimeoutMs,
   } = options;
 
   // Reject if the wallet is connected to the wrong chain
@@ -141,6 +147,7 @@ export async function executeWrite(
       publicClient,
       walletAddress: account.address,
       hash,
+      safePollTimeoutMs,
     });
 
     // Before the flow asks the wallet for its next transaction, let the

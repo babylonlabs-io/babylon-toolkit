@@ -46,6 +46,9 @@ const ERC20_APPROVE_ABI = [
  * never see the reset (which wallets label "revoke approval"); every other
  * failure — user rejection, network error, mined revert, zero-allowance
  * revert — surfaces unchanged.
+ *
+ * `safePollTimeoutMs` bounds each approval's wait on a Safe proposal; see
+ * `ExecuteWriteOptions`.
  */
 export async function approveERC20(
   walletClient: WalletClient,
@@ -53,6 +56,7 @@ export async function approveERC20(
   tokenAddress: Address,
   spenderAddress: Address,
   amount: bigint,
+  { safePollTimeoutMs }: { safePollTimeoutMs?: number } = {},
 ): Promise<TransactionResult> {
   const approveArgs = {
     walletClient,
@@ -61,6 +65,7 @@ export async function approveERC20(
     abi: ERC20_APPROVE_ABI,
     functionName: "approve" as const,
     errorContext: "approve ERC20",
+    safePollTimeoutMs,
   };
 
   try {

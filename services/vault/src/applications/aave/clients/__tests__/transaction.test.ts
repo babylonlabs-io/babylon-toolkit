@@ -1,10 +1,19 @@
-import { encodeErrorResult, type Chain, type WalletClient } from "viem";
+import {
+  BlockNotFoundError,
+  HttpRequestError,
+  WaitForTransactionReceiptTimeoutError,
+  encodeErrorResult,
+  type Chain,
+  type WalletClient,
+} from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import {
   ContractError,
   ErrorCode,
+  TransactionReplacedError,
+  UnconfirmedTransactionError,
   isSimulationPhaseError,
 } from "@/utils/errors";
 
@@ -13,16 +22,20 @@ const {
   mockWaitReceipt,
   mockSendWithStaleNonceRetry,
   mockWaitForWalletToCountTransaction,
+  mockReadTransaction,
   mockSwitchChain,
   mockGetWalletClient,
   sharedWagmiConfig,
 } = vi.hoisted(() => ({
   mockPublicClient: {
     call: vi.fn(),
+    getTransaction: vi.fn(),
+    getBlockNumber: vi.fn(),
   },
   mockWaitReceipt: vi.fn(),
   mockSendWithStaleNonceRetry: vi.fn(),
   mockWaitForWalletToCountTransaction: vi.fn(),
+  mockReadTransaction: vi.fn(),
   mockSwitchChain: vi.fn(),
   mockGetWalletClient: vi.fn(),
   sharedWagmiConfig: { id: "shared-wagmi-config" },
@@ -46,6 +59,7 @@ vi.mock("../../../../clients/eth-contract/walletNonce", () => ({
     mockSendWithStaleNonceRetry(...args),
   waitForWalletToCountTransaction: (...args: unknown[]) =>
     mockWaitForWalletToCountTransaction(...args),
+  readTransaction: (...args: unknown[]) => mockReadTransaction(...args),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
@@ -57,6 +71,7 @@ vi.mock("@/config/network", () => ({
   getETHChain: () => ({ id: 1 }),
 }));
 
+import { RECEIPT_WAIT_ROUND_MS } from "../../constants";
 import {
   borrowFromCorePosition,
   reorderVaults,
@@ -133,6 +148,210 @@ describe("executeTx simulation-phase tagging (via repayToCorePosition)", () => {
 
     expect(thrown).toBeInstanceOf(ContractError);
     expect(isSimulationPhaseError(thrown)).toBe(false);
+    expect(thrown).not.toBeInstanceOf(UnconfirmedTransactionError);
+  });
+});
+
+describe("executeTx after broadcast (via repayToCorePosition)", () => {
+  const ACCOUNT = "0x2000000000000000000000000000000000000002";
+  const ADAPTER = "0x3000000000000000000000000000000000000003";
+
+  beforeEach(() => {
+    mockPublicClient.call.mockResolvedValue({});
+    mockPublicClient.getBlockNumber.mockResolvedValue(100n);
+    walletClient.sendTransaction.mockResolvedValue("0xsent");
+    // Right after the send the app's RPC serves the sent transaction.
+    mockReadTransaction.mockResolvedValue({
+      transaction: { nonce: 7, from: ACCOUNT },
+    });
+  });
+
+  /** The calldata the wallet was asked to send. */
+  const sentData = () => walletClient.sendTransaction.mock.calls[0][0].data;
+
+  it("keeps the sent hash as unconfirmed when the receipt wait times out", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new WaitForTransactionReceiptTimeoutError({ hash: "0xsent" }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as UnconfirmedTransactionError).broadcast).toEqual({
+      hash: "0xsent",
+      from: ACCOUNT,
+      to: ADAPTER,
+      data: sentData(),
+      nonce: 7,
+      sentAtBlock: 100n,
+    });
+    expect(mockWaitForWalletToCountTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not keep a nonce the RPC served for a hash another account sent", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new WaitForTransactionReceiptTimeoutError({ hash: "0xsent" }),
+    );
+    mockReadTransaction.mockResolvedValue({
+      transaction: {
+        nonce: 900,
+        from: "0x4000000000000000000000000000000000000004",
+      },
+    });
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect((thrown as UnconfirmedTransactionError).broadcast.nonce).toBeNull();
+  });
+
+  it("keeps the sent hash as unconfirmed when a lagging RPC has not served the block yet", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new BlockNotFoundError({ blockNumber: 101n }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+  });
+
+  it("reports a Safe transaction that executed and reverted as a failure, not as unconfirmed", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new Error(
+        "Safe transaction 0xsent was executed on chain but reverted. Check the Safe queue UI for details.",
+      ),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect(thrown).not.toBeInstanceOf(UnconfirmedTransactionError);
+  });
+
+  it("keeps the sent hash as unconfirmed when the RPC fails while polling for the receipt", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new HttpRequestError({ url: "https://rpc.example" }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as UnconfirmedTransactionError).transactionHash).toBe(
+      "0xsent",
+    );
+  });
+
+  it("reports a mined revert as a failure even when reading the reverted transaction fails", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "reverted",
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+      gasUsed: 21_000n,
+      blockNumber: 1n,
+    });
+    mockPublicClient.getTransaction.mockRejectedValue(
+      new HttpRequestError({ url: "https://rpc.example" }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect(thrown).not.toBeInstanceOf(UnconfirmedTransactionError);
+  });
+
+  it("keeps a Safe proposal the Safe Transaction Service would not report on as unconfirmed", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new Error("Safe Transaction Service returned 429 for 0xsent."),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+  });
+
+  it("bounds the polling of a Safe proposal, so one still in the queue ends the wait as unconfirmed", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new Error(
+        "Timed out after 60000ms waiting for Safe transaction 0xsent to reach quorum and execute. The proposal is still pending in the Safe queue.",
+      ),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(mockWaitReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({ safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS }),
+    );
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+  });
+
+  it("rejects the receipt of a cancel the wallet sent in place of the transaction", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xcancel",
+      from: ACCOUNT,
+    });
+    mockReadTransaction.mockResolvedValue({
+      transaction: { to: ACCOUNT, input: "0x", nonce: 7, from: ACCOUNT },
+    });
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(TransactionReplacedError);
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.replaced,
+    );
+  });
+
+  it("says the outcome is unknown when the replacing transaction cannot be read", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xreplacement",
+      from: ACCOUNT,
+    });
+    mockReadTransaction.mockResolvedValue({
+      transaction: null,
+      error: "not found",
+    });
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(TransactionReplacedError);
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.replacedOutcomeUnknown,
+    );
+  });
+
+  it("accepts the receipt of a speed-up that repeats the same call", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xspedup",
+      from: ACCOUNT,
+    });
+    mockReadTransaction.mockImplementation(async () => ({
+      transaction: { to: ADAPTER, input: sentData(), nonce: 7, from: ACCOUNT },
+    }));
+
+    await expect(repayCall()).resolves.toMatchObject({
+      transactionHash: "0xspedup",
+    });
+  });
+
+  it("does not look for a replacement behind a Safe's receipt, which another account sent", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xexecuted",
+      from: "0x4000000000000000000000000000000000000004",
+    });
+
+    await expect(repayCall()).resolves.toMatchObject({
+      transactionHash: "0xexecuted",
+    });
+    // Only the broadcast's own nonce read, never a replacement lookup.
+    expect(mockReadTransaction).toHaveBeenCalledTimes(1);
+    expect(mockReadTransaction).toHaveBeenCalledWith(
+      mockPublicClient,
+      "0xsent",
+      expect.any(Number),
+    );
   });
 });
 
@@ -142,18 +361,19 @@ describe("executeTx wallet nonce handling (via repayToCorePosition)", () => {
     walletClient.sendTransaction.mockResolvedValue("0xsent");
     mockWaitReceipt.mockResolvedValue({
       status: "success",
-      transactionHash: "0xmined",
+      transactionHash: "0xsent",
+      from: "0x2000000000000000000000000000000000000002",
     });
 
     await expect(repayCall()).resolves.toMatchObject({
-      transactionHash: "0xmined",
+      transactionHash: "0xsent",
     });
     expect(mockWaitForWalletToCountTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
         walletClient,
         publicClient: mockPublicClient,
         account: "0x2000000000000000000000000000000000000002",
-        receipt: expect.objectContaining({ transactionHash: "0xmined" }),
+        receipt: expect.objectContaining({ transactionHash: "0xsent" }),
       }),
     );
   });
@@ -163,7 +383,8 @@ describe("executeTx wallet nonce handling (via repayToCorePosition)", () => {
     walletClient.sendTransaction.mockResolvedValue("0xsent");
     mockWaitReceipt.mockResolvedValue({
       status: "success",
-      transactionHash: "0xmined",
+      transactionHash: "0xsent",
+      from: "0x2000000000000000000000000000000000000002",
     });
     mockSendWithStaleNonceRetry.mockImplementation(
       async ({
@@ -220,7 +441,8 @@ describe("executeTx network switch", () => {
     mockPublicClient.call.mockResolvedValue({});
     mockWaitReceipt.mockResolvedValue({
       status: "success",
-      transactionHash: "0xmined",
+      transactionHash: "0xsent",
+      from: "0x2000000000000000000000000000000000000002",
     });
     wrongChainWallet = walletOnChain(2);
     switchedWallet = walletOnChain(1);

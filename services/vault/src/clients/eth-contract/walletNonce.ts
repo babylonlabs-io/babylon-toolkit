@@ -18,6 +18,7 @@ import {
   type Address,
   type Hash,
   type PublicClient,
+  type Transaction,
   type TransactionReceipt,
   type WalletClient,
   withTimeout,
@@ -137,24 +138,28 @@ export async function waitForWalletNonce({
 }
 
 /**
- * Read a just-mined transaction's nonce from the app's RPC, retrying until
- * `deadline`: a load-balanced backend can briefly miss a transaction another
- * backend just returned the receipt for. Null when no read found it in time.
+ * Read a transaction from the app's RPC, retrying until `deadline`: a
+ * load-balanced backend can briefly miss a transaction another backend just
+ * accepted or returned the receipt for. Null when no read found it in time.
  */
-async function readMinedNonce(
+export async function readTransaction(
   publicClient: PublicClient,
   hash: Hash,
   deadline: number,
-): Promise<{ nonce: number } | { nonce: null; error: string }> {
+): Promise<
+  { transaction: Transaction } | { transaction: null; error: string }
+> {
   for (;;) {
     try {
-      const { nonce } = await readBefore(deadline, () =>
+      const transaction = await readBefore(deadline, () =>
         publicClient.getTransaction({ hash }),
       );
-      return { nonce };
+      return { transaction };
     } catch (error) {
       const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) return { nonce: null, error: errorText(error) };
+      if (remainingMs <= 0) {
+        return { transaction: null, error: errorText(error) };
+      }
       await abortableSleep(
         Math.min(WALLET_NONCE_POLL_INTERVAL_MS, remainingMs),
       );
@@ -189,8 +194,8 @@ export async function waitForWalletToCountTransaction({
   const hash = receipt.transactionHash;
   const startedAt = Date.now();
   const deadline = startedAt + WALLET_NONCE_SYNC_TIMEOUT_MS;
-  const mined = await readMinedNonce(publicClient, hash, deadline);
-  if (mined.nonce === null) {
+  const mined = await readTransaction(publicClient, hash, deadline);
+  if (mined.transaction === null) {
     logger.warn("Could not read a mined transaction to wait for the wallet", {
       data: { hash, waitedMs: Date.now() - startedAt, error: mined.error },
     });
@@ -200,7 +205,7 @@ export async function waitForWalletToCountTransaction({
   const sync = await waitForWalletNonce({
     walletClient,
     account,
-    minimumCount: mined.nonce + 1,
+    minimumCount: mined.transaction.nonce + 1,
     nudgeHash: hash,
     timeoutMs: deadline - Date.now(),
   });
@@ -210,7 +215,7 @@ export async function waitForWalletToCountTransaction({
     data: {
       chainId: walletClient.chain?.id,
       hash,
-      minedNonce: mined.nonce,
+      minedNonce: mined.transaction.nonce,
       ...sync,
     },
   });

@@ -67,6 +67,26 @@ describe("approveERC20", () => {
     expect(mockGetERC20Allowance).not.toHaveBeenCalled();
   });
 
+  it("passes the Safe polling bound to every approval it sends, the zero reset included", async () => {
+    mockExecuteWrite
+      .mockRejectedValueOnce(simulationRevert())
+      .mockResolvedValue(txResult);
+
+    await approveERC20(
+      mockWalletClient,
+      mockChain,
+      TOKEN_ADDRESS,
+      SPENDER_ADDRESS,
+      1000n,
+      { safePollTimeoutMs: 60_000 },
+    );
+
+    expect(mockExecuteWrite).toHaveBeenCalledTimes(3);
+    for (const [options] of mockExecuteWrite.mock.calls) {
+      expect(options).toMatchObject({ safePollTimeoutMs: 60_000 });
+    }
+  });
+
   it("falls back to reset-then-approve on a simulation revert with a non-zero allowance", async () => {
     mockExecuteWrite
       .mockRejectedValueOnce(simulationRevert())
