@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
 import { getBtcVaultBasicInfoFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 import WithdrawFlow, { type WithdrawFlowProps } from "../index";
@@ -127,14 +128,20 @@ const VAULTS: CollateralVaultEntry[] = [
   },
 ];
 
-function renderFlow(overrides: Partial<WithdrawFlowProps> = {}) {
-  const executeWithdraw = vi.fn(async () => true);
+function renderFlow(
+  overrides: Partial<WithdrawFlowProps> = {},
+  hook: {
+    result?: "succeeded" | "failed" | "unknown";
+    notice?: string | null;
+  } = {},
+) {
+  const executeWithdraw = vi.fn(async () => hook.result ?? "succeeded");
   vi.mocked(useWithdrawCollateralTransaction).mockReturnValue({
     executeWithdraw,
     isProcessing: false,
     pendingWrite: null,
     error: null,
-    notice: null,
+    notice: hook.notice ?? null,
   } as unknown as ReturnType<typeof useWithdrawCollateralTransaction>);
 
   const props: WithdrawFlowProps = {
@@ -322,6 +329,30 @@ describe("WithdrawFlow selection step", () => {
     await vi.waitFor(() =>
       expect(executeWithdraw).toHaveBeenCalledWith([FIRST_VAULT, SECOND_VAULT]),
     );
+  });
+});
+
+describe("WithdrawFlow when the withdrawal's outcome is unknown", () => {
+  it("returns to Select with nothing selected and shows why, instead of offering the same withdrawal again", async () => {
+    renderFlow(
+      {},
+      { result: "unknown", notice: COPY.common.unconfirmedTransaction.stopped },
+    );
+    fireEvent.click(continueButton());
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
+    );
+
+    fireEvent.click(screen.getByTestId("withdraw-confirm-button"));
+
+    await vi.waitFor(() =>
+      expect(screen.queryByText("Review Withdraw")).not.toBeInTheDocument(),
+    );
+    expect(rowCheckbox(FIRST_VAULT)).not.toBeChecked();
+    expect(rowCheckbox(SECOND_VAULT)).not.toBeChecked();
+    expect(
+      screen.getByText(COPY.common.unconfirmedTransaction.stopped),
+    ).toBeInTheDocument();
   });
 });
 

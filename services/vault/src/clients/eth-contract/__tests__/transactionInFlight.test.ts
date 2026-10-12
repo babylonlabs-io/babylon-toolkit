@@ -77,6 +77,21 @@ describe("assertNoTransactionInFlight", () => {
     await expect(check).resolves.toBeUndefined();
   });
 
+  it("refuses the write when the read a moment later fails after the first one saw a pending transaction", async () => {
+    counts({ latest: 7, pending: 8 });
+    const check = assertNoTransactionInFlight({
+      publicClient,
+      account: ACCOUNT,
+    }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(0);
+    mockGetTransactionCount.mockRejectedValue(
+      new HttpRequestError({ url: "https://rpc.example" }),
+    );
+    await vi.runAllTimersAsync();
+
+    expect(await check).toBeInstanceOf(TransactionInFlightError);
+  });
+
   it("lets the write go ahead when a lagging backend reports fewer pending than mined", async () => {
     counts({ latest: 8, pending: 7 });
 

@@ -80,7 +80,9 @@ export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
  * the same way, and a round left running after "Stop waiting" ends with it.
  * `executeTx`'s first wait uses it for the same budget, so a Safe proposal
  * still in the queue hands over to the watch instead of holding the lock in
- * its submitting phase, where "Stop waiting" is never offered.
+ * its submitting phase, where "Stop waiting" is never offered. Repay's
+ * approve uses it too; it has no watch, so a queued Safe approve fails after
+ * one round and releases the lock.
  */
 export const RECEIPT_WAIT_ROUND_MS = 60 * 1000;
 

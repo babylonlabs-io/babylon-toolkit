@@ -10,6 +10,7 @@ import { COPY } from "@/copy";
 import { abortableSleep } from "@/utils/async";
 
 import { ERC20 } from "../../../clients/eth-contract";
+import { RECEIPT_WAIT_ROUND_MS } from "../constants";
 
 /** Display metadata for the debt token, used only in error copy. */
 export interface TokenDisplay {
@@ -54,12 +55,16 @@ export async function approveAndVerify(
   requiredAmount: bigint,
   token: TokenDisplay,
 ): Promise<void> {
+  // The approve runs under the account's Aave lock, where "Stop waiting" is
+  // never offered. Bounded, a Safe approve still in the queue fails and
+  // releases the lock; once it executes, the next attempt finds the allowance.
   const { receipt } = await ERC20.approveERC20(
     walletClient,
     chain,
     tokenAddress,
     spenderAddress,
     requiredAmount,
+    { safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS },
   );
 
   const approvalLogs = parseEventLogs({

@@ -19,9 +19,10 @@
  *
  * Best effort. A transaction sent through a private relay never reaches a
  * public mempool and is invisible here, and so is a Safe proposal, which uses
- * the Safe's own nonce. A failed read lets the write go ahead: the check must
- * not turn an RPC that cannot answer `pending` into a block on every Aave
- * write. The failure is reported as an error so its rate can be watched.
+ * the Safe's own nonce. A failed first read lets the write go ahead: the check
+ * must not turn an RPC that cannot answer `pending` into a block on every Aave
+ * write. The failure is reported as an error so its rate can be watched. Once
+ * a read has seen a pending transaction, only a clean second read clears it.
  */
 
 import type { Address, PublicClient } from "viem";
@@ -57,7 +58,7 @@ async function hasPendingTransaction(
     logger.error(error, {
       data: {
         context:
-          "Could not check for a pending transaction before an Aave write; sending anyway",
+          "Could not check for a pending transaction before an Aave write",
       },
     });
     return null;
@@ -83,13 +84,15 @@ export async function assertNoTransactionInFlight({
   // write can see it as pending. Read again a moment later before refusing.
   await abortableSleep(WALLET_NONCE_POLL_INTERVAL_MS);
   const again = await hasPendingTransaction(publicClient, account);
-  if (!again?.pending) return;
+  // A failed re-read says nothing new, so the first read's answer stands.
+  if (again !== null && !again.pending) return;
 
+  const answered = again ?? first;
   logger.warn("Refused an Aave write while a transaction is pending", {
     data: {
       chainId: publicClient.chain?.id,
-      latest: again.latest,
-      pending: again.pendingCount,
+      latest: answered.latest,
+      pending: answered.pendingCount,
     },
   });
   throw new TransactionInFlightError();

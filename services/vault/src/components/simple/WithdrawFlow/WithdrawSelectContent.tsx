@@ -30,6 +30,11 @@ interface WithdrawSelectContentProps {
   projectedHealthFactor: number;
   /** Whether the user accepted the at-risk projection. */
   acknowledged: boolean;
+  /**
+   * Last withdraw outcome that is not a failure (null when none), such as a
+   * withdrawal the user stopped waiting for, which may still be mined.
+   */
+  notice: string | null;
   onToggleVault: (vaultId: string) => void;
   onAcknowledgedChange: (acknowledged: boolean) => void;
   onContinue: () => void;
@@ -41,6 +46,7 @@ export function WithdrawSelectContent({
   totalAmountBtc,
   projectedHealthFactor,
   acknowledged,
+  notice,
   onToggleVault,
   onAcknowledgedChange,
   onContinue,
@@ -60,6 +66,8 @@ export function WithdrawSelectContent({
           {SELECT_COPY.subtitle}
         </Text>
       </div>
+
+      {notice && <Callout variant="warning">{notice}</Callout>}
 
       {(wouldBreachHF || isAtRisk) && (
         <Callout

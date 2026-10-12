@@ -195,12 +195,18 @@ function WithdrawFlowContent({
       collateralValueUsd,
       currentHealthFactor,
     });
-    const success = await executeWithdraw(vpCommission.vaultIds);
-    if (!success) {
-      setConfirmed(null);
+    const result = await executeWithdraw(vpCommission.vaultIds);
+    if (result === "succeeded") {
+      goToProgress();
       return;
     }
-    goToProgress();
+    setConfirmed(null);
+    // The withdrawal may still be mined, so the same one is not offered
+    // again: the user picks vaults afresh, with the notice saying why.
+    if (result === "unknown") {
+      setSelectedVaultIds([]);
+      goToSelect();
+    }
   }, [
     executeWithdraw,
     vpCommission,
@@ -209,6 +215,7 @@ function WithdrawFlowContent({
     collateralValueUsd,
     currentHealthFactor,
     goToProgress,
+    goToSelect,
   ]);
 
   // Review reached from Select can return to it; not while a submit is in flight.
@@ -231,6 +238,7 @@ function WithdrawFlowContent({
               totalAmountBtc={selectedBtc}
               projectedHealthFactor={projectedHealthFactor}
               acknowledged={acknowledged}
+              notice={notice}
               onToggleVault={toggleVault}
               onAcknowledgedChange={setAcknowledged}
               onContinue={goToReview}

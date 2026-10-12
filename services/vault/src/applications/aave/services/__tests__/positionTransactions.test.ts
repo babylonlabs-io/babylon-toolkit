@@ -80,6 +80,7 @@ import {
   tagSimulationPhase,
 } from "../../../../utils/errors";
 import { getAaveAdapterAddress } from "../../config";
+import { RECEIPT_WAIT_ROUND_MS } from "../../constants";
 import {
   borrow,
   repay,
@@ -255,13 +256,16 @@ describe("positionTransactions", () => {
         "0xadapter",
       );
 
-      // Should approve exact amount (not MAX_UINT256) to the pinned adapter address
+      // Should approve exact amount (not MAX_UINT256) to the pinned adapter
+      // address, with a Safe approve's wait bounded so it cannot hold the
+      // account's Aave lock for the SDK's default of hours
       expect(mockApproveERC20).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
         "0xtoken",
         "0xadapter",
         amount,
+        { safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS },
       );
 
       // Should repay with borrower = user address
@@ -432,6 +436,7 @@ describe("positionTransactions", () => {
         "0xtoken",
         "0xadapter",
         1005000n,
+        { safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS },
       );
     });
 
@@ -454,6 +459,7 @@ describe("positionTransactions", () => {
         "0xtoken",
         "0xadapter",
         balance,
+        { safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS },
       );
     });
 
@@ -1037,6 +1043,7 @@ describe("positionTransactions", () => {
           "0xtoken",
           "0xadapter",
           balance,
+          { safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS },
         );
         expect(mockRepayToCorePosition).toHaveBeenCalledTimes(3);
         // Every attempt sends the repay-all sentinel.

@@ -111,12 +111,12 @@ describe("useWithdrawCollateralTransaction", () => {
     mockWithdraw.mockRejectedValue(new Error("execution reverted"));
     const { client, result } = setup();
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeWithdraw([VAULT_ID]);
     });
 
-    expect(resolved).toBe(false);
+    expect(resolved).toBe("failed");
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(false);
     expect(mockMarkVaultsAsPending).not.toHaveBeenCalled();
   });
@@ -129,18 +129,18 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
     );
     const { result } = setup();
 
-    let resolved: boolean | undefined;
+    let resolved: string | undefined;
     await act(async () => {
       resolved = await result.current.executeWithdraw([VAULT_ID]);
     });
 
-    expect(resolved).toBe(false);
+    expect(resolved).toBe("failed");
     expect(result.current.notice).toBe(COPY.common.transactionInFlight);
     expect(result.current.error).toBeNull();
     expect(mockWithdraw).not.toHaveBeenCalled();
   });
 
-  it("does not mark the vaults withdrawing when the user stops waiting on an unconfirmed withdrawal", async () => {
+  it("reports an unknown outcome with the stopped notice, and does not mark the vaults withdrawing, when the user stops waiting", async () => {
     vi.useFakeTimers();
     try {
       mockWithdraw.mockRejectedValue(
@@ -160,7 +160,7 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
       // the refresh is observed on the client rather than on the cache.
       const invalidate = vi.spyOn(client, "invalidateQueries");
 
-      let withdrawing!: Promise<boolean>;
+      let withdrawing!: Promise<string>;
       await act(async () => {
         withdrawing = result.current.executeWithdraw([VAULT_ID]);
       });
@@ -173,9 +173,12 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
       }
       await act(async () => {
         pending.stopWaiting?.();
-        await expect(withdrawing).resolves.toBe(false);
+        await expect(withdrawing).resolves.toBe("unknown");
       });
 
+      expect(result.current.notice).toBe(
+        COPY.common.unconfirmedTransaction.stopped,
+      );
       expect(mockMarkVaultsAsPending).not.toHaveBeenCalled();
       expect(invalidate).toHaveBeenCalled();
     } finally {

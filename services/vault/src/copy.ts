@@ -1790,6 +1790,8 @@ export const COPY = {
       stopWaiting: "Stop waiting",
       stopWaitingHint:
         "Stopping doesn't cancel the transaction. If it confirms later, it still takes effect.",
+      stopped:
+        "You stopped waiting for this transaction. It may still confirm, so check your updated position before trying again.",
       inProgress:
         "A loan or collateral transaction from this wallet is still in progress. Wait for it to finish, then try again.",
       reverted:
