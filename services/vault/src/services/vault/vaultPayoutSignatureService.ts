@@ -44,7 +44,7 @@ import { DepositorBtcKeyMismatchError } from "../../utils/errors/depositorWallet
 /**
  * Exclusive upper bound on VP commission (bps): vault-contracts-aave-v4 keeps
  * the `maxVpCommissionBps` cap below it (`ProtocolParams.sol:548` @
- * 790c4df6), and the registry refuses any commission above that cap
+ * a20b5e0d), and the registry refuses any commission above that cap
  * (`VPKeyRegistryLogic.sol:93-94,452-453`). Local literal by design:
  * the SDK's `MAX_VP_COMMISSION_BPS_EXCLUSIVE` is an internal module, not public API.
  */
@@ -53,7 +53,7 @@ const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
 /**
  * Lowest VP commission (bps) the registry accepts: vault-contracts-aave-v4
  * `MIN_VP_COMMISSION_BPS` (`src/protocol/lib/types/Constants.sol:15` @
- * 790c4df6), enforced on registration and on every commission update
+ * a20b5e0d), enforced on registration and on every commission update
  * (`VPKeyRegistryLogic.sol:90-91,449-450`). It is above the btc-vault
  * tx-graph builder's nonzero floor. Local literal for the same reason as the
  * bound above.

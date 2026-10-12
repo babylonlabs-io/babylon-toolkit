@@ -144,7 +144,7 @@ export function validateOffchainParams(params: VersionedOffchainParams): void {
   }
 
   // The cap on every VP's commission. Mirrors the setter's bound
-  // (`ProtocolParams.sol:548` @ 790c4df6): a value outside it is a
+  // (`ProtocolParams.sol:548` @ a20b5e0d): a value outside it is a
   // mis-decoded read.
   if (
     params.maxVpCommissionBps < MIN_VP_COMMISSION_BPS ||

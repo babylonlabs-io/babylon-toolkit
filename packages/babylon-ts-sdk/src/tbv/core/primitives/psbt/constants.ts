@@ -242,7 +242,7 @@ export const CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX = 0;
 /**
  * Exclusive upper bound on VP commission (bps): vault-contracts-aave-v4 keeps
  * the `maxVpCommissionBps` cap below it (`ProtocolParams.sol:548` @
- * 790c4df6), and the registry refuses any commission above that cap
+ * a20b5e0d), and the registry refuses any commission above that cap
  * (`VPKeyRegistryLogic.sol:93-94,452-453`).
  */
 export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;
@@ -251,7 +251,7 @@ export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;
  * Lowest VP commission (bps) the registry accepts, and the floor of the
  * versioned `maxVpCommissionBps` cap: vault-contracts-aave-v4
  * `MIN_VP_COMMISSION_BPS` (`src/protocol/lib/types/Constants.sol:15` @
- * 790c4df6), enforced in `VPKeyRegistryLogic.sol:90-91,449-450` and
+ * a20b5e0d), enforced in `VPKeyRegistryLogic.sol:90-91,449-450` and
  * `ProtocolParams.sol:548`. A library constant with no getter, so it cannot be
  * read on-chain.
  */
