@@ -166,7 +166,7 @@ export function AmountSlider({
   return (
     <div className={twJoin("flex w-full flex-col gap-4", className)}>
       {/* Row 1: Icon + Name (or custom slot) + Input */}
-      <div className="flex w-full items-center justify-between">
+      <div className="flex w-full items-center justify-between gap-2">
         {currencySlot ?? (
           <div className="flex items-center gap-2">
             <img src={currencyIcon} alt={currencyName} className="h-10 w-10" />

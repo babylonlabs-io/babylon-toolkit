@@ -155,7 +155,7 @@ export const Header = ({
       >
         <div
           className={twJoin(
-            "flex items-center",
+            "flex min-w-0 items-center",
             isMobileView && mobileTitle ? "gap-2" : "gap-4",
           )}
         >

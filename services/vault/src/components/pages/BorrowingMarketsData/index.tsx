@@ -370,7 +370,7 @@ export default function BorrowingMarketsData() {
           </button>
 
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-4 max-md:basis-full">
               <Avatar
                 url={icon}
                 alt={name}
@@ -379,7 +379,7 @@ export default function BorrowingMarketsData() {
                 className="h-16 w-16 shrink-0 rounded-full bg-white"
               />
               <div className="flex min-w-0 flex-col">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 max-md:flex-wrap">
                   <Heading
                     variant="h5"
                     as="h2"
@@ -404,7 +404,7 @@ export default function BorrowingMarketsData() {
             </div>
             <button
               type="button"
-              className={NEUTRAL_BUTTON_CLASS}
+              className={`${NEUTRAL_BUTTON_CLASS} max-md:w-full`}
               disabled={isDemo || selectedReserve === null}
               onClick={() => {
                 if (selectedReserve === null) return;
