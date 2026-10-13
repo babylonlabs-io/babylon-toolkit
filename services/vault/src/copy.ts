@@ -1177,7 +1177,7 @@ export const COPY = {
         },
         payout: {
           heading: SIGN_PAYOUTS_STEP,
-          body: "Your wallet may first ask to derive a key that signs you in with the vault provider, then asks you to sign the Payout and NoPayout transactions. No signature is sent to the vault provider until all of them are signed.",
+          body: "Your wallet may first ask to derive a key that signs you in with the vault provider, then ask you to sign the Payout and NoPayout transactions. No signature is sent to the vault provider until all of them are signed.",
           button: SIGN_PAYOUTS_ACTION,
         },
       },
