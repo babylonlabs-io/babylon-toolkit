@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       ENVIRONMENT:
-        description: 'Environment to publish. "all" publishes all three (the push/tag default).'
+        description: 'Environment to publish. "all" publishes every environment below (the push/tag default).'
         required: false
         default: all
         type: choice
@@ -20,6 +20,7 @@ on:
           - vault-devnet
           - vault-staging-devnet
           - vault-testnet
+          - vault-real-money-devnet
       CORRELATION_ID:
         description: 'Opaque ID set by an orchestrating workflow (e.g. tbv-deployment unified redeploy) so it can locate this run via run-name. Empty for manual runs.'
         required: false
@@ -93,15 +94,23 @@ jobs:
           ALL='[
             {"environment":"vault-devnet","aws_account":"537927626649"},
             {"environment":"vault-staging-devnet","aws_account":"537927626649"},
-            {"environment":"vault-testnet","aws_account":"615368094160","prod":true}
+            {"environment":"vault-testnet","aws_account":"615368094160","prod":true},
+            {"environment":"vault-real-money-devnet","aws_account":"537927626649","role":"gha-s3-frontend-push-real-money-devnet","main_only":true}
           ]'
+          # "role" names a dedicated AWS role for that environment (default: gha-s3-frontend-push).
+          # A "main_only" entry publishes with a role that trusts refs/heads/main alone, so off main
+          # it is left out of the all-environment run and refused when asked for by name.
           if [ -z "${ENVIRONMENT:-}" ] || [ "$ENVIRONMENT" = "all" ]; then
-            SELECTED=$(echo "$ALL" | jq -c '.')
+            SELECTED=$(echo "$ALL" | jq -c --arg ref "$GITHUB_REF" '[.[] | select(.main_only != true or $ref == "refs/heads/main")]')
           else
             SELECTED=$(echo "$ALL" | jq -c --arg e "$ENVIRONMENT" '[.[] | select(.environment == $e)]')
             if [ "$(echo "$SELECTED" | jq 'length')" -eq 0 ]; then
               VALID=$(echo "$ALL" | jq -r '[.[].environment] + ["all"] | join(", ")')
               echo "::error::Unknown ENVIRONMENT '$ENVIRONMENT'. Valid: $VALID."
+              exit 1
+            fi
+            if [ "$GITHUB_REF" != "refs/heads/main" ] && [ "$(echo "$SELECTED" | jq 'any(.[]; .main_only == true)')" = "true" ]; then
+              echo "::error::$ENVIRONMENT publishes from main only: its AWS role trusts refs/heads/main alone."
               exit 1
             fi
           fi
@@ -161,7 +170,7 @@ jobs:
       - name: Configure AWS credentials (assume per-account role)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1 https://github.com/aws-actions/configure-aws-credentials/releases/tag/v4.3.1
         with:
-          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/gha-s3-frontend-push
+          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/${{ matrix.role || 'gha-s3-frontend-push' }}
           role-session-name: gh-babylon-toolkit-vault-push
           aws-region: ap-east-1
 
