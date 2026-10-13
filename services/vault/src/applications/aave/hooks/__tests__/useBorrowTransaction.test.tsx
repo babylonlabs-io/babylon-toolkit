@@ -50,9 +50,14 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
-vi.mock("wagmi", () => ({
-  useWalletClient: () => ({ data: { account: { address: "0xuser" } } }),
-  useAccount: () => ({ address: "0xuser" }),
+vi.mock("@/context/wallet", () => ({
+  useETHWallet: () => ({ address: "0xuser" }),
+}));
+
+vi.mock("@/clients/eth-contract/walletChain", () => ({
+  getWalletClientOnExpectedChain: vi
+    .fn()
+    .mockResolvedValue({ account: { address: "0xuser" } }),
 }));
 
 // Local override of the global gate mock so we can drive a paused aave scope.

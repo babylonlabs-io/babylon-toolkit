@@ -43,9 +43,8 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
-vi.mock("wagmi", () => ({
-  useWalletClient: () => ({ data: { account: { address: "0xuser" } } }),
-  useAccount: () => ({ address: "0xuser" }),
+vi.mock("@/context/wallet", () => ({
+  useETHWallet: () => ({ address: "0xuser" }),
 }));
 
 // Local override of the global gate mock so we can drive a paused scope.
@@ -157,7 +156,7 @@ describe("useRepayTransaction — max mode wiring", () => {
 
     expect(resolved).toBe("succeeded");
     expect(mockRepayAll).toHaveBeenCalledWith(
-      expect.anything(), // wallet client
+      "0xuser",
       expect.anything(), // chain
       "r1",
       "0xtoken",

@@ -1871,9 +1871,10 @@ export const COPY = {
       "Your wallet has a transaction that hasn't confirmed yet. Wait for it to confirm, or speed it up or cancel it in your wallet, then try again.",
   },
   wallet: {
-    // Thrown by the Aave transaction hooks when no ETH wallet is connected.
+    // Not-connected message thrown by the click-time wallet-client helper
+    // (clients/eth-contract/walletChain.ts), used by the Aave position hooks
+    // and the deposit flow.
     connectToContinue: "Please connect your wallet to continue",
-    addressUnavailable: "Wallet address not available",
     // Connect Wallets screen: the line under each wallet row that says why
     // the app needs that wallet.
     chainDescriptions: {

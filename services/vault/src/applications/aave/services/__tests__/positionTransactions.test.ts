@@ -53,7 +53,9 @@ vi.mock("../../config", () => ({
 }));
 
 vi.mock("../../../../clients/eth-contract/walletChain", () => ({
-  ensureWalletClientOnExpectedChain: (walletClient: unknown) => walletClient,
+  getWalletClientOnExpectedChain: async (account: string) => ({
+    account: { address: account },
+  }),
 }));
 
 // The proxy-integrity guard is unit-tested in assertProxyMatchesOnChain.test.ts.
@@ -241,7 +243,7 @@ describe("positionTransactions", () => {
       const amount = 1000000n;
 
       await repayPartial(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -277,7 +279,7 @@ describe("positionTransactions", () => {
       setSimulatedAllowance(amount + 1000n);
 
       await repayPartial(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -289,27 +291,12 @@ describe("positionTransactions", () => {
       expect(mockRepayToCorePosition).toHaveBeenCalled();
     });
 
-    it("should throw error when wallet has no account", async () => {
-      const noAccountWallet = { account: undefined } as any;
-
-      await expect(
-        repayPartial(
-          noAccountWallet,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          1000n,
-          mockToken,
-        ),
-      ).rejects.toThrow("Wallet address not available");
-    });
-
     it("names the wallet balance when it is below the requested amount", async () => {
       mockGetERC20Balance.mockResolvedValue(999999n);
 
       await expect(
         repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -337,7 +324,7 @@ describe("positionTransactions", () => {
       const balance = 2000000n;
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -359,7 +346,7 @@ describe("positionTransactions", () => {
 
     it("verifies the proxy on-chain before quoting debt (F8)", async () => {
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -382,7 +369,7 @@ describe("positionTransactions", () => {
 
       await expect(
         repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -402,7 +389,7 @@ describe("positionTransactions", () => {
       mockAssertProxy.mockResolvedValue(VERIFIED);
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -421,7 +408,7 @@ describe("positionTransactions", () => {
     it("caps the approval at quote + buffer when the balance has headroom", async () => {
       // quote 1000000n → ceil(1000000/200) = 5000n buffer.
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -444,7 +431,7 @@ describe("positionTransactions", () => {
       const balance = 1002000n; // quote ≤ balance < quote + buffer
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -466,7 +453,7 @@ describe("positionTransactions", () => {
     it("never approves the sentinel value itself", async () => {
       // The wire amount is maxUint256; the APPROVAL must stay finite.
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -484,7 +471,7 @@ describe("positionTransactions", () => {
       setSimulatedAllowance(2000000n);
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
@@ -502,7 +489,7 @@ describe("positionTransactions", () => {
 
       await expect(
         repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -521,7 +508,7 @@ describe("positionTransactions", () => {
       // the stale-simulation retry's trigger — and burn the retry budget.
       await expect(
         repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -535,28 +522,12 @@ describe("positionTransactions", () => {
       expect(mockRepayToCorePosition).not.toHaveBeenCalled();
     });
 
-    it("throws error when wallet has no account", async () => {
-      const noAccountWallet = { account: undefined } as any;
-
-      await expect(
-        repayAll(
-          noAccountWallet,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          PROXY,
-          2000000n,
-          mockToken,
-        ),
-      ).rejects.toThrow("Wallet address not available");
-    });
-
     describe("ceiling-division buffer for dust-scale quotes", () => {
       const capFor = async (quote: bigint) => {
         mockGetPositionReserveTotalDebt.mockResolvedValue(quote);
         mockApproveERC20.mockClear();
         await repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -639,8 +610,6 @@ describe("positionTransactions", () => {
       data: numberToHex(value, { size: 32 }),
     });
 
-    const ownerWallet = { account: { address: OWNER } } as any;
-
     beforeEach(() => {
       (getAaveAdapterAddress as Mock).mockReturnValue(ADAPTER);
       mockGetERC20Balance.mockResolvedValue(2000000n);
@@ -653,14 +622,7 @@ describe("positionTransactions", () => {
         receipt: { status: "success", logs: [approvalLog(amount)] },
       });
 
-      await repayPartial(
-        ownerWallet,
-        mockChain,
-        1n,
-        TOKEN as any,
-        amount,
-        mockToken,
-      );
+      await repayPartial(OWNER, mockChain, 1n, TOKEN as any, amount, mockToken);
 
       // Exactly one allowance read: the pre-approve short-circuit check.
       // The verification came from the receipt, immune to stale RPC reads.
@@ -677,14 +639,7 @@ describe("positionTransactions", () => {
       });
 
       await expect(
-        repayPartial(
-          ownerWallet,
-          mockChain,
-          1n,
-          TOKEN as any,
-          amount,
-          mockToken,
-        ),
+        repayPartial(OWNER, mockChain, 1n, TOKEN as any, amount, mockToken),
       ).rejects.toThrow(/approved a lower amount than required/i);
 
       expect(mockGetERC20Allowance).toHaveBeenCalledTimes(1);
@@ -754,14 +709,7 @@ describe("positionTransactions", () => {
       });
 
       await expect(
-        repayPartial(
-          ownerWallet,
-          mockChain,
-          1n,
-          TOKEN as any,
-          amount,
-          mockToken,
-        ),
+        repayPartial(OWNER, mockChain, 1n, TOKEN as any, amount, mockToken),
       ).rejects.toThrow(/approved a lower amount than required/i);
 
       // Verified from the last MATCHING log (amount - 1n), not the foreign,
@@ -787,7 +735,7 @@ describe("positionTransactions", () => {
           .mockResolvedValue(amount); // verification attempt 2
 
         const result = repayPartial(
-          ownerWallet,
+          OWNER,
           mockChain,
           1n,
           TOKEN as any,
@@ -821,7 +769,7 @@ describe("positionTransactions", () => {
         });
 
         const result = repayAll(
-          ownerWallet,
+          OWNER,
           mockChain,
           1n,
           TOKEN as any,
@@ -871,7 +819,7 @@ describe("positionTransactions", () => {
           .mockResolvedValue(mockTxResult);
 
         const result = repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -905,7 +853,7 @@ describe("positionTransactions", () => {
           .mockResolvedValue(mockTxResult);
 
         const result = repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -940,7 +888,7 @@ describe("positionTransactions", () => {
 
       await expect(
         repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -968,14 +916,7 @@ describe("positionTransactions", () => {
       mockRepayToCorePosition.mockRejectedValue(unconfirmed);
 
       await expect(
-        repayPartial(
-          mockWalletClient,
-          mockChain,
-          1n,
-          "0xtoken",
-          1000000n,
-          mockToken,
-        ),
+        repayPartial("0xuser", mockChain, 1n, "0xtoken", 1000000n, mockToken),
       ).rejects.toBe(unconfirmed);
 
       expect(mockRepayToCorePosition).toHaveBeenCalledTimes(1);
@@ -990,7 +931,7 @@ describe("positionTransactions", () => {
         mockRepayToCorePosition.mockRejectedValue(staleSimulationError());
 
         const result = repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
@@ -1021,7 +962,7 @@ describe("positionTransactions", () => {
           .mockResolvedValue(mockTxResult);
 
         const result = repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,

@@ -47,11 +47,16 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
-const mockUseAccount = vi.fn();
-const mockUseWalletClient = vi.fn();
-vi.mock("wagmi", () => ({
-  useAccount: () => mockUseAccount(),
-  useWalletClient: () => mockUseWalletClient(),
+const mockUseETHWallet = vi.fn();
+vi.mock("@/context/wallet", () => ({
+  useETHWallet: () => mockUseETHWallet(),
+}));
+
+vi.mock("@/clients/eth-contract/walletChain", () => ({
+  getWalletClientOnExpectedChain: vi.fn().mockResolvedValue({
+    account: { address: "0xuser" },
+    chain: { id: 11155111 },
+  }),
 }));
 
 const mockIsReorderBlocked = vi.fn(() => false);
@@ -115,10 +120,7 @@ const CTX: ReorderVerificationContext = {
 };
 
 function setupConnectedWallet() {
-  mockUseAccount.mockReturnValue({ address: USER });
-  mockUseWalletClient.mockReturnValue({
-    data: { account: { address: USER }, chain: { id: 11155111 } },
-  });
+  mockUseETHWallet.mockReturnValue({ address: USER });
 }
 
 describe("useReorderVaults — on-chain integrity guards", () => {
@@ -299,8 +301,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
   });
 
   it("rejects when the wallet is not connected (before any on-chain read)", async () => {
-    mockUseAccount.mockReturnValue({ address: undefined });
-    mockUseWalletClient.mockReturnValue({ data: undefined });
+    mockUseETHWallet.mockReturnValue({ address: undefined });
 
     const { result } = renderHook(() => useReorderVaults());
 

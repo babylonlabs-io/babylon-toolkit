@@ -40,7 +40,7 @@ const MODAL_CLOSE_CANCEL_GRACE_MS = 1500;
 const CONNECT_TIMEOUT_VISIBLE_MS = 60_000;
 // WalletConnect can report no account for a moment when a phone tab resumes.
 // Hold the cached address this long before treating the session as lost.
-const ETH_EMPTY_ACCOUNT_GRACE_MS = 3000;
+export const ETH_EMPTY_ACCOUNT_GRACE_MS = 3000;
 const WALLET_NOT_CONNECTED_ERROR_MESSAGE = "Wallet not connected";
 
 // Generic Ethereum logo, used only when the active wagmi connector does not

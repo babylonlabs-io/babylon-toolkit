@@ -18,7 +18,7 @@ import { maxUint256 } from "viem";
 import { COPY } from "@/copy";
 
 import { ERC20 } from "../../../clients/eth-contract";
-import { ensureWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
+import { getWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
 import { AaveAdapterTx, AaveProxy } from "../clients";
 import { getAaveAdapterAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
@@ -113,8 +113,9 @@ export async function repay(
  * Handles approval if needed, then executes repay.
  * Uses the pinned adapter address from trusted environment config.
  *
- * @param connectedWalletClient - Connected wallet client; asked to switch to
- *   the app's Ethereum chain before the approve when it is on another one
+ * @param userAddress - Connected account. The wallet client is fetched, and the
+ *   wallet asked to switch to the app's Ethereum chain, only after the
+ *   balance check passes
  * @param chain - Chain configuration
  * @param debtReserveId - Reserve ID for the debt token
  * @param tokenAddress - Token address for the debt
@@ -122,18 +123,13 @@ export async function repay(
  * @returns Transaction result
  */
 export async function repayPartial(
-  connectedWalletClient: WalletClient,
+  userAddress: Address,
   chain: Chain,
   debtReserveId: bigint,
   tokenAddress: Address,
   amount: bigint,
   token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const userAddress = connectedWalletClient.account?.address;
-  if (!userAddress) {
-    throw new Error("Wallet address not available");
-  }
-
   const adapterAddress = getAaveAdapterAddress();
 
   const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
@@ -146,10 +142,7 @@ export async function repayPartial(
     );
   }
 
-  const walletClient = await ensureWalletClientOnExpectedChain(
-    connectedWalletClient,
-    userAddress,
-  );
+  const walletClient = await getWalletClientOnExpectedChain(userAddress);
 
   const { approveSent } = await ensureAllowance(
     walletClient,
@@ -201,10 +194,13 @@ export async function repayPartial(
  * - forceApprove re-asserts the same cap (no re-quote): it only fires on the
  *   stale-HIGH-allowance-read path, where re-assertion is the fix.
  *
+ * @param userAddress - Connected account. The wallet client is fetched, and the
+ *   wallet asked to switch to the app's Ethereum chain, only after the quote
+ *   and balance checks pass
  * @param balanceRaw - User's exact raw token balance (caps the approval)
  */
 export async function repayAll(
-  connectedWalletClient: WalletClient,
+  userAddress: Address,
   chain: Chain,
   debtReserveId: bigint,
   tokenAddress: Address,
@@ -212,11 +208,6 @@ export async function repayAll(
   balanceRaw: bigint,
   token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const userAddress = connectedWalletClient.account?.address;
-  if (!userAddress) {
-    throw new Error("Wallet address not available");
-  }
-
   const adapterAddress = getAaveAdapterAddress();
 
   // Independent, value-site verification of the proxy against the env-pinned
@@ -256,10 +247,7 @@ export async function repayAll(
   const buffered = quote + bufferDelta;
   const cap = buffered < balanceRaw ? buffered : balanceRaw;
 
-  const walletClient = await ensureWalletClientOnExpectedChain(
-    connectedWalletClient,
-    userAddress,
-  );
+  const walletClient = await getWalletClientOnExpectedChain(userAddress);
 
   const { approveSent } = await ensureAllowance(
     walletClient,
