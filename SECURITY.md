@@ -813,7 +813,9 @@ roles have different review requirements. Satisfy both.
   `refs/heads/main` alone; the shared role is denied on that environment's build and checksum
   prefixes. Off `main` its leg is therefore left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
-  has not published it.
+  has not published it. It also has no immutable per-sha release manifest: that step stays
+  `vault-testnet` only, so this environment's checksums are the S3 objects uploaded next to the
+  build, under a prefix its own publish role can overwrite.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
   no longer exist, and reports them to a tracker issue. Paths registered ahead of their code sit in a
   `pending` list that is exempt from the existence check and reported separately once the files land.
