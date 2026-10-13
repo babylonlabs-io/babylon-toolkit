@@ -255,7 +255,7 @@ describe("signAndSubmitPayouts", () => {
     );
   });
 
-  it("warns and lets signing go on when this device holds no entry for the vault", async () => {
+  it("warns and lets signing go on when the fingerprint could not be stored on this device", async () => {
     mockRecordSignedGraphFingerprint.mockReturnValue(false);
     await callSignAndSubmit();
 

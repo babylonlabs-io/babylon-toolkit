@@ -66,12 +66,29 @@ describe("usePeginStorage pending activity mapping", () => {
   });
 });
 
-// Keep the storage key derivation honest: the test seeds through the public
-// writer, so a change to the key shape breaks here rather than silently
-// reading an empty list and passing.
+// Keep the storage key derivation honest: the public writer must store under
+// the key the exported builder returns, which the cross-tab listener compares
+// against. A writer that drifted from the builder would read back an empty
+// list here and fail.
 describe("storage key", () => {
-  it("scopes pending peg-ins to the connected address", () => {
-    expect(getPendingPeginsStorageKey(ETH_ADDRESS)).toContain(ETH_ADDRESS);
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("stores pending peg-ins under the key scoped to the connected address", () => {
+    addPendingPegin(ETH_ADDRESS, {
+      id: VAULT_ID,
+      peginTxHash: PEGIN_TXHASH,
+      unsignedTxHex: "0xdeadbeef",
+      buildOffchainParamsVersion: REGISTERED_VERSION,
+      buildAppVaultKeepersVersion: 3,
+      buildUniversalChallengersVersion: 5,
+      buildVaultCoreVersion: 1,
+    });
+
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
+    expect(key).toContain(ETH_ADDRESS);
+    expect(JSON.parse(localStorage.getItem(key) ?? "[]")).toHaveLength(1);
   });
 });
 

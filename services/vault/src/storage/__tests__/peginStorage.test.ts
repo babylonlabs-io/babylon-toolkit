@@ -8,6 +8,7 @@ import { logger } from "@/infrastructure";
 import { STORAGE_UPDATE_EVENT } from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
+  __resetLegacyKeyChecksForTests,
   addPendingPegin,
   getPendingPegins,
   getPendingPeginsStorageKey,
@@ -82,6 +83,91 @@ describe("storage key scoping", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    __resetLegacyKeyChecksForTests();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps a legacy entry's presign fingerprint before dropping it", () => {
+    const fingerprint = "c".repeat(64);
+    localStorage.setItem(
+      legacyStorageKey,
+      JSON.stringify([{ ...validPegin, signedGraphFingerprint: fingerprint }]),
+    );
+
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint,
+    });
+  });
+
+  it("keeps the legacy key while a fingerprint cannot be saved, and retries", () => {
+    const fingerprint = "d".repeat(64);
+    localStorage.setItem(
+      legacyStorageKey,
+      JSON.stringify([{ ...validPegin, signedGraphFingerprint: fingerprint }]),
+    );
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota exceeded");
+      });
+
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+    expect(localStorage.getItem(legacyStorageKey)).not.toBeNull();
+    expect(logger.info).not.toHaveBeenCalled();
+
+    setItem.mockRestore();
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+    expect(localStorage.getItem(legacyStorageKey)).toBeNull();
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint,
+    });
+  });
+
+  it("keeps an unreadable legacy blob and reports it once", () => {
+    localStorage.setItem(legacyStorageKey, "{");
+
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+    getPendingPegins(ETH_ADDRESS);
+
+    expect(localStorage.getItem(legacyStorageKey)).toBe("{");
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.info).not.toHaveBeenCalled();
+  });
+
+  it("does not keep the fingerprint of a legacy entry the read filter would hide", () => {
+    localStorage.setItem(
+      legacyStorageKey,
+      JSON.stringify([
+        {
+          ...validPegin,
+          unsignedTxHex: "not-hex",
+          signedGraphFingerprint: "e".repeat(64),
+        },
+      ]),
+    );
+
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+    expect(localStorage.getItem(legacyStorageKey)).toBeNull();
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "no-entry",
+    });
+  });
+
+  it("drops the legacy key once per page load", () => {
+    localStorage.setItem(legacyStorageKey, JSON.stringify([validPegin]));
+    getPendingPegins(ETH_ADDRESS);
+    localStorage.setItem(legacyStorageKey, JSON.stringify([validPegin]));
+
+    getPendingPegins(ETH_ADDRESS);
+
+    expect(localStorage.getItem(legacyStorageKey)).not.toBeNull();
+    expect(logger.info).toHaveBeenCalledTimes(1);
   });
 
   it("names the configured registry, lowercased, and the address", () => {
@@ -1008,23 +1094,59 @@ describe("recordSignedGraphFingerprint", () => {
     });
   });
 
-  it("returns false and stores nothing when this device has no entry for the vault", () => {
+  it("stores the fingerprint on the per-vault record when this device has no entry for the vault", () => {
     localStorage.setItem(storageKey, JSON.stringify([validPegin]));
 
     expect(
       recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID_2, FINGERPRINT),
-    ).toBe(false);
+    ).toBe(true);
     expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([validPegin]));
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID_2)).toEqual({
+      status: "found",
+      fingerprint: FINGERPRINT,
+    });
   });
 
-  it("returns false for an entry the read filter hides, so the fingerprint is never written where it cannot be read", () => {
+  it("stores the fingerprint on the per-vault record when this device holds no entries at all", () => {
+    expect(
+      recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
+    ).toBe(true);
+    expect(localStorage.getItem(storageKey)).toBeNull();
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint: FINGERPRINT,
+    });
+  });
+
+  it("returns false without throwing when the per-vault record cannot be written either", () => {
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota exceeded");
+      });
+
+    expect(
+      recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
+    ).toBe(false);
+
+    setItem.mockRestore();
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "no-entry",
+    });
+  });
+
+  it("stores the fingerprint on the per-vault record for an entry the read filter hides, so it can be read back", () => {
     const hidden = { ...validPegin, unsignedTxHex: "not-hex" };
     localStorage.setItem(storageKey, JSON.stringify([hidden]));
 
     expect(
       recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
-    ).toBe(false);
+    ).toBe(true);
     expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([hidden]));
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint: FINGERPRINT,
+    });
   });
 
   it("throws on an unreadable record instead of dropping the fingerprint", () => {
