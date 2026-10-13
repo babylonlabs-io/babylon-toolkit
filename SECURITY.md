@@ -814,8 +814,10 @@ roles have different review requirements. Satisfy both.
   prefixes. Off `main` its leg is therefore left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
   has not published it. It also has no immutable per-sha release manifest: that step stays
-  `vault-testnet` only, so this environment's checksums are the S3 objects uploaded next to the
-  build, under a prefix its own publish role can overwrite.
+  `vault-testnet` only. Its checksums exist only in the checksum bucket, where its own publish
+  role can write a newer version under the same key. That bucket is versioned with Object Lock,
+  so an earlier version is kept, but a plain read returns the newest and no integrity checker
+  watches this environment.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
   no longer exist, and reports them to a tracker issue. Paths registered ahead of their code sit in a
   `pending` list that is exempt from the existence check and reported separately once the files land.
