@@ -5,11 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
-import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../../constants";
+import { STORAGE_UPDATE_EVENT } from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
   addPendingPegin,
   getPendingPegins,
+  getPendingPeginsStorageKey,
   getSignedGraphFingerprint,
   markRefundBroadcast,
   type PendingPeginRequest,
@@ -29,8 +30,17 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
+const { REGISTRY } = vi.hoisted(() => ({
+  REGISTRY: "0xAbCdEf0123456789AbCdEf0123456789AbCdEf01",
+}));
+
+vi.mock("@/config/contracts", () => ({
+  CONTRACTS: { BTC_VAULT_REGISTRY: REGISTRY },
+}));
+
 const ETH_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
-const storageKey = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+const storageKey = getPendingPeginsStorageKey(ETH_ADDRESS);
+const legacyStorageKey = `vault-pending-pegins-${ETH_ADDRESS}`;
 
 const VALID_TXID_A = "a".repeat(64);
 const VALID_TXID_B = "b".repeat(64);
@@ -67,6 +77,47 @@ const legacySibling = {
   unsignedTxHex: validPegin.unsignedTxHex,
   selectedUTXOs: validPegin.selectedUTXOs,
 };
+
+describe("storage key scoping", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("names the configured registry, lowercased, and the address", () => {
+    expect(storageKey).toBe(
+      `vault-pending-pegins-${REGISTRY.toLowerCase()}-${ETH_ADDRESS}`,
+    );
+  });
+
+  it("drops records stored before the key named the registry", () => {
+    localStorage.setItem(legacyStorageKey, JSON.stringify([validPegin]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+    expect(localStorage.getItem(legacyStorageKey)).toBeNull();
+    expect(logger.info).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the registry-scoped records when it drops the legacy key", () => {
+    localStorage.setItem(legacyStorageKey, JSON.stringify([legacySibling]));
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    expect(getPendingPegins(ETH_ADDRESS).map((p) => p.id)).toEqual([
+      VALID_VAULT_ID,
+    ]);
+    expect(localStorage.getItem(legacyStorageKey)).toBeNull();
+    expect(localStorage.getItem(storageKey)).not.toBeNull();
+  });
+
+  it("leaves storage alone when there is no legacy key", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    getPendingPegins(ETH_ADDRESS);
+
+    expect(logger.info).not.toHaveBeenCalled();
+    expect(localStorage.length).toBe(1);
+  });
+});
 
 describe("getPendingPegins integrity validation", () => {
   beforeEach(() => {

@@ -13,8 +13,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
-import { STORAGE_KEY_PREFIX } from "../../constants";
-import { addPendingPegin, PendingPeginStorageReadError } from "../peginStorage";
+import {
+  addPendingPegin,
+  getPendingPeginsStorageKey,
+  PendingPeginStorageReadError,
+} from "../peginStorage";
 import {
   __resetReportedStorageReadErrorsForTests,
   usePeginStorage,
@@ -68,7 +71,7 @@ describe("usePeginStorage pending activity mapping", () => {
 // reading an empty list and passing.
 describe("storage key", () => {
   it("scopes pending peg-ins to the connected address", () => {
-    expect(`${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`).toContain(ETH_ADDRESS);
+    expect(getPendingPeginsStorageKey(ETH_ADDRESS)).toContain(ETH_ADDRESS);
   });
 });
 
@@ -87,7 +90,7 @@ describe("usePeginStorage read failures", () => {
 
   it("exposes unreadable records on the first render and preserves them through cleanup", () => {
     const raw = '[{"id":';
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, raw);
     const removeItem = vi.spyOn(Storage.prototype, "removeItem");
     const { result } = renderHook(() =>
@@ -108,7 +111,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("reports a failed storage refresh and clears it after a readable refresh", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     const { result } = renderHook(() =>
       usePeginStorage({
         ethAddress: ETH_ADDRESS,
@@ -131,7 +134,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("raises one event for an address every mounted instance re-reads", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, '[{"id":');
 
     // The root polling provider and the Vaults page each mount one.
@@ -155,7 +158,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("raises a second event when a corrupt blob becomes blocked storage", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, '[{"id":');
 
     renderHook(() =>
@@ -178,7 +181,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("raises a second event when an address goes unreadable again", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, '[{"id":');
 
     renderHook(() =>

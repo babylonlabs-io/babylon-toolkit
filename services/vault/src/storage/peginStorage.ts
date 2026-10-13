@@ -16,6 +16,7 @@
 
 import type { Hex } from "viem";
 
+import { CONTRACTS } from "@/config/contracts";
 import { logger } from "@/infrastructure";
 import {
   readSignedGraphFingerprintRecord,
@@ -372,10 +373,35 @@ function sanitizePayoutSignedAt(
 }
 
 /**
- * Get storage key for a specific address
+ * A registry redeploy (a devnet or testnet reset) leaves records nothing can
+ * complete, so the key names the registry and a build reads only its own.
  */
-function getStorageKey(ethAddress: string): string {
+export function getPendingPeginsStorageKey(ethAddress: string): string {
+  const registry = CONTRACTS.BTC_VAULT_REGISTRY.toLowerCase();
+  return `${STORAGE_KEY_PREFIX}-${registry}-${ethAddress}`;
+}
+
+/** The key before it named the registry. */
+function getLegacyStorageKey(ethAddress: string): string {
   return `${STORAGE_KEY_PREFIX}-${ethAddress}`;
+}
+
+/**
+ * Records under the legacy key were written for whatever registry was
+ * configured then, which this build cannot tell from a redeployed one, so they
+ * are dropped rather than migrated (#2713).
+ */
+function dropLegacyPendingPegins(ethAddress: string): void {
+  const legacyKey = getLegacyStorageKey(ethAddress);
+  if (localStorage.getItem(legacyKey) === null) return;
+  localStorage.removeItem(legacyKey);
+  logger.info(
+    "[peginStorage] Dropped pending deposits stored before the key named the registry",
+    {
+      category: "peginStorage",
+      ethAddress,
+    },
+  );
 }
 
 /**
@@ -459,8 +485,8 @@ export class PendingPeginStorageReadError extends Error {
 }
 
 /**
- * Get all pending peg-ins from localStorage for an address.
- * Pure read function - no side effects.
+ * Get all pending peg-ins from localStorage for an address. Its one write is
+ * removing the legacy unscoped key before the registry-scoped records are read.
  *
  * @throws `PendingPeginStorageReadError` when the stored blob cannot be read
  * (unparseable JSON, a non-array value, or a localStorage that throws). The
@@ -474,7 +500,8 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
   let stored: string | null = null;
   let parsed: unknown[];
   try {
-    stored = localStorage.getItem(getStorageKey(ethAddress));
+    dropLegacyPendingPegins(ethAddress);
+    stored = localStorage.getItem(getPendingPeginsStorageKey(ethAddress));
     if (!stored) return [];
     const value: unknown = JSON.parse(stored);
     if (!Array.isArray(value)) {
@@ -551,7 +578,7 @@ function persistStoredEntries(
   ethAddress: string,
   entries: readonly unknown[],
 ): void {
-  const key = getStorageKey(ethAddress);
+  const key = getPendingPeginsStorageKey(ethAddress);
 
   try {
     if (entries.length === 0) {
@@ -584,7 +611,7 @@ type StoredEntriesRead =
 
 function readStoredEntries(ethAddress: string): StoredEntriesRead {
   try {
-    const stored = localStorage.getItem(getStorageKey(ethAddress));
+    const stored = localStorage.getItem(getPendingPeginsStorageKey(ethAddress));
     if (!stored) return { status: "empty" };
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) {
