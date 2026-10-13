@@ -271,10 +271,6 @@ export async function walkStepMachine(
   // fire a duplicate ETH tx).
   let activateClickedThisModal = false;
   let skipClickedThisCallout = false;
-  // A resume auto-starts only the step its row named, so later steps (e.g. WOTS → Sign) wait on a
-  // named Start card. Keyed on the card's label so a WOTS card replaced by a payout card between two
-  // ticks counts as a new appearance; re-armed when no card is visible.
-  let startClickedLabel: string | null = null;
   // A recoverable "Transaction failed → Retry" state (e.g. the intermittent public-Sepolia RPC
   // gas-estimation flake that nulls a tx's `gasLimit`). Re-armed per appearance like the gates above,
   // and capped at PEGIN_TX_FAILURE_RETRY_LIMIT total so a genuinely-failing tx aborts instead of looping.
@@ -330,23 +326,14 @@ export async function walkStepMachine(
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
     await sweepApprovals(context, page, log);
 
+    // A resume auto-starts only the step its row named, so later steps (e.g. WOTS → Sign) wait on a
+    // named Start card. No per-appearance guard here: the card unmounts on the click, so one seen on a
+    // later tick is a split sibling's (same label) or a click that did not land, and both want a click.
     const startButton = page.locator(BTC_ACTION_START_TESTID).first();
-    const startVisible = await startButton.isVisible().catch(() => false);
-    if (startVisible) {
+    if (await startButton.isVisible().catch(() => false)) {
       const label = (await startButton.innerText().catch(() => "")).trim();
-      if (label !== startClickedLabel) {
-        log(`Resume step is waiting on its Start card — clicking "${label}"`);
-        // A failed click leaves the card unrecorded so the next tick tries again.
-        const clicked = await startButton
-          .click({ timeout: STEP_TIMEOUT_MS })
-          .then(
-            () => true,
-            () => false,
-          );
-        if (clicked) startClickedLabel = label;
-      }
-    } else {
-      startClickedLabel = null;
+      log(`Resume step is waiting on its Start card — clicking "${label}"`);
+      await startButton.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
     }
 
     // Two dapp-page interactions the wallet pop-up approver can't perform, each re-armed per appearance.
