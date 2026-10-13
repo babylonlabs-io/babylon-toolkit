@@ -8,6 +8,7 @@
  *   2. DERIVE_CONTEXT_HASH → context root (the HTLC hashlock's source)
  *   3. policy context (fingerprint, account xpub) + Pre-PegIn build
  *   4. APPROVE_VAULT_INTENT over terms bound to that Pre-PegIn's txid
+ *   4b-4c. GET_VAULT_STATE fingerprints; an app read leaves the intent loaded
  *   5. Pre-PegIn paying change to the change branch (the 0.10.1 shape) → device rejection, intent intact
  *   6. Pre-PegIn under the default wallet policy → one key-path yield per input
  *   7-9. PegIn (spends the real Pre-PegIn txid), sighash check, finalize
@@ -293,6 +294,23 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         intentFingerprint: intentFingerprint(approvedIntent as ReturnType<typeof termsToIntent>),
         contextFingerprint: new Uint8Array(contextFp),
       });
+    },
+    SANITY_TIMEOUT_MS,
+  );
+
+  it(
+    "(4c) GET_APP_AND_VERSION under a loaded intent leaves the intent in place",
+    async () => {
+      // The host reads the open app before an intent-bound sign, to wait out
+      // a locked device; that read must not cost the approved intent.
+      expect(approvedIntent, "intent stage must have approved an intent").toBeDefined();
+      const before = await getVaultState(send);
+      expect(before.phase).toBe("intent-loaded");
+
+      const app = await getAppAndVersion(sendRaw);
+      expect(app.name).toContain("Babylon Vault");
+
+      await expect(getVaultState(send)).resolves.toEqual(before);
     },
     SANITY_TIMEOUT_MS,
   );

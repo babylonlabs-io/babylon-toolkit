@@ -597,7 +597,7 @@ export const COPY = {
         cancel: "Cancel",
       },
       reapproveNotice:
-        "Switching apps clears the deposit approval on your Ledger, so it will ask you to approve this deposit again before signing.",
+        "If you switched apps, your Ledger will ask you to approve this deposit again before signing.",
       ethAppHint:
         "If your Ethereum account is on this Ledger, open the Ethereum app on it to confirm this transaction.",
       switchBackHint:

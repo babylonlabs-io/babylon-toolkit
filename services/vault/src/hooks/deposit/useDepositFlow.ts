@@ -1557,10 +1557,11 @@ export function useDepositFlow(
           signal.throwIfAborted();
 
           // A settled user cancel stops the loop: the next iteration would
-          // re-run the full device ceremony (requireFreshDeviceCeremony)
-          // seconds after the user asked to stop. Remaining vaults are left
-          // unattempted (no warning), not failed. Backstop only: the settle
-          // rejects into the catch below, whose break is the operative stop.
+          // prompt the device again (its presign resumes the held approval,
+          // or re-runs the ceremony) seconds after the user asked to stop.
+          // Remaining vaults are left unattempted (no warning), not failed.
+          // Backstop only: the settle rejects into the catch below, whose
+          // break is the operative stop.
           if (deviceCancelSettledRef.current) break;
 
           // Skip vaults whose WOTS key submission failed — the VP won't have

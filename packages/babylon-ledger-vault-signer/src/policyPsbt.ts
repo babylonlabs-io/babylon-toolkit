@@ -4,11 +4,11 @@
  * The base app marks an input internal when its TAP_BIP32_DERIVATION matches a
  * policy key expression at (change, index) and the script equals the policy
  * script there (`bitcoin_app_base/src/handler/sign_psbt/preprocess_inputs.c`
- * @ 78243239). `_validate_prepegin_outputs` requires every input internal and
+ * @ 78243239). `_validate_prepegin` requires every input internal
+ * (`sign_psbt_validate.c:683-688` @ b89dd580), and `_validate_prepegin_outputs`
  * takes Pre-PegIn change only at the depositor's own `/0/0` address, by script,
- * value and order, so change outputs carry no derivation
- * (`sign_psbt_validate.c:571-661` @ b89dd580). This module adds the input
- * fields only; it never touches the unsigned transaction.
+ * value and order, so change outputs carry no derivation (`:585-661`). This
+ * module adds the input fields only; it never touches the unsigned transaction.
  *
  * @module ledger-vault-signer/policyPsbt
  */

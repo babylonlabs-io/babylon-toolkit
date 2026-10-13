@@ -1631,6 +1631,24 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
     });
 
+    it("keeps a Reclaim waiting for the vault app when another app replaced the loaded intent", async () => {
+      vi.useFakeTimers();
+      try {
+        const provider = await derived();
+        await provider.approveDepositTerms(TERMS);
+        dmkSessionMock.refreshSessionApp.mockResolvedValueOnce({ ...h.session, appName: "Ethereum", appVersion: "1.0.0" });
+
+        const signing = provider.signPsbt(reclaimPsbtHex());
+        // One poll, then the settle after the vault app opens.
+        await vi.advanceTimersByTimeAsync(3_000);
+
+        await expect(signing).resolves.toMatch(/^signed:/);
+        await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("signPsbts refuses a batched Reclaim before any ceremony", async () => {
       const provider = await connected();
 
@@ -2337,6 +2355,26 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.approveDepositTerms(TERMS)).resolves.toBeUndefined();
       expect(h.sent.filter((apdu) => apdu.ins === 0x80)).toHaveLength(0);
       await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("approveDepositTerms waits for a locked device to unlock, then resumes instead of re-approving", async () => {
+      await deviceHoldsTerms();
+      const provider = await reconnectedAfterApproval();
+      const states: DeviceAppState[] = [];
+      provider.subscribeDeviceAppState((state) => states.push(state));
+      dmkSessionMock.refreshSessionApp.mockImplementationOnce(async (session: object) => session);
+      vi.useFakeTimers();
+      try {
+        const approving = provider.approveDepositTerms(TERMS);
+        // One poll, then the settle after the unlock.
+        await vi.advanceTimersByTimeAsync(3_000);
+
+        await expect(approving).resolves.toBeUndefined();
+        expect(states[0]).toEqual({ status: "awaiting-app", expectedAppName: "Babylon Vault Testnet" });
+        expect(h.sent.filter((apdu) => apdu.ins === 0x80)).toHaveLength(0);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("does not resume on a new provider instance (a page reload): it cannot know what an earlier one sent", async () => {
@@ -3256,16 +3294,35 @@ describe("LedgerVaultProvider", () => {
       expect(h.sent).toHaveLength(0);
     });
 
-    it("sends no app read before SIGN_PSBT under a loaded intent", async () => {
+    it("holds an intent-bound sign on a locked device and signs under the same intent once it is unlocked", async () => {
+      // The presign after the deposit wait: the device auto-locked, the
+      // intent is still loaded, and a locked read names no app.
       const provider = await connected();
       await provider.deriveContextHash("app", "aa".repeat(32));
       await provider.approveDepositTerms(TERMS);
-      dmkSessionMock.refreshSessionApp.mockClear();
+      const states = recordStates(provider);
+      dmkSessionMock.refreshSessionApp.mockImplementationOnce(async (session: object) => session);
 
-      await provider.signPsbt(PSBT);
+      const signing = provider.signPsbt(PSBT);
+      // One poll, then the settle after the unlock.
+      await vi.advanceTimersByTimeAsync(3_000);
 
-      expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
+      await expect(signing).resolves.toBe(`signed:${PSBT}`);
+      expect(states[0]).toEqual({ status: "awaiting-app", expectedAppName: "Babylon Vault Testnet" });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
     });
+
+    it("refuses an intent-bound sign before any device send when another app is open: the intent is gone", async () => {
+      const provider = await connected();
+      await provider.deriveContextHash("app", "aa".repeat(32));
+      await provider.approveDepositTerms(TERMS);
+      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP);
+
+      await expect(provider.signPsbt(PSBT)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
 
     it("turns a sign refused by another app into DEVICE_CEREMONY_INVALID once the vault app is back", async () => {
       // The app switch wiped the approved intent; the typed outcome routes the
@@ -3275,7 +3332,11 @@ describe("LedgerVaultProvider", () => {
       await provider.approveDepositTerms(TERMS);
       const states = recordStates(provider);
       signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceError(0x6e00, "CLA not supported"));
-      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP).mockResolvedValueOnce(ETHEREUM_APP);
+      // The vault app answers the gate's read, then is switched away mid-sign.
+      dmkSessionMock.refreshSessionApp
+        .mockImplementationOnce(async (session: object) => vaultAppOpen(session))
+        .mockResolvedValueOnce(ETHEREUM_APP)
+        .mockResolvedValueOnce(ETHEREUM_APP);
 
       const signing = provider.signPsbt(PSBT);
       signing.catch(() => {});

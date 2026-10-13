@@ -488,12 +488,20 @@ export class LedgerVaultProvider implements IBTCProvider {
    * re-enumeration surfaces as DEVICE_DISCONNECTED, not as a wait
    * that never ends.
    *
-   * GET_APP_AND_VERSION is a BOLOS command; callers invoke this only while
-   * the mirror is idle (or before a derive, which discards the device context
-   * anyway) — never between intent phases (`dmkSession.ts` DmkSessionHandle).
-   * Runs inside the caller's {@link withDeviceOperation} lock.
+   * GET_APP_AND_VERSION leaves a loaded intent in place. It is answered below
+   * the app (it returns a name, which the app's own dispatcher never does for
+   * a non-`CLA_APP` class), and the vault context is reset only by the vault
+   * handlers and the signing paths (`fw:` `vault_context_invalidate` call
+   * sites @ b89dd580). The Speculos e2e pins it on the 0.11.0 ELF (stage 4c).
+   * So the read may run under a loaded intent — between the phases of one
+   * ceremony it still must not.
+   *
+   * `onOtherApp` runs on a read that names a different app (the dashboard
+   * included), which means the vault app was exited and its RAM-held intent
+   * with it; a locked device names none and keeps the plain wait. It may throw
+   * to end the wait. Runs inside the caller's {@link withDeviceOperation} lock.
    */
-  private async awaitExpectedApp(generation: number): Promise<void> {
+  private async awaitExpectedApp(generation: number, onOtherApp?: () => void): Promise<void> {
     const expectedAppName = APP_NAME_BY_NETWORK[this.network];
     const controller = new AbortController();
     this.appWaitController = controller;
@@ -537,6 +545,7 @@ export class LedgerVaultProvider implements IBTCProvider {
           continue;
         }
         settling = false;
+        if (onOtherApp && refreshed.appName !== undefined) onOtherApp();
         if (!announced) {
           announced = true;
           this.emitDeviceAppState({ status: "awaiting-app", expectedAppName });
@@ -578,8 +587,7 @@ export class LedgerVaultProvider implements IBTCProvider {
   }
 
   /**
-   * After a sign failure that dropped the mirror to idle (a read is legal
-   * again), tell a device that left the vault app apart from any other
+   * After a sign failure that dropped the mirror to idle, tell a device that left the vault app apart from any other
    * failure. The app switch wiped the approved intent, so once the user
    * reopens the app the typed outcome is DEVICE_CEREMONY_INVALID — the
    * signal to re-run derive → approve. With the vault app open, the original
@@ -803,7 +811,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     // Deriving invalidates whatever the device held; drop to "idle" BEFORE
     // the call so host and device stay in lockstep if it fails partway. The
     // old intent's dedup state dies with it — clear the sign bookkeeping too.
-    // Before the app read, too: the read is legal only at idle.
+    // Before the app read, too: it must not land between ceremony phases.
     this.deviceState = { phase: "idle" };
     this.signedFingerprints = new Set();
 
@@ -1008,6 +1016,12 @@ export class LedgerVaultProvider implements IBTCProvider {
     // the device) would die at the first APDU with SW_BAD_STATE — unless the
     // device still holds exactly this intent, which then needs no ceremony.
     if (this.deviceState.phase === "idle") {
+      // A device that locked during the wait answers no GET_VAULT_STATE; hold
+      // until it is unlocked so the probe can still find the intent.
+      if (this.dispatchRecordComplete) {
+        await this.awaitExpectedApp(generation);
+        this.assertSameConnection(generation);
+      }
       if (await this.resumeIntentFromDevice(terms)) return;
       throw new WalletError({
         code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
@@ -1065,7 +1079,8 @@ export class LedgerVaultProvider implements IBTCProvider {
    * {@link augmentPsbtForReclaim} add the derivation entries the device
    * requires. Never finalizes — the SDK extracts signatures and finalizes
    * itself. Every rejection before the device loop starts leaves the mirror
-   * and the loaded intent untouched.
+   * and the loaded intent untouched, except a vault app found closed: the
+   * device lost the intent, so the mirror drops it too.
    */
   signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> =>
     this.withDeviceOperation("signPsbt", () =>
@@ -1170,7 +1185,8 @@ export class LedgerVaultProvider implements IBTCProvider {
    * Nothing else is validated here: every term of these transactions is the
    * device's to check, and a rejection on these paths costs no loaded intent.
    * Never finalizes. Every rejection before the device loop leaves the mirror
-   * and the loaded intent untouched.
+   * and the loaded intent untouched, except a vault app found closed: the
+   * device lost the intent, so the mirror drops it too.
    */
   signDelegatedClaimPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     const requestedIndex = singleRequestedInputIndex(options);
@@ -1422,10 +1438,27 @@ export class LedgerVaultProvider implements IBTCProvider {
   }
 
   /**
+   * The vault app was exited, so the device lost its RAM-held intent (ADR-001):
+   * drop the mirror, and refuse an intent-bound sign before anything is sent.
+   */
+  private dropIntentOnAppExit(requireIntent: boolean): void {
+    this.deviceState = { phase: "idle" };
+    if (!requireIntent) return;
+    throw new WalletError({
+      code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+      message:
+        `The ${APP_NAME_BY_NETWORK[this.network]} app was closed, which cleared ` +
+        `its approved intent. Restart the flow from derivation.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+  }
+
+  /**
    * Batch-level gates, once per public sign call: live session, loaded
    * intent, cached depositor key. A dead session tears everything down —
    * the device state is gone with it (generation-guarded against a racing
-   * reconnect's fresh state).
+   * reconnect's fresh state). Every sign then waits for the vault app, so a
+   * device that locked during a long wait is held until it is unlocked.
    *
    * `requireIntent: false` is for the signs the device itself accepts without
    * an intent — the state-independent PoP, the standalone refund (#2371) and
@@ -1451,10 +1484,12 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    // Only the idle signs (the PoP, a standalone refund, a delegated-claim
-    // sign without an intent) may read the app —
-    // under a loaded intent a wrong app surfaces reactively in signStaged.
+    // Every sign waits for the vault app, so a device that locked during a long
+    // wait is held until the user unlocks it. Under a loaded intent, another
+    // open app means the intent is gone: an intent-bound sign then needs a
+    // fresh ceremony, while a standalone one keeps waiting.
     if (this.deviceState.phase === "idle") await this.awaitExpectedApp(generation);
+    else await this.awaitExpectedApp(generation, () => this.dropIntentOnAppExit(requireIntent));
     // After the wait: an app read may have rebuilt the senders.
     const { session, rawSend } = this.requireSignContext();
     const depositorXOnlyHex = await this.getDevicePubkeyHex();
