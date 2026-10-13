@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       ENVIRONMENT:
-        description: 'Environment to publish. "all" publishes every environment below (the push/tag default).'
+        description: 'Environment to publish. "all" (the push/tag default) publishes every environment below; vault-real-money-devnet is published from main only.'
         required: false
         default: all
         type: choice
@@ -40,6 +40,8 @@ permissions:
 
 jobs:
   lint_test:
+    # After setup, so a run that setup refuses stops before this long job starts.
+    needs: [setup]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -77,7 +79,8 @@ jobs:
 
   # Resolve which environments this run publishes. A workflow_dispatch run may
   # scope to a single environment (ENVIRONMENT input); push/tag runs and the
-  # "all" choice publish every environment, preserving the previous behaviour.
+  # "all" choice publish every environment, except that a main_only entry is
+  # published from refs/heads/main alone.
   setup:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -102,6 +105,10 @@ jobs:
           # it is left out of the all-environment run and refused when asked for by name.
           if [ -z "${ENVIRONMENT:-}" ] || [ "$ENVIRONMENT" = "all" ]; then
             SELECTED=$(echo "$ALL" | jq -c --arg ref "$GITHUB_REF" '[.[] | select(.main_only != true or $ref == "refs/heads/main")]')
+            SKIPPED=$(echo "$ALL" | jq -r --argjson selected "$SELECTED" '[.[].environment] - [$selected[].environment] | join(", ")')
+            if [ -n "$SKIPPED" ]; then
+              echo "::notice::Not published by this run (main only): $SKIPPED."
+            fi
           else
             SELECTED=$(echo "$ALL" | jq -c --arg e "$ENVIRONMENT" '[.[] | select(.environment == $e)]')
             if [ "$(echo "$SELECTED" | jq 'length')" -eq 0 ]; then
