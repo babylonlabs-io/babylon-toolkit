@@ -99,9 +99,18 @@ vi.mock("@/components/simple/PendingDepositModals", () => ({
 vi.mock("@/components/simple/PostDepositContinuationContent", () => ({
   PostDepositContinuationContent: ({
     vaultIds,
+    autoStartAction,
   }: {
     vaultIds: readonly string[];
-  }) => <div data-testid="continuation-vault-ids">{vaultIds.join(",")}</div>,
+    autoStartAction: string | null;
+  }) => (
+    <>
+      <div data-testid="continuation-vault-ids">{vaultIds.join(",")}</div>
+      <div data-testid="continuation-auto-start-action">
+        {String(autoStartAction)}
+      </div>
+    </>
+  ),
 }));
 
 const ACTIVITY_ID = "0xdeposit" as Hex;
@@ -684,6 +693,34 @@ describe("VaultsLifecycleSections deposit view", () => {
     expect(screen.getByTestId("continuation-vault-ids").textContent).toBe(
       `${first.id},${second.id}`,
     );
+  });
+
+  it("opens View Details without naming an action to start", () => {
+    renderPendingRow(pollingResult(PROCESSING_STATE));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.vaults.actions.viewDetails }),
+    );
+
+    expect(
+      screen.getByTestId("continuation-auto-start-action").textContent,
+    ).toBe("null");
+  });
+
+  it("opens a named row action with that action to start", () => {
+    const payoutState: PeginState = {
+      contractStatus: ContractStatus.PENDING,
+      displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+      displayVariant: "pending",
+      availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+    };
+    renderPendingRow(pollingResult(payoutState));
+
+    fireEvent.click(screen.getByTestId("pending-deposit-resume-cta"));
+
+    expect(
+      screen.getByTestId("continuation-auto-start-action").textContent,
+    ).toBe(PeginAction.SIGN_PAYOUT_TRANSACTIONS);
   });
 });
 

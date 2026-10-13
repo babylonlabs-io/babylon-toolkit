@@ -3,7 +3,7 @@
  * transitions (the `role="progressbar"` and each active step's `aria-label="Step N active"`), never
  * fixed sleeps. Extracted from the `pegin` action so both `pegin` (form → sign → walk) and `resume`
  * (/vaults pending row → walk) share ONE implementation of the 15-step `DepositProgressView` walk,
- * the Activate-Vault / artifact-Skip dapp gates, the transient-tx Retry gate, the WOTS-skip fast-fail,
+ * the resume Start card, the Activate-Vault / artifact-Skip dapp gates, the transient-tx Retry gate, the WOTS-skip fast-fail,
  * and the /vaults collateral cross-check.
  *
  * The resume flow renders the IDENTICAL `DepositProgressView` stepper as the initial deposit, so the
@@ -66,6 +66,8 @@ function retryButton(page: Page): Locator {
 // (COPY.deposit.activateConfirmation.checkAgainButton). Deliberately not "Retry", so RETRY_BUTTON_RX
 // never matches it.
 const CHECK_AGAIN_TESTID = '[data-testid="retry-vp-probe-button"]';
+// BtcActionGate's named Start card button (COPY.deposit.resume.start.*.button).
+const BTC_ACTION_START_TESTID = '[data-testid="btc-action-start"]';
 const CHECK_AGAIN_LABEL = "Check again";
 function checkAgainButton(page: Page): Locator {
   return firstByTestid(
@@ -241,8 +243,8 @@ async function countWotsSkippedVaults(page: Page): Promise<number> {
  * Walk the 15-step signing machine to the activated vault. Two approval mechanisms run in parallel:
  * the event-driven `installPopupApprover` (for NEW wallet windows) and, each tick, an active
  * `sweepApprovals` pass over already-open windows — OKX reuses one approval window, so a later signing
- * prompt fires no `page` event and would otherwise never be clicked. This loop also drives the two
- * dapp-page gates the approver can't reach (Activate Vault + Skip) and follows the progress UI, logging
+ * prompt fires no `page` event and would otherwise never be clicked. This loop also drives the
+ * dapp-page gates the approver can't reach (resume Start card, Activate Vault, Skip) and follows the progress UI, logging
  * each transition, until the terminal view appears. `onStep` tags the recorder's HTTP fixtures.
  *
  * Returns this run's Pre-PegIn txid (captured once, as soon as the progress view links it) so the
@@ -269,6 +271,10 @@ export async function walkStepMachine(
   // fire a duplicate ETH tx).
   let activateClickedThisModal = false;
   let skipClickedThisCallout = false;
+  // A resume auto-starts only the step its row named, so later steps (e.g. WOTS → Sign) wait on a
+  // named Start card. Keyed on the card's label so a WOTS card replaced by a payout card between two
+  // ticks counts as a new appearance; re-armed when no card is visible.
+  let startClickedLabel: string | null = null;
   // A recoverable "Transaction failed → Retry" state (e.g. the intermittent public-Sepolia RPC
   // gas-estimation flake that nulls a tx's `gasLimit`). Re-armed per appearance like the gates above,
   // and capped at PEGIN_TX_FAILURE_RETRY_LIMIT total so a genuinely-failing tx aborts instead of looping.
@@ -323,6 +329,25 @@ export async function walkStepMachine(
 
     // Actively approve any reused wallet window (OKX) that the event approver can't see.
     await sweepApprovals(context, page, log);
+
+    const startButton = page.locator(BTC_ACTION_START_TESTID).first();
+    const startVisible = await startButton.isVisible().catch(() => false);
+    if (startVisible) {
+      const label = (await startButton.innerText().catch(() => "")).trim();
+      if (label !== startClickedLabel) {
+        log(`Resume step is waiting on its Start card — clicking "${label}"`);
+        // A failed click leaves the card unrecorded so the next tick tries again.
+        const clicked = await startButton
+          .click({ timeout: STEP_TIMEOUT_MS })
+          .then(
+            () => true,
+            () => false,
+          );
+        if (clicked) startClickedLabel = label;
+      }
+    } else {
+      startClickedLabel = null;
+    }
 
     // Two dapp-page interactions the wallet pop-up approver can't perform, each re-armed per appearance.
     const activateVisible =

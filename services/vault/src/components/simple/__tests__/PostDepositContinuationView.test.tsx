@@ -127,6 +127,7 @@ vi.mock("@/models/peginStateMachine", () => {
     );
   return {
     PeginAction: {
+      SIGN_AND_BROADCAST_TO_BITCOIN: "SIGN_AND_BROADCAST_TO_BITCOIN",
       SUBMIT_WOTS_KEY: "SUBMIT_WOTS_KEY",
       SIGN_PAYOUT_TRANSACTIONS: "SIGN_PAYOUT_TRANSACTIONS",
       ACTIVATE_VAULT: "ACTIVATE_VAULT",
@@ -307,14 +308,20 @@ vi.mock("../DepositProgressView", () => ({
 function resumeMock(testId: string) {
   return ({
     activity,
+    autoStart,
     onSuccess,
     onClose,
   }: {
     activity: VaultActivity;
+    autoStart?: boolean;
     onSuccess: () => void;
     onClose: () => void;
   }) => (
-    <div data-testid={testId} data-vault={activity?.id}>
+    <div
+      data-testid={testId}
+      data-vault={activity?.id}
+      data-auto-start={String(autoStart)}
+    >
       <button
         type="button"
         data-testid={`${testId}-success`}
@@ -330,6 +337,7 @@ function resumeMock(testId: string) {
 }
 
 vi.mock("../ResumeDepositContent", () => ({
+  ResumeBroadcastContent: resumeMock("broadcast"),
   ResumeWotsContent: resumeMock("wots"),
   ResumeSignContent: resumeMock("payout"),
   ResumeActivationContent: resumeMock("activate"),
@@ -391,6 +399,7 @@ function renderView(
     vaultIds: Hex[];
     activities: VaultActivity[];
     btcPublicKey: string | undefined;
+    autoStartAction: PeginAction | "any" | null;
     onClose: () => void;
   }> = {},
 ) {
@@ -405,6 +414,7 @@ function renderView(
       btcPublicKey={
         "btcPublicKey" in overrides ? overrides.btcPublicKey : "btcpub"
       }
+      autoStartAction={overrides.autoStartAction ?? null}
       onClose={overrides.onClose ?? vi.fn()}
     />,
     { wrapper: MemoryRouter },
@@ -459,6 +469,7 @@ describe("PostDepositContinuationView", () => {
         activities={vaultIds.map((id) => activityWithId(id))}
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
     );
@@ -529,6 +540,7 @@ describe("PostDepositContinuationView", () => {
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
         demoVaultIds={new Set(["0xvault0"])}
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
       { wrapper: MemoryRouter },
@@ -559,6 +571,7 @@ describe("PostDepositContinuationView", () => {
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
         demoVaultIds={new Set(["0xvault0"])}
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
       { wrapper: MemoryRouter },
@@ -603,6 +616,7 @@ describe("PostDepositContinuationView", () => {
         activities={[activityWithId("0xvault0")]}
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
     );
@@ -859,6 +873,7 @@ describe("PostDepositContinuationView", () => {
         activities={props.activities}
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
     );
@@ -910,6 +925,7 @@ describe("PostDepositContinuationView", () => {
         activities={props.activities}
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
     );
@@ -936,6 +952,7 @@ describe("PostDepositContinuationView", () => {
         activities={props.activities}
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
     );
@@ -977,6 +994,7 @@ describe("PostDepositContinuationView", () => {
         activities={props.activities}
         depositorEthAddress={ETH}
         btcPublicKey="btcpub"
+        autoStartAction={null}
         onClose={vi.fn()}
       />
     );
@@ -1122,6 +1140,7 @@ describe("PostDepositContinuationView", () => {
         activities={[activityWithId("0xvault0"), activityWithId("0xvault1")]}
         depositorEthAddress={ETH}
         btcPublicKey={undefined}
+        autoStartAction={null}
         onClose={vi.fn()}
       />,
       { wrapper: MemoryRouter },
@@ -1264,5 +1283,82 @@ describe("PostDepositContinuationView", () => {
     const { getByTestId } = renderView({ vaultIds: [], activities: [] });
     expect(getByTestId("step").textContent).toBe("COMPLETED");
     expect(getByTestId("complete").textContent).toBe("true");
+  });
+
+  it.each([
+    [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN, "broadcast"],
+    [PeginAction.SUBMIT_WOTS_KEY, "wots"],
+    [PeginAction.SIGN_PAYOUT_TRANSACTIONS, "payout"],
+  ])("auto-starts %s when the opener named it", (action, testId) => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({ availableActions: [action] }),
+    );
+    const view = renderView({ autoStartAction: action });
+    expect(view.getByTestId(testId)).toHaveAttribute("data-auto-start", "true");
+  });
+
+  it.each([
+    [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN, "broadcast"],
+    [PeginAction.SUBMIT_WOTS_KEY, "wots"],
+    [PeginAction.SIGN_PAYOUT_TRANSACTIONS, "payout"],
+  ])("auto-starts %s for the deposit session's opener", (action, testId) => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({ availableActions: [action] }),
+    );
+    const view = renderView({ autoStartAction: "any" });
+    expect(view.getByTestId(testId)).toHaveAttribute("data-auto-start", "true");
+  });
+
+  it.each([
+    [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN, "broadcast"],
+    [PeginAction.SUBMIT_WOTS_KEY, "wots"],
+    [PeginAction.SIGN_PAYOUT_TRANSACTIONS, "payout"],
+  ])(
+    "does not auto-start %s when the opener named no action",
+    (action, testId) => {
+      mockGetPollingResult.mockReturnValue(
+        resultWith({ availableActions: [action] }),
+      );
+      const view = renderView({ autoStartAction: null });
+      expect(view.getByTestId(testId)).toHaveAttribute(
+        "data-auto-start",
+        "false",
+      );
+    },
+  );
+
+  it("does not auto-start payout when the opener named WOTS", () => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
+    );
+    const view = renderView({ autoStartAction: PeginAction.SUBMIT_WOTS_KEY });
+    expect(view.getByTestId("payout")).toHaveAttribute(
+      "data-auto-start",
+      "false",
+    );
+  });
+
+  it("does not auto-start a split sibling whose action differs from the clicked row's", () => {
+    // The depositor clicked vault 1's WOTS row; the view selects vault 0's payout.
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({ availableActions: [PeginAction.SUBMIT_WOTS_KEY] }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+    const view = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      autoStartAction: PeginAction.SUBMIT_WOTS_KEY,
+    });
+    const payout = view.getByTestId("payout");
+    expect(payout).toHaveAttribute("data-vault", "0xvault0");
+    expect(payout).toHaveAttribute("data-auto-start", "false");
   });
 });

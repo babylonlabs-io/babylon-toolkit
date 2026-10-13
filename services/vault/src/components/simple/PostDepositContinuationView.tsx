@@ -61,6 +61,11 @@ interface PostDepositContinuationViewProps {
    * runs the SIMULATED activation instead of the real wallet/contract path.
    */
   demoVaultIds?: ReadonlySet<string>;
+  /**
+   * The action the opener asked for: a branch auto-starts only when it matches.
+   * "any" is the in-flight deposit session; null names nothing (View Details).
+   */
+  autoStartAction: PeginAction | "any" | null;
   onClose: () => void;
 }
 
@@ -118,16 +123,22 @@ export function PostDepositContinuationView({
   depositorEthAddress,
   btcPublicKey,
   demoVaultIds,
+  autoStartAction,
   onClose,
 }: PostDepositContinuationViewProps) {
   const { connected } = useBtcAction();
   const [admitted, setAdmitted] = useState(connected);
   const [keyWasReady, setKeyWasReady] = useState(!!btcPublicKey);
   if (btcPublicKey && !keyWasReady) setKeyWasReady(true);
-  // Allow the first key read. A lost session or key needs an explicit retry.
+  // Allow the first key read. A lost session or key withdraws admission, so the
+  // branch waits on its named Start card rather than prompting on reconnect.
   if (admitted && (!connected || (keyWasReady && !btcPublicKey))) {
     setAdmitted(false);
   }
+  // A wallet prompt opens without a click only for the action the opener named;
+  // any other branch waits for the depositor in its gate.
+  const autoStart = (action: PeginAction) =>
+    admitted && (autoStartAction === "any" || autoStartAction === action);
   const { refetch, getPollingResult } = usePeginPolling();
   const navigate = useNavigate();
 
@@ -329,8 +340,8 @@ export function PostDepositContinuationView({
   const actions = peginState?.availableActions ?? [];
 
   // God-mode: a demo vault renders a SAFE view — never the real Resume*Content,
-  // which auto-fires wallet signing / vault-registry reads / on-chain
-  // submission on mount. Activation is the one interactive simulated walk;
+  // which, once started (auto-start or its Start card), fires wallet signing /
+  // vault-registry reads / on-chain submission. Activation is the one interactive simulated walk;
   // every other flow step is a read-only progress preview that tracks the
   // god-mode step slider live (moving the slider re-renders this at the new
   // step). Tree-shaken from production: demoVaultIds is empty and
@@ -386,7 +397,7 @@ export function PostDepositContinuationView({
     return (
       <ResumeBroadcastContent
         key={`broadcast-${currentVaultId}`}
-        autoStart={admitted}
+        autoStart={autoStart(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)}
         activity={activity}
         batchVaultIds={siblingVaultIds}
         depositorEthAddress={depositorEthAddress}
@@ -400,7 +411,7 @@ export function PostDepositContinuationView({
     return (
       <ResumeWotsContent
         key={`wots-${currentVaultId}`}
-        autoStart={admitted}
+        autoStart={autoStart(PeginAction.SUBMIT_WOTS_KEY)}
         activity={activity}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}
@@ -420,7 +431,7 @@ export function PostDepositContinuationView({
         key={`payout-${currentVaultId}`}
         activity={activity}
         btcPublicKey={btcPublicKey}
-        autoStart={admitted}
+        autoStart={autoStart(PeginAction.SIGN_PAYOUT_TRANSACTIONS)}
         depositorEthAddress={depositorEthAddress}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}

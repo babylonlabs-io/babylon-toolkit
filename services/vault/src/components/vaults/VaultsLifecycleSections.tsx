@@ -150,7 +150,7 @@ function PendingRow({
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
-  onOpenDetails: (depositId: string) => void;
+  onOpenDetails: (depositId: string, action: PeginAction | null) => void;
   onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
   onEmergencyWithdraw: (depositId: string) => void;
@@ -211,7 +211,7 @@ function PendingRow({
       onEmergencyWithdraw(activity.id);
       return;
     }
-    onOpenDetails(activity.id);
+    onOpenDetails(activity.id, action);
   };
 
   // Pre-PegIn first: while a deposit is in flight the Pre-PegIn tx exists
@@ -340,7 +340,7 @@ function PendingRow({
         ) : (
           <button
             type="button"
-            onClick={() => onOpenDetails(activity.id)}
+            onClick={() => onOpenDetails(activity.id, null)}
             className={NEUTRAL_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.viewDetails}
@@ -601,11 +601,16 @@ function InactiveRow({
 
 /**
  * The batch the multistepper view modal opened on. A real batch keeps its
- * vaults as listed then; a demo batch keeps ids only, as its vaults are never
- * in the real list.
+ * vaults as listed then, and the row action that opened it (null for View
+ * Details); a demo batch keeps ids only, as its vaults are never in the real
+ * list.
  */
 type ViewingBatch =
-  | { kind: "real"; batchAtOpen: VaultActivity[] }
+  | {
+      kind: "real";
+      batchAtOpen: VaultActivity[];
+      requestedAction: PeginAction | null;
+    }
   | { kind: "demo"; vaultIds: Hex[] };
 
 export function VaultsLifecycleSections({
@@ -655,7 +660,7 @@ export function VaultsLifecycleSections({
   const rows = [...pendingActivities, ...inactiveActivities];
 
   const handleOpenDetails = useCallback(
-    (depositId: string) => {
+    (depositId: string, requestedAction: PeginAction | null) => {
       const activity = allActivities.find((a) => a.id === depositId);
       if (!activity) {
         // God-mode: an owned flow-state demo card opens the multistepper so
@@ -668,6 +673,7 @@ export function VaultsLifecycleSections({
       setViewingBatch({
         kind: "real",
         batchAtOpen: getBatchSiblings(allActivities, activity),
+        requestedAction,
       });
     },
     [allActivities, demo],
@@ -682,7 +688,7 @@ export function VaultsLifecycleSections({
         broadcastModal.handleBroadcastClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, broadcastModal, handleOpenDetails],
   );
@@ -692,7 +698,7 @@ export function VaultsLifecycleSections({
         refundModal.handleRefundClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, refundModal, handleOpenDetails],
   );
@@ -702,7 +708,7 @@ export function VaultsLifecycleSections({
         reclaimModal.handleReclaimClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, reclaimModal, handleOpenDetails],
   );
@@ -712,7 +718,7 @@ export function VaultsLifecycleSections({
         claimExpiredModal.handleClaimClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, claimExpiredModal, handleOpenDetails],
   );
@@ -722,7 +728,7 @@ export function VaultsLifecycleSections({
         emergencyWithdrawModal.handleWithdrawClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, emergencyWithdrawModal, handleOpenDetails],
   );
@@ -956,6 +962,11 @@ export function VaultsLifecycleSections({
             <PostDepositContinuationContent
               vaultIds={viewingVaultIds}
               depositorEthAddress={ethAddress as Address}
+              autoStartAction={
+                viewingBatch?.kind === "real"
+                  ? viewingBatch.requestedAction
+                  : null
+              }
               onClose={handleViewingClose}
             />
           </div>

@@ -15,6 +15,7 @@ import { useBTCWallet } from "@/context/wallet";
 import type { DepositWarning } from "@/hooks/deposit/depositWarnings";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
+import type { PeginAction } from "@/models/peginStateMachine";
 import { useDepositOverride } from "@/overrides/deposits";
 
 import { ContinuationWarnings } from "./ContinuationWarnings";
@@ -28,6 +29,8 @@ interface PostDepositContinuationContentProps {
    * resume-from-pending-card path, which has no in-flight warnings.
    */
   warnings?: DepositWarning[];
+  /** See PostDepositContinuationView's prop of the same name. */
+  autoStartAction: PeginAction | "any" | null;
   onClose: () => void;
 }
 
@@ -35,6 +38,7 @@ export function PostDepositContinuationContent({
   vaultIds,
   depositorEthAddress,
   warnings = [],
+  autoStartAction,
   onClose,
 }: PostDepositContinuationContentProps) {
   const { connected: btcConnected } = useBTCWallet();
@@ -75,6 +79,7 @@ export function PostDepositContinuationContent({
         depositorEthAddress={depositorEthAddress}
         btcPublicKey={btcPublicKey}
         demoVaultIds={scoped.demoVaultIds}
+        autoStartAction={autoStartAction}
         onClose={onClose}
       />
     </>
