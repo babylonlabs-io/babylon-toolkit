@@ -695,13 +695,12 @@ export class PeginManager {
     // change address belongs to the signing key, so a state-race / stale
     // FE / hostile adapter that puts an attacker-controlled address here
     // would drain the change after signing. Bind once at entry — against the
-    // wallet's own change branch when it has one, else the pubkey snapshot.
+    // address the wallet's device accepts when it dictates one, else the
+    // pubkey snapshot.
     if (supportsDepositApproval(this.config.btcWallet)) {
-      // Approval (policy) wallets own their change branch: the device accepts a
-      // change output only on `.../1/i`, which is not derivable from the receive
-      // key. Any other change address fails mid-ceremony on the device, so this
-      // gate closes that window before any approval screen (the only device
-      // traffic it costs is the silent policy-context read).
+      // Approval (policy) wallets dictate their change address. Any other
+      // change address fails mid-ceremony on the device, so this gate closes
+      // that window before any approval screen.
       const walletChange = (
         await requireChangeAddress(this.config.btcWallet)
       ).trim();

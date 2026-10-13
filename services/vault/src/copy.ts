@@ -1024,14 +1024,7 @@ export const COPY = {
     form: {
       computingAllocation: "Computing allocation...",
       transactionReserveLabel: "Depositor claim output",
-      // Promise only what the app can do: the Ledger vault app cannot sign the
-      // reclaim sweep (#2375, models/reclaimEligibility.ts).
-      transactionReserveTooltip: (isLedgerVaultWallet: boolean) =>
-        `${RESERVE_PURPOSE} ${
-          isLedgerVaultWallet
-            ? "If it goes unused, reclaiming it with a Ledger device is not supported yet, and it will remain reclaimable once support ships."
-            : "If it goes unused, you can reclaim it once your BTCVault has settled."
-        }`,
+      transactionReserveTooltip: `${RESERVE_PURPOSE} If it goes unused, you can reclaim it once your BTCVault has settled.`,
       // Labeled "Available", not "Balance": the field shows the depositable
       // maximum — the wallet balance net of the fee buffer, inscription UTXOs
       // and the supply cap — not the raw wallet balance.
@@ -1959,10 +1952,6 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // Ledger cannot sign this shape (#2375, models/reclaimEligibility.ts). Never
-      // point at "another wallet": for a hardware user that means restoring the seed.
-      ledgerUnsupported:
-        "Reclaiming with a Ledger device is not supported yet. Your reserve is safe and will remain reclaimable once support ships.",
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is

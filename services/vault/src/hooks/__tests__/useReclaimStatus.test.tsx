@@ -120,7 +120,6 @@ describe("useReclaimStatus", () => {
         reserveSpend: carried!.reserveSpend,
         tipHeight: carried!.observedTipHeight,
         isOwnedByWallet: true,
-        isLedgerWallet: false,
         isWithdrawBlocked: false,
         isReclaimInFlight: false,
       }),

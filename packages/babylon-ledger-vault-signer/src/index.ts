@@ -4,8 +4,8 @@
  * the device envelope gate, the DERIVE_CONTEXT_HASH / APPROVE_VAULT_INTENT
  * ceremony, the SIGN_PSBT interrupt/continue signing loop
  * ({@link signVaultPsbt}), the wallet-policy plumbing and the PoP PSBT
- * builder (#2221), and the standalone refund and delegated-claim PSBT
- * classifiers (#2371, #2111). Wallet-connector's LedgerVaultProvider is the
+ * builder (#2221), and the standalone refund, reclaim and delegated-claim
+ * PSBT classifiers (#2371, #2714, #2111). Wallet-connector's LedgerVaultProvider is the
  * consuming adapter; this package holds everything device-protocol-shaped and
  * nothing wallet-taxonomy-shaped.
  *
@@ -65,9 +65,7 @@ export {
 } from "./intentTlv";
 export {
   augmentPsbtForWalletPolicy,
-  deriveChangeXOnlyHex,
   deriveReceiveXOnlyHex,
-  psbtPaysChangeScript,
   type AugmentPsbtForWalletPolicyParams,
 } from "./policyPsbt";
 export { buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
@@ -89,6 +87,12 @@ export {
   type RefundPsbtClassification,
 } from "./refundPsbt";
 export {
+  augmentPsbtForReclaim,
+  classifyReclaimPsbt,
+  type AugmentPsbtForReclaimParams,
+  type ReclaimPsbtClassification,
+} from "./reclaimPsbt";
+export {
   signPreparedVaultPsbt,
   signVaultPsbt,
   type CollectedYield,
@@ -108,9 +112,12 @@ export {
 export {
   approveVaultIntent,
   deriveContextHash,
+  getVaultState,
+  intentFingerprint,
   type ApduSender,
   type ApproveVaultIntentParams,
   type DeriveContextHashParams,
+  type VaultSessionState,
 } from "./vaultCommands";
 export {
   buildDefaultTaprootPolicy,

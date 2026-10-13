@@ -27,7 +27,6 @@ function makeInput(
     reserveSpend: { spent: false, confirmed: false },
     tipHeight: TIP_HEIGHT,
     isOwnedByWallet: true,
-    isLedgerWallet: false,
     isWithdrawBlocked: false,
     isReclaimInFlight: false,
     ...overrides,
@@ -247,42 +246,6 @@ describe("getReclaimEligibility", () => {
       type: "blocked",
       tooltip: COPY.reclaim.blocked.protocolPaused,
     });
-  });
-
-  it("blocks with an explanation on the Ledger vault wallet", () => {
-    // Blocked rather than hidden: the device firmware cannot sign this shape,
-    // and a silent absence would mean Ledger users never learn the reserve
-    // exists.
-    expect(getReclaimEligibility(makeInput({ isLedgerWallet: true }))).toEqual({
-      type: "blocked",
-      tooltip: COPY.reclaim.blocked.ledgerUnsupported,
-    });
-  });
-
-  it("prefers the reclaiming state over the Ledger block once a sweep is in flight", () => {
-    // A sweep already broadcast (by a non-Ledger wallet holding the depositor
-    // key) is in flight regardless of what this session is connected with.
-    expect(
-      getReclaimEligibility(
-        makeInput({
-          isLedgerWallet: true,
-          reserveSpend: { spent: true, confirmed: false },
-        }),
-      ),
-    ).toEqual({ type: "reclaiming" });
-  });
-
-  it("hides rather than blocks on Ledger when the vault is not eligible anyway", () => {
-    // The wallet check sits behind the eligibility checks, so an ineligible
-    // vault never advertises a reclaim the depositor could not perform.
-    expect(
-      getReclaimEligibility(
-        makeInput({
-          isLedgerWallet: true,
-          reserveSpend: { spent: true, confirmed: true },
-        }),
-      ),
-    ).toEqual({ type: "absent" });
   });
 });
 

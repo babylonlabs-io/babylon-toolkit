@@ -785,8 +785,9 @@ export function useDepositFlow(
         // commit pass drives the wallet popup(s).
         setPeginSigningProgress({ completed: 0, total: vaultAmounts.length });
 
-        // Approval (policy) wallets dictate the change address (BIP-86 change
-        // branch); software wallets keep change on the connected address.
+        // Approval (policy) wallets dictate the change address (the Ledger
+        // vault app takes it only at the depositor's own address); software
+        // wallets keep change on the connected address.
         const prePeginChangeAddress = supportsDepositApproval(
           phaseTrackingBtcWallet,
         )

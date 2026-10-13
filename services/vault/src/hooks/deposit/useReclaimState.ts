@@ -15,6 +15,7 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
+import { isDeviceDisconnectedError } from "@/utils/errors/deviceErrors";
 
 export interface UseReclaimStateProps {
   activity: VaultActivity;
@@ -26,6 +27,8 @@ export interface UseReclaimStateResult {
   /** True when the reserve turned out to be already spent. */
   alreadySettled: boolean;
   error: string | null;
+  /** The last attempt lost the hardware device's session; only a reconnect recovers. */
+  deviceDisconnected: boolean;
   handleReclaim: (feeRate: number) => Promise<void>;
 }
 
@@ -47,6 +50,7 @@ export function useReclaimState({
   const [reclaimTxId, setReclaimTxId] = useState<string | null>(null);
   const [alreadySettled, setAlreadySettled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deviceDisconnected, setDeviceDisconnected] = useState(false);
 
   // Synchronous reentrancy guard: `reclaiming` updates async, so rapid
   // double-confirms before the next render could race two wallet prompts.
@@ -96,6 +100,7 @@ export function useReclaimState({
 
         setReclaiming(true);
         setError(null);
+        setDeviceDisconnected(false);
 
         abortRef.current?.abort();
         abortRef.current = new AbortController();
@@ -151,6 +156,13 @@ export function useReclaimState({
             setReclaiming(false);
             return;
           }
+          const disconnected = isDeviceDisconnectedError(err);
+          setDeviceDisconnected(disconnected);
+          if (disconnected) {
+            setError(COPY.deposit.errors.deviceDisconnected.body);
+            setReclaiming(false);
+            return;
+          }
           setError(
             err instanceof Error ? err.message : COPY.reclaim.errors.generic,
           );
@@ -170,5 +182,12 @@ export function useReclaimState({
     ],
   );
 
-  return { reclaiming, reclaimTxId, alreadySettled, error, handleReclaim };
+  return {
+    reclaiming,
+    reclaimTxId,
+    alreadySettled,
+    error,
+    deviceDisconnected,
+    handleReclaim,
+  };
 }
