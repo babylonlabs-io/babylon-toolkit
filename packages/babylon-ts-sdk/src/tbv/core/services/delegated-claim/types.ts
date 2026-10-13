@@ -128,11 +128,11 @@ export interface DelegatedClaimVaultContext {
    * wallet signs it.
    */
   registeredPayoutScriptPubKey: string;
-  /** Vault provider's BTC public key, registered on chain for this vault. */
+  /** Vault provider's operation key at the vault's frozen `vpKeyEpoch`, the key its graph was built with. */
   vaultProviderBtcPubkey: string;
-  /** Vault keepers registered on chain, the local challengers of this claim. */
+  /** Vault keepers' operation keys at the vault's frozen `appKeeperKeyEpoch`: the local challengers of this claim. */
   vaultKeeperBtcPubkeys: string[];
-  /** Universal challengers registered on chain. */
+  /** Universal challengers' operation keys at the vault's frozen `ucKeyEpoch`. */
   universalChallengerBtcPubkeys: string[];
   /** Graph (vault core) version of the vault. Delegated claim requires `DELEGATED_CLAIM_TX_GRAPH_VERSION`. */
   txGraphVersion: number;

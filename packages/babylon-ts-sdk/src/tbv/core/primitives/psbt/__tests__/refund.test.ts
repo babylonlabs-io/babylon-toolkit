@@ -612,7 +612,7 @@ describe("buildRefundPsbt", () => {
           refundFee: TEST_REFUND_FEE,
           hashlock: wrongHashlock,
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/HTLC scriptPubKey mismatch at vout 1/);
     });
   });
 

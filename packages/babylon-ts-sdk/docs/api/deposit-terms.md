@@ -118,7 +118,7 @@ readonly vaultProviderBtcPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-x-only hex (64 chars), as validated on-chain upstream.
+x-only hex (64 chars): the vault provider's operation key, resolved on-chain upstream.
 
 ##### peginAmount
 
@@ -273,9 +273,11 @@ vaultKeeperBtcPubkeys: readonly string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-x-only hex. Sorted ascending by the upstream on-chain validation
-(validateOnChainParticipantKeys); the builder passes them through
-unasserted — approving devices may reject unsorted lists at load.
+x-only hex operation keys, sorted ascending upstream: by
+validateOnChainParticipantKeys for a fresh deposit, and as the keys at
+the vault's frozen epochs (what readStampedParticipantKeys resolves) when
+the terms are rebuilt on resume or at claim time. The builder passes them
+through unasserted — approving devices may reject unsorted lists at load.
 
 ##### universalChallengerBtcPubkeys
 

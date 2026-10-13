@@ -6,21 +6,51 @@ Reached here from the [Managers Quickstart](./managers.md)? This doc covers the 
 
 If something goes wrong — lost HTLC secret, VP never moves the vault to `VERIFIED`, activation deadline expires — the depositor reclaims the BTC locked in the HTLC output via the refund path. The refund is CSV-timelocked: it only becomes valid after `timelockRefund` Bitcoin blocks have passed since the Pre-PegIn was confirmed.
 
+The refund rebuilds the vault's HTLC, and every participant key in it is the operation key at the epochs the vault froze when it registered. `readRefundPrePeginContext` reads those keys, and the numeric params at the vault's `offchainParamsVersion`, from the chain. Don't hand-roll this from the rosters or the indexer's vault-provider key. The rosters hold registration keys, so for any vault registered after a participant had rotated, a refund built from them is refused with `HTLC scriptPubKey mismatch`. The indexer's key is only a hint, either the registration key or the current operation key. Current operation keys fail the other way round, for vaults registered before a participant's latest rotation. See [Participant keys](../get-started/README.md#participant-keys).
+
 ```typescript
 import {
   buildAndBroadcastRefund,
+  readRefundPrePeginContext,
   BIP68NotMatureError,
   type VaultRefundData,
-  type RefundPrePeginContext,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  getNetworkFees,
+  pushTx,
+  resolveProtocolAddresses,
+  ViemOperationKeyReader,
+  ViemProtocolParamsReader,
+  ViemUniversalChallengerReader,
+  ViemVaultKeeperReader,
+  ViemVaultRegistryReader,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type { Hex } from "viem";
+import type { Address, Hex, PublicClient } from "viem";
 
 declare const vaultId: Hex;
 declare const btcWallet: BitcoinWallet;
+declare const publicClient: PublicClient;
+declare const BTC_VAULT_REGISTRY: Address;
 
 const mempoolApiUrl = "https://mempool.space/signet/api";
+
+// On-chain readers for the refund context. Nothing here reads the indexer.
+const { protocolParams, applicationRegistry } = await resolveProtocolAddresses(
+  publicClient,
+  BTC_VAULT_REGISTRY,
+);
+const readers = {
+  registryReader: new ViemVaultRegistryReader(publicClient, BTC_VAULT_REGISTRY),
+  vaultKeeperReader: new ViemVaultKeeperReader(publicClient, applicationRegistry),
+  universalChallengerReader: new ViemUniversalChallengerReader(publicClient, protocolParams),
+  operationKeyReader: new ViemOperationKeyReader(publicClient, {
+    btcVaultRegistry: BTC_VAULT_REGISTRY,
+    applicationRegistry,
+    protocolParams,
+  }),
+  protocolParamsReader: new ViemProtocolParamsReader(publicClient, protocolParams),
+};
 
 try {
   // Pre-fetch the mempool fee rate — passed in by value, not as a callback,
@@ -36,12 +66,11 @@ try {
       // from the indexer. Combine into a VaultRefundData shape.
       throw new Error("implement with ViemVaultRegistryReader + indexer");
     },
-    readPrePeginContext: async (vault): Promise<RefundPrePeginContext> => {
-      // Resolve offchain params, vault keepers, universal challengers at
-      // the vault's pinned versions (on-chain), plus the vault-provider
-      // pubkey (indexer hint). Return sorted pubkey arrays.
-      throw new Error("implement with Viem*Reader at vault's pinned versions");
-    },
+    // Participant operation keys at the vault's frozen epochs, plus the
+    // numeric params at its offchainParamsVersion. The callback gets the
+    // vault record but not its id, so close over vaultId.
+    readPrePeginContext: (vault) =>
+      readRefundPrePeginContext({ vaultId, vault, readers, network: "signet" }),
     signPsbt: (psbtHex, opts) => btcWallet.signPsbt(psbtHex, opts),
     broadcastTx: async (signedTxHex) => ({
       txId: await pushTx(signedTxHex, mempoolApiUrl),
@@ -84,7 +113,7 @@ const payoutManager = new PayoutManager({
 
 ### Sign one payout
 
-`timelockPegin` comes from the vault's locked offchain params version — see `ViemProtocolParamsReader.getOffchainParamsByVersion()`.
+`timelockPegin` comes from the vault's locked offchain params version — see `ViemProtocolParamsReader.getOffchainParamsByVersion()`. The vault provider, keeper and challenger keys are the operation keys at the vault's frozen epochs, as `readStampedParticipantKeys` returns them — not the rosters or the indexer's keys. See [Participant keys](../get-started/README.md#participant-keys).
 
 ```typescript
 const { signature, depositorBtcPubkey } = await payoutManager.signPayoutTransaction({
@@ -92,8 +121,8 @@ const { signature, depositorBtcPubkey } = await payoutManager.signPayoutTransact
   peginTxHex: "...",
   assertTxHex: "...",                        // Assert transaction the payout spends
   depositorBtcPubkey: "...",
-  vaultProviderBtcPubkey: "...",
-  vaultKeeperBtcPubkeys: [/* … */],
+  vaultProviderBtcPubkey: "...",             // operation keys at the vault's frozen
+  vaultKeeperBtcPubkeys: [/* … */],          // epochs, from readStampedParticipantKeys
   universalChallengerBtcPubkeys: [/* … */],
   timelockPegin: 100,                        // from vault-pinned offchain params
   timelockAssert: 144,

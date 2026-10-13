@@ -1499,7 +1499,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/chall
 
 **`Experimental`**
 
-Vault provider's BTC public key, registered on chain for this vault.
+Vault provider's operation key at the vault's frozen `vpKeyEpoch`.
 The depositor-as-claimer branch does not use it, but the shared
 derivation takes it, and passing a stand-in would be a lie that the
 next change to that function could turn into a wrong set.
@@ -1514,7 +1514,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/chall
 
 **`Experimental`**
 
-Vault keepers registered on chain for this vault.
+Vault keepers' operation keys at the vault's frozen `appKeeperKeyEpoch`.
 
 ##### universalChallengerBtcPubkeys
 
@@ -1526,7 +1526,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/chall
 
 **`Experimental`**
 
-Universal challengers registered on chain.
+Universal challengers' operation keys at the vault's frozen `ucKeyEpoch`.
 
 ***
 
@@ -2547,7 +2547,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 **`Experimental`**
 
-Vault provider's BTC public key, registered on chain for this vault.
+Vault provider's operation key at the vault's frozen `vpKeyEpoch`, the key its graph was built with.
 
 ##### vaultKeeperBtcPubkeys
 
@@ -2559,7 +2559,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 **`Experimental`**
 
-Vault keepers registered on chain, the local challengers of this claim.
+Vault keepers' operation keys at the vault's frozen `appKeeperKeyEpoch`: the local challengers of this claim.
 
 ##### universalChallengerBtcPubkeys
 
@@ -2571,7 +2571,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 **`Experimental`**
 
-Universal challengers registered on chain.
+Universal challengers' operation keys at the vault's frozen `ucKeyEpoch`.
 
 ##### txGraphVersion
 
@@ -3356,7 +3356,8 @@ PegIn ahead of the depositor's refund. When set, it takes precedence over
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
 Context required for signing payout transactions.
-Caller builds this from on-chain data (contract queries, GraphQL, config).
+Caller builds this from on-chain contract reads; the participant keys must
+be the ones the vault's graph was built with (see each key field).
 
 #### Properties
 
@@ -3391,7 +3392,10 @@ vaultProviderBtcPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
-Vault provider's BTC public key (x-only hex, no prefix)
+Vault provider's RFC-006 operation key (x-only hex, no prefix) at the
+vault's frozen `vpKeyEpoch`. Straight after registering, the key from
+`validateOnChainParticipantKeys` is that key; on a resume, read it with
+`readStampedParticipantKeys`. Never the registration key or the indexer's.
 
 ##### vaultKeeperBtcPubkeys
 
@@ -3401,7 +3405,11 @@ vaultKeeperBtcPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
-Sorted vault keeper BTC public keys (x-only hex, no prefix)
+Sorted vault keeper operation keys (x-only hex, no prefix) at the vault's
+frozen `appKeeperKeyEpoch`: from `validateOnChainParticipantKeys` straight
+after registering, from `readStampedParticipantKeys` on a resume. The
+roster holds registration keys, which differ from these for a vault
+registered after a keeper had rotated.
 
 ##### universalChallengerBtcPubkeys
 
@@ -3411,7 +3419,8 @@ universalChallengerBtcPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
-Sorted universal challenger BTC public keys (x-only hex, no prefix)
+Sorted universal challenger operation keys (x-only hex, no prefix) at the
+vault's frozen `ucKeyEpoch`, sourced as for `vaultKeeperBtcPubkeys`.
 
 ##### depositorBtcPubkey
 
@@ -3763,7 +3772,10 @@ vaultProviderBtcPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
-Vault provider's BTC public key (x-only hex, no prefix)
+Vault provider's RFC-006 operation key (x-only hex, no prefix) at the
+vault's frozen `vpKeyEpoch`. Straight after registering, the key from
+`validateOnChainParticipantKeys` is that key; on a resume, read it with
+`readStampedParticipantKeys`. Never the registration key or the indexer's.
 
 ##### vaultKeeperBtcPubkeys
 
@@ -3773,7 +3785,11 @@ vaultKeeperBtcPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
-Sorted vault keeper BTC public keys (x-only hex, no prefix)
+Sorted vault keeper operation keys (x-only hex, no prefix) at the vault's
+frozen `appKeeperKeyEpoch`: from `validateOnChainParticipantKeys` straight
+after registering, from `readStampedParticipantKeys` on a resume. The
+roster holds registration keys, which differ from these for a vault
+registered after a keeper had rotated.
 
 ##### universalChallengerBtcPubkeys
 
@@ -3783,7 +3799,8 @@ universalChallengerBtcPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
 
-Sorted universal challenger BTC public keys (x-only hex, no prefix)
+Sorted universal challenger operation keys (x-only hex, no prefix) at the
+vault's frozen `ucKeyEpoch`, sourced as for `vaultKeeperBtcPubkeys`.
 
 ##### timelockPegin
 
@@ -4812,14 +4829,13 @@ failed to match; this says which operation the user just lost.
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
-
 The reads this needs, as `Pick`s so a caller can pass the SDK's viem readers
 or a narrower implementation.
 
 #### Extended by
 
 - [`DelegatedClaimVaultReaders`](#delegatedclaimvaultreaders)
+- [`RefundPrePeginContextReaders`](#refundprepegincontextreaders)
 
 #### Properties
 
@@ -4831,8 +4847,6 @@ registryReader: Pick<VaultRegistryReader, "getVaultProviderGenesisBtcPubKey" | "
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
-
 ##### vaultKeeperReader
 
 ```ts
@@ -4840,8 +4854,6 @@ vaultKeeperReader: Pick<VaultKeeperReader, "getVaultKeepersByVersion">;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
-
-**`Experimental`**
 
 ##### universalChallengerReader
 
@@ -4851,8 +4863,6 @@ universalChallengerReader: Pick<UniversalChallengerReader, "getUniversalChalleng
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
-
 ##### operationKeyReader
 
 ```ts
@@ -4861,15 +4871,13 @@ operationKeyReader: Pick<OperationKeyReader, "getOperationKeysAtEpochs">;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
-
 ***
 
 ### ReadStampedParticipantKeysParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
+Input to [readStampedParticipantKeys](#readstampedparticipantkeys).
 
 #### Properties
 
@@ -4881,19 +4889,35 @@ vaultId: `0x${string}`;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
+The vault whose frozen key epochs to resolve at.
 
 ##### vault
 
 ```ts
-vault: VaultData;
+vault: object;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
+The vault's stamped provider, application and membership versions, read
+from the registry. A full `VaultData` from `VaultRegistryReader.getVaultData`
+satisfies it; a caller holding only these four fields can pass them alone.
 
-The vault's on-chain record, as `VaultRegistryReader.getVaultData` returns it.
+###### basic
+
+```ts
+basic: Pick<VaultBasicInfo, "vaultProvider" | "applicationEntryPoint">;
+```
+
+The vault's provider and application entry point.
+
+###### protocol
+
+```ts
+protocol: Pick<VaultProtocolInfo, "appVaultKeepersVersion" | "universalChallengersVersion">;
+```
+
+The membership versions the vault's rosters are read at.
 
 ##### readers
 
@@ -4903,7 +4927,7 @@ readers: StampedParticipantKeyReaders;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
+The on-chain reads; the SDK's viem readers satisfy every one.
 
 ***
 
@@ -5401,16 +5425,23 @@ per sibling vault, including the target vault). Must satisfy
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
-Version-resolved protocol context that parameterises the HTLC's taproot
-scripts. The *signer-set* fields (`vaultKeeperPubkeys`,
-`universalChallengerPubkeys`) and the version-locked numeric protocol
-params **must** be sourced from the on-chain contract at the version
-pinned in [VaultRefundData](#vaultrefunddata) — this is the trust boundary.
-`vaultProviderPubkey` today is sourced from the GraphQL indexer via
-`fetchVaultProviderById`; the caller is responsible for any additional
-cross-check it requires. Keeper and challenger pubkey arrays must be
-pre-sorted the same way the Rust protocol sorts them (canonical for
-script derivation).
+The protocol context the refund rebuilds the vault's Pre-PegIn HTLC from.
+This is the trust boundary: every field must come from the chain, and
+[readRefundPrePeginContext](#readrefundprepegincontext) reads all of it.
+
+The three key fields must be the RFC-006 *operation* keys at the vault's
+frozen epochs (`vpKeyEpoch`, `appKeeperKeyEpoch`, `ucKeyEpoch`), and the
+numeric fields must be the offchain params at the vault's
+`offchainParamsVersion`. The rosters (`getVaultKeepersByVersion`,
+`getUniversalChallengersByVersion`) hold *registration* keys, which differ
+from the keys committed by any vault registered after a participant had
+rotated; a refund rebuilt from them for such a vault no longer matches the
+funded output and is refused. The indexer's vault-provider key is only a
+hint (the registration key, or the current operation key once the indexer
+tracks rotations) and is never the key to build with. Current operation
+keys are no substitute either: they fail for any vault registered before a
+participant's latest rotation. A vault's frozen epochs never move, so
+rotations after it registered do not change its HTLC.
 
 #### Properties
 
@@ -5422,6 +5453,8 @@ vaultProviderPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
+The vault provider's operation key at the vault's `vpKeyEpoch` (x-only hex).
+
 ##### vaultKeeperPubkeys
 
 ```ts
@@ -5429,6 +5462,8 @@ vaultKeeperPubkeys: readonly string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
+
+The vault keepers' operation keys at the vault's `appKeeperKeyEpoch`, sorted (x-only hex).
 
 ##### universalChallengerPubkeys
 
@@ -5438,6 +5473,8 @@ universalChallengerPubkeys: readonly string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
+The universal challengers' operation keys at the vault's `ucKeyEpoch`, sorted (x-only hex).
+
 ##### timelockRefund
 
 ```ts
@@ -5445,6 +5482,8 @@ timelockRefund: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
+
+The refund CSV timelock in blocks: `tRefund` at the vault's `offchainParamsVersion`.
 
 ##### feeRate
 
@@ -5454,6 +5493,10 @@ feeRate: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
+The protocol fee rate (sat/vB) at the vault's `offchainParamsVersion`. It
+sized the HTLC value; the refund transaction's own fee is
+`RefundInput.feeRate`.
+
 ##### minPeginFeeRate
 
 ```ts
@@ -5461,6 +5504,8 @@ minPeginFeeRate: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
+
+The minimum peg-in fee rate (sat/vB) at the vault's `offchainParamsVersion`.
 
 ##### numLocalChallengers
 
@@ -5470,6 +5515,11 @@ numLocalChallengers: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
+The number of local challengers in the depositor's own claim graph, which
+this value sizes: the vault keeper count. (A vault provider's or a
+keeper's claim graph uses a different rule: the vault provider and the
+keepers, minus the claimer.)
+
 ##### councilQuorum
 
 ```ts
@@ -5477,6 +5527,8 @@ councilQuorum: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
+
+The security council quorum at the vault's `offchainParamsVersion`.
 
 ##### councilSize
 
@@ -5486,6 +5538,8 @@ councilSize: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
+The security council size: the number of `securityCouncilKeys` at the vault's `offchainParamsVersion`.
+
 ##### network
 
 ```ts
@@ -5493,6 +5547,8 @@ network: Network;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
+
+The Bitcoin network the vault lives on.
 
 ***
 
@@ -5558,8 +5614,11 @@ readPrePeginContext: (vault) => Promise<RefundPrePeginContext>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
-Fetch the version-pinned refund context (sorted pubkeys, timelock, etc.)
-derived from the vault's locked versions.
+Fetch the protocol context the refund rebuilds the HTLC from. Use
+[readRefundPrePeginContext](#readrefundprepegincontext), closing over `vaultId`:
+`(vault) => readRefundPrePeginContext({ vaultId, vault, readers, network })`.
+A hand-written implementation must return the operation keys at the
+vault's frozen epochs; see [RefundPrePeginContext](#refundprepegincontext).
 
 ###### Parameters
 
@@ -5613,6 +5672,129 @@ optional signal: AbortSignal;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/buildAndBroadcastRefund.ts)
 
 Checked at every async boundary.
+
+***
+
+### RefundPrePeginContextReaders
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+The reads [readRefundPrePeginContext](#readrefundprepegincontext) needs: the stamped participant
+key reads plus the versioned offchain params.
+
+#### Extends
+
+- [`StampedParticipantKeyReaders`](#stampedparticipantkeyreaders)
+
+#### Properties
+
+##### registryReader
+
+```ts
+registryReader: Pick<VaultRegistryReader, "getVaultProviderGenesisBtcPubKey" | "getVaultKeyEpochs">;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
+
+###### Inherited from
+
+[`StampedParticipantKeyReaders`](#stampedparticipantkeyreaders).[`registryReader`](#registryreader-1)
+
+##### vaultKeeperReader
+
+```ts
+vaultKeeperReader: Pick<VaultKeeperReader, "getVaultKeepersByVersion">;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
+
+###### Inherited from
+
+[`StampedParticipantKeyReaders`](#stampedparticipantkeyreaders).[`vaultKeeperReader`](#vaultkeeperreader-2)
+
+##### universalChallengerReader
+
+```ts
+universalChallengerReader: Pick<UniversalChallengerReader, "getUniversalChallengersByVersion">;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
+
+###### Inherited from
+
+[`StampedParticipantKeyReaders`](#stampedparticipantkeyreaders).[`universalChallengerReader`](#universalchallengerreader-2)
+
+##### operationKeyReader
+
+```ts
+operationKeyReader: Pick<OperationKeyReader, "getOperationKeysAtEpochs">;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
+
+###### Inherited from
+
+[`StampedParticipantKeyReaders`](#stampedparticipantkeyreaders).[`operationKeyReader`](#operationkeyreader-3)
+
+##### protocolParamsReader
+
+```ts
+protocolParamsReader: Pick<ProtocolParamsReader, "getOffchainParamsByVersion">;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+Reads the offchain params at the vault's `offchainParamsVersion`.
+
+***
+
+### ReadRefundPrePeginContextParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+Input to [readRefundPrePeginContext](#readrefundprepegincontext).
+
+#### Properties
+
+##### vaultId
+
+```ts
+vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+The vault being refunded: the same id passed to `buildAndBroadcastRefund`.
+
+##### vault
+
+```ts
+vault: VaultRefundData;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+The record `readVault` returned. Its stamped versions select the rosters and the params.
+
+##### readers
+
+```ts
+readers: RefundPrePeginContextReaders;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+The on-chain reads; the SDK's viem readers satisfy every one.
+
+##### network
+
+```ts
+network: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+The Bitcoin network the vault lives on, passed through to the context.
 
 ## Type Aliases
 
@@ -7431,7 +7613,9 @@ function readStampedParticipantKeys(params): Promise<ParticipantKeySet>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/participants/readStampedParticipantKeys.ts)
 
-**`Experimental`**
+Read the operation keys an existing vault's scripts were built with: the
+rosters at its stamped membership versions, resolved at its frozen key
+epochs.
 
 #### Parameters
 
@@ -7694,6 +7878,42 @@ whatever the injected `broadcastTx` returns (generic pass-through)
 
 anything `readVault`, `readPrePeginContext`,
         `signPsbt`, or `broadcastTx` throws
+
+***
+
+### readRefundPrePeginContext()
+
+```ts
+function readRefundPrePeginContext(params): Promise<RefundPrePeginContext>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/readRefundPrePeginContext.ts)
+
+Read the [RefundPrePeginContext](#refundprepegincontext) for an existing vault: participant
+operation keys at the vault's frozen epochs, and numeric params at its
+`offchainParamsVersion`.
+
+Pass it to `buildAndBroadcastRefund`, closing over the vault id:
+
+```ts
+readPrePeginContext: (vault) =>
+  readRefundPrePeginContext({ vaultId, vault, readers, network }),
+```
+
+#### Parameters
+
+##### params
+
+[`ReadRefundPrePeginContextParams`](#readrefundprepegincontextparams)
+
+#### Returns
+
+`Promise`\<[`RefundPrePeginContext`](#refundprepegincontext)\>
+
+#### Throws
+
+When either stamped roster is empty, key resolution fails
+        (`readStampedParticipantKeys`), or the offchain params read fails.
 
 ***
 

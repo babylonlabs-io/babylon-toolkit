@@ -114,13 +114,15 @@ export async function buildRefundPsbt(
 
   let fundedTx: typeof unfundedTx | null = null;
   try {
-    // Cross-check the reconstructed unfunded template against an independent
-    // TypeScript derivation and the funded transaction bytes.
-    // If they disagree, the template was reconstructed from the wrong
-    // (hashlocks, amounts) vector — signing it would produce a refund
-    // that does not spend the on-chain HTLC the depositor expects.
-    // This is the explicit invariant the audit recommends: never sign a
-    // refund whose template doesn't match the on-chain output bytes.
+    // Two cross-checks bind the rebuilt HTLC before anything is signed.
+    // First, the WASM template against an independent TypeScript derivation:
+    // a disagreement means the engine diverged, or that the caller's
+    // `hashlock` differs from `prePeginParams.hashlocks[htlcVout]` (the
+    // template reads the array, the derivation reads `hashlock`). Then
+    // (below) that scriptPubKey against the funded tx's output: a
+    // disagreement there means the params do not describe the HTLC on chain,
+    // and signing would produce a refund that cannot spend it. Never sign a
+    // refund whose template does not match the on-chain output bytes.
     const wasmHtlcScriptPubKey = unfundedTx
       .getHtlcScriptPubKey(htlcVout)
       .toLowerCase();
@@ -159,12 +161,25 @@ export async function buildRefundPsbt(
     const actualHtlcScriptPubKey = uint8ArrayToHex(
       new Uint8Array(htlcOutput.script),
     ).toLowerCase();
+    // The scriptPubKey commits to the depositor key, the participant keys, the
+    // hashlock and timelockRefund. A wrong depositor key is refused earlier,
+    // at `fromFundedTransaction`'s CPFP anchor check, and amounts have their
+    // own value check below. The message names the other inputs, plus a
+    // funded tx that is not this vault's Pre-PegIn: nothing upstream binds
+    // the funded tx to the vault, so a stale one reaches this check.
     if (actualHtlcScriptPubKey !== expectedHtlcScriptPubKey) {
       throw new Error(
         `HTLC scriptPubKey mismatch at vout ${htlcVout}: reconstructed ` +
           `template expects ${expectedHtlcScriptPubKey}, funded tx carries ` +
-          `${actualHtlcScriptPubKey}. Refund refused — the (hashlocks, ` +
-          `pegInAmounts) vector does not match the on-chain commitment.`,
+          `${actualHtlcScriptPubKey}. Refund refused — the rebuilt HTLC does ` +
+          `not commit to the funded output. Check the participant keys ` +
+          `first: the vault provider, vault keeper and universal challenger ` +
+          `keys must be the operation keys at the vault's frozen epochs ` +
+          `(readRefundPrePeginContext, or readStampedParticipantKeys), not ` +
+          `roster, indexer or current keys. Then check the hashlock at this ` +
+          `vout and timelockRefund, and that the funded transaction is this ` +
+          `vault's Pre-PegIn (its txid must equal the vault's on-chain ` +
+          `prePeginTxHash).`,
       );
     }
 

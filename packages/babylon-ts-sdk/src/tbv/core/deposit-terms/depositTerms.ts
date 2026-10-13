@@ -6,7 +6,7 @@ import type { BitcoinWallet } from "../../../shared/wallets/interfaces";
 export interface DepositTermsVaultGroup {
   /** 0-based; equals the group's position (groups are ascending by vout). */
   readonly htlcVout: number;
-  /** x-only hex (64 chars), as validated on-chain upstream. */
+  /** x-only hex (64 chars): the vault provider's operation key, resolved on-chain upstream. */
   readonly vaultProviderBtcPubkey: string;
   /** sats */
   readonly peginAmount: bigint;
@@ -74,9 +74,11 @@ export interface DepositTerms {
   /** sats; the funded Pre-PegIn fee (an approving wallet caps the signed fee at this). */
   prepeginMaxFee: bigint;
   /**
-   * x-only hex. Sorted ascending by the upstream on-chain validation
-   * (validateOnChainParticipantKeys); the builder passes them through
-   * unasserted — approving devices may reject unsorted lists at load.
+   * x-only hex operation keys, sorted ascending upstream: by
+   * validateOnChainParticipantKeys for a fresh deposit, and as the keys at
+   * the vault's frozen epochs (what readStampedParticipantKeys resolves) when
+   * the terms are rebuilt on resume or at claim time. The builder passes them
+   * through unasserted — approving devices may reject unsorted lists at load.
    */
   vaultKeeperBtcPubkeys: readonly string[];
   /**

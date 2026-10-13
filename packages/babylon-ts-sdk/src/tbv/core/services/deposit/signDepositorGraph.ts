@@ -553,11 +553,25 @@ export interface DepositorGraphSigningContext {
   peginTxHex: string;
   /** Depositor's BTC public key (x-only, 64-char hex, no 0x prefix) */
   depositorBtcPubkey: string;
-  /** Vault provider's BTC public key (x-only hex, no prefix) */
+  /**
+   * Vault provider's RFC-006 operation key (x-only hex, no prefix) at the
+   * vault's frozen `vpKeyEpoch`. Straight after registering, the key from
+   * `validateOnChainParticipantKeys` is that key; on a resume, read it with
+   * `readStampedParticipantKeys`. Never the registration key or the indexer's.
+   */
   vaultProviderBtcPubkey: string;
-  /** Sorted vault keeper BTC public keys (x-only hex, no prefix) */
+  /**
+   * Sorted vault keeper operation keys (x-only hex, no prefix) at the vault's
+   * frozen `appKeeperKeyEpoch`: from `validateOnChainParticipantKeys` straight
+   * after registering, from `readStampedParticipantKeys` on a resume. The
+   * roster holds registration keys, which differ from these for a vault
+   * registered after a keeper had rotated.
+   */
   vaultKeeperBtcPubkeys: string[];
-  /** Sorted universal challenger BTC public keys (x-only hex, no prefix) */
+  /**
+   * Sorted universal challenger operation keys (x-only hex, no prefix) at the
+   * vault's frozen `ucKeyEpoch`, sourced as for `vaultKeeperBtcPubkeys`.
+   */
   universalChallengerBtcPubkeys: string[];
   /** Pegin CSV timelock from the locked offchain params version (blocks) */
   timelockPegin: number;
