@@ -3,7 +3,10 @@ import {
   getSharedWagmiConfig,
 } from "@babylonlabs-io/wallet-connector";
 import type { Address, WalletClient } from "viem";
-import { ConnectorAccountNotFoundError } from "wagmi";
+import {
+  ConnectorAccountNotFoundError,
+  ConnectorChainMismatchError,
+} from "wagmi";
 import {
   getAccount,
   getWalletClient,
@@ -23,18 +26,30 @@ const walletNotConnected = () =>
     ErrorCode.WALLET_NOT_CONNECTED,
   );
 
+const chainSwitchRequired = (expectedChainId: number) =>
+  new Error(
+    COPY.wallet.chainSwitch.required(
+      expectedChainId === ETH_MAINNET_CHAIN_ID
+        ? COPY.wallet.chainSwitch.ethereumMainnet
+        : COPY.wallet.chainSwitch.sepoliaTestnet,
+    ),
+  );
+
 // wagmi's getConnectorClient throws ConnectorNotConnectedError when the
-// connection drops mid-call. The class is not exported from "wagmi".
+// connection drops mid-call. The class is not exported from "wagmi". A
+// reconnect can also leave the connector briefly on another chain.
 const isConnectionLostError = (error: unknown) =>
   error instanceof ConnectorAccountNotFoundError ||
+  error instanceof ConnectorChainMismatchError ||
   (error instanceof Error && error.name === "ConnectorNotConnectedError");
 
 type WagmiConfig = ReturnType<typeof getSharedWagmiConfig>;
 
 // Mobile wallets can emit an empty account list and then re-emit the account,
 // which wagmi reports as disconnected in between.
-const waitForConnection = (wagmiConfig: WagmiConfig) =>
-  new Promise<void>((resolve) => {
+const waitForConnection = async (wagmiConfig: WagmiConfig) => {
+  if (getAccount(wagmiConfig).status === "connected") return;
+  await new Promise<void>((resolve) => {
     const settle = () => {
       clearTimeout(timer);
       unwatch();
@@ -47,26 +62,15 @@ const waitForConnection = (wagmiConfig: WagmiConfig) =>
     });
     const timer = setTimeout(settle, ETH_EMPTY_ACCOUNT_GRACE_MS);
   });
+};
 
-/**
- * Get a wallet client on the app's Ethereum chain, asking the wallet to
- * switch network only when its live connection is on another chain.
- *
- * Call this at click time. Wagmi's `useWalletClient` drops its data whenever
- * the component that reads it unmounts, so a client held from render can be
- * missing while the wallet is still connected.
- */
-export async function getWalletClientOnExpectedChain(
+const fetchWalletClient = async (
+  wagmiConfig: WagmiConfig,
   account: Address,
-): Promise<WalletClient> {
-  const wagmiConfig = getSharedWagmiConfig();
-  const expectedChainId = getETHChain().id;
-
-  let connection = getAccount(wagmiConfig);
-  if (connection.status !== "connected") {
-    await waitForConnection(wagmiConfig);
-    connection = getAccount(wagmiConfig);
-  }
+  expectedChainId: number,
+): Promise<WalletClient> => {
+  await waitForConnection(wagmiConfig);
+  const connection = getAccount(wagmiConfig);
   if (connection.status !== "connected") {
     throw walletNotConnected();
   }
@@ -89,26 +93,39 @@ export async function getWalletClientOnExpectedChain(
       logger.error(switchError, {
         data: { context: "Failed to switch chain" },
       });
-      throw new Error(
-        COPY.wallet.chainSwitch.required(
-          expectedChainId === ETH_MAINNET_CHAIN_ID
-            ? COPY.wallet.chainSwitch.ethereumMainnet
-            : COPY.wallet.chainSwitch.sepoliaTestnet,
-        ),
-      );
+      throw chainSwitchRequired(expectedChainId);
     }
   }
 
-  const walletClient = await getWalletClient(wagmiConfig, {
-    chainId: expectedChainId,
-    account,
-  }).catch((error: unknown) => {
-    throw isConnectionLostError(error) ? walletNotConnected() : error;
-  });
+  return getWalletClient(wagmiConfig, { chainId: expectedChainId, account });
+};
 
-  if (!walletClient) {
-    throw walletNotConnected();
-  }
+/**
+ * Get a wallet client on the app's Ethereum chain, asking the wallet to
+ * switch network only when its live connection is on another chain.
+ *
+ * Call this at click time. Wagmi's `useWalletClient` drops its data whenever
+ * the component that reads it unmounts, so a client held from render can be
+ * missing while the wallet is still connected.
+ */
+export async function getWalletClientOnExpectedChain(
+  account: Address,
+): Promise<WalletClient> {
+  const wagmiConfig = getSharedWagmiConfig();
+  const expectedChainId = getETHChain().id;
 
-  return walletClient;
+  const fetchClient = () =>
+    fetchWalletClient(wagmiConfig, account, expectedChainId);
+
+  return fetchClient()
+    .catch((error: unknown) => {
+      if (!isConnectionLostError(error)) throw error;
+      return fetchClient();
+    })
+    .catch((error: unknown) => {
+      if (error instanceof ConnectorChainMismatchError) {
+        throw chainSwitchRequired(expectedChainId);
+      }
+      throw isConnectionLostError(error) ? walletNotConnected() : error;
+    });
 }

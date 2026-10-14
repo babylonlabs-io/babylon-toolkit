@@ -49,7 +49,7 @@ export async function borrow(
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
-    throw new Error("Wallet address not available");
+    throw new Error(COPY.wallet.connectToContinue);
   }
 
   const result = await AaveAdapterTx.borrowFromCorePosition(

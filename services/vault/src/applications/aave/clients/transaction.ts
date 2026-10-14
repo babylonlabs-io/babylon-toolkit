@@ -18,6 +18,8 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
+import { COPY } from "@/copy";
+
 import { ethClient } from "../../../clients/eth-contract/client";
 import {
   throwRevertError,
@@ -149,7 +151,7 @@ async function executeTx(
   const account = walletClient.account?.address;
 
   if (!account) {
-    throw new Error("Wallet account not available");
+    throw new Error(COPY.wallet.connectToContinue);
   }
 
   const publicClient = ethClient.getPublicClient();

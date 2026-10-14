@@ -73,6 +73,7 @@ vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
 }));
 
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
 import {
@@ -184,7 +185,7 @@ describe("positionTransactions", () => {
 
       await expect(
         borrow(noAccountWallet, mockChain, 1n, 1000n),
-      ).rejects.toThrow("Wallet address not available");
+      ).rejects.toThrow(COPY.wallet.connectToContinue);
     });
   });
 
