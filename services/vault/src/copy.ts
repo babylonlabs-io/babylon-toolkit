@@ -1225,9 +1225,13 @@ export const COPY = {
         "Invalid secret: SHA256(secret) does not match the BTCVault's hashlock. Please check your secret and try again.",
       // The pre-send check found the registry would redeem this BTCVault
       // instead of adding it to the position, at the gas search ceiling or at
-      // the planned limit. Nothing is sent.
+      // the planned limit. Nothing is sent. The registry redeems when a cap
+      // (total or per-address) is exceeded or the application's activateVault
+      // reverts, and the planned-limit re-check can also trip on gas, so the
+      // cause is hedged. The retry is bounded by the activation window, which
+      // closes 25 blocks before the deadline, not by "later".
       activationWouldRedeem:
-        "Activation was checked before sending and this BTCVault would have been redeemed instead of added to your position, so nothing was submitted. Try again later.",
+        "Activation was checked before sending and this BTCVault would have been redeemed instead of added to your position, so nothing was submitted. This usually means the application is not accepting it right now, for example because it is paused or a deposit cap has been reached. You can retry while the activation window is open; if it keeps happening, please contact support.",
       // The configured RPC does not serve eth_simulateV1, so the pre-send
       // check cannot run and nothing is sent. Retrying cannot help.
       activationCheckUnsupported:
