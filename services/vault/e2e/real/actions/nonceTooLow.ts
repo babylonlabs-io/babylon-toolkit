@@ -69,11 +69,12 @@ export interface NonceInjectionProbe {
   /** Rejects unless MetaMask's provider was wrapped — call before submitting the borrow. */
   assertPatched(): Promise<void>;
   /**
-   * Wait until MetaMask's node and the app's RPC count the same transactions for the account, and
-   * return that count — the baseline "exactly one transaction" is measured against. The app retries a
-   * stale nonce only when the two agree, and a stale refusal names MetaMask's count minus one, so a
-   * run started while they differ would fail for the environment, not the app. Throws, naming both
-   * counts, when they do not agree in time.
+   * Wait until MetaMask's node and the app's RPC count the same transactions for the account, with
+   * none pending, and return that count — the baseline "exactly one transaction" is measured against.
+   * The app retries a stale nonce only when the two agree, and a stale refusal names MetaMask's count
+   * minus one; an earlier transaction still pending would mine inside the window and read as a second
+   * borrow. So a run started before the counts settle would fail for the environment, not the app.
+   * Throws, naming the counts, when they do not settle in time.
    */
   settledCount(ethAddress: string): Promise<number>;
   /** True once the wrapper has answered a borrow send with its refusal. */
@@ -259,11 +260,15 @@ export async function installNonceTooLowInjection(
         const walletCount = (await page.evaluate(
           `window.__e2eNonceInjectionWalletCount(${JSON.stringify(ethAddress)})`,
         )) as number;
-        const appCount = (await readAccountNonces(network, ethAddress)).latest;
-        if (walletCount === appCount) return appCount;
+        const { latest: appCount, pending } = await readAccountNonces(
+          network,
+          ethAddress,
+        );
+        // A transaction still pending would mine inside the window and read as a second borrow.
+        if (walletCount === appCount && pending === appCount) return appCount;
         if (Date.now() >= deadline)
           throw new Error(
-            `Nonce injection: MetaMask counts ${walletCount} transactions for ${ethAddress} and the app's RPC counts ${appCount}, and they did not agree within ${Math.round(NONCE_INJECTION_COUNT_SETTLE_TIMEOUT_MS / MS_PER_SECOND)}s. The app retries a stale nonce only when they agree, so this run would test the environment, not the app.`,
+            `Nonce injection: MetaMask counts ${walletCount} transactions for ${ethAddress} and the app's RPC counts ${appCount} mined and ${pending} with its mempool, and they did not settle within ${Math.round(NONCE_INJECTION_COUNT_SETTLE_TIMEOUT_MS / MS_PER_SECOND)}s. The app retries a stale nonce only when the counts agree, and a transaction still pending would read as a duplicate, so this run would test the environment, not the app.`,
           );
         await page.waitForTimeout(NONCE_INJECTION_POLL_MS);
       }
