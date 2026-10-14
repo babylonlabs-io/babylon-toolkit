@@ -158,6 +158,10 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   // Nothing was broadcast: the position-capacity gate failed closed on a
   // chain read before any wallet prompt, and a later read can succeed.
   ERRORS.positionCapacityUnavailable,
+  // Nothing was broadcast: the position-capacity gate refused this batch.
+  // Freeing room or a limit change can let it through, and Retry re-runs the
+  // check before broadcasting.
+  ERRORS.positionCapacityExceeded,
 ]);
 
 const STAGE_FAILED = ERRORS.prePeginStageFailed;

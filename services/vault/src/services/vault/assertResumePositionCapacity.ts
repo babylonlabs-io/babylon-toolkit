@@ -5,9 +5,9 @@
  * registry redeems the vault instead of activating it
  * (vault-contracts-aave-v4@06f46477:src/protocol/BTCVaultRegistry.sol:751-760)
  * — after the BTC is locked, with the fees spent. A position that filled up,
- * or whose limits governance lowered, between registration and the resume
- * broadcast would hit exactly that. This asks the vault's own application
- * before this attempt broadcasts anything.
+ * or whose limits governance lowered, between registration and the broadcast
+ * would hit exactly that. This asks the vault's own application before any
+ * attempt, new or resumed, broadcasts anything.
  *
  * One `allowedToDeposit(depositor, batchSize, batchAmount)` read stands in for
  * every per-vault activation check
@@ -21,10 +21,12 @@
  * (vault-contracts-aave-v4@06f46477:src/applications/aave/AaveAdapter.sol:137;
  * `vaultActivationService.ts`).
  *
- * The batch is whatever the broadcast funds, so it comes from the transaction,
- * not from the listing: the hash-bound Pre-PegIn's HTLC outputs, each of which
- * must be held by exactly one of this depositor's vaults on chain. An
- * under-listed batch would otherwise ask about too few vaults and pass.
+ * The batch is whatever the broadcast funds. On resume it comes from the
+ * transaction, not from the listing: the hash-bound Pre-PegIn's HTLC outputs,
+ * each of which must be held by exactly one of this depositor's vaults on
+ * chain. An under-listed batch would otherwise ask about too few vaults and
+ * pass. A new deposit passes `assertPositionAcceptsBatch` the batch it built
+ * and funded itself, so there is no listing to cross-check.
  *
  * Advisory, and fail closed. The read is a snapshot that reserves nothing: a
  * concurrent activation or a later parameter change can still fail activation,

@@ -1380,9 +1380,8 @@ export const COPY = {
       // and not yet acknowledged, which has already sent the BTC to the HTLC.
       // Not "has reached its limit": a lowered limit can be exceeded by this
       // deposit alone. Recoverable by the depositor (free a slot or BTC
-      // headroom) or by a limit change. The resume modal offers Retry; the new
-      // deposit modal does not, so a new deposit resumes from its pending
-      // entry in the vault list.
+      // headroom) or by a limit change, and both the new-deposit and the
+      // resume modal offer Retry.
       positionCapacityExceeded: {
         title: "Not enough room in your position",
         body: "Your Aave position doesn't have room for this deposit under its BTCVault count or BTC limit. This attempt didn't broadcast anything. Free up room in your position, for example by withdrawing a BTCVault, or wait for the limit to change, then try again.",
