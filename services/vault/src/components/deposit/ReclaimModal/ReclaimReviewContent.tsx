@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { ReviewDetailRow } from "@/components/shared/DetailRow";
+import { DeviceAppWaitDetail } from "@/components/simple/DepositProgressView/DeviceAppWaitDetail";
 import { FALLBACK_FEE_RATE_SATS_VB } from "@/constants";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -43,6 +44,10 @@ interface ReclaimReviewContentProps {
   reclaiming: boolean;
   error: string | null;
   onConfirm: (feeRate: number) => void;
+  /** The device app a held Ledger reclaim waits for; null when nothing waits. */
+  awaitingAppName: string | null;
+  /** The device session was lost; confirm reconnects it first. */
+  reconnectRequired: boolean;
 }
 
 export function ReclaimReviewContent({
@@ -52,6 +57,8 @@ export function ReclaimReviewContent({
   reclaiming,
   error,
   onConfirm,
+  awaitingAppName,
+  reconnectRequired,
 }: ReclaimReviewContentProps) {
   const btcPriceUSD = usePrice("BTC");
   const symbol = getBtcSymbol();
@@ -278,6 +285,9 @@ export function ReclaimReviewContent({
             </Callout>
           )}
           {error && <Callout variant="error">{error}</Callout>}
+          {awaitingAppName !== null && (
+            <DeviceAppWaitDetail appName={awaitingAppName} />
+          )}
 
           <Button
             variant="contained"
@@ -292,6 +302,8 @@ export function ReclaimReviewContent({
                 <Loader size={16} className="text-accent-contrast" />
                 <span>{COPY.common.confirming}</span>
               </span>
+            ) : reconnectRequired ? (
+              COPY.deposit.ledger.reconnectButton
             ) : error ? (
               COPY.reclaim.review.retryButton
             ) : (

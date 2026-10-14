@@ -95,7 +95,6 @@ const providerState: DepositProviderState = {
 
 const walletState: DepositWalletState = {
   isWalletConnected: true,
-  isLedgerVaultWallet: false,
 };
 
 const gatingState: DepositGatingState = {

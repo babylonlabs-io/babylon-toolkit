@@ -114,9 +114,10 @@ export interface DepositTermsApprover {
   approveDepositTerms(terms: DepositTerms): Promise<void>;
   /**
    * OPTIONAL fast-path probe: can the Pre-PegIn signature for exactly these
-   * terms proceed under the connection's held approval without a new
+   * terms proceed under the approval the device still holds, without a new
    * ceremony? MUST report false once that Pre-PegIn was signed (one-shot),
-   * MUST answer from host state without device I/O, MUST return false on any
+   * MUST NOT prompt the user — host state, or a silent read-only device query
+   * such as the Ledger vault app's GET_VAULT_STATE — MUST return false on any
    * doubt, and MUST never throw. A stale true fails closed at the next
    * signature — this is a UX optimization, never an authorization.
    */
@@ -137,10 +138,10 @@ export interface DepositTermsApprover {
 }
 
 /**
- * Where Pre-PegIn change must pay. Approval (policy) wallets sign key-path
- * under a wallet policy whose change branch the device alone can derive and
- * mark internal — the receive address is NOT acceptable change
- * (`process_in_outs.c:114-117` @ e400d8d8).
+ * Where Pre-PegIn change must pay. An approval (policy) wallet's device
+ * dictates the change address it accepts; the Ledger vault app takes change
+ * only at the depositor's own `/0/0` address
+ * (`sign_psbt_validate.c:571-661` @ b89dd580).
  *
  * Separate from {@link DepositTermsApprover} because only the Pre-PegIn build
  * needs it: the presign/payout ceremonies approve terms without ever creating
@@ -179,8 +180,8 @@ export async function requireChangeAddress(
   const changeSource = wallet as Partial<PrePeginChangeSource>;
   if (typeof changeSource.getChangeAddress !== "function") {
     throw new Error(
-      "Approval wallet does not implement getChangeAddress; it must expose its change branch, " +
-        "because the signing device accepts Pre-PegIn change only there.",
+      "Approval wallet does not implement getChangeAddress; it must expose the change address " +
+        "its signing device accepts for Pre-PegIn change.",
     );
   }
   return changeSource.getChangeAddress();

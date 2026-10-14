@@ -14,7 +14,6 @@ export const HARDENED = 0x80000000;
 export const U32_MAX = 0xffffffff;
 export const BIP86_PURPOSE = 86;
 export const BIP86_RECEIVE_BRANCH = 0;
-export const BIP86_CHANGE_BRANCH = 1;
 export const BIP86_PATH_LEVELS = 5;
 /** purpose'/coin'/account' — the key-info origin prefix. */
 export const PATH_ACCOUNT_LEVELS = 3;

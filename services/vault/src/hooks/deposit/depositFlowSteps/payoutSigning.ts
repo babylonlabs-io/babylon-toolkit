@@ -7,6 +7,7 @@ import type { DepositTerms } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   canonicalizeBtcPubkey,
   stripHexPrefix,
+  supportsDepositApproval,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address, Hex } from "viem";
@@ -23,10 +24,19 @@ import {
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
 import { DepositorBtcKeyMismatchError } from "@/utils/errors/depositorWalletMismatch";
+import { isDeviceCeremonyInvalidError } from "@/utils/errors/deviceErrors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
 import { DepositFlowStep } from "./types";
+
+/**
+ * Presign attempts for an approval wallet: one on the device's held intent,
+ * then one fresh derive → approve after the device reports that intent gone
+ * (a Payout/NoPayout failure invalidates it, or a signing failure idled the
+ * wallet's mirror). Any other failure, or a second one, surfaces.
+ */
+const MAX_PRESIGN_CEREMONY_ATTEMPTS = 2;
 
 /** The deposit-flow step that a given payout-signing phase renders as. */
 export function payoutSigningStep(phase: PayoutSigningPhase): DepositFlowStep {
@@ -106,56 +116,27 @@ export async function signAndSubmitPayouts(
 
   const peginTxid = stripHexPrefix(peginTxHash);
 
-  // Surface the auth-anchor signature as its own "Authenticate session" step.
-  // The VP auth popup fires inside ensureAuthenticatedVpClient below; without
-  // this, currentStep skips straight from "await payout" to "sign payout", so a
-  // rejection here would land on (and the auth step would falsely complete as)
-  // the next step.
-  onProgress?.({ phase: "auth", completed: 0, total: 0 });
-
-  const rpcClient = await ensureAuthenticatedVpClient({
-    btcWallet,
-    vaultId,
-    unsignedPrePeginTxHex,
-    peginTxHash,
-    providerAddress: vaultProviderAddress,
-    depositorBtcPubkey,
-    // A signing failure idles the device mirror; the retry must re-derive or
-    // approval wallets strand at "no approved intent" forever.
-    requireFreshDeviceCeremony: true,
-  });
-
-  await runDepositorPresignFlow({
-    statusReader: rpcClient,
-    presignClient: rpcClient,
-    btcWallet,
-    vaultId,
-    peginTxid,
-    depositorPk: stripHexPrefix(depositorBtcPubkey),
-    signingContext: context,
-    depositTerms,
-    signal,
-    onProgress: onProgress
-      ? (completed, total) =>
-          onProgress({ phase: "claimers", completed, total })
-      : undefined,
-    // pegin.md §5.9: the artifact download refuses a bundle whose graph does
-    // not reproduce this. Called once the set is signed; a failed write throws
-    // and stops the flow before the signatures are submitted.
-    recordGraphFingerprint: (fingerprint) => {
-      if (
-        !recordSignedGraphFingerprint(depositorEthAddress, vaultId, fingerprint)
-      ) {
-        // Neither this device's entry nor its per-vault record took the
-        // fingerprint. The submit goes on, and the artifact download for this
-        // vault then fails closed.
-        logger.warn("Could not store the presign fingerprint on this device", {
-          category: "activation",
-          vaultId,
-        });
-      }
-    },
-  });
+  const isApprovalWallet = supportsDepositApproval(btcWallet);
+  for (let attempt = 1; ; attempt++) {
+    // The first attempt keeps a cached VP login, so a device still holding
+    // the approved intent signs with no new ceremony (the wallet resumes it).
+    // A fresh derive wipes that intent, so it runs only once the device has
+    // reported it gone.
+    const requireFreshDeviceCeremony = attempt > 1;
+    try {
+      await authenticateAndPresign(requireFreshDeviceCeremony);
+      break;
+    } catch (error) {
+      // A flow the depositor has left must not open a fresh ceremony: the
+      // retry is itself a device prompt.
+      const retry =
+        isApprovalWallet &&
+        attempt < MAX_PRESIGN_CEREMONY_ATTEMPTS &&
+        signal?.aborted !== true &&
+        isDeviceCeremonyInvalidError(error);
+      if (!retry) throw error;
+    }
+  }
 
   onProgress?.(null);
 
@@ -164,4 +145,65 @@ export async function signAndSubmitPayouts(
     vaultId,
     LocalStorageStatus.PAYOUT_SIGNED,
   );
+
+  async function authenticateAndPresign(
+    requireFreshDeviceCeremony: boolean,
+  ): Promise<void> {
+    // Surface the auth-anchor signature as its own "Authenticate session"
+    // step. The VP auth popup fires inside ensureAuthenticatedVpClient below;
+    // without this, currentStep skips straight from "await payout" to "sign
+    // payout", so a rejection here would land on (and the auth step would
+    // falsely complete as) the next step.
+    onProgress?.({ phase: "auth", completed: 0, total: 0 });
+
+    const rpcClient = await ensureAuthenticatedVpClient({
+      btcWallet,
+      vaultId,
+      unsignedPrePeginTxHex,
+      peginTxHash,
+      providerAddress: vaultProviderAddress,
+      depositorBtcPubkey,
+      requireFreshDeviceCeremony,
+      signal,
+    });
+
+    await runDepositorPresignFlow({
+      statusReader: rpcClient,
+      presignClient: rpcClient,
+      btcWallet,
+      vaultId,
+      peginTxid,
+      depositorPk: stripHexPrefix(depositorBtcPubkey),
+      signingContext: context,
+      depositTerms,
+      signal,
+      onProgress: onProgress
+        ? (completed, total) =>
+            onProgress({ phase: "claimers", completed, total })
+        : undefined,
+      // pegin.md §5.9: the artifact download refuses a bundle whose graph does
+      // not reproduce this. Called once the set is signed; a failed write
+      // throws and stops the flow before the signatures are submitted.
+      recordGraphFingerprint: (fingerprint) => {
+        if (
+          !recordSignedGraphFingerprint(
+            depositorEthAddress,
+            vaultId,
+            fingerprint,
+          )
+        ) {
+          // Neither this device's entry nor its per-vault record took the
+          // fingerprint. The submit goes on, and the artifact download for
+          // this vault then fails closed.
+          logger.warn(
+            "Could not store the presign fingerprint on this device",
+            {
+              category: "activation",
+              vaultId,
+            },
+          );
+        }
+      },
+    });
+  }
 }

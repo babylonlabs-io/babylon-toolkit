@@ -28,7 +28,6 @@ import {
 import {
   primeVpTokenRegistry,
   VpResponseValidationError,
-  vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -489,10 +488,6 @@ export function useDepositFlow(
         setLastWarnings([...warnings]);
       };
 
-      // Track registry entries we primed so we can release them on
-      // user-cancel (bound `authAnchorHex` lifetime to the flow).
-      const primedRegistryTxids: string[] = [];
-
       // Set once the ETH batch registration is mined: a later cancel gets the
       // after-registration copy, a later device failure gets the in-modal resume.
       let registeredVaultIds: Hex[] | null = null;
@@ -785,8 +780,9 @@ export function useDepositFlow(
         // commit pass drives the wallet popup(s).
         setPeginSigningProgress({ completed: 0, total: vaultAmounts.length });
 
-        // Approval (policy) wallets dictate the change address (BIP-86 change
-        // branch); software wallets keep change on the connected address.
+        // Approval (policy) wallets dictate the change address (the Ledger
+        // vault app takes it only at the depositor's own address); software
+        // wallets keep change on the connected address.
         const prePeginChangeAddress = supportsDepositApproval(
           phaseTrackingBtcWallet,
         )
@@ -1263,7 +1259,6 @@ export function useDepositFlow(
                 refreshVpJsonRpcPinnedPubkey(vpAddress),
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
-            primedRegistryTxids.push(peginTxid);
           }
         } catch (err) {
           logger.warn("Failed to fetch VP pubkey for registry priming", {
@@ -1556,10 +1551,11 @@ export function useDepositFlow(
           signal.throwIfAborted();
 
           // A settled user cancel stops the loop: the next iteration would
-          // re-run the full device ceremony (requireFreshDeviceCeremony)
-          // seconds after the user asked to stop. Remaining vaults are left
-          // unattempted (no warning), not failed. Backstop only: the settle
-          // rejects into the catch below, whose break is the operative stop.
+          // prompt the device again (its presign resumes the held approval,
+          // or re-runs the ceremony) seconds after the user asked to stop.
+          // Remaining vaults are left unattempted (no warning), not failed.
+          // Backstop only: the settle rejects into the catch below, whose
+          // break is the operative stop.
           if (deviceCancelSettledRef.current) break;
 
           // Skip vaults whose WOTS key submission failed — the VP won't have
@@ -1729,15 +1725,12 @@ export function useDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        // On user-cancel, release any registry entries we primed so
-        // `authAnchorHex` doesn't outlive the abandoned flow. On other
-        // errors keep the entries — the user may retry, in which case
-        // the cache hit avoids a second wallet popup.
-        if (signal.aborted) {
-          for (const peginTxid of primedRegistryTxids) {
-            vpTokenRegistry.release(peginTxid);
-          }
-        }
+        // The primed registry entries stay on every exit, a cancel included:
+        // the depositor may close the flow during the long deposit wait and
+        // finish from the dashboard, and only the cached login lets that
+        // presign reuse the approval the device still holds. A fresh login
+        // derives on the device, which clears it. The cache is in memory
+        // only, so a reload or a closed tab drops it; activation releases it.
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {

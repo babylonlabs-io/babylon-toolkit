@@ -163,6 +163,30 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(vpTokenRegistry.peek(registryLookup)).toBeUndefined();
   });
 
+  it("cold-start abort: stops before the wallet derive when the flow is left during the on-chain reads", async () => {
+    const controller = new AbortController();
+    mockGetVaultBasicInfo.mockImplementationOnce(async () => {
+      controller.abort();
+      return { vaultProvider: PROVIDER_ADDRESS };
+    });
+
+    await expect(
+      ensureAuthenticatedVpClient({
+        btcWallet: fakeWallet,
+        vaultId: VAULT_ID,
+        unsignedPrePeginTxHex: "deadbeef",
+        peginTxHash: PEGIN_TX_HASH,
+        providerAddress: PROVIDER_ADDRESS,
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+
+    expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
+    expect(deriveVaultRoot).not.toHaveBeenCalled();
+    expect(vpTokenRegistry.peek(registryLookup)).toBeUndefined();
+  });
+
   it("cache hit: skips wallet derivation, on-chain prePeginTxHash read, and pubkey fetch", async () => {
     await ensureAuthenticatedVpClient({
       btcWallet: fakeWallet,

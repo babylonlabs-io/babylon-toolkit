@@ -1,10 +1,13 @@
 import { Loader } from "@babylonlabs-io/core-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
+import { COPY } from "@/copy";
 import { useReclaimState } from "@/hooks/deposit/useReclaimState";
+import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
 import { RECLAIM_STATUS_QUERY_KEY } from "@/hooks/useReclaimStatus";
+import { logger } from "@/infrastructure";
 import {
   ReclaimAlreadySettledError,
   getReclaimPreview,
@@ -36,9 +39,61 @@ export function ReclaimModal({
   onSuccess,
   onBroadcast,
 }: ReclaimModalProps) {
-  const { reclaiming, reclaimTxId, alreadySettled, error, handleReclaim } =
-    useReclaimState({ activity });
+  const {
+    reclaiming,
+    reclaimTxId,
+    alreadySettled,
+    error,
+    deviceDisconnected,
+    handleReclaim,
+  } = useReclaimState({ activity });
   const queryClient = useQueryClient();
+  const ledgerDevice = useLedgerVaultDevice();
+  const { cancelAppWait, reconnect } = ledgerDevice;
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectFailed, setReconnectFailed] = useState(false);
+
+  // The reclaim signs with no intent loaded, so on a Ledger it can be held
+  // until the Babylon Vault app is open. Closing the modal then ends the wait
+  // rather than leaving it holding the device.
+  const awaitingAppName =
+    reclaiming && ledgerDevice.appWait.status === "awaiting-app"
+      ? ledgerDevice.appWait.expectedAppName
+      : null;
+  const handleCloseDuringWait = useCallback(() => {
+    cancelAppWait();
+    onClose();
+  }, [cancelAppWait, onClose]);
+
+  // A lost device session recovers only through a new one, opened from this
+  // click (the WebHID picker needs the gesture); the reclaim then runs again.
+  const handleConfirm = useCallback(
+    async (feeRate: number) => {
+      if (deviceDisconnected) {
+        setReconnecting(true);
+        setReconnectFailed(false);
+        try {
+          await reconnect();
+        } catch (reconnectError) {
+          // The button stays available, so the depositor can fix the device
+          // and try again; the notice says what to fix.
+          logger.warn("Ledger reconnect before the reclaim failed", {
+            reason:
+              reconnectError instanceof Error
+                ? reconnectError.message
+                : String(reconnectError),
+          });
+          setReconnectFailed(true);
+          return;
+        } finally {
+          setReconnecting(false);
+        }
+      }
+      setReconnectFailed(false);
+      await handleReclaim(feeRate);
+    },
+    [deviceDisconnected, reconnect, handleReclaim],
+  );
 
   // The reserve poll carries a 55s staleTime, so without this the row would
   // sit on cached "unspent" data after the sweep. The in-session in-flight
@@ -118,16 +173,31 @@ export function ReclaimModal({
   }
 
   // Close is blocked while a broadcast is in flight so the dialog cannot be
-  // dismissed mid-signing.
+  // dismissed mid-signing — except while the device app wait holds it, which
+  // nothing has signed yet.
   return (
-    <V3ModalShell open={open} onClose={reclaiming ? undefined : onClose}>
+    <V3ModalShell
+      open={open}
+      onClose={
+        // A reconnect in flight continues into the reclaim on success, so the
+        // modal stays open until it settles: closed, the reclaim would prompt
+        // the device with nothing on screen.
+        !reclaiming && !reconnecting
+          ? onClose
+          : awaitingAppName !== null
+            ? handleCloseDuringWait
+            : undefined
+      }
+    >
       <ReclaimReviewContent
         amountSats={previewAmountSats}
         defaultFeeRateSatsVb={previewQuery.data?.halfHourFeeSatsVb ?? null}
         previewError={previewError}
-        reclaiming={reclaiming}
-        error={error}
-        onConfirm={handleReclaim}
+        reclaiming={reclaiming || reconnecting}
+        error={reconnectFailed ? COPY.deposit.ledger.reconnectFailed : error}
+        onConfirm={handleConfirm}
+        awaitingAppName={awaitingAppName}
+        reconnectRequired={deviceDisconnected}
       />
     </V3ModalShell>
   );

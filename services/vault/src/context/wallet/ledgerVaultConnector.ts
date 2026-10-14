@@ -9,10 +9,8 @@ export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
 
 /**
  * Whether the connected BTC wallet is the Ledger BTC Vault app — the one
- * predicate the reclaim row (`hooks/deposit/useReclaimRowAction`), the
- * deposit reserve tooltip (`components/simple/SimpleDeposit`), the activation
- * split (`components/simple/ResumeDepositContent`) and the device-app hints
- * (`hooks/useLedgerVaultDevice`) must share.
+ * predicate the activation split (`components/simple/ResumeDepositContent`)
+ * and the device-app hints (`hooks/useLedgerVaultDevice`) must share.
  */
 export function isLedgerVaultConnector(
   connector: { connectedWallet?: { id: string } | null } | null | undefined,

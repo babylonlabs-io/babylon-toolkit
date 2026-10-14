@@ -211,7 +211,7 @@ async function readReclaimGateState(
  * after a reorg that deep the vault provider's own graph is dead too, so the
  * depositor's was the remaining path.
  *
- * The wallet and UI conditions (ownership, Ledger, protocol pause, in-flight)
+ * The wallet and UI conditions (ownership, protocol pause, in-flight)
  * stay owned by the React layer, which is the only place that knows them.
  * Ownership in particular is re-proved far more strongly inside the SDK, which
  * re-derives the claim script from the connected wallet's live key.

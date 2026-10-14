@@ -1910,8 +1910,10 @@ release(peginTxid): void;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
 Evict the entry for `peginTxid`. Idempotent. Called on terminal
-paths — activation success, user-cancel, or component unmount —
-so `authAnchorHex` doesn't outlive the deposit session.
+paths — activation success, or a resume screen that primed its own
+entry unmounting — so `authAnchorHex` doesn't outlive the deposit. A
+cancelled deposit flow keeps its entry, so finishing from the dashboard
+in the same tab can reuse it; the registry is in memory only.
 
 ###### Parameters
 
