@@ -1373,11 +1373,12 @@ export const COPY = {
       },
       // Pre-Pegin broadcast refused, new or resumed, because the application
       // says the depositor's position cannot take this batch: activating would
-      // fail and redeem the BTCVaults instead. Refused before any wallet
-      // prompt, so this attempt broadcast nothing. It does not say the BTC has
-      // not moved: on resume the check runs while the vault reads PENDING on
-      // chain, which includes a Pre-Pegin already broadcast from another device
-      // and not yet acknowledged, which has already sent the BTC to the HTLC.
+      // fail and redeem the BTCVaults instead. Refused before the Pre-Pegin is
+      // signed for broadcast, so this attempt broadcast nothing. It does not
+      // say the BTC has not moved: on resume the check runs while the vault
+      // reads PENDING on chain, which includes a Pre-Pegin already broadcast
+      // from another device and not yet acknowledged, which has already sent
+      // the BTC to the HTLC.
       // Not "has reached its limit": a lowered limit can be exceeded by this
       // deposit alone. Recoverable by the depositor (free a slot or BTC
       // headroom) or by a limit change, and both the new-deposit and the

@@ -36,9 +36,10 @@
  *    callout, or to the can't-complete callout when the ack window has no
  *    room; the gate's own chain-read failures map to the window-unavailable
  *    callout, by body).
- *  - Position capacity — the resume broadcast's typed refusals when the
- *    application says the depositor's position cannot take the batch, or the
- *    check could not reach a verdict. Both fire before any wallet prompt.
+ *  - Position capacity — the Pre-PegIn broadcast's typed refusals, new or
+ *    resumed, when the application says the depositor's position cannot take
+ *    the batch, or the check could not reach a verdict. Both fire before the
+ *    Pre-PegIn is signed for broadcast.
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -156,7 +157,8 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   // before any wallet prompt, and a later read can succeed.
   ERRORS.broadcastAckWindowUnavailable,
   // Nothing was broadcast: the position-capacity gate failed closed on a
-  // chain read before any wallet prompt, and a later read can succeed.
+  // chain read before the Pre-PegIn was signed for broadcast, and a later
+  // read can succeed.
   ERRORS.positionCapacityUnavailable,
   // Nothing was broadcast: the position-capacity gate refused this batch.
   // Freeing room or a limit change can let it through, and Retry re-runs the
@@ -346,8 +348,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
 
   // 3a''''. The other limit a deposit can run into: the depositor's own
   // position, checked before any Pre-PegIn broadcast, new or resumed, and
-  // before any wallet prompt. A refusal and a check with no verdict need
-  // different instructions (free room, or just try again), hence two
+  // before it is signed for broadcast. A refusal and a check with no verdict
+  // need different instructions (free room, or just try again), hence two
   // callouts. Checked ahead of the cause-walking buckets below, so the read
   // failure kept as `cause` cannot classify the refusal as something else.
   if (isPositionCapacityExceededError(err)) {

@@ -2,10 +2,10 @@ import type { Hex } from "viem";
 
 /**
  * Typed refusal when the application says the depositor's position cannot take
- * the vaults a new or resumed Pre-PegIn would add. Thrown before any BTC wallet
- * prompt, so this attempt broadcast nothing. The user can act on it (free room in
- * the position, or wait for limits to change), so the mapper branches on the
- * class and renders the position-capacity callout.
+ * the vaults a new or resumed Pre-PegIn would add. Thrown before the Pre-PegIn
+ * is signed for broadcast, so this attempt broadcast nothing. The user can act
+ * on it (free room in the position, or wait for limits to change), so the
+ * mapper branches on the class and renders the position-capacity callout.
  */
 export class PositionCapacityExceededError extends Error {
   readonly vaultId: Hex;
