@@ -14,8 +14,9 @@
  * - Status field tracks user actions: pending → payout_signed → confirming
  */
 
-import type { Hex } from "viem";
+import { type Hex, zeroAddress } from "viem";
 
+import { CONTRACTS } from "@/config/contracts";
 import { logger } from "@/infrastructure";
 import {
   readSignedGraphFingerprintRecord,
@@ -372,10 +373,99 @@ function sanitizePayoutSignedAt(
 }
 
 /**
- * Get storage key for a specific address
+ * A registry redeploy (a devnet or testnet reset) leaves records nothing can
+ * complete, so the key names the registry and a build reads only its own.
  */
-function getStorageKey(ethAddress: string): string {
+export function getPendingPeginsStorageKey(ethAddress: string): string {
+  const registry = CONTRACTS.BTC_VAULT_REGISTRY.toLowerCase();
+  return `${STORAGE_KEY_PREFIX}-${registry}-${ethAddress}`;
+}
+
+/** The key before it named the registry. */
+function getLegacyStorageKey(ethAddress: string): string {
   return `${STORAGE_KEY_PREFIX}-${ethAddress}`;
+}
+
+/** Addresses whose legacy key this page load has already checked. */
+const legacyKeysChecked = new Set<string>();
+
+/** Test-only: forget which legacy keys this page load checked. */
+export function __resetLegacyKeyChecksForTests(): void {
+  legacyKeysChecked.clear();
+}
+
+/** The legacy entries, or null when the blob is not a JSON array. */
+function parseLegacyEntries(stored: string): unknown[] | null {
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keep the presign fingerprints the legacy entries carry: they are the only
+ * copy recorded before activation, and their store is keyed by vault id alone,
+ * so this is the hand-off `filterPendingPegins` makes when it removes an entry.
+ * As on every other fingerprint path, only an entry the read filter would
+ * show qualifies.
+ *
+ * @returns false when a fingerprint could not be saved, so the caller keeps
+ * the legacy key and the fingerprint with it.
+ */
+function keepLegacyFingerprints(entries: readonly unknown[]): boolean {
+  let kept = true;
+  for (const entry of entries) {
+    const id = readStoredEntryId(entry);
+    if (id === undefined || !hasValidSecurityFields(entry)) continue;
+    if (entry.signedGraphFingerprint === undefined) continue;
+    kept = saveSignedGraphFingerprint(id, entry.signedGraphFingerprint) && kept;
+  }
+  return kept;
+}
+
+/**
+ * Records under the legacy key were written for whatever registry was
+ * configured then, which this build cannot tell from a redeployed one, so they
+ * are dropped rather than migrated (#2713), fingerprints excepted. Once per
+ * address per page load: a tab still on the previous build writes that key,
+ * and a drop on every poll would wipe its deposit mid-flow.
+ */
+function dropLegacyPendingPegins(ethAddress: string): void {
+  // The zero address is the env fallback for a missing or invalid registry:
+  // nothing is deleted under a key the app could not establish.
+  if (CONTRACTS.BTC_VAULT_REGISTRY.toLowerCase() === zeroAddress) return;
+  if (legacyKeysChecked.has(ethAddress)) return;
+  const legacyKey = getLegacyStorageKey(ethAddress);
+  const stored = localStorage.getItem(legacyKey);
+  if (stored !== null) {
+    const entries = parseLegacyEntries(stored);
+    if (entries === null) {
+      // Never delete what cannot be read: the blob may be the only copy of
+      // in-flight state. Reported once per page load, then left alone.
+      logger.error(new Error("Legacy pending deposits are unreadable"), {
+        data: {
+          context:
+            "[peginStorage] Kept an unreadable legacy pending deposits blob",
+          ethAddress,
+        },
+      });
+      legacyKeysChecked.add(ethAddress);
+      return;
+    }
+    // A fingerprint that could not be saved keeps the key; the next read retries.
+    if (!keepLegacyFingerprints(entries)) return;
+    localStorage.removeItem(legacyKey);
+    logger.info(
+      "[peginStorage] Dropped pending deposits stored before the key named the registry",
+      {
+        category: "peginStorage",
+        ethAddress,
+      },
+    );
+  }
+  legacyKeysChecked.add(ethAddress);
 }
 
 /**
@@ -459,12 +549,16 @@ export class PendingPeginStorageReadError extends Error {
 }
 
 /**
- * Get all pending peg-ins from localStorage for an address.
- * Pure read function - no side effects.
+ * Get all pending peg-ins from localStorage for an address. Once per address
+ * per page load it also hands the presign fingerprints under the legacy
+ * unscoped key to the per-vault store and removes that key. A legacy blob it
+ * cannot read is kept and reported instead, nothing happens while the registry
+ * is the zero-address fallback, and a later read retries only when a
+ * fingerprint could not be saved.
  *
- * @throws `PendingPeginStorageReadError` when the stored blob cannot be read
- * (unparseable JSON, a non-array value, or a localStorage that throws). The
- * blob is left untouched. Callers that must not throw catch it:
+ * @throws `PendingPeginStorageReadError` when the registry-scoped blob cannot
+ * be read (unparseable JSON, a non-array value, or a localStorage that
+ * throws). The blob is left untouched. Callers that must not throw catch it:
  * `usePeginStorage`'s `readPendingPegins` reports it once and returns an
  * empty list; the status mutators below read the raw array instead.
  */
@@ -474,7 +568,8 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
   let stored: string | null = null;
   let parsed: unknown[];
   try {
-    stored = localStorage.getItem(getStorageKey(ethAddress));
+    dropLegacyPendingPegins(ethAddress);
+    stored = localStorage.getItem(getPendingPeginsStorageKey(ethAddress));
     if (!stored) return [];
     const value: unknown = JSON.parse(stored);
     if (!Array.isArray(value)) {
@@ -551,7 +646,7 @@ function persistStoredEntries(
   ethAddress: string,
   entries: readonly unknown[],
 ): void {
-  const key = getStorageKey(ethAddress);
+  const key = getPendingPeginsStorageKey(ethAddress);
 
   try {
     if (entries.length === 0) {
@@ -584,7 +679,7 @@ type StoredEntriesRead =
 
 function readStoredEntries(ethAddress: string): StoredEntriesRead {
   try {
-    const stored = localStorage.getItem(getStorageKey(ethAddress));
+    const stored = localStorage.getItem(getPendingPeginsStorageKey(ethAddress));
     if (!stored) return { status: "empty" };
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) {
@@ -748,19 +843,21 @@ export function updatePendingPeginStatus(
 }
 
 /**
- * Record the presign graph fingerprint on this device's entry for a vault.
+ * Record the presign graph fingerprint for a vault on this device: on its
+ * pending entry when this device holds a readable one, otherwise on the
+ * per-vault record `getSignedGraphFingerprint` falls back to. That covers a
+ * cross-device resume, an entry the read filter hides, and an entry the
+ * registry-scoped key no longer holds.
  *
- * Unlike the status mutators, this does not fail quietly: the caller runs it
- * before any presign signature leaves the device, so a failure must stop the
- * flow rather than let the VP hold signatures the depositor has no
- * fingerprint for.
+ * Unlike the status mutators, the entry write does not fail quietly: the
+ * caller runs this before any presign signature leaves the device, so a failed
+ * entry write throws and stops the flow rather than let the VP hold signatures
+ * the depositor has no fingerprint for. The per-vault record is best effort.
  *
- * @returns false when this device holds no readable entry for the vault: none
- * at all (a cross-device resume), or one the read filter hides because it
- * fails `hasValidSecurityFields`. Nothing is stored, and the activation gate
- * later reports the fingerprint as unavailable.
+ * @returns false when the per-vault record could not be written, so the
+ * activation gate later reports the fingerprint as unavailable.
  * @throws when the fingerprint is malformed, the stored entries cannot be
- * read, or the write fails.
+ * read, or the entry write fails.
  */
 export function recordSignedGraphFingerprint(
   ethAddress: string,
@@ -773,28 +870,30 @@ export function recordSignedGraphFingerprint(
     );
   }
 
+  const target = normalizeTransactionId(vaultId).toLowerCase();
   const read = readStoredEntries(ethAddress);
-  if (read.status === "empty") return false;
+  if (read.status === "empty") {
+    return saveSignedGraphFingerprint(target, fingerprint);
+  }
   if (read.status !== "ok") {
     throw new Error(
       `Cannot read pending deposits to record the presign graph fingerprint for vault ${vaultId}`,
     );
   }
 
-  const target = normalizeTransactionId(vaultId).toLowerCase();
   let found = false;
   const updated = read.entries.map((entry) => {
     if (readStoredEntryId(entry) !== target) return entry;
     // Write only where `getSignedGraphFingerprint` will look. An entry that
     // fails the read filter is hidden from it, so a fingerprint written there
-    // could never be read back; report it as no entry instead.
+    // could never be read back; the per-vault record takes it instead.
     if (!hasValidSecurityFields(entry)) {
       return entry;
     }
     found = true;
     return { ...(entry as object), signedGraphFingerprint: fingerprint };
   });
-  if (!found) return false;
+  if (!found) return saveSignedGraphFingerprint(target, fingerprint);
 
   persistStoredEntries(ethAddress, updated);
   dispatchStorageUpdateEvent(ethAddress);
@@ -815,9 +914,9 @@ export type SignedGraphFingerprintLookup =
   | { status: "not-recorded" };
 
 /**
- * Look up the presign graph fingerprint this device recorded for a vault:
- * on its pending entry, or, once `filterPendingPegins` removed that entry, on
- * the record it kept for it.
+ * Look up the presign graph fingerprint this device recorded for a vault: on
+ * its pending entry, or on the per-vault record kept when that entry was
+ * removed, never held it, or went with the legacy key.
  *
  * @throws `PendingPeginStorageReadError` when the stored entries cannot be read.
  */
