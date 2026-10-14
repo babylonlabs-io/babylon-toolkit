@@ -1203,6 +1203,15 @@ export const COPY = {
     errors: {
       invalidSecret:
         "Invalid secret: SHA256(secret) does not match the BTCVault's hashlock. Please check your secret and try again.",
+      // The pre-send check found the registry would redeem this BTCVault
+      // instead of adding it to the position, at the gas search ceiling or at
+      // the planned limit. Nothing is sent.
+      activationWouldRedeem:
+        "Activation was checked before sending and this BTCVault would have been redeemed instead of added to your position, so nothing was submitted. Try again later.",
+      // The configured RPC does not serve eth_simulateV1, so the pre-send
+      // check cannot run and nothing is sent. Retrying cannot help.
+      activationCheckUnsupported:
+        "This app's network endpoint cannot run the activation check, so nothing was submitted. Please contact support.",
       // Surfaced if deposit execution is reached while the protocol is frozen or
       // paused — aborted up front, before the on-chain registration and the BTC
       // broadcast, so no funds are locked and the user can retry once it resumes.
@@ -1749,6 +1758,12 @@ export const COPY = {
     applying: "Applying...",
     checking: "Checking...",
     transactionFailedTitle: "Transaction failed",
+    // A mined transaction that used nearly its whole gas limit. The limit is
+    // chosen afresh on retry, by the wallet or, for activation, by the app.
+    transactionOutOfGas: (used: string, limit: string) =>
+      `Transaction ran out of gas (used ${used} of ${limit} limit). Try again.`,
+    // A contract write was attempted with no wallet account connected.
+    walletAccountUnavailable: "Wallet account not available",
     dismissNotification: "Dismiss notification",
     aaveWordmark: "Aave",
     somethingWentWrong: {

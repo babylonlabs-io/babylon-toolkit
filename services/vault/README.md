@@ -78,6 +78,11 @@ overrides. Every name the app reads is listed with its class in `env-manifest.js
 | `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE`, `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS`, `NEXT_PUBLIC_FF_*`                                       | optional   | Operator switches; see `src/config/featureFlags.ts`.                                                |
 | `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                  | build-only | Set by the release workflow.                                                                        |
 
+The Ethereum RPC in use, the profile's `ethRpcUrl` or the `NEXT_PUBLIC_ETH_RPC_URL` override,
+must serve `eth_simulateV1` with a gas allowance of at least 16,777,216: the activation checks
+its gas limit with it before sending (`src/services/vault/activationGasLimit.ts`).
+`https://ethereum-sepolia-rpc.publicnode.com` does; `https://rpc.sepolia.ethpandaops.io` does not.
+
 Local development: `pnpm dev` runs devnet; `pnpm dev:testnet` runs the `testnet-2`
 profile. Run `NEXT_PUBLIC_TBV_NETWORK=<name> pnpm dev` to pick another. The selector must
 not be set in a dotenv file: Nx loads `.env` into the build but keys its cache on the process

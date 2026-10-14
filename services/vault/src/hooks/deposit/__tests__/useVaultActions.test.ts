@@ -4,7 +4,10 @@
  * a malicious transaction for signing.
  */
 
-import { PeginRegistrationNotFinalError } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  canonicalizeBtcPubkey,
+  PeginRegistrationNotFinalError,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
@@ -1513,7 +1516,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(result.current.activationError).not.toContain("LIQUIDATED");
   });
 
-  it("forwards the on-chain hashlock to activateVaultWithSecret for SDK-side defense in depth", async () => {
+  it("forwards the on-chain hashlock and depositor key to activateVaultWithSecret", async () => {
     const reader = readerReturning({
       depositorSignedPeginTx: "0xdeadbeef",
       hashlock: ON_CHAIN_HASHLOCK,
@@ -1527,8 +1530,13 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       await result.current.handleActivation(baseActivationParams);
     });
 
+    // The hashlock is the SDK's last gate before calldata; the depositor key
+    // is what the gas plan reads the registry's redeem log for.
     expect(mockActivateVaultWithSecret).toHaveBeenCalledWith(
-      expect.objectContaining({ hashlock: ON_CHAIN_HASHLOCK }),
+      expect.objectContaining({
+        hashlock: ON_CHAIN_HASHLOCK,
+        depositorBtcPubKey: canonicalizeBtcPubkey(`0x${DEPOSITOR_BTC_KEY}`),
+      }),
     );
   });
 

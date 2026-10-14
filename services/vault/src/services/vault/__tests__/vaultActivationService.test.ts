@@ -10,8 +10,11 @@ import {
 } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ActivationWouldRedeemError } from "@/utils/errors";
+
 import {
   activateVaultWithSecret,
+  activateVaultWithSecretAndRedeem,
   activationAddedCollateral,
   activationRedeemedForDepositor,
   claimExpiredVaultWithSecret,
@@ -20,10 +23,45 @@ import {
 // Inline literal because vi.mock factories are hoisted before outer consts.
 const REGISTRY_ADDRESS =
   "0xAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAb" as Address;
+const DEPOSITOR = "0x8c5283a3F2995ecF78319bb1ca3BD9a179b3E740" as Address;
+const PLANNED_GAS = 4_500_000n;
 
-const mockExecuteWrite = vi.fn();
-vi.mock("@/clients/eth-contract/transactionFactory", () => ({
-  executeWrite: (...args: unknown[]) => mockExecuteWrite(...args),
+const {
+  mockExecuteWrite,
+  mockPlanActivationGasLimit,
+  mockAssertActivationAddsCollateral,
+  mockPublicClient,
+} = vi.hoisted(() => ({
+  mockExecuteWrite: vi.fn(),
+  mockPlanActivationGasLimit: vi.fn(),
+  mockAssertActivationAddsCollateral: vi.fn(),
+  mockPublicClient: { simulateBlocks: vi.fn() },
+}));
+
+vi.mock(
+  "@/clients/eth-contract/transactionFactory",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@/clients/eth-contract/transactionFactory")
+    >()),
+    executeWrite: (...args: unknown[]) => mockExecuteWrite(...args),
+  }),
+);
+
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: { getPublicClient: () => mockPublicClient },
+}));
+
+vi.mock("../activationGasLimit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../activationGasLimit")>()),
+  planActivationGasLimit: (...args: unknown[]) =>
+    mockPlanActivationGasLimit(...args),
+  assertActivationNotRedeemed: (...args: unknown[]) =>
+    mockAssertActivationAddsCollateral(...args),
+}));
+
+vi.mock("@/infrastructure", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), event: vi.fn() },
 }));
 
 vi.mock("@/config/network", () => ({
@@ -47,10 +85,16 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5" as Hex;
   const vaultId = ("0x" + "aa".repeat(32)) as Hex;
   const txHash = ("0x" + "cd".repeat(32)) as Hex;
-  const walletClient = {} as WalletClient;
+  const depositorBtcPubKey = ("0x" + "ee".repeat(32)) as Hex;
+  const walletClient = {
+    account: { address: DEPOSITOR },
+  } as unknown as WalletClient;
 
   beforeEach(() => {
     mockExecuteWrite.mockReset();
+    mockPlanActivationGasLimit.mockReset();
+    mockPlanActivationGasLimit.mockResolvedValue(PLANNED_GAS);
+    mockAssertActivationAddsCollateral.mockReset();
   });
 
   it("invokes executeWrite with the chain, wallet, address, and activation args", async () => {
@@ -59,7 +103,13 @@ describe("activateVaultWithSecret (vault adapter)", () => {
       receipt: { status: "success" },
     });
 
-    await activateVaultWithSecret({ vaultId, secret, hashlock, walletClient });
+    await activateVaultWithSecret({
+      vaultId,
+      secret,
+      hashlock,
+      depositorBtcPubKey,
+      walletClient,
+    });
 
     expect(mockExecuteWrite).toHaveBeenCalledOnce();
     const callArgs = mockExecuteWrite.mock.calls[0][0];
@@ -79,7 +129,13 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     mockExecuteWrite.mockResolvedValueOnce(result);
 
     await expect(
-      activateVaultWithSecret({ vaultId, secret, hashlock, walletClient }),
+      activateVaultWithSecret({
+        vaultId,
+        secret,
+        hashlock,
+        depositorBtcPubKey,
+        walletClient,
+      }),
     ).resolves.toBe(result);
   });
 
@@ -89,7 +145,13 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     );
 
     await expect(
-      activateVaultWithSecret({ vaultId, secret, hashlock, walletClient }),
+      activateVaultWithSecret({
+        vaultId,
+        secret,
+        hashlock,
+        depositorBtcPubKey,
+        walletClient,
+      }),
     ).rejects.toThrow("ActivationDeadlineExpired");
   });
 
@@ -101,11 +163,144 @@ describe("activateVaultWithSecret (vault adapter)", () => {
         vaultId,
         secret,
         hashlock: wrongHashlock,
+        depositorBtcPubKey,
         walletClient,
       }),
     ).rejects.toThrow(/SHA256\(secret\) does not match/);
 
+    // The gas plan is where the secret first leaves the browser.
+    expect(mockPlanActivationGasLimit).not.toHaveBeenCalled();
     expect(mockExecuteWrite).not.toHaveBeenCalled();
+  });
+
+  it("sets the write's gas limit from the activation gas plan for the assembled call", async () => {
+    mockExecuteWrite.mockResolvedValueOnce({
+      transactionHash: txHash,
+      receipt: { status: "success" },
+    });
+
+    await activateVaultWithSecret({
+      vaultId,
+      secret,
+      hashlock,
+      depositorBtcPubKey,
+      walletClient,
+    });
+
+    expect(mockPlanActivationGasLimit).toHaveBeenCalledOnce();
+    expect(mockPlanActivationGasLimit.mock.calls[0][0]).toMatchObject({
+      publicClient: mockPublicClient,
+      account: DEPOSITOR,
+      vaultId,
+      depositorBtcPubKey,
+      call: {
+        address: REGISTRY_ADDRESS,
+        functionName: "activateVaultWithSecret",
+        args: [vaultId, secret, "0x"],
+      },
+    });
+    expect(mockExecuteWrite.mock.calls[0][0].gas).toBe(PLANNED_GAS);
+  });
+
+  it("re-checks the activation at the planned limit as the send's pre-flight", async () => {
+    mockExecuteWrite.mockResolvedValueOnce({
+      transactionHash: txHash,
+      receipt: { status: "success" },
+    });
+    mockAssertActivationAddsCollateral.mockResolvedValueOnce(undefined);
+
+    await activateVaultWithSecret({
+      vaultId,
+      secret,
+      hashlock,
+      depositorBtcPubKey,
+      walletClient,
+    });
+
+    const { preflight } = mockExecuteWrite.mock.calls[0][0];
+    expect(mockAssertActivationAddsCollateral).not.toHaveBeenCalled();
+    await preflight();
+    expect(mockAssertActivationAddsCollateral).toHaveBeenCalledWith(
+      expect.objectContaining({
+        publicClient: mockPublicClient,
+        account: DEPOSITOR,
+        vaultId,
+        depositorBtcPubKey,
+        gas: PLANNED_GAS,
+        call: expect.objectContaining({
+          address: REGISTRY_ADDRESS,
+          functionName: "activateVaultWithSecret",
+        }),
+      }),
+    );
+  });
+
+  it("does not write when the gas plan refuses the activation", async () => {
+    const refusal = new ActivationWouldRedeemError("would redeem");
+    mockPlanActivationGasLimit.mockRejectedValueOnce(refusal);
+
+    await expect(
+      activateVaultWithSecret({
+        vaultId,
+        secret,
+        hashlock,
+        depositorBtcPubKey,
+        walletClient,
+      }),
+    ).rejects.toBe(refusal);
+
+    expect(mockExecuteWrite).not.toHaveBeenCalled();
+  });
+
+  it("rejects before planning gas when the wallet has no account", async () => {
+    await expect(
+      activateVaultWithSecret({
+        vaultId,
+        secret,
+        hashlock,
+        depositorBtcPubKey,
+        walletClient: {} as WalletClient,
+      }),
+    ).rejects.toThrow("Wallet account not available");
+
+    expect(mockPlanActivationGasLimit).not.toHaveBeenCalled();
+    expect(mockExecuteWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe("activateVaultWithSecretAndRedeem (vault adapter)", () => {
+  // Same secret / sha256 pair as the activation tests above.
+  const secret =
+    "0x0000000000000000000000000000000000000000000000000000000000000001" as Hex;
+  const hashlock =
+    "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5" as Hex;
+  const vaultId = ("0x" + "aa".repeat(32)) as Hex;
+  const walletClient = {
+    account: { address: DEPOSITOR },
+  } as unknown as WalletClient;
+
+  beforeEach(() => {
+    mockExecuteWrite.mockReset();
+    mockPlanActivationGasLimit.mockReset();
+  });
+
+  it("leaves the gas limit to the wallet, since the registry calls no application", async () => {
+    mockExecuteWrite.mockResolvedValueOnce({
+      transactionHash: ("0x" + "cd".repeat(32)) as Hex,
+      receipt: { status: "success" },
+    });
+
+    await activateVaultWithSecretAndRedeem({
+      vaultId,
+      secret,
+      hashlock,
+      walletClient,
+    });
+
+    expect(mockPlanActivationGasLimit).not.toHaveBeenCalled();
+    const callArgs = mockExecuteWrite.mock.calls[0][0];
+    expect(callArgs.functionName).toBe("activateVaultWithSecretAndRedeem");
+    expect(callArgs.gas).toBeUndefined();
   });
 });
 
@@ -121,6 +316,7 @@ describe("claimExpiredVaultWithSecret (vault adapter)", () => {
 
   beforeEach(() => {
     mockExecuteWrite.mockReset();
+    mockPlanActivationGasLimit.mockReset();
   });
 
   it("writes claimExpiredVault to the registry with exactly the vault id and secret", async () => {
@@ -143,6 +339,9 @@ describe("claimExpiredVaultWithSecret (vault adapter)", () => {
     expect(callArgs.address).toBe(REGISTRY_ADDRESS);
     expect(callArgs.errorContext).toBe("expired vault redeem");
     expect(callArgs.errorAbis).toBeUndefined();
+    // The registry calls no application here, so the wallet's estimate holds.
+    expect(callArgs.gas).toBeUndefined();
+    expect(mockPlanActivationGasLimit).not.toHaveBeenCalled();
   });
 
   it("rejects (without calling executeWrite) when hashlock does not match the secret", async () => {

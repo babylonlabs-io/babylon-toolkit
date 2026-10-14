@@ -64,7 +64,13 @@ const walletClient = {
   writeContract: vi.fn(),
 } as any;
 
-const write = (options: { safePollTimeoutMs?: number } = {}) =>
+const write = (
+  options: {
+    safePollTimeoutMs?: number;
+    gas?: bigint;
+    preflight?: () => Promise<void>;
+  } = {},
+) =>
   executeWrite({
     walletClient,
     chain: { id: 1 } as any,
@@ -238,6 +244,109 @@ describe("executeWrite wallet nonce handling", () => {
     const thrown = await write().catch((e: unknown) => e);
 
     expect(isSimulationPhaseError(thrown)).toBe(true);
+    expect(walletClient.writeContract).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeWrite gas limit", () => {
+  beforeEach(() => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    walletClient.writeContract.mockResolvedValue("0xsent");
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xmined",
+    });
+  });
+
+  it("forwards the caller's gas limit to the pre-flight simulation and the wallet", async () => {
+    await write({ gas: 4_500_000n });
+
+    expect(mockPublicClient.simulateContract).toHaveBeenCalledWith(
+      expect.objectContaining({ gas: 4_500_000n }),
+    );
+    expect(walletClient.writeContract).toHaveBeenCalledWith(
+      expect.objectContaining({ gas: 4_500_000n }),
+    );
+  });
+
+  it("leaves the gas limit to the wallet when the caller gives none", async () => {
+    await write();
+
+    expect(
+      mockPublicClient.simulateContract.mock.calls[0][0].gas,
+    ).toBeUndefined();
+    expect(walletClient.writeContract.mock.calls[0][0].gas).toBeUndefined();
+  });
+});
+
+describe("executeWrite caller pre-flight", () => {
+  beforeEach(() => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    walletClient.writeContract.mockResolvedValue("0xsent");
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xmined",
+    });
+  });
+
+  it("runs the caller's pre-flight in place of the eth_call simulation", async () => {
+    const preflight = vi.fn().mockResolvedValue(undefined);
+
+    await write({ preflight });
+
+    expect(preflight).toHaveBeenCalledOnce();
+    expect(mockPublicClient.simulateContract).not.toHaveBeenCalled();
+    expect(walletClient.writeContract).toHaveBeenCalledOnce();
+  });
+
+  it("runs the caller's pre-flight again before a stale-nonce resend", async () => {
+    const preflight = vi.fn().mockResolvedValue(undefined);
+    mockSendWithStaleNonceRetry.mockImplementation(
+      async ({
+        send,
+        prepare,
+      }: {
+        send: () => Promise<unknown>;
+        prepare: () => Promise<void>;
+      }) => {
+        await prepare();
+        return send();
+      },
+    );
+
+    await write({ preflight });
+
+    expect(preflight).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces the caller's pre-flight error as is and signs nothing", async () => {
+    const refusal = new Error("would redeem");
+    const preflight = vi.fn().mockRejectedValue(refusal);
+
+    await expect(write({ preflight })).rejects.toBe(refusal);
+    expect(walletClient.writeContract).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the caller's pre-flight error as is before a stale-nonce resend", async () => {
+    const refusal = new Error("would redeem");
+    const preflight = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(refusal);
+    mockSendWithStaleNonceRetry.mockImplementation(
+      async ({
+        send,
+        prepare,
+      }: {
+        send: () => Promise<unknown>;
+        prepare: () => Promise<void>;
+      }) => {
+        await prepare();
+        return send();
+      },
+    );
+
+    await expect(write({ preflight })).rejects.toBe(refusal);
     expect(walletClient.writeContract).not.toHaveBeenCalled();
   });
 });

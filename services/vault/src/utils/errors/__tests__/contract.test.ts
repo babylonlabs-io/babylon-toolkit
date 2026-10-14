@@ -13,13 +13,19 @@ import { describe, expect, it } from "vitest";
 import { COPY } from "@/copy";
 
 import {
+  ACTIVATION_CHECK_UNSUPPORTED_REASON,
   ACTIVATION_DEADLINE_EXPIRED_REASON,
   getContractErrorArgs,
   isActivationDeadlineExpiredError,
   isTerminalActivationError,
   mapViemErrorToContractError,
 } from "../contract";
-import { ActivationNotPossibleError, ContractError, ErrorCode } from "../types";
+import {
+  ActivationNotPossibleError,
+  ActivationWouldRedeemError,
+  ContractError,
+  ErrorCode,
+} from "../types";
 
 // Test ABI with custom errors
 const TEST_ABI: Abi = [
@@ -623,11 +629,30 @@ describe("Contract Error Mapping", () => {
       expect(isTerminalActivationError(err)).toBe(true);
     });
 
+    it("returns true when the activation gas check could not run on the configured RPC", () => {
+      const err = new ContractError(
+        "activation check unsupported",
+        ErrorCode.NETWORK_ERROR,
+        undefined,
+        ACTIVATION_CHECK_UNSUPPORTED_REASON,
+      );
+
+      expect(isTerminalActivationError(err)).toBe(true);
+    });
+
     it("returns false for a retryable plain Error and null", () => {
       expect(
         isTerminalActivationError(new Error("Cannot activate: ... PENDING")),
       ).toBe(false);
       expect(isTerminalActivationError(null)).toBe(false);
+    });
+
+    it("returns false for a pre-send refusal, which keeps Retry on screen", () => {
+      expect(
+        isTerminalActivationError(
+          new ActivationWouldRedeemError("activation would redeem"),
+        ),
+      ).toBe(false);
     });
   });
 

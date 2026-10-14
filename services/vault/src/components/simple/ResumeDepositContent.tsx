@@ -850,15 +850,16 @@ function ResumeActivationContentConnected({
   // the previous attempt's error (kept by the activation state until the next
   // hand-off) stale. Shown, it would hide the wait panel during the derive and
   // the Continue prompt after it, and Retry would re-derive forever. A terminal
-  // error (deadline passed) still stands.
+  // error (one no retry can change) still stands.
   const staleActivationError = (secretStaged || loading) && !errorTerminal;
   const error: CaughtError | null =
     localError ??
     (activationError != null && !staleActivationError
       ? { raw: activationError }
       : null);
-  // Terminal only applies to the activation failure (deadline passed), never a
-  // local pre-flight error — which localError would override via `??` above.
+  // Terminal only applies to the activation failure (a passed deadline, or a
+  // cause no retry can change), never a local pre-flight error — which
+  // localError would override via `??` above.
   const isTerminal = localError == null && errorTerminal;
 
   // Track the live contract status so an activation completed elsewhere
@@ -904,11 +905,14 @@ function ResumeActivationContentConnected({
       currentStep={renderStep}
       error={
         error
-          ? // Inconsistent split-order data is terminal too, but the vault is
-            // still inside its window: show its own message, not the refund
+          ? // Inconsistent split-order data and an endpoint that cannot run
+            // the activation check are terminal too, but the vault is still
+            // inside its window: show their own message, not the refund
             // advice.
             isTerminal &&
-            activationError !== COPY.pegin.messages.activationOrderInconsistent
+            activationError !==
+              COPY.pegin.messages.activationOrderInconsistent &&
+            activationError !== COPY.deposit.errors.activationCheckUnsupported
             ? COPY.deposit.errors.activationDeadlinePassed
             : mapDepositErrorAfterRegistration(error.raw)
           : null
