@@ -82,6 +82,8 @@ jobs:
 
       - name: Build all
         run: pnpm build
+        env:
+          NEXT_PUBLIC_TBV_NETWORK: devnet
 
       - name: Check packed SDK consumer
         run: pnpm exec nx run @babylonlabs-io/ts-sdk:check:packed-consumer
@@ -102,6 +104,9 @@ jobs:
 
       - name: Lint all
         run: pnpm run lint
+
+      - name: Check the vault env manifest
+        run: pnpm --filter @services/vault run check:env-manifest
 
       - name: Install browsers for browser tests
         id: browsers

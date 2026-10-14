@@ -85,8 +85,18 @@ vi.mock("../DepositProgressView/FeeRateSelector", () => ({
 }));
 
 vi.mock("../PostDepositContinuationContent", () => ({
-  PostDepositContinuationContent: ({ vaultIds }: { vaultIds: string[] }) => (
-    <div data-testid="continuation" data-count={vaultIds.length} />
+  PostDepositContinuationContent: ({
+    vaultIds,
+    autoStartAction,
+  }: {
+    vaultIds: string[];
+    autoStartAction: string | null;
+  }) => (
+    <div
+      data-testid="continuation"
+      data-count={vaultIds.length}
+      data-auto-start-action={String(autoStartAction)}
+    />
   ),
 }));
 
@@ -348,6 +358,22 @@ describe("DepositSignContent", () => {
     const continuation = await findByTestId("continuation");
     expect(continuation.getAttribute("data-count")).toBe("2");
     expect(onRefetchActivities).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the deposit session's continuation start every step without a named card", async () => {
+    mockExecuteDeposit.mockResolvedValue({
+      pegins: [{ vaultId: "0xv0" }],
+      batchId: "batch",
+    });
+
+    const { findByTestId, getByTestId } = renderContent({
+      onRefetchActivities: vi.fn().mockResolvedValue(undefined),
+    });
+
+    fireEvent.click(getByTestId("summary-sign"));
+
+    const continuation = await findByTestId("continuation");
+    expect(continuation.getAttribute("data-auto-start-action")).toBe("any");
   });
 
   it("stays on the progress view when the deposit returns null", async () => {

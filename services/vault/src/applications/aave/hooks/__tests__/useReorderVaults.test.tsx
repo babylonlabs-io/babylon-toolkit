@@ -109,6 +109,7 @@ vi.mock("../../services", () => ({
 
 import { COPY } from "@/copy";
 import {
+  SendOutcomeUnknownError,
   TransactionInFlightError,
   TransactionReplacedError,
 } from "@/utils/errors";
@@ -207,6 +208,31 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(resolved).toBe(false);
     expect(result.current.notice).toBe(
       COPY.common.unconfirmedTransaction.replacedOutcomeUnknown,
+    );
+    expect(
+      mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
+    ).toContainEqual(["aaveUserPosition"]);
+  });
+
+  it('refreshes the position when the wallet refused as "nonce too low" a reorder it may have broadcast', async () => {
+    mockReorderVaultOrder.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
+    });
+
+    expect(resolved).toBe(false);
+    expect(result.current.notice).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
     );
     expect(
       mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),

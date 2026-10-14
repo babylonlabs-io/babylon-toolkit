@@ -167,9 +167,9 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 // Avoid threading a real QueryClientProvider through every renderHook —
-// `useDepositFlow` uses the client for two things: invalidating the UTXO query
-// after broadcast, and seeding the peg-in config cache when a drift guard
-// aborts. Hoisted rather than inline so the seed can be asserted.
+// `useDepositFlow` uses the client to invalidate the UTXO query after
+// broadcast, and to seed and then invalidate the peg-in config cache when a
+// drift guard aborts. Hoisted rather than inline so the seed can be asserted.
 const queryClientMocks = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   setQueryData: vi.fn(),
@@ -298,10 +298,9 @@ vi.mock("@/infrastructure", () => ({
 }));
 
 // The registry address is a fingerprint input, and the encoder rejects the
-// zero address — which is what `ENV` falls back to when
-// NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY is unset, as it is under vitest. Mock it
-// with a real address, as the other config-reading suites do, so the value the
-// assertions use is visible here rather than depending on ambient env.
+// zero address, which is what `ENV` falls back to when the inlined network
+// profile is unusable. Mock it with a real address, as the other
+// config-reading suites do, so the value the assertions use is visible here.
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
     BTC_VAULT_REGISTRY:
@@ -1330,7 +1329,7 @@ describe("useDepositFlow", () => {
     it("seeds the config cache with the pinned read so a restart cannot repeat the same failure", async () => {
       // Both aborts tell the depositor to start again, and restarting means
       // closing and reopening the form. That form reads the cached config,
-      // which has a five minute staleTime and which nothing invalidates — so
+      // which has a five minute staleTime and which nothing else refreshes — so
       // without this seed the restart re-reads the snapshot that just failed.
       const pinned = {
         ...chainMocks.peginConfig,

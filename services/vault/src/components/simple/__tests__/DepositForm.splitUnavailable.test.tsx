@@ -98,7 +98,6 @@ const providerState: DepositProviderState = {
 
 const walletState: DepositWalletState = {
   isWalletConnected: true,
-  isLedgerVaultWallet: false,
 };
 
 function renderForm(gatingOverrides: Partial<DepositGatingState>) {

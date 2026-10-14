@@ -27,7 +27,13 @@ import { getTransactionCount, getTransactionReceipt } from "viem/actions";
 
 import { logger } from "@/infrastructure";
 import { abortableSleep } from "@/utils/async";
-import { classifyError } from "@/utils/errors";
+import { classifyError, SendOutcomeUnknownError } from "@/utils/errors";
+import {
+  readRejectedNonce,
+  type RejectedNonce,
+} from "@/utils/errors/rejectedNonce";
+
+import { singleSubmissionWalletClient } from "./walletSubmission";
 
 /** How often the wallet's transaction count is read while waiting. */
 export const WALLET_NONCE_POLL_INTERVAL_MS = 1_000;
@@ -222,24 +228,66 @@ export async function waitForWalletToCountTransaction({
 }
 
 /**
+ * True when a "nonce too low" refusal proves its transaction can never be
+ * mined: it names a nonce below `countBeforeSigning`, a count the app RPC
+ * served before the wallet was asked to sign (see sendWithStaleNonceRetry).
+ */
+function provesNeverMined(
+  rejected: RejectedNonce | null,
+  countBeforeSigning: number | null,
+): boolean {
+  return (
+    rejected !== null &&
+    countBeforeSigning !== null &&
+    rejected.nonce < countBeforeSigning
+  );
+}
+
+/**
  * Send a transaction, and send it once more if the wallet signed it with a
  * nonce the chain had already used before this send started.
  *
  * "Nonce too low" only says the nonce is used. That is safe to retry when an
  * earlier transaction used it, since the rejected one can then never be mined;
- * it is not safe when this same transaction was broadcast and mined anyway. So
- * the app RPC's count for the account is read before the send, and the retry
- * happens only when it has not moved by the time of the rejection. The app's
- * RPC can lag, so the wallet's own count must then catch up to exactly that
- * count: a wallet already counting more means something from the account
- * mined that the app's read missed, possibly this transaction. A wallet still
- * behind would fail the second prompt the same way. The pre-flight simulation
- * (`prepare`) then runs again so the call still passes against current state.
+ * it is not safe when this same transaction was broadcast and mined anyway,
+ * which happens when the wallet retries a broadcast whose answer it lost and
+ * the retry reaches a node that has already mined it. Transaction counts
+ * cannot tell the two apart: the app's RPC and the wallet's node can both
+ * still count the account as it was before the send.
+ *
+ * So the retry needs the rejected transaction's own nonce, which geth and Reth
+ * name in their refusal (see rejectedNonce.ts), to be below the account's
+ * count the app RPC served before the wallet was asked to sign. That count
+ * comes from a block that existed before the transaction did, so an earlier
+ * transaction used the nonce. A lagging RPC only serves a lower count, which
+ * refuses more often, never less. The count is read at `latest`: a `pending`
+ * count includes transactions that may still be dropped. Without that proof
+ * (no count, a refusal that names no nonce or several, or a nonce not yet used
+ * when the send started) the wallet may have broadcast the transaction, so
+ * nothing is retried and SendOutcomeUnknownError is thrown instead of the
+ * refusal: the caller must not report a failure.
+ *
+ * Counts that moved still rule the retry out: the app RPC's count must be the
+ * same after the rejection, and the wallet's node must count exactly that many,
+ * since anything more is a transaction from the account the app's read did not
+ * see. A wallet still behind would fail the second prompt the same way. The
+ * pre-flight simulation (`prepare`) then runs again so the call still passes
+ * against current state.
+ *
+ * The transaction sent once more is a new one, and its own "nonce too low"
+ * gets the same test, against the count read after the first refusal (before
+ * the wallet signed it): without proof it too is SendOutcomeUnknownError. It
+ * is never sent a third time.
+ *
+ * `send` submits through the client it is given, which lets the wallet take
+ * one submission (walletSubmission.ts): viem would otherwise answer a -32000
+ * refusal by sending the same call again as `wallet_sendTransaction`, inside
+ * `send` and before this function sees the error. Each attempt gets a new one.
  *
  * "Already known", "already imported" and "replacement transaction
  * underpriced" are never retried: a transaction with that nonce is already
- * pending. Anything that rules the retry out rethrows the original error, and
- * a second failure propagates.
+ * pending. Anything else that rules the retry out rethrows the original error,
+ * and a second failure propagates.
  */
 export async function sendWithStaleNonceRetry({
   walletClient,
@@ -251,22 +299,30 @@ export async function sendWithStaleNonceRetry({
   walletClient: WalletClient;
   publicClient: PublicClient;
   account: Address;
-  send: () => Promise<Hash>;
+  send: (submissionClient: WalletClient) => Promise<Hash>;
   prepare: () => Promise<void>;
 }): Promise<Hash> {
+  const submit = () => send(singleSubmissionWalletClient(walletClient));
   const readAppCount = () =>
     getTransactionCount(publicClient, { address: account, blockTag: "latest" });
 
   const countBeforeSend = await readAppCount().catch(() => null);
   try {
-    return await send();
+    return await submit();
   } catch (error) {
     if (classifyError(error) !== "stale-nonce") throw error;
     const chainId = walletClient.chain?.id;
 
+    const rejected = readRejectedNonce(error);
+    if (!provesNeverMined(rejected, countBeforeSend)) {
+      logger.warn("Not retrying a stale-nonce rejection", {
+        data: { chainId, countBeforeSend, rejected },
+      });
+      throw new SendOutcomeUnknownError(error);
+    }
+
     const countAfterRejection = await readAppCount().catch(() => null);
     if (
-      countBeforeSend === null ||
       countAfterRejection === null ||
       countAfterRejection !== countBeforeSend
     ) {
@@ -289,9 +345,20 @@ export async function sendWithStaleNonceRetry({
     }
 
     logger.warn("The wallet signed with a stale nonce; sending once more", {
-      data: { chainId, minimumCount: countAfterRejection, ...sync },
+      data: { chainId, rejected, minimumCount: countAfterRejection, ...sync },
     });
     await prepare();
-    return send();
+    try {
+      return await submit();
+    } catch (retryError) {
+      if (classifyError(retryError) !== "stale-nonce") throw retryError;
+      const retryRejected = readRejectedNonce(retryError);
+      if (provesNeverMined(retryRejected, countAfterRejection))
+        throw retryError;
+      logger.warn("The transaction sent once more may have been broadcast", {
+        data: { chainId, countAfterRejection, rejected: retryRejected },
+      });
+      throw new SendOutcomeUnknownError(retryError);
+    }
   }
 }

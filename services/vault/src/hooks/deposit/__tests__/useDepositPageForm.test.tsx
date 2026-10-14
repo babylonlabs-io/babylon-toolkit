@@ -503,7 +503,7 @@ describe("useDepositPageForm", () => {
       const btcWallet = vi.mocked(useBTCWallet);
       const currentBtcWallet = btcWallet();
       const { result, rerender, unmount } = renderHook(
-        () => useDepositPageForm(),
+        () => useDepositPageForm({ isSplitPermitted: true }),
         { wrapper },
       );
       expect(result.current.isWalletConnected).toBe(true);
@@ -538,9 +538,10 @@ describe("useDepositPageForm", () => {
       const btcWallet = vi.mocked(useBTCWallet);
       const currentBtcWallet = btcWallet();
       btcWallet.mockReturnValue({ ...currentBtcWallet, connected: false });
-      const { result, unmount } = renderHook(() => useDepositPageForm(), {
-        wrapper,
-      });
+      const { result, unmount } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
       expect(result.current.isWalletConnected).toBe(false);
       expect(result.current.canConnectBtcWallet).toBe(true);
       unmount();
@@ -548,7 +549,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should initialize with empty form data", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.formData).toEqual({
         amountBtc: "",
@@ -580,7 +584,10 @@ describe("useDepositPageForm", () => {
       } as never);
 
       try {
-        const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+        const { result } = renderHook(
+          () => useDepositPageForm({ isSplitPermitted: true }),
+          { wrapper },
+        );
 
         await waitFor(() =>
           expect(result.current.appVersionUnsupported).toBe(true),
@@ -596,13 +603,19 @@ describe("useDepositPageForm", () => {
     });
 
     it("should resolve application from aave config on mount", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.effectiveSelectedApplication).toBe("0xAaveAdapter");
     });
 
     it("should calculate BTC balance from UTXOs", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.btcBalance).toBe(800000n);
     });
@@ -632,19 +645,28 @@ describe("useDepositPageForm", () => {
         unconfirmedBalance: 900000n,
       } as unknown as ReturnType<typeof useUTXOs>);
 
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.btcBalance).toBe(0n);
     });
 
     it("should format BTC balance correctly", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.btcBalanceFormatted).toBe(0.008);
     });
 
     it("should load applications", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.applications).toHaveLength(2);
       // Hook only exposes id, name, type, logoUrl from Application
@@ -663,7 +685,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should load providers", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.providers).toHaveLength(2);
       expect(result.current.providers[0].id).toBe(
@@ -673,13 +698,19 @@ describe("useDepositPageForm", () => {
     });
 
     it("should expose BTC price", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.btcPrice).toBe(95000.5);
     });
 
     it("should expose estimated fee values from useEstimatedBtcFee", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.estimatedFeeSats).toBe(1500n);
       expect(result.current.estimatedFeeRate).toBe(5);
@@ -695,7 +726,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("subtracts the per-vault claim, PegIn-fee and P2A anchor reserves and the batch buffer from maxDepositSats", async () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       // Select a provider so depositorClaimValue query resolves
       act(() => {
@@ -724,7 +758,10 @@ describe("useDepositPageForm", () => {
         uncappedMaxDeposit: null,
       });
 
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.isLoadingFee).toBe(true);
       expect(result.current.estimatedFeeSats).toBeNull();
@@ -740,7 +777,10 @@ describe("useDepositPageForm", () => {
         uncappedMaxDeposit: 798500n,
       });
 
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.feeError).toBe(
         "Insufficient funds: need 900000 sats, have 800000 sats",
@@ -752,7 +792,10 @@ describe("useDepositPageForm", () => {
 
   describe("setFormData", () => {
     it("should update amount field", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({ amountBtc: "0.001" });
@@ -762,7 +805,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should update provider field", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -776,7 +822,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should clear amount error when amount is updated", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.validateForm();
@@ -792,7 +841,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should not set application error when aave config provides default", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.validateForm();
@@ -803,7 +855,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should clear provider error when provider is updated", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.validateForm();
@@ -823,13 +878,19 @@ describe("useDepositPageForm", () => {
 
   describe("amountSats calculation", () => {
     it("should return 0 for empty amount", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.amountSats).toBe(0n);
     });
 
     it("should convert BTC to satoshis", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({ amountBtc: "0.001" });
@@ -839,7 +900,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should handle decimal amounts", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({ amountBtc: "0.00012345" });
@@ -851,7 +915,10 @@ describe("useDepositPageForm", () => {
 
   describe("validateForm", () => {
     it("should return false and set errors for empty form", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       let isValid: boolean = false;
       act(() => {
@@ -870,7 +937,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should validate amount field", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -891,7 +961,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should validate provider field", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -911,7 +984,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should return true for valid form", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -930,7 +1006,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should call validation functions with correct arguments", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -952,7 +1031,10 @@ describe("useDepositPageForm", () => {
 
   describe("resetForm", () => {
     it("should reset form data to initial state", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -974,7 +1056,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("should clear all errors", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.validateForm();
@@ -992,20 +1077,27 @@ describe("useDepositPageForm", () => {
 
   describe("loading states", () => {
     it("should expose applications loading state", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.isLoadingApplications).toBe(false);
     });
 
     it("should expose providers loading state", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.isLoadingProviders).toBe(false);
     });
   });
 
   describe("Max pinning sync with vaultCount", () => {
-    // vaultCount is now the EFFECTIVE split: isTwoVaultSplit && canSplit.
+    // vaultCount is now the EFFECTIVE split:
+    // isTwoVaultSplit && canSplit && isSplitPermitted.
     // These tests exercise the 1->2 transition, so the amount must be
     // splittable — override the default canSplit (false) to true.
     beforeEach(() => {
@@ -1031,7 +1123,10 @@ describe("useDepositPageForm", () => {
     //   vaultCount 1 -> 798500 − 1*(35000+500+240) − 3000 = 759_760n  ("0.0075976" BTC)
     //   vaultCount 2 -> 798500 − 2*(35000+500+240) − 3000 = 724_020n  ("0.0072402" BTC)
     it("keeps a pinned Max amount in sync when partial liquidation enables (vaultCount 1->2)", async () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -1060,7 +1155,10 @@ describe("useDepositPageForm", () => {
     });
 
     it("detaches the Max pin on a manual amount edit so a later max change does not overwrite it", async () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -1091,6 +1189,31 @@ describe("useDepositPageForm", () => {
       });
       expect(result.current.formData.amountBtc).toBe("0.001");
     });
+
+    it("budgets a single vault once the split is no longer permitted while the form is open", async () => {
+      const { result, rerender } = renderHook(
+        ({ isSplitPermitted }) => useDepositPageForm({ isSplitPermitted }),
+        { wrapper, initialProps: { isSplitPermitted: true } },
+      );
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+        result.current.setIsTwoVaultSplit(true);
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(724_020n);
+      });
+
+      rerender({ isSplitPermitted: false });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(759_760n);
+      });
+      expect(result.current.isTwoVaultSplit).toBe(true);
+    });
   });
 
   describe("effective split budgeting", () => {
@@ -1115,7 +1238,10 @@ describe("useDepositPageForm", () => {
       // is not understated by reserving a second vault's claim + pegin fee +
       // anchor. 798500 − 1*(35000+500+240) − 3000 = 759_760n (vaultCount 1),
       // NOT 724_020n.
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       act(() => {
         result.current.setFormData({
@@ -1178,7 +1304,10 @@ describe("useDepositPageForm", () => {
         loading: false,
       } as unknown as ReturnType<typeof useVaultProviders>);
 
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       // Zero keeper pubkeys can never enable the minPeginFee query — the hook
       // must report a terminal error so the CTA doesn't spin forever.
@@ -1193,7 +1322,10 @@ describe("useDepositPageForm", () => {
         loading: true,
       } as unknown as ReturnType<typeof useVaultProviders>);
 
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.minPeginFeeError).toBeNull();
     });
@@ -1211,7 +1343,10 @@ describe("useDepositPageForm", () => {
         error: rosterError,
       } as unknown as ReturnType<typeof useVaultProviders>);
 
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.minPeginFeeError).toBe(rosterError);
     });
@@ -1224,7 +1359,10 @@ describe("useDepositPageForm", () => {
         refetch: vi.fn(),
       });
 
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       expect(result.current.btcPublicKeyError).toBe(walletError);
     });
@@ -1280,7 +1418,10 @@ describe("useDepositPageForm", () => {
 
     it("flags 1_000_000 sats, above the capped 759_760 max but within the uncapped 1_961_260", async () => {
       mockOverCapWallet();
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       await enterAmountWithSettledMax(result, "0.01");
 
@@ -1290,7 +1431,10 @@ describe("useDepositPageForm", () => {
 
     it("does not flag an amount the capped set can fund", async () => {
       mockOverCapWallet();
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       await enterAmountWithSettledMax(result, "0.005");
 
@@ -1300,7 +1444,10 @@ describe("useDepositPageForm", () => {
 
     it("does not flag 2_000_000 sats, above the uncapped 1_961_260 max, since consolidating could not fund it", async () => {
       mockOverCapWallet();
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       await enterAmountWithSettledMax(result, "0.02");
 
@@ -1318,7 +1465,10 @@ describe("useDepositPageForm", () => {
         maxDeposit: 798_500n,
         uncappedMaxDeposit: 798_500n,
       });
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       await enterAmountWithSettledMax(result, "0.01");
 
@@ -1327,7 +1477,10 @@ describe("useDepositPageForm", () => {
 
     it("does not flag the default two-UTXO wallet, where the cap can never bind", async () => {
       mockFee();
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
 
       await enterAmountWithSettledMax(result, "0.01");
 

@@ -28,6 +28,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => {
   return {
     canonicalizeBtcPubkey: actual.canonicalizeBtcPubkey,
     stripHexPrefix: actual.stripHexPrefix,
+    supportsDepositApproval: actual.supportsDepositApproval,
   };
 });
 
@@ -255,7 +256,7 @@ describe("signAndSubmitPayouts", () => {
     );
   });
 
-  it("warns and lets signing go on when this device holds no entry for the vault", async () => {
+  it("warns and lets signing go on when the fingerprint could not be stored on this device", async () => {
     mockRecordSignedGraphFingerprint.mockReturnValue(false);
     await callSignAndSubmit();
 
@@ -313,6 +314,87 @@ describe("signAndSubmitPayouts", () => {
       btcWallet: { getPublicKeyHex: async () => `02${DEPOSITOR_BTC_PUBKEY}` },
     });
 
+    expect(mockRunDepositorPresignFlow).toHaveBeenCalledTimes(1);
+  });
+
+  describe("approval wallets (device-held intent)", () => {
+    const approvalWallet = {
+      getPublicKeyHex: async () => DEPOSITOR_BTC_PUBKEY,
+      approveDepositTerms: vi.fn(),
+    };
+    const ceremonyInvalid = Object.assign(
+      new Error("The device no longer holds the approved intent"),
+      { code: "DEVICE_CEREMONY_INVALID" },
+    );
+    const freshCeremonyFlags = () =>
+      mockEnsureAuthenticatedVpClient.mock.calls.map(
+        ([params]) =>
+          (params as { requireFreshDeviceCeremony: boolean })
+            .requireFreshDeviceCeremony,
+      );
+
+    it("keeps the cached VP login on the first attempt, so a device still holding the intent signs with no new ceremony", async () => {
+      await callSignAndSubmit({ btcWallet: approvalWallet });
+
+      expect(freshCeremonyFlags()).toEqual([false]);
+      expect(mockUpdatePendingPeginStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-derives once when the device reports the intent gone, then completes", async () => {
+      mockRunDepositorPresignFlow.mockRejectedValueOnce(ceremonyInvalid);
+
+      await callSignAndSubmit({ btcWallet: approvalWallet });
+
+      expect(freshCeremonyFlags()).toEqual([false, true]);
+      expect(mockRunDepositorPresignFlow).toHaveBeenCalledTimes(2);
+      expect(mockUpdatePendingPeginStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it("surfaces a second ceremony failure instead of looping", async () => {
+      mockRunDepositorPresignFlow
+        .mockRejectedValueOnce(ceremonyInvalid)
+        .mockRejectedValueOnce(ceremonyInvalid);
+
+      await expect(
+        callSignAndSubmit({ btcWallet: approvalWallet }),
+      ).rejects.toBe(ceremonyInvalid);
+      expect(mockRunDepositorPresignFlow).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not retry any other failure", async () => {
+      const rejected = new Error("user rejected");
+      mockRunDepositorPresignFlow.mockRejectedValueOnce(rejected);
+
+      await expect(
+        callSignAndSubmit({ btcWallet: approvalWallet }),
+      ).rejects.toBe(rejected);
+      expect(mockRunDepositorPresignFlow).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not open a fresh ceremony for a flow the depositor has left", async () => {
+      const controller = new AbortController();
+      mockRunDepositorPresignFlow.mockImplementationOnce(async () => {
+        controller.abort();
+        throw ceremonyInvalid;
+      });
+
+      await expect(
+        callSignAndSubmit({
+          btcWallet: approvalWallet,
+          signal: controller.signal,
+        }),
+      ).rejects.toBe(ceremonyInvalid);
+      expect(mockEnsureAuthenticatedVpClient).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("never retries for a wallet without deposit approval", async () => {
+    const ceremonyInvalid = Object.assign(new Error("ceremony"), {
+      code: "DEVICE_CEREMONY_INVALID",
+    });
+    mockRunDepositorPresignFlow.mockRejectedValueOnce(ceremonyInvalid);
+
+    await expect(callSignAndSubmit()).rejects.toBe(ceremonyInvalid);
     expect(mockRunDepositorPresignFlow).toHaveBeenCalledTimes(1);
   });
 });

@@ -19,7 +19,7 @@ Protocol background: [pegin spec](https://github.com/babylonlabs-io/btc-vault/bl
 Some properties of the protocol that directly affect your integration:
 
 - **Vault providers (VPs)** are off-chain parties that co-sign payouts and can claim vaulted BTC on your behalf. Current deployments select VPs from a curated set surfaced via the Babylon vault indexer; verify the operating model of the specific deployment you're targeting before making assumptions about governance. If your chosen VP goes offline between steps of the peg-in flow, the **refund path** is your backstop — after the refund CSV timelock expires, you reclaim BTC directly from the Pre-PegIn HTLC without VP cooperation.
-- **Indexer data is untrusted** for signing-critical decisions. Anything that influences what the user signs (script derivation, amount, hashlock, signer sets, locked protocol-param version) must come from the on-chain `BTCVaultRegistry` and `ProtocolParams` contracts. The indexer is fine for display, discovery, and non-authoritative reads.
+- **Indexer data is untrusted** for signing-critical decisions. Anything that influences what the user signs (script derivation, amount, hashlock, participant keys, locked protocol-param version) must come from the on-chain `BTCVaultRegistry`, `ApplicationRegistry` and `ProtocolParams` contracts. The indexer is fine for display, discovery, and non-authoritative reads. Participant keys take one more step than a plain read; see [Participant keys](#participant-keys).
 - **The HTLC secret** is the 32-byte preimage the depositor reveals on Ethereum to move the vault from `VERIFIED` → `ACTIVE`. Both WOTS keys and the HTLC secret are derived deterministically from `wallet.deriveContextHash` ([conformance vectors](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts)). You do **not** generate or persist the secret: `preparePegin()` derives it via `expandHashlockSecret(root, htlcVout)`, and resume and activation re-derive it on demand from the same wallet and on-chain context. See the [Wallet Interfaces Guide → Wallet-derived secrets](../guides/wallet-interfaces.md#wallet-derived-secrets-derivecontexthash).
 
 ### Vault lifecycle
@@ -104,7 +104,7 @@ Pick the shortest path for what you're building.
 | Use a vault as Aave collateral (requires an existing vault first) | [Aave Integration Quickstart](../integrations/aave/quickstart.md) |
 | Read authoritative vault state for a signing / on-chain check | `@babylonlabs-io/ts-sdk/tbv/core/clients` (`ViemVaultRegistryReader`, `ViemProtocolParamsReader`) — see the code example in [Where config values come from](#where-config-values-come-from) |
 | Read vault state for a UI / dashboard (non-authoritative, fast) | Babylon vault indexer (GraphQL) + `getPeginProtocolState` from `@babylonlabs-io/ts-sdk/tbv/core/services` |
-| Recover a vault when the HTLC secret was lost (refund after timelock) | `buildAndBroadcastRefund` from `@babylonlabs-io/ts-sdk/tbv/core/services` |
+| Recover a vault when the HTLC secret was lost (refund after timelock) | `buildAndBroadcastRefund` from `@babylonlabs-io/ts-sdk/tbv/core/services`, with `readRefundPrePeginContext` for its participant keys and params |
 | Build a backend service that signs with a KMS/HSM | [Quickstart: Primitives](../quickstart/primitives.md) |
 | Adapt a non-browser or hardware wallet to the SDK | [Wallet Interfaces](../guides/wallet-interfaces.md) + [Quickstart: Primitives](../quickstart/primitives.md) |
 | Test an integration without a live VP / real Bitcoin | `@babylonlabs-io/ts-sdk/testing` (mock wallets) |
@@ -134,7 +134,7 @@ Each maps to a public subpath like `@babylonlabs-io/ts-sdk/tbv/core/<name>` (see
 - **services** — Stateless flow helpers that compose primitives with **injected** I/O callbacks (sign, broadcast, contract write). They don't own the wallet. Examples: `activateVault`, `buildAndBroadcastRefund`, `runDepositorPresignFlow`, `getPeginProtocolState`, `BIP68NotMatureError`.
 - **managers** — Stateful classes that take a wallet interface and run a full flow. Examples: `PeginManager` (vault creation), `PayoutManager` (payout signing).
 - **integrations** — Application-specific modules built on top of the lower layers. Current: Aave v4.
-- **clients** — Optional on-chain reader classes for authoritative contract data at the version the vault pinned. Examples: `ViemProtocolParamsReader`, `ViemVaultKeeperReader`, `ViemUniversalChallengerReader`, `ViemVaultRegistryReader`, plus the `resolveProtocolAddresses` helper.
+- **clients** — Optional on-chain reader classes for authoritative contract data. Examples: `ViemProtocolParamsReader`, `ViemVaultKeeperReader`, `ViemUniversalChallengerReader`, `ViemVaultRegistryReader`, `ViemOperationKeyReader`, plus the `resolveProtocolAddresses` helper. The roster readers return registration keys, not the keys a vault's scripts use; see [Participant keys](#participant-keys).
 
 **Rule of thumb:** start with a **manager** for peg-in orchestration. Reach for a **service** when you need to control the transport (viem vs. wagmi vs. custom) for a sub-step like activation, refund, or payout polling. Drop to **primitives + utils** only when you need custom signing (KMS/HSM, hardware) or full step-by-step control.
 
@@ -209,10 +209,11 @@ Every flow needs a combination of contract addresses, protocol parameters, vault
 | What you need | Source | Notes |
 |---|---|---|
 | `BTCVaultRegistry`, `AaveIntegrationAdapter` contract addresses | Your own environment config | Pinned per deployment (network + app instance). Not shipped with the SDK. |
-| **Vault-pinned version fields** (`offchainParamsVersion`, `appVaultKeepersVersion`, `universalChallengersVersion`) | On-chain, from the vault record in `BTCVaultRegistry` | Via `ViemVaultRegistryReader`. These versions determine which protocol params and signer sets are valid for this vault. |
+| **Vault-pinned version fields** (`offchainParamsVersion`, `appVaultKeepersVersion`, `universalChallengersVersion`) and **key epochs** (`vpKeyEpoch`, `appKeeperKeyEpoch`, `ucKeyEpoch`) | On-chain, from the vault record in `BTCVaultRegistry` | Via `ViemVaultRegistryReader` (`getVaultData`, `getVaultKeyEpochs`). The versions select the protocol params and the rosters valid for this vault; the epochs select which participant operation keys its scripts use. |
 | Versioned **protocol params** (timelocks, fee rate, quorum, security council) | On-chain `ProtocolParams` at the vault's pinned `offchainParamsVersion` | Via `ViemProtocolParamsReader.getOffchainParamsByVersion()`. Never use "latest" for signing-critical flows. |
-| **Vault keepers** / **universal challengers** | On-chain, at the versions pinned by the vault | Via `ViemVaultKeeperReader.getVaultKeepersByVersion()` and `ViemUniversalChallengerReader.getUniversalChallengersByVersion()`. |
-| Vault provider discovery (BTC pubkey, RPC URL, metadata) | Babylon vault indexer (GraphQL) | Discovery data; still a trust boundary — callers should validate it against signing expectations before use. |
+| **Vault keeper** / **universal challenger** rosters | On-chain, at the versions pinned by the vault | Via `ViemVaultKeeperReader.getVaultKeepersByVersion()` and `ViemUniversalChallengerReader.getUniversalChallengersByVersion()`. Each entry carries the member's *registration* key, which is not the key to build a script with. See [Participant keys](#participant-keys). |
+| **Participant operation keys** (vault provider, keepers, challengers) | On-chain, `BTCVaultRegistry`, `ApplicationRegistry` and `ProtocolParams` | The keys a vault's scripts commit to. A fresh deposit uses `validateOnChainParticipantKeys`; an existing vault uses `readStampedParticipantKeys`, or `readRefundPrePeginContext` for a refund. See [Participant keys](#participant-keys). |
+| Vault provider discovery (RPC URL, metadata, BTC pubkey hint) | Babylon vault indexer (GraphQL) | Discovery data; still a trust boundary. Its BTC pubkey is only a hint — the registration key, or the current operation key once the indexer tracks rotations — so never build a script from it. |
 | Per-vault display state (status, timestamps, UI metadata) | Babylon vault indexer (GraphQL) | OK for UI; don't use for vault-pinned signing context. |
 | BTC mempool (UTXO listing, fee estimation, broadcast) | Mempool.space or a compatible instance | Public Bitcoin data. Pick the endpoint matching your BTC network (mainnet / signet / testnet). |
 
@@ -241,6 +242,21 @@ const params = await paramsReader.getOffchainParamsByVersion(
 // params.feeRate, params.tRefund (refund CSV timelock), params.councilQuorum, …
 ```
 
+## Participant keys
+
+Every Bitcoin script in a vault's graph commits to the BTC keys of its vault provider, vault keepers and universal challengers. Under RFC-006 each of them can rotate its **operation key** without changing its roster entry, so there are two kinds of key, and they diverge from the first rotation on:
+
+- **Registration keys** are what the rosters (`getVaultKeepersByVersion`, `getUniversalChallengersByVersion`) list. The indexer's vault-provider `btcPubKey` is only a hint: the registration key, or the current operation key once the indexer tracks rotations. Never build or rebuild a script from either.
+- **Operation keys** are what scripts commit to. Each vault freezes three key epochs when it registers (`vpKeyEpoch`, `appKeeperKeyEpoch`, `ucKeyEpoch`), and its scripts use the operation keys at those epochs for the vault's whole life.
+
+| Flow | Keys | Read them with |
+|---|---|---|
+| Fresh deposit | Current operation keys, read at the same pinned block as the rest of the deposit | `validateOnChainParticipantKeys` |
+| Refund | Operation keys at the vault's frozen epochs | `readRefundPrePeginContext` |
+| Presign resume, payout signing, claim | Operation keys at the vault's frozen epochs | `readStampedParticipantKeys` |
+
+Current operation keys are no substitute for an existing vault's frozen-epoch keys: they fail for every vault registered before the latest rotation, just as roster keys fail for every vault registered after one. A refund rebuilt from the wrong keys is refused with `HTLC scriptPubKey mismatch`.
+
 ## Glossary
 
 Terms used throughout the docs.
@@ -260,9 +276,11 @@ Terms used throughout the docs.
 | **Activation** | Revealing the HTLC secret on Ethereum to move the vault from `VERIFIED` → `ACTIVE`. Without this the vault expires |
 | **Refund** | Fallback exit — after the refund CSV timelock expires, the depositor reclaims BTC directly from the Pre-PegIn HTLC without VP cooperation |
 | **VP** (Vault Provider) | Off-chain party, gated by on-chain registration, that co-signs payouts, builds the transaction graph, and can submit claims. One per vault. See [Trust model](#trust-model-read-this-before-adopting) for governance hedging |
-| **VK** (Vault Keeper) | Signer in a versioned keeper set that participates in PegIn ACKs and co-signs application-specific payouts (e.g. Aave liquidation flows) |
-| **UC** (Universal Challenger) | Signer in a versioned challenger set that participates in PegIn presigning and can challenge VP/VK misbehaviour on Bitcoin |
-| **Signer-set versions** | Keepers and challengers rotate over time. Every vault records two separate versions (`appVaultKeepersVersion`, `universalChallengersVersion`) and an `offchainParamsVersion`. Signing and refund flows must use those pinned versions, not "latest" |
+| **VK** (Vault Keeper) | Member of an application's versioned keeper roster that participates in PegIn ACKs and co-signs application-specific payouts (e.g. Aave liquidation flows). Signs with a rotatable **operation key** |
+| **UC** (Universal Challenger) | Member of the versioned challenger roster that participates in PegIn presigning and can challenge VP/VK misbehaviour on Bitcoin. Signs with a rotatable **operation key** |
+| **Membership versions** | Every vault records the roster versions it was registered under (`appVaultKeepersVersion`, `universalChallengersVersion`) and an `offchainParamsVersion`. Signing and refund flows read rosters and params at those pinned versions, not "latest". A membership version changes who is in a set; it does not track key rotation (see **Key epoch**) |
+| **Operation key** | The BTC key a VP, keeper or challenger signs with. It can be rotated (RFC-006) without changing the member's roster entry, so rosters list *registration* keys, which equal a member's operation key only until that member first rotates, and the indexer's vault-provider key is only a hint. A vault keeps the operation keys it registered with for its whole life. See [Participant keys](#participant-keys) |
+| **Key epoch** | One of three counters a vault freezes at registration (`vpKeyEpoch`, `appKeeperKeyEpoch`, `ucKeyEpoch`) that pin which operation keys its scripts use for the vault's whole life. Read with `ViemVaultRegistryReader.getVaultKeyEpochs` |
 | **WOTS** | Winternitz One-Time Signature — per-deposit key material committed during registration and revealed during payout signing. Most integrators should not touch WOTS directly |
 | **PoP** (Proof of Possession) | BIP-322 signature proving the depositor controls the BTC pubkey they're registering |
 | **CPFP** | Child-Pays-For-Parent — the Pre-PegIn tx includes an anchor output the depositor can spend to bump the effective fee rate |

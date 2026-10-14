@@ -5,6 +5,7 @@ import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import { DepositProgressView } from "../DepositProgressView";
+import { getVisualStep } from "../steps";
 
 // The detail panel fetches confirmations and protocol params of its own;
 // this suite covers only whether DepositProgressView mounts it per step.
@@ -644,6 +645,47 @@ describe("DepositProgressView", () => {
       expect(button).toBeEnabled();
       fireEvent.click(button);
       expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("marks the current step failed under an error", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          error={{ title: "Transaction failed", body: "boom" }}
+        />,
+      );
+
+      expect(
+        screen.getByLabelText(COPY.deposit.a11y.groupStatus.failed),
+      ).toBeInTheDocument();
+    });
+
+    it("marks the current step unknown, neither failed nor running, under a status-unknown warning", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={COPY.deposit.errors.sendOutcomeUnknown}
+          errorVariant="warning"
+        />,
+      );
+      const activateStep = getVisualStep(DepositFlowStep.ACTIVATE_VAULT);
+
+      expect(
+        screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.title),
+      ).toBeInTheDocument();
+      // Callout gives the error variant role alert; the warning is a status.
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(
+        screen.getByLabelText(COPY.deposit.a11y.stepUnknown(activateStep)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText(COPY.deposit.a11y.stepActive(activateStep)),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText(COPY.deposit.a11y.groupStatus.failed),
+      ).not.toBeInTheDocument();
     });
   });
 

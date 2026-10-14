@@ -942,7 +942,9 @@ vaultProviderBtcPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts)
 
-Vault provider's BTC public key (x-only, 64-char hex).
+Vault provider's RFC-006 operation key (x-only, 64-char hex) at the
+vault's frozen `vpKeyEpoch`, as `readStampedParticipantKeys` returns it.
+Never the registration key or the indexer's copy.
 
 ###### Inherited from
 
@@ -958,7 +960,10 @@ vaultKeeperBtcPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts)
 
-Vault keeper BTC public keys (x-only, 64-char hex).
+Vault keeper operation keys (x-only, 64-char hex) at the vault's frozen
+`appKeeperKeyEpoch`, as `readStampedParticipantKeys` returns them. The
+roster holds registration keys, which differ from these for a vault
+registered after a keeper had rotated.
 
 ###### Inherited from
 
@@ -974,7 +979,8 @@ universalChallengerBtcPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts)
 
-Universal challenger BTC public keys (x-only, 64-char hex).
+Universal challenger operation keys (x-only, 64-char hex) at the vault's
+frozen `ucKeyEpoch`, as `readStampedParticipantKeys` returns them.
 
 ###### Inherited from
 
@@ -1362,7 +1368,11 @@ vaultProviderBtcPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
-Vault provider's BTC public key (x-only, 64-char hex).
+Vault provider's current RFC-006 operation key (x-only, 64-char hex), read
+at the same pinned block as the rest of the deposit's protocol state:
+`validateOnChainParticipantKeys(...).vaultProviderBtcPubkeyXOnly`. Not the
+registration key, which differs from it once the provider has rotated, and
+not the indexer's copy, which is only a hint.
 Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ##### commissionBps
@@ -1385,7 +1395,10 @@ vaultKeeperBtcPubkeys: readonly string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
-Vault keeper BTC public keys (x-only, 64-char hex).
+Vault keepers' current RFC-006 operation keys (x-only, 64-char hex), read
+at the deposit's pinned block:
+`validateOnChainParticipantKeys(...).vaultKeeperBtcPubkeysSorted`. Not the
+roster's registration keys.
 Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ##### universalChallengerBtcPubkeys
@@ -1396,7 +1409,10 @@ universalChallengerBtcPubkeys: readonly string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
-Universal challenger BTC public keys (x-only, 64-char hex).
+Universal challengers' current RFC-006 operation keys (x-only, 64-char
+hex), read at the deposit's pinned block:
+`validateOnChainParticipantKeys(...).universalChallengerBtcPubkeysSorted`.
+Not the roster's registration keys.
 Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ##### timelockPegin

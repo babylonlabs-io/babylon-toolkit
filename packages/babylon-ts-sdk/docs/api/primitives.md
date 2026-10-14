@@ -51,7 +51,7 @@ the managers module instead (PeginManager and PayoutManager).
 - [createPayoutScript](#createpayoutscript) - Generate taproot payout script
 
 ### Challenger Counting
-- [computeNumLocalChallengers](#computenumlocalchallengers) - Compute number of local challengers for a vault
+- [computeNumLocalChallengers](#computenumlocalchallengers) - Upper bound on a vault's local challengers, for UI estimates such as a deposit form's claim reserve
 
 ### WASM Functions
 - [computeMinClaimValue](#computeminclaimvalue) - Compute the minimum claim value accepted by the vault provider
@@ -900,7 +900,10 @@ vaultProviderPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
-Vault provider's BTC public key (x-only, 64-char hex)
+Vault provider's RFC-006 operation key (x-only, 64-char hex). A fresh
+deposit uses the current key, read at one pinned block; rebuilding an
+existing vault's Pre-PegIn (a refund) uses the key at the vault's frozen
+`vpKeyEpoch`. Never the registration key or the indexer's copy.
 
 ##### vaultKeeperPubkeys
 
@@ -910,7 +913,11 @@ vaultKeeperPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
-Array of vault keeper BTC public keys (x-only, 64-char hex)
+Vault keepers' RFC-006 operation keys (x-only, 64-char hex): current for
+a fresh deposit, at the vault's frozen `appKeeperKeyEpoch` when
+rebuilding. The roster (`getVaultKeepersByVersion`) holds registration
+keys, which differ from these once a keeper has rotated before the
+deposit was built.
 
 ##### universalChallengerPubkeys
 
@@ -920,7 +927,11 @@ universalChallengerPubkeys: string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
-Array of universal challenger BTC public keys (x-only, 64-char hex)
+Universal challengers' RFC-006 operation keys (x-only, 64-char hex):
+current for a fresh deposit, at the vault's frozen `ucKeyEpoch` when
+rebuilding. The roster (`getUniversalChallengersByVersion`) holds
+registration keys, which differ from these once a challenger has rotated
+before the deposit was built.
 
 ##### hashlocks
 
@@ -980,7 +991,10 @@ numLocalChallengers: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
-Number of local challengers (from contract params)
+Number of local challengers in the depositor's own claim graph, which this
+value sizes (through the depositor claim value): the vault keeper count.
+(A vault provider's or a keeper's claim graph uses a different rule: the
+vault provider and the keepers, minus the claimer.)
 
 ##### councilQuorum
 
@@ -1993,10 +2007,17 @@ function computeNumLocalChallengers(
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/challengers.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/challengers.ts)
 
-Compute the number of local challengers for a vault.
+Count `{vault_provider} ∪ {vault_keepers} − {depositor}`: an upper bound on
+the local challengers of any of a vault's claim graphs, given the protocol
+rule that the depositor is not a vault keeper. Use it for UI estimates such
+as a deposit form's claim reserve and balance check.
 
-Mirrors the VP's `compute_num_challengers()` logic:
-local challengers = {vault_provider} ∪ {vault_keepers} − {depositor}
+This is the VP's `compute_num_challengers()` rule with the depositor in the
+claimer's place, but no claim graph is built that way: the depositor's own
+graph has the vault keepers alone, and a vault provider's or a keeper's
+graph removes that claimer instead. So it is normally the keeper count plus
+one. Do not use it for `PrePeginParams.numLocalChallengers`, which is the
+keeper count.
 
 Keys are normalized to x-only lowercase hex before comparison, so
 `0x`-prefixed, compressed, or mixed-case keys are handled correctly.
@@ -2019,13 +2040,13 @@ Vault keeper BTC public keys
 
 `string`
 
-Depositor (claimer) BTC public key
+Depositor BTC public key, left out of the count
 
 #### Returns
 
 `number`
 
-Number of local challengers
+The size of `{vault_provider} ∪ {vault_keepers} − {depositor}`
 
 ***
 

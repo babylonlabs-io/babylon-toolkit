@@ -60,8 +60,13 @@ export interface UseActivationStateResult {
   outcome: ActivationOutcome | null;
   /** Error message if activation failed */
   error: string | null;
-  /** True when the error is terminal (activation deadline passed) — no Retry. */
+  /** True when no retry can change the error (a passed deadline, an EXPIRED vault, an endpoint that cannot run the activation check) — no Retry. */
   errorTerminal: boolean;
+  /**
+   * True when the wallet refused the reveal as "nonce too low" but may have
+   * broadcast it — shown as a warning, not a failure, and no Retry.
+   */
+  errorOutcomeUnknown: boolean;
   /** Handler to initiate activation with the user-entered secret */
   handleActivation: (secretHex: string) => Promise<void>;
 }
@@ -76,6 +81,7 @@ export function useActivationState({
     activating: vaultActivating,
     activationError,
     activationErrorTerminal,
+    activationOutcomeUnknown,
     handleActivation: vaultHandleActivation,
   } = useVaultActions();
   const [localActivating, setLocalActivating] = useState(false);
@@ -194,6 +200,7 @@ export function useActivationState({
     outcome,
     error: activationError,
     errorTerminal: activationErrorTerminal,
+    errorOutcomeUnknown: activationOutcomeUnknown,
     handleActivation,
   };
 }

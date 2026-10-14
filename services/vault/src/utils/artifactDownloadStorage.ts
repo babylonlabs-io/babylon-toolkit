@@ -27,9 +27,10 @@ const ARTIFACTS_DOWNLOADED_KEY_PREFIX = "tbv:artifacts-downloaded:";
 const GRAPH_MISMATCH_KEY_PREFIX = "tbv:artifacts-graph-mismatch:";
 
 /**
- * The presign graph fingerprint of a vault whose pending entry, the
- * fingerprint's first home, was removed once the contract reached VERIFIED or
- * ACTIVE. A later download still has to check the bundle against it.
+ * The presign graph fingerprint of a vault, kept outside its pending entry:
+ * written when cleanup removes that entry at VERIFIED or ACTIVE, when a presign
+ * finds no readable entry to hold it, or when a legacy entry is dropped. A
+ * later download still has to check the bundle against it.
  */
 const SIGNED_GRAPH_FINGERPRINT_KEY_PREFIX = "tbv:signed-graph-fingerprint:";
 

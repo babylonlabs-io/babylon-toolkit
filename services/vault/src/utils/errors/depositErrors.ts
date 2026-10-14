@@ -16,6 +16,10 @@
  *  - Wallet rejection — user declines a signing prompt (typed top frame:
  *    EIP-1193 4001 / viem UserRejectedRequestError / CONNECTION_REJECTED; or,
  *    later and cause-walking, "user rejected" / "denied" wording).
+ *  - Send outcome unknown — the wallet refused an Ethereum send as "nonce too
+ *    low" but may have broadcast it (`SendOutcomeUnknownError`, or its message
+ *    as the activation hook flattens it). Not a failure, so it gets its own
+ *    status-unknown title.
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
  *  - Peg-in fingerprint changed — the registry re-derived the protocol
  *    configuration and it differed from the one the Pre-Pegin was built
@@ -113,6 +117,7 @@ import {
   isPositionCapacityExceededError,
   isPositionCapacityUnavailableError,
 } from "./positionCapacityError";
+import { isStaleProtocolAddressesError } from "./staleProtocolAddresses";
 import {
   isTypedUserRejectionFrame,
   isUserCancellation,
@@ -273,6 +278,13 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.signingRejected;
   }
 
+  // 2a. A send the wallet refused as "nonce too low" but may have broadcast.
+  // It may have done the call, so it is not shown under the failure title.
+  // Arrives typed, or from the activation hook flattened to its message.
+  if (classifyError(err) === "send-outcome-unknown") {
+    return ERRORS.sendOutcomeUnknown;
+  }
+
   if (err instanceof PendingPeginStorageReadError) {
     return ERRORS.storageUnreadable;
   }
@@ -298,6 +310,18 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // error for the bug report instead of becoming the callout body, which is
   // what the final bucket would do with an unrecognised error.
   if (isBuildPreconditionError(err)) {
+    return {
+      title: ERRORS.defaultTitle,
+      body: ERRORS.genericBody,
+      diagnostics: formatErrorDiagnostics(err),
+    };
+  }
+
+  // 3a''-stale. The protocol contract addresses could not be re-read from the
+  // registry and the cached ones are past their maximum age, so the build
+  // refused them. Mapped for the same reason as 3a'': the message names
+  // internals and would otherwise become the callout body.
+  if (isStaleProtocolAddressesError(err)) {
     return {
       title: ERRORS.defaultTitle,
       body: ERRORS.genericBody,

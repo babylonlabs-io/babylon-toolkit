@@ -478,6 +478,12 @@ export interface ProtocolParamsReader {
  */
 export interface AddressBTCKeyPair {
   ethAddress: Address;
+  /**
+   * The member's *registration* (genesis) key as the roster lists it. Under
+   * RFC-006 a member can rotate its operation key without changing the
+   * roster, so this is not necessarily the key a Bitcoin script commits to:
+   * resolve operation keys with {@link OperationKeyReader}.
+   */
   btcPubKey: Hex;
 }
 
@@ -499,6 +505,13 @@ export interface AddressBTCKeyPair {
  * they were left alone rather than given a pin no caller would pass.
  */
 export interface VaultKeeperReader {
+  /**
+   * Read the keeper roster at a membership version. Each entry's `btcPubKey`
+   * is the keeper's registration key, not necessarily the key its scripts
+   * use: for an existing vault resolve the roster at the vault's frozen
+   * epochs (`readStampedParticipantKeys`); for a fresh deposit use
+   * `validateOnChainParticipantKeys`.
+   */
   getVaultKeepersByVersion(
     appEntryPoint: Address,
     version: number,
@@ -526,6 +539,13 @@ export interface VaultKeeperReader {
 
 /** Interface for reading universal challengers from the ProtocolParams contract. */
 export interface UniversalChallengerReader {
+  /**
+   * Read the universal challenger roster at a membership version. Each
+   * entry's `btcPubKey` is the challenger's registration key, not necessarily
+   * the key its scripts use: for an existing vault resolve the roster at the
+   * vault's frozen epochs (`readStampedParticipantKeys`); for a fresh deposit
+   * use `validateOnChainParticipantKeys`.
+   */
   getUniversalChallengersByVersion(
     version: number,
     blockNumber?: bigint,

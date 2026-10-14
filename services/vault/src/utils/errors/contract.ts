@@ -387,9 +387,11 @@ export function getContractErrorArgs(
 const SIMULATION_PHASE = "simulation";
 
 /**
- * Mark a mapped error as raised during pre-flight simulation — nothing was
- * signed or broadcast. Retry logic must only auto-retry these: the same error
- * from a mined revert means the chain itself rejected the call.
+ * Mark a mapped error as raised during pre-flight simulation — nothing that
+ * can still be mined was sent (the simulation before a stale-nonce retry runs
+ * only once the rejected transaction never can be; see
+ * `sendWithStaleNonceRetry`). Retry logic must only auto-retry these: the same
+ * error from a mined revert means the chain itself rejected the call.
  */
 export function tagSimulationPhase(err: ContractError): ContractError {
   return new ContractError(
@@ -419,6 +421,13 @@ export function isSimulationPhaseError(err: unknown): err is ContractError {
 export const ACTIVATION_DEADLINE_EXPIRED_REASON = "ActivationDeadlineExpired";
 
 /**
+ * `ContractError.reason` set by the activation gas check when the configured
+ * RPC cannot run `eth_simulateV1`. The endpoint is a build-time constant, so a
+ * retry re-runs the same refusal.
+ */
+export const ACTIVATION_CHECK_UNSUPPORTED_REASON = "ActivationCheckUnsupported";
+
+/**
  * True when an activation failure is the terminal ActivationDeadlineExpired
  * revert. Retrying re-runs the identical revert, so the UI must offer Close,
  * not Retry.
@@ -430,14 +439,24 @@ export function isActivationDeadlineExpiredError(err: unknown): boolean {
   );
 }
 
+/** True when the activation gas check could not run on the configured RPC. */
+function isActivationCheckUnsupportedError(err: unknown): boolean {
+  return (
+    err instanceof ContractError &&
+    err.reason === ACTIVATION_CHECK_UNSUPPORTED_REASON
+  );
+}
+
 /**
  * True when an activation failure is terminal — retrying would re-run the same
- * failing path. Covers the on-chain deadline revert and the pre-flight
- * "vault not in an activatable state" guard. The UI offers Close, not Retry.
+ * failing path. Covers the on-chain deadline revert, the pre-flight "vault not
+ * in an activatable state" guard, and an RPC that cannot run the activation
+ * gas check. The UI offers Close, not Retry.
  */
 export function isTerminalActivationError(err: unknown): boolean {
   return (
     isActivationDeadlineExpiredError(err) ||
+    isActivationCheckUnsupportedError(err) ||
     err instanceof ActivationNotPossibleError
   );
 }

@@ -211,6 +211,7 @@ export function DepositSignContent({
           vaultIds={continuationVaultIds}
           depositorEthAddress={flowParams.depositorEthAddress}
           warnings={lastWarnings}
+          autoStartAction="any"
           onClose={onClose}
         />
       </>

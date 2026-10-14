@@ -370,10 +370,11 @@ export interface PrePeginPsbtFixture {
 
 /**
  * Toolkit-shaped Pre-PegIn: two depositor key-path inputs → [HTLC, CPFP anchor
- * 546 P2TR(depositor), change P2TR(changeKey)]. No OP_RETURN (optional on-device).
- * Layout matches btc-vault `[HTLC×n, OP_RETURN?, anchor, change*]`.
+ * 546 P2TR(depositor), change P2TR(depositor)]. No OP_RETURN (optional on-device).
+ * Layout matches btc-vault `[HTLC×n, OP_RETURN?, anchor, change*]`. `changeScript`
+ * overrides the change destination, for rejection stages.
  */
-export function buildPrePeginPsbt(hashlock: Buffer, changeXOnlyHex: string): PrePeginPsbtFixture {
+export function buildPrePeginPsbt(hashlock: Buffer, changeScript?: Buffer): PrePeginPsbtFixture {
   const depositor = hexToBuffer(DEPOSITOR_XONLY_HEX);
   const vp = hexToBuffer(VP_KEY_HEX);
   const keepers = [hexToBuffer(KEEPER_KEY_HEX)];
@@ -383,7 +384,6 @@ export function buildPrePeginPsbt(hashlock: Buffer, changeXOnlyHex: string): Pre
   const merkleRoot = tapBranch(tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaf0), tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaf1));
   const htlcScriptPubKey = Buffer.concat([Buffer.from([0x51, PUSH_32]), tweakNums(merkleRoot).xOnly]);
   const depositorSpk = payments.p2tr({ internalPubkey: depositor }).output!;
-  const changeSpk = payments.p2tr({ internalPubkey: hexToBuffer(changeXOnlyHex) }).output!;
   const changeValue =
     PREPEGIN_INPUT_COUNT * PREPEGIN_INPUT_VALUE_SATS - HTLC_VALUE_SATS - CPFP_ANCHOR_VALUE_SATS - PREPEGIN_FEE_SATS;
 
@@ -401,7 +401,7 @@ export function buildPrePeginPsbt(hashlock: Buffer, changeXOnlyHex: string): Pre
   }
   psbt.addOutput({ script: htlcScriptPubKey, value: HTLC_VALUE_SATS });
   psbt.addOutput({ script: depositorSpk, value: CPFP_ANCHOR_VALUE_SATS });
-  psbt.addOutput({ script: changeSpk, value: changeValue });
+  psbt.addOutput({ script: changeScript ?? depositorSpk, value: changeValue });
   const tx = Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer());
   return { psbtHex: psbt.toHex(), txidInternal: tx.getHash(), htlcScriptPubKey };
 }
@@ -546,6 +546,66 @@ export function computeRefundSighash(psbtHex: string, fixture: RefundPsbtFixture
     [HTLC_VALUE_SATS],
     Transaction.SIGHASH_DEFAULT,
     fixture.leaf1Hash,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reclaim PSBT (test_sign_psbt_validate.py `_build_reclaim_psbt` @ app-babylon-vault-dev b89dd580)
+// ---------------------------------------------------------------------------
+
+const RECLAIM_FEE_SATS = 1_000;
+/** BIP-125 RBF signal the device requires on the Reclaim input (`vault_constants.h` RECLAIM_SEQUENCE). */
+const RECLAIM_SEQUENCE = 0xfffffffd;
+/** PegIn output 1 — the depositor claim reserve. */
+const PEGIN_RESERVE_VOUT = 1;
+
+export interface ReclaimPsbtFixture {
+  readonly psbtHex: string;
+  readonly reserveScriptPubKey: Buffer;
+  readonly leafHash: Buffer;
+}
+
+/**
+ * Reclaim PSBTv0, SDK-shaped (ts-sdk `buildReclaimPsbt`): tx v2, locktime 0, ONE
+ * input spending PegIn output 1 (NUMS internal key, single `<D> OP_CHECKSIG`
+ * leaf) with sequence 0xFFFFFFFD, ONE output paying P2TR(D). Derivation fields
+ * are NOT set here — `augmentPsbtForReclaim` adds them.
+ */
+export function buildReclaimPsbtFixture(peginTxidInternal: Buffer): ReclaimPsbtFixture {
+  const depositor = hexToBuffer(DEPOSITOR_XONLY_HEX);
+  const leaf = Buffer.concat([Buffer.from([PUSH_32]), depositor, Buffer.from([OP_CHECKSIG])]);
+  const leafHash = tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaf);
+  const { parity, xOnly: reserveTweaked } = tweakNums(leafHash);
+  const reserveScriptPubKey = Buffer.concat([Buffer.from([0x51, PUSH_32]), reserveTweaked]);
+  const controlBlock = Buffer.concat([Buffer.from([TAPSCRIPT_LEAF_VERSION | parity]), NUMS_XONLY]);
+
+  const psbt = new Psbt();
+  psbt.setVersion(2);
+  psbt.setLocktime(0);
+  psbt.addInput({
+    hash: peginTxidInternal,
+    index: PEGIN_RESERVE_VOUT,
+    sequence: RECLAIM_SEQUENCE,
+    witnessUtxo: { script: reserveScriptPubKey, value: DEPOSITOR_CLAIM_VALUE_SATS },
+    tapInternalKey: NUMS_XONLY,
+    tapLeafScript: [{ leafVersion: TAPSCRIPT_LEAF_VERSION, script: leaf, controlBlock }],
+  });
+  psbt.addOutput({
+    script: payments.p2tr({ internalPubkey: depositor }).output!,
+    value: DEPOSITOR_CLAIM_VALUE_SATS - RECLAIM_FEE_SATS,
+  });
+  return { psbtHex: psbt.toHex(), reserveScriptPubKey, leafHash };
+}
+
+/** BIP-341 script-path sighash for the Reclaim's single input at SIGHASH_DEFAULT. */
+export function computeReclaimSighash(psbtHex: string, fixture: ReclaimPsbtFixture): Buffer {
+  const tx = Transaction.fromBuffer(Psbt.fromHex(psbtHex).data.globalMap.unsignedTx.toBuffer());
+  return tx.hashForWitnessV1(
+    0,
+    [fixture.reserveScriptPubKey],
+    [DEPOSITOR_CLAIM_VALUE_SATS],
+    Transaction.SIGHASH_DEFAULT,
+    fixture.leafHash,
   );
 }
 

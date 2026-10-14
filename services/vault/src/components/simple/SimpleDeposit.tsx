@@ -14,7 +14,6 @@ import {
   useProtocolParamsContext,
 } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
-import { isLedgerVaultConnector } from "@/context/wallet/ledgerVaultConnector";
 import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
@@ -114,63 +113,6 @@ function SimpleDepositContent({
   const [isReconnectingWallet, setIsReconnectingWallet] = useState(false);
 
   const {
-    formData,
-    setFormData,
-    applyMaxAmount,
-    effectiveSelectedApplication,
-    isWalletConnected,
-    canConnectBtcWallet,
-    btcBalance,
-    unconfirmedBalance,
-    btcPrice,
-    hasPriceFetchError,
-    applications,
-    providers,
-    isLoadingProviders,
-    amountSats,
-    minDeposit,
-    maxDeposit,
-    estimatedFeeSats,
-    estimatedFeeRate,
-    isLoadingFee,
-    feeError,
-    maxDepositSats,
-    fundingInputCapExceeded,
-    effectiveRemaining,
-    capUnavailable,
-    minPeginFee,
-    minPeginFeeError,
-    appVersionUnsupported,
-    p2aAnchorValueSats,
-    isTwoVaultSplit,
-    setIsTwoVaultSplit,
-    canSplit,
-    vaultAmounts,
-    isSplitLoading,
-    splitRatioLabel,
-    minDepositForSplit,
-    isSplitAmountTooLow,
-    isSplitSizingRefused,
-    isSplitParamsUnavailable,
-    depositorClaimValue,
-    depositorClaimValueError,
-    btcPublicKeyError,
-    refetchBtcPublicKey,
-    ordinalsCheckPending,
-    validateForm,
-    resetForm,
-  } = useDepositPageForm();
-
-  // Live commission (bps) for the selected provider, read from the current
-  // providers list. Captured into the deposit snapshot at commit time
-  // (`handleDeposit`) so the value the signing flow binds is exactly what the
-  // depositor reviewed — not a value a background refetch changed afterwards.
-  // `undefined` while it loads or if the read failed.
-  const selectedProviderCommissionBps = providers.find(
-    (provider) => provider.id === formData.selectedProvider,
-  )?.commissionBps;
-
-  const {
     depositStep,
     depositAmount,
     selectedApplication,
@@ -226,6 +168,66 @@ function SimpleDepositContent({
   const isSplitOffered =
     !isSupplementalDeposit &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
+
+  const isSplitPermitted = isSplitOffered && splitUnavailableReason === null;
+
+  const {
+    formData,
+    setFormData,
+    applyMaxAmount,
+    effectiveSelectedApplication,
+    isWalletConnected,
+    canConnectBtcWallet,
+    btcBalance,
+    unconfirmedBalance,
+    btcPrice,
+    hasPriceFetchError,
+    applications,
+    providers,
+    isLoadingProviders,
+    amountSats,
+    minDeposit,
+    maxDeposit,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    maxDepositSats,
+    fundingInputCapExceeded,
+    effectiveRemaining,
+    capUnavailable,
+    minPeginFee,
+    minPeginFeeError,
+    appVersionUnsupported,
+    p2aAnchorValueSats,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
+    canSplit,
+    vaultAmounts,
+    isSplitLoading,
+    splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
+    isSplitSizingRefused,
+    isSplitParamsUnavailable,
+    depositorClaimValue,
+    depositorClaimValueError,
+    btcPublicKeyError,
+    refetchBtcPublicKey,
+    ordinalsCheckPending,
+    validateForm,
+    resetForm,
+  } = useDepositPageForm({ isSplitPermitted });
+
+  // Live commission (bps) for the selected provider, read from the current
+  // providers list. Captured into the deposit snapshot at commit time
+  // (`handleDeposit`) so the value the signing flow binds is exactly what the
+  // depositor reviewed — not a value a background refetch changed afterwards.
+  // `undefined` while it loads or if the read failed.
+  const selectedProviderCommissionBps = providers.find(
+    (provider) => provider.id === formData.selectedProvider,
+  )?.commissionBps;
+
   // The split sizing rules refusing the split is handled like a cap: the
   // deposit proceeds as a single vault and the form says why.
   const depositSplitUnavailableReason = resolveDepositSplitUnavailableReason({
@@ -534,9 +536,6 @@ function SimpleDepositContent({
                 walletState={{
                   isWalletConnected,
                   canConnectBtcWallet,
-                  // Shared with the reclaim row: the reserve tooltip must not
-                  // promise a reclaim Ledger cannot sign.
-                  isLedgerVaultWallet: isLedgerVaultConnector(btcConnector),
                   // A click-time liveness failure OR the proactive lock poll
                   // promotes the CTA to the reconnect/unlock action. A lock
                   // relabels the CTA to "Unlock Wallet to Deposit" (see

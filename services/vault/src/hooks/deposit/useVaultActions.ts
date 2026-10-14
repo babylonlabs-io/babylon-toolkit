@@ -64,6 +64,7 @@ import {
   isTerminalActivationError,
   isVaultRecordEmptyError,
   mapDepositErrorAfterRegistration,
+  SendOutcomeUnknownError,
   type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
@@ -200,8 +201,13 @@ export interface UseVaultActionsReturn {
   // Activation state
   activating: boolean;
   activationError: string | null;
-  /** True when the activation failure is terminal (deadline passed) — no Retry. */
+  /** True when no retry can change the activation failure (a passed deadline, an EXPIRED vault, an endpoint that cannot run the activation check) — no Retry. */
   activationErrorTerminal: boolean;
+  /**
+   * True when the wallet refused the reveal as "nonce too low" but may have
+   * broadcast it — a status-unknown warning, not a failure, and no Retry.
+   */
+  activationOutcomeUnknown: boolean;
   handleActivation: (params: ActivateVaultParams) => Promise<void>;
 }
 
@@ -229,6 +235,8 @@ export function useVaultActions(): UseVaultActionsReturn {
   const [activating, setActivating] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activationErrorTerminal, setActivationErrorTerminal] = useState(false);
+  const [activationOutcomeUnknown, setActivationOutcomeUnknown] =
+    useState(false);
 
   // Track mount: both handleBroadcast and handleActivation await slow
   // on-chain work and then setState. The consumer (Resume*Content inside
@@ -692,12 +700,14 @@ export function useVaultActions(): UseVaultActionsReturn {
       : COPY.pegin.activationPaused;
     if (isRevealBlocked(gate)) {
       setActivationError(pausedMessage);
+      setActivationOutcomeUnknown(false);
       return;
     }
 
     setActivating(true);
     setActivationError(null);
     setActivationErrorTerminal(false);
+    setActivationOutcomeUnknown(false);
 
     // Telemetry discriminators for the catch below. `expectedInterruption`
     // marks the self-resolving pre-reveal states (protocol pause, the
@@ -1010,7 +1020,8 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // The chain switch can prompt and wait on the user, so the margin is
       // checked again on a fresh head as the last step before the secret is
-      // used. One gap remains and cannot be closed from here: `writeContract`
+      // used. Two gaps remain and cannot be closed from here: the activation
+      // gas search (a few simulations, seconds) and `writeContract`, which
       // asks the wallet to sign and sends in one step, so the time the user
       // spends in that prompt is covered only by the margin's size.
       if (
@@ -1036,6 +1047,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
         hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
+        depositorBtcPubKey: expectedDepositorBtcPubkey,
         walletClient,
       });
       revealed = true;
@@ -1104,16 +1116,25 @@ export function useVaultActions(): UseVaultActionsReturn {
       // reveal failure is worth knowing even if the modal closed mid-flight.
       // This is the only place the error is caught: handleActivation never
       // rethrows, so a capture in any caller's catch would be unreachable.
-      // Skipped for expected pre-reveal interruptions and for anything thrown
-      // after the reveal landed on-chain — either would count a non-failure
-      // against the activation.reveal rate.
+      // Skipped for expected pre-reveal interruptions, for anything thrown
+      // after the reveal landed on-chain, and for a reveal the wallet refused
+      // as "nonce too low" but may have broadcast — each would count a
+      // non-failure against the activation.reveal rate.
       // A floor read that could not complete is an expected interruption, but
       // only when it is the error that actually surfaced.
       const floorUnavailable =
         err instanceof Error && err.name === FLOOR_UNAVAILABLE_ERROR_NAME;
-      if (!expectedInterruption && !floorUnavailable && !revealed) {
+      const outcomeUnknown = err instanceof SendOutcomeUnknownError;
+      if (
+        !expectedInterruption &&
+        !floorUnavailable &&
+        !revealed &&
+        !outcomeUnknown
+      ) {
         captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
       }
+      // The reveal may have landed: show the vault's real status.
+      if (outcomeUnknown) onRefetchActivities();
       if (mountedRef.current) {
         const rawMessage =
           err instanceof Error ? err.message : "Failed to activate BTC Vault";
@@ -1125,8 +1146,10 @@ export function useVaultActions(): UseVaultActionsReturn {
           : rawMessage;
         setActivationError(errorMessage);
         // Classify from the typed error before it is flattened to a string — a
-        // passed deadline or an already-EXPIRED vault is terminal (no Retry).
+        // passed deadline, an already-EXPIRED vault or an endpoint that cannot
+        // run the activation check is terminal (no Retry).
         setActivationErrorTerminal(isTerminalActivationError(err));
+        setActivationOutcomeUnknown(outcomeUnknown);
         setActivating(false);
       }
     }
@@ -1140,6 +1163,7 @@ export function useVaultActions(): UseVaultActionsReturn {
     activating,
     activationError,
     activationErrorTerminal,
+    activationOutcomeUnknown,
     handleActivation,
   };
 }

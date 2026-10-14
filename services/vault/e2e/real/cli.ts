@@ -38,6 +38,19 @@
  * e.g. `core`; without it an interactive run asks and a non-interactive run refuses to guess), and
  * `--borrow-amount=<n>|max` (default = a conservative fraction of the computed max, resolved in run.ts).
  *
+ * Borrow also accepts `--inject-nonce-too-low=<mode>`, which answers the borrow send with "nonce too
+ * low" to exercise the app's stale-nonce retry against the real MetaMask:
+ *   - `stale`: the nonce was used by an earlier transaction — the app sends once more and the borrow
+ *     succeeds;
+ *   - `already-sent`: the borrow was broadcast — the app must not send it again, and says it may have
+ *     gone through;
+ *   - `already-sent-fallback`: the same, from a wallet that would take viem's `wallet_sendTransaction`
+ *     resend — the app must keep viem from sending it;
+ *   - `stale-then-already-sent`: `stale`, then `already-sent` for the app's retry — the app must not
+ *     call it a failure.
+ * Every mode checks on chain that the account sent exactly one transaction. Run it on
+ * `--target=localhost` to test local app code (see actions/nonceTooLow.ts).
+ *
  * Repay accepts `--borrow-first` (borrow against existing collateral, then repay the new loan — then
  * also honors the borrow extras above), `--repay-token=<symbol>` (from the depositor's outstanding
  * loans; default = the sole loan, or the borrowed reserve under --borrow-first), `--repay-hub=<label|address>`
@@ -90,11 +103,14 @@ import {
   ACTIONS,
   BTC_WALLETS,
   ETH_WALLETS,
+  isNonceTooLowInjection,
+  NONCE_TOO_LOW_INJECTIONS,
   type ActionId,
   type BtcWalletId,
   type DataMode,
   type EthWalletId,
   type NetworkName,
+  type NonceTooLowInjection,
   type RunConfig,
   type Target,
 } from "./config";
@@ -146,6 +162,7 @@ const VALUE_FLAGS = [
   "repay-token",
   "repay-hub",
   "repay-amount",
+  "inject-nonce-too-low",
 ] as const;
 
 /**
@@ -648,6 +665,21 @@ async function resolveConfig(
           `--borrow-amount must be a positive number of tokens or "max" (got "${borrowAmount}")`,
         );
     }
+    // Borrow extra: answer the borrow send with "nonce too low" to exercise the app's stale-nonce retry
+    // against the real MetaMask (see actions/nonceTooLow.ts).
+    const injectFlag = flags["inject-nonce-too-low"];
+    let injectNonceTooLow: NonceTooLowInjection | undefined;
+    if (typeof injectFlag === "string") {
+      if (action !== "borrow")
+        throw new Error(
+          "--inject-nonce-too-low only applies to --action=borrow.",
+        );
+      if (!isNonceTooLowInjection(injectFlag))
+        throw new Error(
+          `--inject-nonce-too-low must be one of ${NONCE_TOO_LOW_INJECTIONS.join(", ")} (got "${injectFlag}").`,
+        );
+      injectNonceTooLow = injectFlag;
+    }
     if (willBorrow) {
       // Fetch the live borrowable list up front so an explicit --borrow-token (+ --borrow-hub) is
       // VALIDATED before a (possibly funded, pegin-first) run — an unselectable token would otherwise
@@ -919,6 +951,7 @@ async function resolveConfig(
       interruptFresh,
       interruptOnly,
       reclaimDryRun,
+      injectNonceTooLow,
     };
   } finally {
     rl.close();

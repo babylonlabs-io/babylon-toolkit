@@ -34,6 +34,7 @@ import {
   mapVpRpcError,
   sanitizeErrorMessage,
 } from "../formatting";
+import { SendOutcomeUnknownError } from "../transactionOutcome";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 class FakeWalletError extends Error {
@@ -543,6 +544,20 @@ describe("Error Formatting", () => {
       expect(classifyError(outer)).toBe("stale-nonce");
       expect(sanitizeErrorMessage(outer)).toBe(
         COPY.common.classifiedErrors.staleNonce,
+      );
+    });
+
+    it("classifies a send whose outcome is unknown by its own copy, not the stale nonce its cause carries", () => {
+      // sendWithStaleNonceRetry raises it over a "nonce too low" that may be
+      // for a transaction the wallet broadcast.
+      const refusal = Object.assign(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+        { name: "NonceTooLowError" },
+      );
+      const unknown = new SendOutcomeUnknownError(refusal);
+      expect(classifyError(unknown)).toBe("send-outcome-unknown");
+      expect(sanitizeErrorMessage(unknown)).toBe(
+        COPY.common.classifiedErrors.sendOutcomeUnknown,
       );
     });
 

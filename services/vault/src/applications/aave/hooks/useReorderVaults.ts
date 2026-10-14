@@ -19,6 +19,7 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   WalletError,
   isWriteNotice,
@@ -106,9 +107,9 @@ export interface UseReorderVaultsResult {
   error: string | null;
   /**
    * Last outcome that is not a failure (null when none): a refusal before
-   * anything was signed, a wallet replacement that may have done the
-   * reorder, or another Aave form's write holding the lock. Shown without the
-   * failure title.
+   * anything was signed, a wallet replacement or a "nonce too low" for a
+   * broadcast send, either of which may have done the reorder, or another Aave
+   * form's write holding the lock. Shown without the failure title.
    */
   notice: string | null;
   /** Clear the last failure message and notice (e.g. when the modal reopens). */
@@ -147,8 +148,9 @@ function reorderErrorMessage(error: unknown): string {
  *
  * After a success, cache invalidation is deferred to the success modal close
  * handler to give the indexer time to process the block. When the outcome is
- * unknown (the user stopped waiting, or the wallet replaced the transaction)
- * there is no success modal, so the hook refreshes the position itself.
+ * unknown (the user stopped waiting, the wallet replaced the transaction, or
+ * the wallet refused as "nonce too low" a send it may have broadcast) there is
+ * no success modal, so the hook refreshes the position itself.
  */
 export function useReorderVaults(): UseReorderVaultsResult {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -262,13 +264,17 @@ export function useReorderVaults(): UseReorderVaultsResult {
         await invalidateVaultQueries(queryClient);
         return false;
       } catch (error) {
-        // The wallet replaced the transaction. A speed-up may still have done
-        // the reorder, so the position must show the chain's order.
-        if (error instanceof TransactionReplacedError) {
+        // The wallet replaced the transaction, or refused as "nonce too low" a
+        // send it may have broadcast. Either may still have done the reorder,
+        // so the position must show the chain's order.
+        if (
+          error instanceof TransactionReplacedError ||
+          error instanceof SendOutcomeUnknownError
+        ) {
           await invalidateVaultQueries(queryClient);
         }
-        // Not a failure: a refusal before anything was signed, or a
-        // replacement that may have done the reorder.
+        // Not a failure: a refusal before anything was signed, or an outcome
+        // that may have done the reorder.
         if (isWriteNotice(error)) {
           setNotice(error.message);
           return false;

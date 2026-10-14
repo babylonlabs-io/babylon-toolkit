@@ -66,6 +66,15 @@ const borrowAssetsPerPosition = (limit: number) =>
 const AVAILABLE_LIQUIDITY_COLUMN = "Available Liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
+// The wallet refused a send as "nonce too low" but may have broadcast it.
+// Shown on the loan forms and the deposit screens alike, so it lives in one
+// place. It points away from the wallet: the wallet's own record is the failed
+// send, so it would read "failed" for a transaction that went through. It names
+// no position either: a redeem changes none, and the redeem screens show this
+// text too. Must not contain "transaction failed": the real-wallet E2E fails on
+// that text at once.
+const SEND_OUTCOME_UNKNOWN =
+  "Your wallet reported an error, but this transaction may still have gone through. Check a block explorer before trying again.";
 // The reassurance every pre-signing abort carries. It is the load-bearing half
 // of those messages — it is what distinguishes them from the post-registration
 // failures, which have spent an Ethereum fee — so it lives in one place.
@@ -106,6 +115,15 @@ const BROADCAST_REQUIRED_LABEL = "Broadcast required";
 const ACTIVATION_REQUIRED_LABEL = "Activation required";
 const WITHDRAW_REQUIRED_LABEL = "Withdraw required";
 const REDEEM_REQUIRED_LABEL = "Redeem required";
+// Row action labels and step names, shared with the resume start card so the
+// card names the same operation the row and the stepper do.
+const SUBMIT_WOTS_KEY_ACTION = "Submit WOTS Key";
+const SIGN_PAYOUTS_ACTION = "Sign Payouts";
+const BROADCAST_PRE_PEGIN_ACTION = "Broadcast Pre-Pegin";
+const SIGN_AND_BROADCAST_PRE_PEGIN_STEP =
+  "Sign and broadcast BTC Pre-Pegin transaction";
+const SUBMIT_WOTS_KEY_STEP = "Set up Winternitz One-Time Signature (WOTS)";
+const SIGN_PAYOUTS_STEP = "Sign payout transactions";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
@@ -208,16 +226,18 @@ export const COPY = {
         "BTCVault activation submitted. Waiting for on-chain confirmation...",
       // The activation landed but the registry redeemed the BTCVault for the
       // depositor instead of adding it to the position. Shown until the
-      // indexer reports it REDEEMED. No day count, for the reason given at
-      // `deposit.emergencyWithdraw.bodyStuck`.
+      // indexer reports it REDEEMED, when the same row reads
+      // `redemptionInProgress`; the second sentence is that text, so the row
+      // does not change its story at the flip. No day count, for the reason
+      // given at `deposit.emergencyWithdraw.bodyStuck`.
       activationReturned:
-        "This BTCVault could not be added to your position, so it was redeemed instead of activated. The vault provider will send your BTC to your payout address.",
+        "This BTCVault could not be added to your position, so it was redeemed instead of activated. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       readyToActivate:
         "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTCVault.",
       // Deliberately reassuring: this state looks alarming but the BTC is
       // recoverable. Lead with that before explaining what happened.
       activationIncomplete:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Click 'Withdraw' and the vault provider will send your BTC to your payout address.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Click 'Withdraw' and the vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       // Always-visible one-liner under the amount; same reassuring tone. The
       // full sentence above is tooltip-only, and the /vaults pending row no
       // longer renders that tooltip.
@@ -230,7 +250,7 @@ export const COPY = {
       // copy names the state, not the order of events. It also shows while
       // that spend is still unconfirmed, so it claims no confirmation.
       peginSweptWhileExpired:
-        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, so a refund is no longer possible. Your BTC is not lost: redeem this BTCVault before its grace window closes and the vault provider will send your BTC to your payout address.",
+        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, so a refund is no longer possible. Your BTC is not lost: redeem this BTCVault before its grace window closes, and the vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       // Compact form under the amount. The remaining time is an estimate from
       // Ethereum slot time, rounded down so it never overstates the window.
       peginSweptWhileExpiredSubtext: (remaining: string) =>
@@ -301,8 +321,16 @@ export const COPY = {
         "This split deposit's on-chain records are inconsistent, so its activation order cannot be confirmed. Nothing was submitted — contact support.",
       inUseCannotRedeem:
         "BTCVault is currently being used as collateral. Repay all debt before redeeming.",
+      // Every REDEEMED BTCVault: the Aave withdrawal, the activation the
+      // registry redeemed instead, the activate-and-redeem escape hatch and
+      // the expired redeem all end here, so this names the mechanism and not
+      // the cause. Same words as `deposit.claimExpired.body` and the withdraw
+      // bodies. States what the vault provider does, with the commission, and
+      // promises nothing: a keeper claim (#2717) or a blocked claim means it
+      // never pays. No day count, for the reason given at
+      // `deposit.emergencyWithdraw.bodyStuck`.
       redemptionInProgress:
-        "Your redemption is being processed. The vault provider is preparing your BTC withdrawal. This typically takes up to 3 days.",
+        "This BTCVault was redeemed. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       liquidated:
         "This BTCVault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
@@ -339,9 +367,9 @@ export const COPY = {
         "The vault provider reported a status this app does not recognize. Please contact support.",
     },
     primaryAction: {
-      SUBMIT_WOTS_KEY: "Submit WOTS Key",
-      SIGN_PAYOUT_TRANSACTIONS: "Sign Payouts",
-      SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast Pre-Pegin",
+      SUBMIT_WOTS_KEY: SUBMIT_WOTS_KEY_ACTION,
+      SIGN_PAYOUT_TRANSACTIONS: SIGN_PAYOUTS_ACTION,
+      SIGN_AND_BROADCAST_TO_BITCOIN: BROADCAST_PRE_PEGIN_ACTION,
       ACTIVATE_VAULT: "Activate",
       ACTIVATE_AND_REDEEM: "Withdraw",
       REFUND_HTLC: "Refund",
@@ -423,13 +451,13 @@ export const COPY = {
       signPeginBtc: "Sign the peg-in BTC transaction",
       signLinkProofs: "Sign proof to link your Bitcoin and ETH addresses",
       signAndBroadcastEth: "Sign and broadcast ETH registration",
-      signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
+      signAndBroadcastPrePegin: SIGN_AND_BROADCAST_PRE_PEGIN_STEP,
       confirmingDeposit:
         "Awaiting Pre-Pegin inclusion (1 Bitcoin block · ~10 min)",
-      submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
+      submitWotsKey: SUBMIT_WOTS_KEY_STEP,
       awaitPayoutTransactions: "Prepare claim and payout transactions",
       authenticateSession: "Authenticate session with vault provider",
-      signPayouts: "Sign payout transactions",
+      signPayouts: SIGN_PAYOUTS_STEP,
       signRecoveryTxs: "Sign recovery transactions",
       awaitVpVerification: "Awaiting vault provider verification",
       retrieveSecret: "Retrieve secret",
@@ -510,6 +538,7 @@ export const COPY = {
       stepActive: (number: number) => `Step ${number} active`,
       stepPending: (number: number) => `Step ${number} not started`,
       stepFailed: (number: number) => `Step ${number} failed`,
+      stepUnknown: (number: number) => `Step ${number} status unknown`,
       groupStatus: {
         completed: "Completed",
         active: "In progress",
@@ -597,7 +626,7 @@ export const COPY = {
         cancel: "Cancel",
       },
       reapproveNotice:
-        "Switching apps clears the deposit approval on your Ledger, so it will ask you to approve this deposit again before signing.",
+        "If you switched apps, your Ledger will ask you to approve this deposit again before signing.",
       ethAppHint:
         "If your Ethereum account is on this Ledger, open the Ethereum app on it to confirm this transaction.",
       switchBackHint:
@@ -769,7 +798,7 @@ export const COPY = {
       // — the real wait is the vault's `timelockAssert`, a protocol parameter
       // this screen does not resolve, and a hardcoded one would be a guess.
       bodyStuck:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault — the vault provider will send your BTC to your payout address, which takes several days.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault — the vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
       // Shown when the vault's application is registered but not Active on
@@ -790,7 +819,7 @@ export const COPY = {
       },
       success: {
         heading: "Withdrawal submitted",
-        body: "Your BTCVault has been redeemed. The vault provider will send your BTC to your payout address. This typically takes up to 3 days.",
+        body: "Your BTCVault has been redeemed. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission. This takes several days.",
         doneButton: "Done",
       },
     },
@@ -822,7 +851,7 @@ export const COPY = {
     // body does — the BTC returns through the vault provider's claim pipeline.
     claimExpired: {
       title: "Redeem expired BTCVault",
-      body: "The peg-in transaction spent this deposit on Bitcoin and the BTCVault expired before it was activated, so it can no longer be refunded. Redeeming reveals your HTLC secret on Ethereum. The vault provider then claims the BTC on Bitcoin and sends it to your payout address, minus its commission. This takes several days.",
+      body: "The peg-in transaction spent this deposit on Bitcoin and the BTCVault expired before it was activated, so it can no longer be refunded. Redeeming reveals your HTLC secret on Ethereum. The vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission. This takes several days.",
       deadline: (remaining: string) =>
         `The grace window closes in ${remaining}. After that, this BTCVault can no longer be redeemed.`,
       deadlineUnknown:
@@ -879,7 +908,7 @@ export const COPY = {
       },
       success: {
         heading: "Redemption submitted",
-        body: "Your BTCVault has been redeemed. The vault provider will claim the BTC on Bitcoin and send it to your payout address. This takes several days.",
+        body: "Your BTCVault has been redeemed. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission. This takes several days.",
         doneButton: "Done",
       },
     },
@@ -927,11 +956,11 @@ export const COPY = {
     vaultReturnedSuccess: {
       full: {
         heading: "Your BTC is being returned",
-        body: "Your deposit could not be added to your position, so it was redeemed instead of activated. The vault provider will send your BTC to your payout address, which takes several days.",
+        body: "Your deposit could not be added to your position, so it was redeemed instead of activated. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       },
       partial: {
         heading: "Part of your deposit is being returned",
-        body: "Not every BTCVault in this deposit could be added to your position. Any that could not were redeemed instead of activated, and the vault provider will send their BTC to your payout address, which takes several days.",
+        body: "Not every BTCVault in this deposit could be added to your position. Any that could not were redeemed instead of activated, and the vault provider claims their BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       },
       // Same label as the activated screen: the real-wallet E2E
       // (e2e/real/actions/stepMachine.ts) detects the end of a deposit by it.
@@ -1024,14 +1053,7 @@ export const COPY = {
     form: {
       computingAllocation: "Computing allocation...",
       transactionReserveLabel: "Depositor claim output",
-      // Promise only what the app can do: the Ledger vault app cannot sign the
-      // reclaim sweep (#2375, models/reclaimEligibility.ts).
-      transactionReserveTooltip: (isLedgerVaultWallet: boolean) =>
-        `${RESERVE_PURPOSE} ${
-          isLedgerVaultWallet
-            ? "If it goes unused, reclaiming it with a Ledger device is not supported yet, and it will remain reclaimable once support ships."
-            : "If it goes unused, you can reclaim it once your BTCVault has settled."
-        }`,
+      transactionReserveTooltip: `${RESERVE_PURPOSE} If it goes unused, you can reclaim it once your BTCVault has settled.`,
       // Labeled "Available", not "Balance": the field shows the depositable
       // maximum — the wallet balance net of the fee buffer, inscription UTXOs
       // and the supply cap — not the raw wallet balance.
@@ -1153,6 +1175,25 @@ export const COPY = {
       // mention, and some extensions queue it without surfacing a popup.
       wotsWalletApprovalHint:
         "You may be asked to approve a request in your BTC wallet. If no approval window appears, open your wallet extension.",
+      // The card a resumed deposit shows before its wallet prompt, unless the
+      // depositor opened it from the row button naming this same action.
+      start: {
+        broadcast: {
+          heading: SIGN_AND_BROADCAST_PRE_PEGIN_STEP,
+          body: "Your wallet will ask you to sign the Pre-Pegin transaction, which is broadcast to the Bitcoin network right after.",
+          button: BROADCAST_PRE_PEGIN_ACTION,
+        },
+        wots: {
+          heading: SUBMIT_WOTS_KEY_STEP,
+          body: "Your wallet will ask to derive a key that sets up this BTCVault's one-time signatures.",
+          button: SUBMIT_WOTS_KEY_ACTION,
+        },
+        payout: {
+          heading: SIGN_PAYOUTS_STEP,
+          body: "Your wallet may first ask to derive a key that signs you in with the vault provider, then ask you to sign the Payout and NoPayout transactions. No signature is sent to the vault provider until all of them are signed.",
+          button: SIGN_PAYOUTS_ACTION,
+        },
+      },
     },
     warnings: {
       depositRecordNotSaved:
@@ -1182,6 +1223,15 @@ export const COPY = {
     errors: {
       invalidSecret:
         "Invalid secret: SHA256(secret) does not match the BTCVault's hashlock. Please check your secret and try again.",
+      // The pre-send check found the registry would redeem this BTCVault
+      // instead of adding it to the position, at the gas search ceiling or at
+      // the planned limit. Nothing is sent.
+      activationWouldRedeem:
+        "Activation was checked before sending and this BTCVault would have been redeemed instead of added to your position, so nothing was submitted. Try again later.",
+      // The configured RPC does not serve eth_simulateV1, so the pre-send
+      // check cannot run and nothing is sent. Retrying cannot help.
+      activationCheckUnsupported:
+        "This app's network endpoint cannot run the activation check, so nothing was submitted. Please contact support.",
       // Surfaced if deposit execution is reached while the protocol is frozen or
       // paused — aborted up front, before the on-chain registration and the BTC
       // broadcast, so no funds are locked and the user can retry once it resumes.
@@ -1218,6 +1268,13 @@ export const COPY = {
       copyDiagnostics: "Copy error details",
       diagnosticsCopied: "Copied",
       diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
+      // A send the wallet may have broadcast despite refusing it: not a
+      // failure, so it does not take the failure title. The deposit screens
+      // show it without Retry, so the body says how to try again.
+      sendOutcomeUnknown: {
+        title: "Transaction status unknown",
+        body: `${SEND_OUTCOME_UNKNOWN} If it did not go through, close this window and open it again to retry.`,
+      },
       // Ethereum finality gate (see services/vault/ethConfirmationGate.ts).
       // Both fire before the Pre-PegIn broadcast, so no Bitcoin has moved —
       // say that first, because stopping right after an on-chain registration
@@ -1728,6 +1785,12 @@ export const COPY = {
     applying: "Applying...",
     checking: "Checking...",
     transactionFailedTitle: "Transaction failed",
+    // A mined transaction that used nearly its whole gas limit. The limit is
+    // chosen afresh on retry, by the wallet or, for activation, by the app.
+    transactionOutOfGas: (used: string, limit: string) =>
+      `Transaction ran out of gas (used ${used} of ${limit} limit). Try again.`,
+    // A contract write was attempted with no wallet account connected.
+    walletAccountUnavailable: "Wallet account not available",
     dismissNotification: "Dismiss notification",
     aaveWordmark: "Aave",
     somethingWentWrong: {
@@ -1777,6 +1840,7 @@ export const COPY = {
         "This transaction was already submitted. Check your wallet or a block explorer for its status.",
       staleNonce:
         "Your wallet hadn't caught up with your last transaction yet. Check your wallet's activity, then try again.",
+      sendOutcomeUnknown: SEND_OUTCOME_UNKNOWN,
       staleDeploy:
         "This page is out of date — a newer version of the app was deployed. Refresh the page and try again.",
     },
@@ -1959,10 +2023,12 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // Ledger cannot sign this shape (#2375, models/reclaimEligibility.ts). Never
-      // point at "another wallet": for a hardware user that means restoring the seed.
-      ledgerUnsupported:
-        "Reclaiming with a Ledger device is not supported yet. Your reserve is safe and will remain reclaimable once support ships.",
+      // The indexer already reports the BTCVault withdrawn, but the payout is
+      // not yet buried deeply enough on Bitcoin for the reserve to be safe to
+      // sweep (models/reclaimEligibility.ts). The count is the gate's own
+      // constant, passed in so the two cannot drift.
+      payoutSettling: (confirmations: number) =>
+        `Reclaim becomes available once the withdrawal has ${confirmations} confirmations on Bitcoin. Your reserve is safe where it is.`,
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is
@@ -2031,53 +2097,10 @@ export const COPY = {
     },
     initiated: {
       title: "Withdrawal initiated",
-      // Describes the real claim -> challenge period -> payout path.
-      body: "Your withdrawal has been submitted. The vault provider will broadcast a claim transaction on Bitcoin; after a challenge period, your BTC will be sent to your nominated address.",
+      // The claim -> challenge period -> payout path, in the words of
+      // `pegin.messages.redemptionInProgress`: no promise and no day count.
+      body: "Your withdrawal has been submitted. The vault provider claims the BTC on Bitcoin and, after a challenge period, pays it to your payout address, minus its commission.",
       doneButton: "Done",
-    },
-  },
-  // Peg-out (withdrawal) progress — status badges/messages on the Pending
-  // Withdraw card, plus the live payout countdown and claim/assert tx labels.
-  pegout: {
-    status: {
-      claimEventReceived: {
-        label: "Submitted",
-        message:
-          "Your withdrawal request has been received and is being processed.",
-      },
-      claimBroadcast: {
-        label: "In progress",
-        message:
-          "Your withdrawal is in progress. A claim transaction has been broadcast to Bitcoin.",
-      },
-      assertBroadcast: {
-        label: "Challenge period",
-        message:
-          "Your withdrawal is going through its on-chain challenge period before the BTC payout can be broadcast.",
-      },
-      payoutBroadcast: {
-        label: "Payout sent",
-        message:
-          "The Bitcoin payout transaction has been broadcast to your nominated address.",
-      },
-      payoutBlocked: {
-        label: "Blocked",
-        message:
-          "Withdrawal was blocked on-chain (challenger or council override). Please contact support.",
-      },
-      initiating: {
-        // Pre-claim state folds into the "Submitted" stage on the card.
-        label: "Submitted",
-        message: "Your withdrawal is being prepared by the vault provider.",
-      },
-      unavailable: {
-        label: "Status Unavailable",
-        message:
-          "Unable to determine withdrawal status. The vault provider may be unreachable. Please try again later or contact support.",
-      },
-      unknownLabel: "Unknown",
-      unknownMessage: (status: string) =>
-        `Unknown status: ${status}. Please contact support.`,
     },
   },
   loans: {
@@ -2452,9 +2475,10 @@ export const COPY = {
   },
   // v3 page-title header (services/vault/src/components/pages/RootLayout.tsx).
   header: {
-    // Network indicator chip, shown only on non-production networks (see
-    // components/shared/NetworkBadge.tsx).
+    // Network indicator chip (components/shared/NetworkBadge.tsx), by
+    // deployment kind: test and internal show one; production shows none.
     networkBadge: "Testnet",
+    internalNetworkBadge: "Internal test",
   },
   // Entry-screen footer (components/shared/EntryFooter.tsx). The legal link
   // labels it renders are the shared `nav` ones.
@@ -2701,6 +2725,12 @@ export const COPY = {
   },
   vaults: {
     refundTransactionLabel: "Refund transaction",
+    // Transaction-cell caption on a redeemed vault's row once the vault
+    // provider has broadcast its claim; the cell then links that tx.
+    claimTransactionLabel: "Claim transaction",
+    // Sub-line under a redeemed vault's amount: where the payout goes. The
+    // row truncates the address (start…end) and carries it whole as a title.
+    payoutTo: (address: string) => `To ${address}`,
     empty: {
       title: "Your BTCVaults will appear here",
       description:

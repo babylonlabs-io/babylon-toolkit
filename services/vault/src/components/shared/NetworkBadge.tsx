@@ -1,16 +1,23 @@
 import { Text } from "@babylonlabs-io/core-ui";
-import { Network } from "@babylonlabs-io/wallet-connector";
 
-import { getBTCNetwork } from "@/config";
+import { getDeploymentKind } from "@/config";
 import { COPY } from "@/copy";
 
-// Mirrors simple-staking's NetworkBadge convention (services/simple-staking/
-// src/ui/common/components/NetworkBadge/NetworkBadge.tsx): shown only on
-// signet, hidden on every other (including unrecognized) network value.
+function badgeLabel(): string | null {
+  switch (getDeploymentKind()) {
+    case "test":
+      return COPY.header.networkBadge;
+    case "internal":
+      return COPY.header.internalNetworkBadge;
+    case "production":
+      return null;
+  }
+}
 
 /** v3 header network indicator — the Figma "Testnet" chip (node 10084:22952). */
 export function NetworkBadge() {
-  if (getBTCNetwork() !== Network.SIGNET) return null;
+  const label = badgeLabel();
+  if (label === null) return null;
 
   return (
     <span className="flex items-center rounded-full bg-secondary-highlight px-2.5 py-1">
@@ -19,7 +26,7 @@ export function NetworkBadge() {
         variant="caption"
         className="text-primary-main dark:text-risk-amber"
       >
-        {COPY.header.networkBadge}
+        {label}
       </Text>
     </span>
   );

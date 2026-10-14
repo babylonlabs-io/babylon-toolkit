@@ -80,9 +80,10 @@ export type AaveWriteOutcome = "mined" | "stopped";
 /**
  * How a borrow or repay ended, for the form that started it. `failed`: it did
  * not take effect (refused, rejected, reverted or canceled). `unknown`: it may
- * still take effect (the user stopped waiting, or the wallet replaced it with
- * a transaction that could not be read), so the form must not offer the same
- * amount again as if nothing happened.
+ * still take effect (the user stopped waiting, the wallet replaced it with a
+ * transaction that could not be read, or the wallet refused as "nonce too low"
+ * a send it may have broadcast), so the form must not offer the same amount
+ * again as if nothing happened.
  */
 export type AaveActionResult = "succeeded" | "failed" | "unknown";
 
@@ -135,6 +136,9 @@ export function subscribeToPendingAaveWrites(listener: () => void): () => void {
  *   lock.
  * @throws ContractError when the write fails before or without broadcasting,
  *   when its transaction reverts, or when the wallet replaced it.
+ * @throws SendOutcomeUnknownError when the wallet refused a send as "nonce
+ *   too low" that it may have broadcast. There is no hash to wait on, so the
+ *   lock is released.
  */
 export async function runAaveWrite(
   account: Address,

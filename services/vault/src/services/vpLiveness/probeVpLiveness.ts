@@ -40,8 +40,8 @@ export async function probeVpLiveness(
 ): Promise<VpLivenessOutcome> {
   if (signal?.aborted) throw abortReason(signal);
 
-  // Throws for a missing VP_PROXY_URL or a malformed address; the env gate and
-  // the modal's incomplete-details block each stop those before this runs.
+  // Throws for a malformed address, which the modal's incomplete-details block
+  // stops before this runs; an unusable profile blocks the app in env.ts earlier.
   const client = createVpClient(providerAddress, {
     timeout: VP_LIVENESS_PROBE_TIMEOUT_MS,
     retries: 0,

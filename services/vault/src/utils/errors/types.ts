@@ -121,6 +121,20 @@ export class ActivationNotPossibleError extends Error {
   }
 }
 
+/**
+ * Thrown by the activation gas check when the simulated registry call would
+ * redeem the vault for the depositor instead of handing it to the application
+ * (its `activateVault` reverts, or its cap is exceeded), at the search ceiling
+ * or at the planned limit. Nothing was sent. Not terminal: the application's
+ * state can change.
+ */
+export class ActivationWouldRedeemError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ActivationWouldRedeemError";
+  }
+}
+
 /** HTTP 451 — the data plane is geo-blocked for this client. */
 export const HTTP_GEO_BLOCKED = 451;
 

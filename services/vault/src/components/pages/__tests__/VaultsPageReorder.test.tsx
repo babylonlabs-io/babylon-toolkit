@@ -77,6 +77,7 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
     pendingActivities: [],
     expiredActivities: [],
     reclaimableCandidates: [],
+    allActivities: [],
     isLoading: false,
     error: null,
     claimExpiredModal: { claimingActivity: null },

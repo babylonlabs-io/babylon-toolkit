@@ -1039,7 +1039,8 @@ function getSweptWhileExpiredDisplay(
 ): DisplayInfo {
   const claimWindow = options.claimExpiredWindow;
   // The redeem landed — confirmed by this session, or already reported by the
-  // chain while the indexer lags — so the vault provider is paying out.
+  // chain while the indexer lags — so the row reads as the redemption the
+  // indexer reports next.
   if (
     options.localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED ||
     claimWindow?.state === "redeemed"

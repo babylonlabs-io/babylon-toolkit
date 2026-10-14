@@ -114,6 +114,7 @@ export function ResumeSignContent(props: ResumeSignContentProps) {
       onClose={props.onClose}
       ready={!!props.btcPublicKey}
       autoStart={props.autoStart}
+      start={COPY.deposit.resume.start.payout}
     >
       {btcPublicKey && (
         <ResumeSignContentConnected
@@ -270,7 +271,11 @@ export interface ResumeBroadcastContentProps {
 
 export function ResumeBroadcastContent(props: ResumeBroadcastContentProps) {
   return (
-    <BtcActionGate onClose={props.onClose} autoStart={props.autoStart}>
+    <BtcActionGate
+      onClose={props.onClose}
+      autoStart={props.autoStart}
+      start={COPY.deposit.resume.start.broadcast}
+    >
       <ResumeBroadcastContentConnected {...props} />
     </BtcActionGate>
   );
@@ -360,7 +365,11 @@ export interface ResumeWotsContentProps {
 
 export function ResumeWotsContent(props: ResumeWotsContentProps) {
   return (
-    <BtcActionGate onClose={props.onClose} autoStart={props.autoStart}>
+    <BtcActionGate
+      onClose={props.onClose}
+      autoStart={props.autoStart}
+      start={COPY.deposit.resume.start.wots}
+    >
       <ResumeWotsContentConnected {...props} />
     </BtcActionGate>
   );
@@ -746,6 +755,7 @@ function ResumeActivationContentConnected({
     outcome,
     error: activationError,
     errorTerminal,
+    errorOutcomeUnknown,
     handleActivation,
   } = useActivationState({
     activity,
@@ -841,16 +851,23 @@ function ResumeActivationContentConnected({
   // the previous attempt's error (kept by the activation state until the next
   // hand-off) stale. Shown, it would hide the wait panel during the derive and
   // the Continue prompt after it, and Retry would re-derive forever. A terminal
-  // error (deadline passed) still stands.
+  // error (one no retry can change) still stands.
   const staleActivationError = (secretStaged || loading) && !errorTerminal;
   const error: CaughtError | null =
     localError ??
     (activationError != null && !staleActivationError
       ? { raw: activationError }
       : null);
-  // Terminal only applies to the activation failure (deadline passed), never a
-  // local pre-flight error — which localError would override via `??` above.
+  // Terminal only applies to the activation failure (a passed deadline, or a
+  // cause no retry can change), never a local pre-flight error — which
+  // localError would override via `??` above.
   const isTerminal = localError == null && errorTerminal;
+  // A reveal the wallet refused but may have broadcast: a warning without
+  // Retry, since a second reveal while the first is pending only reverts. The
+  // vault status refresh moves this screen on if it landed; closing and
+  // reopening starts a fresh attempt if it did not.
+  const isOutcomeUnknown =
+    localError == null && !staleActivationError && errorOutcomeUnknown;
 
   // Track the live contract status so an activation completed elsewhere
   // (another tab, a previous session) still lands on the success terminal
@@ -859,8 +876,10 @@ function ResumeActivationContentConnected({
   const active =
     pollingResult?.peginState?.contractStatus === ContractStatus.ACTIVE;
 
+  // A reveal whose outcome is unknown stays on the activation step: the secret
+  // was retrieved, and the reveal is what may have gone through.
   const renderStep =
-    activating || secretStaged
+    activating || secretStaged || isOutcomeUnknown
       ? DepositFlowStep.ACTIVATE_VAULT
       : DepositFlowStep.RETRIEVE_SECRET;
   const derived = computeDepositDerivedState(
@@ -895,15 +914,19 @@ function ResumeActivationContentConnected({
       currentStep={renderStep}
       error={
         error
-          ? // Inconsistent split-order data is terminal too, but the vault is
-            // still inside its window: show its own message, not the refund
+          ? // Inconsistent split-order data and an endpoint that cannot run
+            // the activation check are terminal too, but the vault is still
+            // inside its window: show their own message, not the refund
             // advice.
             isTerminal &&
-            activationError !== COPY.pegin.messages.activationOrderInconsistent
+            activationError !==
+              COPY.pegin.messages.activationOrderInconsistent &&
+            activationError !== COPY.deposit.errors.activationCheckUnsupported
             ? COPY.deposit.errors.activationDeadlinePassed
             : mapDepositErrorAfterRegistration(error.raw)
           : null
       }
+      errorVariant={isOutcomeUnknown ? "warning" : "error"}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -914,7 +937,9 @@ function ResumeActivationContentConnected({
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
-      onRetry={error && !isTerminal ? handleSubmit : undefined}
+      onRetry={
+        error && !isTerminal && !isOutcomeUnknown ? handleSubmit : undefined
+      }
       offchainParamsVersion={activity.offchainParamsVersion}
       continuePrompt={
         secretStaged && !loading && !activating

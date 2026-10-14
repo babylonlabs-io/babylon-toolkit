@@ -60,6 +60,8 @@ export const SUCCESS_DONE_TESTID = '[data-testid="loan-success-done-button"]';
 export const DONE_BUTTON_RX = /^done$/i;
 /** The tx-failure callout title (COPY.common.transactionFailedTitle) shown when a borrow/repay tx fails. */
 export const TX_FAILED_RX = /transaction failed/i;
+/** The notice for a send the wallet refused but may have broadcast (COPY.common.classifiedErrors.sendOutcomeUnknown). */
+export const SEND_OUTCOME_UNKNOWN_COPY_RX = /may still have gone through/i;
 
 /**
  * The text of the loan form's "Transaction failed" callout, title and body, whitespace-collapsed: the

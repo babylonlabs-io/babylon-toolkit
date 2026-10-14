@@ -48,6 +48,8 @@ Peg-in is a **two-step flow** on Bitcoin:
 
 See the [protocol spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) for why this is split.
 
+The vault provider, keeper and challenger keys passed to every primitive below are their RFC-006 **operation** keys, not the rosters' registration keys: the current ones (from `validateOnChainParticipantKeys`) when building a new deposit, and the ones at the vault's frozen epochs (from `readStampedParticipantKeys`) for any existing vault. See [Participant keys](../get-started/README.md#participant-keys).
+
 ```typescript
 import {
   buildPrePeginPsbt,
@@ -58,9 +60,9 @@ import {
 const prePegin = await buildPrePeginPsbt({
   vaultCoreVersion: 1,                  // on-chain activeVaultCoreVersion; drives HTLC sizing
   depositorPubkey: "abc123...",         // x-only, 64 hex chars, no 0x
-  vaultProviderPubkey: "def456...",
-  vaultKeeperPubkeys: ["ghi789..."],
-  universalChallengerPubkeys: ["jkl012..."],
+  vaultProviderPubkey: "def456...",     // current operation keys for a new deposit
+  vaultKeeperPubkeys: ["ghi789..."],    // (validateOnChainParticipantKeys), not
+  universalChallengerPubkeys: ["jkl012..."], // the roster's registration keys
   hashlocks: ["aabb...cc"],             // one per vault (64-char hex, no 0x prefix)
   timelockRefund: 144,                  // CSV blocks for refund path
   pegInAmounts: [100_000n],             // one per vault (satoshis)
@@ -101,8 +103,8 @@ const result = await buildPayoutPsbt({
   peginTxHex: "...",             // Your peg-in transaction
   assertTxHex: "...",            // Assert transaction from VP
   depositorBtcPubkey: "...",
-  vaultProviderBtcPubkey: "...",
-  vaultKeeperBtcPubkeys: [...],
+  vaultProviderBtcPubkey: "...",          // operation keys at the vault's frozen
+  vaultKeeperBtcPubkeys: [...],           // epochs (readStampedParticipantKeys)
   universalChallengerBtcPubkeys: [...],
   timelockPegin: 144,
   timelockAssert: 144,
@@ -112,7 +114,7 @@ const result = await buildPayoutPsbt({
   protocolFeeRate: 2n,
   councilMembers: ["..."],
   councilQuorum: 3,
-  vkClaimerPayoutScriptPubKeys: { /* vaultKeeperPubkey -> scriptPubKey hex */ },
+  vkClaimerPayoutScriptPubKeys: { /* keeper operation pubkey -> scriptPubKey hex */ },
   vpCommissionScriptPubKey: "...",
   network: "signet",
 });

@@ -5,15 +5,26 @@ import { DEPOSIT_CONTENT_MAX_WIDTH_CLASS } from "@/components/simple/DepositProg
 import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
 
+/** Names the operation on the card a ready wallet sees before it starts. */
+interface BtcActionStartCopy {
+  heading: string;
+  body: string;
+  button: string;
+}
+
+// Mounts the wallet flow only on autoStart or a click; with `start`, that click
+// is on a card naming the operation, so no wallet prompt opens unannounced.
 export function BtcActionGate({
   children,
   onClose,
   ready = true,
   autoStart = true,
+  start,
 }: PropsWithChildren<{
   onClose: () => void;
   ready?: boolean;
   autoStart?: boolean;
+  start?: BtcActionStartCopy;
 }>) {
   const {
     connected,
@@ -61,6 +72,20 @@ export function BtcActionGate({
             {isUnlocking
               ? COPY.wallet.locked.unlocking
               : COPY.wallet.locked.unlockButton}
+          </Button>
+        </>
+      ) : connected && start ? (
+        <>
+          <Heading variant="h5">{start.heading}</Heading>
+          <p className="text-accent-secondary">{start.body}</p>
+          {/* data-testid is a real-wallet E2E hook (e2e/real/actions/stepMachine.ts). */}
+          <Button
+            data-testid="btc-action-start"
+            onClick={() => {
+              if (requireBtcWallet() && ready) setStarted(true);
+            }}
+          >
+            {start.button}
           </Button>
         </>
       ) : (

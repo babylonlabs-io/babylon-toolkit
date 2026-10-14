@@ -7,7 +7,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import VaultsPage from "@/components/pages/VaultsPage";
 import { COPY } from "@/copy";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
+import {
+  ContractStatus,
+  PEGIN_DISPLAY_LABELS,
+} from "@/models/peginStateMachine";
 import { PendingPeginStorageReadError } from "@/storage/peginStorage";
+import type { VaultActivity } from "@/types/activity";
+import type { CollateralVaultEntry } from "@/types/collateral";
 
 // The deposits kill-switch is read through two module paths: VaultsPage
 // swaps copy via `FeatureFlags` (@/config) and isDepositBlocked reads the
@@ -45,11 +51,16 @@ const storageState = vi.hoisted(() => ({
 
 // The page instantiates the single usePendingDeposits shared by the emptiness
 // hook and the lifecycle sections; both consumers are mocked here, so a
-// minimal stub suffices.
+// minimal stub suffices. `allActivities` is what the page itself reads, to
+// select the redeemed vaults without a collateral row.
+const depositsState = vi.hoisted(() => ({
+  allActivities: [] as VaultActivity[],
+}));
 vi.mock("@/hooks/usePendingDeposits", () => ({
   usePendingDeposits: () => ({
     pendingActivities: [],
     expiredActivities: [],
+    allActivities: depositsState.allActivities,
     isLoading: false,
     error: null,
     storageReadError: storageState.storageReadError,
@@ -85,6 +96,8 @@ const vaultsPageState = vi.hoisted(() => ({
 }));
 const pageDataState = vi.hoisted(() => ({
   indexerError: null as Error | null,
+  rawCollateralVaults: [] as CollateralVaultEntry[],
+  isPositionLoading: false,
 }));
 
 vi.mock("@/hooks/useVaultsPageData", () => ({
@@ -99,7 +112,8 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
       healthFactorStatus: "no_debt",
     },
     displayVaults: [],
-    rawCollateralVaults: [],
+    rawCollateralVaults: pageDataState.rawCollateralVaults,
+    isPositionLoading: pageDataState.isPositionLoading,
     indexerError: pageDataState.indexerError,
     collateralBtc: 0,
     collateralValueUsd: 0,
@@ -118,9 +132,22 @@ vi.mock("@/components/vaults/VaultsSummaryCard", () => ({
   VaultsSummaryCard: () => <div data-testid="vaults-summary-card" />,
 }));
 
+// Echoes the returned-redeemed rows the page selected, so the selection the
+// page owns can be asserted without the real sections.
 vi.mock("@/components/vaults/VaultsLifecycleSections", () => ({
-  VaultsLifecycleSections: ({ children }: { children?: ReactNode }) => (
-    <div data-testid="vaults-lifecycle-sections">{children}</div>
+  VaultsLifecycleSections: ({
+    returnedRedeemedActivities,
+    children,
+  }: {
+    returnedRedeemedActivities: VaultActivity[];
+    children?: ReactNode;
+  }) => (
+    <div data-testid="vaults-lifecycle-sections">
+      <span data-testid="returned-redeemed-ids">
+        {returnedRedeemedActivities.map((a) => a.id).join(",")}
+      </span>
+      {children}
+    </div>
   ),
 }));
 
@@ -186,6 +213,9 @@ describe("VaultsPage", () => {
     emptinessState.hasNonIndexerError = false;
     emptinessState.storageOnlyError = false;
     pageDataState.indexerError = null;
+    pageDataState.rawCollateralVaults = [];
+    pageDataState.isPositionLoading = false;
+    depositsState.allActivities = [];
     walletState.btcConnected = true;
     walletState.ethConnected = true;
     walletState.confirmed = true;
@@ -286,6 +316,56 @@ describe("VaultsPage", () => {
     expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
     expect(screen.getByTestId("vaults-lifecycle-sections")).toBeInTheDocument();
     expect(screen.getByTestId("vaults-active-section")).toBeInTheDocument();
+  });
+
+  describe("redeemed vaults without a collateral row", () => {
+    const redeemed = (id: string): VaultActivity => ({
+      id: id as `0x${string}`,
+      collateral: { amount: "0.1", symbol: "BTC" },
+      providers: [{ id: "0xprovider" }],
+      contractStatus: ContractStatus.REDEEMED,
+      displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+      depositorWotsPkHash: "0xwotshash",
+      unsignedPrePeginTx: "0xdeadbeef",
+    });
+    const collateralRow = (vaultId: string): CollateralVaultEntry => ({
+      id: `0xdepositor-${vaultId}`,
+      lifecycle: "withdrawing",
+      vaultId,
+      amountBtc: 0.1,
+      amountSats: 10_000_000n,
+      addedAt: 0,
+      inUse: false,
+      providerAddress: "0xprovider",
+      providerName: "Provider",
+      liquidationIndex: 0,
+    });
+
+    it("hands the sections the redeemed vaults that Active Vaults does not show", () => {
+      emptinessState.isEmpty = false;
+      depositsState.allActivities = [
+        redeemed("0xreturned"),
+        redeemed("0xABCD"),
+      ];
+      // Shown in Active Vaults as withdrawing, under a differently cased id.
+      pageDataState.rawCollateralVaults = [collateralRow("0xabcd")];
+
+      renderVaultsPage();
+
+      expect(screen.getByTestId("returned-redeemed-ids")).toHaveTextContent(
+        /^0xreturned$/,
+      );
+    });
+
+    it("hands the sections nothing until the position has loaded", () => {
+      emptinessState.isEmpty = false;
+      depositsState.allActivities = [redeemed("0xreturned")];
+      pageDataState.isPositionLoading = true;
+
+      renderVaultsPage();
+
+      expect(screen.getByTestId("returned-redeemed-ids")).toBeEmptyDOMElement();
+    });
   });
 
   it("checks split order whenever the contract position has multiple vaults", () => {

@@ -204,7 +204,11 @@ export interface PreparePeginParams {
   amounts: readonly bigint[];
 
   /**
-   * Vault provider's BTC public key (x-only, 64-char hex).
+   * Vault provider's current RFC-006 operation key (x-only, 64-char hex), read
+   * at the same pinned block as the rest of the deposit's protocol state:
+   * `validateOnChainParticipantKeys(...).vaultProviderBtcPubkeyXOnly`. Not the
+   * registration key, which differs from it once the provider has rotated, and
+   * not the indexer's copy, which is only a hint.
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   vaultProviderBtcPubkey: string;
@@ -217,13 +221,19 @@ export interface PreparePeginParams {
   commissionBps: number;
 
   /**
-   * Vault keeper BTC public keys (x-only, 64-char hex).
+   * Vault keepers' current RFC-006 operation keys (x-only, 64-char hex), read
+   * at the deposit's pinned block:
+   * `validateOnChainParticipantKeys(...).vaultKeeperBtcPubkeysSorted`. Not the
+   * roster's registration keys.
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   vaultKeeperBtcPubkeys: readonly string[];
 
   /**
-   * Universal challenger BTC public keys (x-only, 64-char hex).
+   * Universal challengers' current RFC-006 operation keys (x-only, 64-char
+   * hex), read at the deposit's pinned block:
+   * `validateOnChainParticipantKeys(...).universalChallengerBtcPubkeysSorted`.
+   * Not the roster's registration keys.
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   universalChallengerBtcPubkeys: readonly string[];
@@ -685,13 +695,12 @@ export class PeginManager {
     // change address belongs to the signing key, so a state-race / stale
     // FE / hostile adapter that puts an attacker-controlled address here
     // would drain the change after signing. Bind once at entry — against the
-    // wallet's own change branch when it has one, else the pubkey snapshot.
+    // address the wallet's device accepts when it dictates one, else the
+    // pubkey snapshot.
     if (supportsDepositApproval(this.config.btcWallet)) {
-      // Approval (policy) wallets own their change branch: the device accepts a
-      // change output only on `.../1/i`, which is not derivable from the receive
-      // key. Any other change address fails mid-ceremony on the device, so this
-      // gate closes that window before any approval screen (the only device
-      // traffic it costs is the silent policy-context read).
+      // Approval (policy) wallets dictate their change address. Any other
+      // change address fails mid-ceremony on the device, so this gate closes
+      // that window before any approval screen.
       const walletChange = (
         await requireChangeAddress(this.config.btcWallet)
       ).trim();

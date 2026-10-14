@@ -1,185 +1,139 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  parseOptionalAddress,
-  validateRequiredAddress,
-  validateRequiredUrl,
+  ENV,
+  envInitError,
+  readInlinedProfile,
+  resolveEthRpcUrl,
 } from "@/config/env";
 
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const VALID_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+const PROFILE = {
+  name: "devnet",
+  kind: "test",
+  registryCommit: null,
+  btcNetwork: "signet",
+  ethChainId: 11155111,
+  ethRpcUrl: "https://rpc.example",
+  indexerUrl: "https://indexer.example",
+  vpProxyUrl: "https://proxy.example",
+  contracts: {
+    btcVaultRegistry: "0x3408542836a6115AA62d5b5b6669D29651B07577",
+    aaveAdapter: "0xcCFC349D8BDb0fDffe1Bd12Bb0EdaF40adec0686",
+    aaveAdapterConfig: "0x64a3825eE4C8b8d9B8c8e29B71c245453a3eDF53",
+  },
+};
 
-describe("validateRequiredAddress", () => {
-  it("accepts a valid EVM address", () => {
+describe("readInlinedProfile", () => {
+  it("returns the profile and records no error for valid JSON", () => {
     const errors: string[] = [];
-    const result = validateRequiredAddress(VALID_ADDRESS, "MY_VAR", errors);
-    expect(result).toBe(VALID_ADDRESS);
-    expect(errors).toHaveLength(0);
+    expect(readInlinedProfile(JSON.stringify(PROFILE), errors)).toEqual(
+      PROFILE,
+    );
+    expect(errors).toEqual([]);
   });
 
-  it("rejects a missing value", () => {
+  it("records an error and returns the inert fallback when nothing was inlined", () => {
     const errors: string[] = [];
-    const result = validateRequiredAddress(undefined, "MY_VAR", errors);
-    expect(result).toBe(ZERO_ADDRESS);
-    expect(errors).toContainEqual(expect.stringContaining("MY_VAR is missing"));
-  });
-
-  it("rejects an empty string", () => {
-    const errors: string[] = [];
-    const result = validateRequiredAddress("", "MY_VAR", errors);
-    expect(result).toBe(ZERO_ADDRESS);
-    expect(errors).toContainEqual(expect.stringContaining("MY_VAR is missing"));
-  });
-
-  it("rejects a malformed address", () => {
-    const errors: string[] = [];
-    const result = validateRequiredAddress("0x1234", "MY_VAR", errors);
-    expect(result).toBe(ZERO_ADDRESS);
-    expect(errors).toContainEqual(
-      expect.stringContaining("not a valid EVM address"),
+    const profile = readInlinedProfile(undefined, errors);
+    expect(errors).toEqual([
+      "network profile was not inlined at build time (import.meta.env.TBV_NETWORK_PROFILE is empty)",
+    ]);
+    expect(profile.ethRpcUrl).toBe("https://invalid.local");
+    expect(profile.contracts.btcVaultRegistry).toBe(
+      "0x0000000000000000000000000000000000000000",
     );
   });
 
-  it("rejects a non-hex string", () => {
+  it("surfaces the dev-server error marker as the configuration error", () => {
     const errors: string[] = [];
-    const result = validateRequiredAddress("not-an-address", "MY_VAR", errors);
-    expect(result).toBe(ZERO_ADDRESS);
-    expect(errors).toContainEqual(
-      expect.stringContaining("not a valid EVM address"),
+    readInlinedProfile(
+      JSON.stringify({ $error: 'Unknown network profile "nope"' }),
+      errors,
     );
+    expect(errors).toEqual(['network profile: Unknown network profile "nope"']);
   });
 
-  it("rejects the zero address", () => {
+  it("records a validator problem instead of throwing", () => {
     const errors: string[] = [];
-    const result = validateRequiredAddress(ZERO_ADDRESS, "MY_VAR", errors);
-    expect(result).toBe(ZERO_ADDRESS);
-    expect(errors).toContainEqual(
-      expect.stringContaining("must not be the zero address"),
-    );
+    readInlinedProfile(JSON.stringify({ ...PROFILE, ethChainId: 5 }), errors);
+    expect(errors[0]).toContain("ethChainId must be 1 or 11155111, got 5");
   });
 
-  it("includes the env var name in the error message", () => {
+  it("records a JSON parse failure", () => {
     const errors: string[] = [];
-    validateRequiredAddress("0x1234", "NEXT_PUBLIC_TBV_AAVE_ADAPTER", errors);
-    expect(errors[0]).toContain("NEXT_PUBLIC_TBV_AAVE_ADAPTER");
+    readInlinedProfile("{not json", errors);
+    expect(errors).toEqual(["network profile is not valid JSON"]);
   });
 });
 
-describe("parseOptionalAddress", () => {
-  it("accepts a valid EVM address", () => {
-    expect(parseOptionalAddress(VALID_ADDRESS)).toBe(VALID_ADDRESS);
-  });
-
-  it("returns undefined for a missing value", () => {
-    expect(parseOptionalAddress(undefined)).toBeUndefined();
-  });
-
-  it("returns undefined for an empty string", () => {
-    expect(parseOptionalAddress("")).toBeUndefined();
-  });
-
-  it("returns undefined for a malformed address", () => {
-    expect(parseOptionalAddress("0x1234")).toBeUndefined();
-  });
-
-  it("returns undefined for the zero address", () => {
-    expect(parseOptionalAddress(ZERO_ADDRESS)).toBeUndefined();
+describe("ENV", () => {
+  it("is populated from the inlined e2e-replay profile", () => {
+    expect(envInitError).toBeNull();
+    expect(ENV.GRAPHQL_ENDPOINT).toBe("http://localhost:9999/graphql");
+    expect(ENV.VP_PROXY_URL).toBe("http://localhost:9998");
+    expect(ENV.BTC_VAULT_REGISTRY).toBe(
+      "0xb331467c4db13dccc77fa66c2d185b74ed57ab80",
+    );
   });
 });
 
-describe("validateRequiredUrl", () => {
-  it("accepts a valid https URL", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl(
-      "https://api.example.com",
-      "MY_VAR",
-      errors,
+describe("ENV with a mispaired profile", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("sets envInitError and exports the inert fallback values", async () => {
+    vi.resetModules();
+    vi.stubEnv(
+      "TBV_NETWORK_PROFILE",
+      JSON.stringify({ ...PROFILE, kind: "test", btcNetwork: "mainnet" }),
     );
-    expect(result).toBe("https://api.example.com");
-    expect(errors).toHaveLength(0);
-  });
-
-  it("accepts a valid http URL", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl(
-      "http://localhost:3000",
-      "MY_VAR",
-      errors,
+    const env = await import("@/config/env");
+    expect(env.envInitError).toContain(
+      'Invalid network pairing for kind "test"',
     );
-    expect(result).toBe("http://localhost:3000");
-    expect(errors).toHaveLength(0);
-  });
-
-  it("preserves a URL with a path", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl(
-      "https://api.example.com/v1/graphql",
-      "MY_VAR",
-      errors,
-    );
-    expect(result).toBe("https://api.example.com/v1/graphql");
-    expect(errors).toHaveLength(0);
-  });
-
-  it("strips a trailing slash", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl(
-      "https://api.example.com/",
-      "MY_VAR",
-      errors,
-    );
-    expect(result).toBe("https://api.example.com");
-    expect(errors).toHaveLength(0);
-  });
-
-  it("strips a trailing slash followed by whitespace", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl(
-      "https://api.example.com/ ",
-      "MY_VAR",
-      errors,
-    );
-    expect(result).toBe("https://api.example.com");
-    expect(errors).toHaveLength(0);
-  });
-
-  it("rejects a missing value", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl(undefined, "MY_VAR", errors);
-    expect(result).toBe("");
-    expect(errors).toContainEqual(expect.stringContaining("MY_VAR is missing"));
-  });
-
-  it("rejects an empty string", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl("", "MY_VAR", errors);
-    expect(result).toBe("");
-    expect(errors).toContainEqual(expect.stringContaining("MY_VAR is missing"));
-  });
-
-  it("rejects a malformed URL", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl("not-a-url", "MY_VAR", errors);
-    expect(result).toBe("");
-    expect(errors).toContainEqual(expect.stringContaining("not a valid URL"));
-  });
-
-  it("rejects a non-http/https scheme", () => {
-    const errors: string[] = [];
-    const result = validateRequiredUrl("ftp://example.com", "MY_VAR", errors);
-    expect(result).toBe("");
-    expect(errors).toContainEqual(
-      expect.stringContaining("must use http or https scheme"),
+    expect(env.ENV.BTC_VAULT_REGISTRY).toBe(
+      "0x0000000000000000000000000000000000000000",
     );
   });
+});
 
-  it("includes the env var name in the error message", () => {
+describe("resolveEthRpcUrl", () => {
+  const PROFILE_RPC = "https://rpc.example";
+
+  it("uses the profile RPC when the override is unset or blank", () => {
     const errors: string[] = [];
-    validateRequiredUrl(
-      "not-a-url",
-      "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
-      errors,
+    expect(resolveEthRpcUrl(undefined, PROFILE_RPC, errors)).toBe(PROFILE_RPC);
+    expect(resolveEthRpcUrl("   ", PROFILE_RPC, errors)).toBe(PROFILE_RPC);
+    expect(errors).toEqual([]);
+  });
+
+  it("uses a valid override, trimmed and without a trailing slash", () => {
+    const errors: string[] = [];
+    expect(
+      resolveEthRpcUrl(" https://node.example/ ", PROFILE_RPC, errors),
+    ).toBe("https://node.example");
+    expect(errors).toEqual([]);
+  });
+
+  it("records an error and refuses any RPC when the override is not a URL", () => {
+    const errors: string[] = [];
+    expect(resolveEthRpcUrl("node.example", PROFILE_RPC, errors)).toBe(
+      "https://invalid.local",
     );
-    expect(errors[0]).toContain("NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT");
+    expect(errors).toEqual([
+      'NEXT_PUBLIC_ETH_RPC_URL is not a valid URL: "node.example"',
+    ]);
+  });
+
+  it("records an error when the override uses a non-http scheme", () => {
+    const errors: string[] = [];
+    expect(resolveEthRpcUrl("wss://node.example", PROFILE_RPC, errors)).toBe(
+      "https://invalid.local",
+    );
+    expect(errors).toEqual([
+      'NEXT_PUBLIC_ETH_RPC_URL must use http or https scheme, got: "wss:"',
+    ]);
   });
 });

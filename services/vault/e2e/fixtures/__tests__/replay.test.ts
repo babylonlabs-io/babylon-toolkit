@@ -50,6 +50,19 @@ describe("recorded depositor", () => {
   });
 });
 
+describe("recorded deployment", () => {
+  it("recorded deployment matches the e2e-replay profile", async () => {
+    const { readResolvedNetworkProfile } = await import(
+      "../../../scripts/lib/networkProfiles"
+    );
+    const profile = readResolvedNetworkProfile("e2e-replay");
+    expect(RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY).toBe(
+      profile.contracts.btcVaultRegistry,
+    );
+    expect(RECORDED_DEPLOYMENT.ETH_CHAIN_ID).toBe(String(profile.ethChainId));
+  });
+});
+
 describe("isDroppedHost", () => {
   it("drops the vendor hosts on both their .org and .com domains", () => {
     // `scripts/build-replay-fixture.mjs` used to keep a second copy of this

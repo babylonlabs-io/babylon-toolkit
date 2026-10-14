@@ -4,7 +4,10 @@
  * a malicious transaction for signing.
  */
 
-import { PeginRegistrationNotFinalError } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  canonicalizeBtcPubkey,
+  PeginRegistrationNotFinalError,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
@@ -40,6 +43,7 @@ import {
   DepositorWalletMismatchError,
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
+  SendOutcomeUnknownError,
 } from "@/utils/errors";
 
 import { useVaultActions } from "../useVaultActions";
@@ -76,6 +80,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 vi.mock("@/config/network", () => ({
+  configureBabylonConfig: vi.fn(),
   getETHChain: vi.fn(() => ({ id: 11155111 })),
   // Reached transitively: the resume broadcast's RFC-006 key resolution pulls
   // in the shared ETHClient, which reads the RPC config at construction.
@@ -1512,7 +1517,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(result.current.activationError).not.toContain("LIQUIDATED");
   });
 
-  it("forwards the on-chain hashlock to activateVaultWithSecret for SDK-side defense in depth", async () => {
+  it("forwards the on-chain hashlock and depositor key to activateVaultWithSecret", async () => {
     const reader = readerReturning({
       depositorSignedPeginTx: "0xdeadbeef",
       hashlock: ON_CHAIN_HASHLOCK,
@@ -1526,8 +1531,13 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       await result.current.handleActivation(baseActivationParams);
     });
 
+    // The hashlock is the SDK's last gate before calldata; the depositor key
+    // is what the gas plan reads the registry's redeem log for.
     expect(mockActivateVaultWithSecret).toHaveBeenCalledWith(
-      expect.objectContaining({ hashlock: ON_CHAIN_HASHLOCK }),
+      expect.objectContaining({
+        hashlock: ON_CHAIN_HASHLOCK,
+        depositorBtcPubKey: canonicalizeBtcPubkey(`0x${DEPOSITOR_BTC_KEY}`),
+      }),
     );
   });
 
@@ -1955,6 +1965,73 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(ctx.tags.funnelStage).toBe("activation.reveal");
     expect(ctx.tags.vaultId).toBe("0xva...ltId");
     expect(result.current.activationError).toContain("execution reverted");
+  });
+
+  it("does not capture a reveal the wallet may have broadcast as a failure, and refetches the activities", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(baseActivationParams.onRefetchActivities).toHaveBeenCalledTimes(1);
+    expect(result.current.activationError).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
+    );
+  });
+
+  it("flags a reveal the wallet may have broadcast as outcome-unknown", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationOutcomeUnknown).toBe(true);
+    expect(result.current.activationErrorTerminal).toBe(false);
+  });
+
+  it("does not flag a reveal the wallet declined as outcome-unknown", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockRejectedValue(
+      Object.assign(new Error("User rejected the request"), { code: 4001 }),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationError).not.toBeNull();
+    expect(result.current.activationOutcomeUnknown).toBe(false);
   });
 
   it("does not capture a wallet decline of the activation tx, but still surfaces it", async () => {

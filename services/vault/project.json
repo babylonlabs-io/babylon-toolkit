@@ -5,6 +5,97 @@
   "projectType": "application",
   "tags": ["type:service"],
   "targets": {
+    "build": {
+      "executor": "nx:run-script",
+      "options": {
+        "script": "build"
+      },
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": [
+        "production",
+        "^production",
+        {
+          "env": "NEXT_PUBLIC_TBV_NETWORK"
+        },
+        {
+          "env": "NEXT_PUBLIC_REOWN_PROJECT_ID"
+        },
+        {
+          "env": "NEXT_PUBLIC_ETH_RPC_URL"
+        },
+        {
+          "env": "NEXT_PUBLIC_MEMPOOL_API"
+        },
+        {
+          "env": "NEXT_PUBLIC_TBV_UTILS_API"
+        },
+        {
+          "env": "NEXT_PUBLIC_TBV_SIDECAR_API_URL"
+        },
+        {
+          "env": "NEXT_PUBLIC_TBV_VP_EXPLORER_URL"
+        },
+        {
+          "env": "NEXT_PUBLIC_TBV_ORDINALS_API_URL"
+        },
+        {
+          "env": "NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS"
+        },
+        {
+          "env": "NEXT_PUBLIC_NOTICE_BANNER_MESSAGE"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_DISABLE_DEPOSIT"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_DISABLE_BORROW"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_PROTOCOL_FROZEN"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_PROTOCOL_PAUSED"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_DISABLE_VAULT_CAP"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_ENABLE_EXPLORE"
+        },
+        {
+          "env": "NEXT_PUBLIC_FF_ENABLE_MOBILE"
+        },
+        {
+          "env": "NEXT_PUBLIC_SENTRY_DSN"
+        },
+        {
+          "env": "NEXT_PUBLIC_SENTRY_TUNNEL_URL"
+        },
+        {
+          "env": "NEXT_PUBLIC_CANONICAL"
+        },
+        {
+          "env": "NEXT_PUBLIC_COMMIT_HASH"
+        },
+        {
+          "env": "NEXT_PUBLIC_RELEASE_ID"
+        },
+        {
+          "env": "NEXT_PUBLIC_DIST_ID"
+        },
+        {
+          "env": "NEXT_PUBLIC_SENTRY_ENVIRONMENT"
+        }
+      ]
+    },
     "dev:watchDeps": {
       "dependsOn": ["^build"],
       "executor": "nx:run-commands",

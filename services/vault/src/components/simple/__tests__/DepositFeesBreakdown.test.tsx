@@ -20,7 +20,6 @@ const baseProps = {
   protocolFeeAmount: "0.0001 BTC",
   protocolFeePrice: "",
   protocolFeeIsError: false,
-  isLedgerVaultWallet: false,
 };
 
 describe("DepositFeesBreakdown commission disclosure", () => {
@@ -165,7 +164,7 @@ describe("DepositFeesBreakdown reserve tooltip", () => {
     );
   }
 
-  it("promises the post-settlement reclaim to a non-Ledger wallet", () => {
+  it("promises the post-settlement reclaim", () => {
     render(
       <DepositFeesBreakdown
         {...baseProps}
@@ -173,29 +172,9 @@ describe("DepositFeesBreakdown reserve tooltip", () => {
         depositorClaimValue={3_000_000n}
         commissionBaseValues={[100_000_000n]}
         commissionBps={250}
-        isLedgerVaultWallet={false}
       />,
     );
 
     expect(reserveRowTooltip()).toContain("you can reclaim it");
-    expect(reserveRowTooltip()).not.toContain("not supported yet");
-  });
-
-  // The Ledger vault app cannot sign the reclaim sweep (#2375), so the
-  // deposit-time promise must not offer an action the depositor cannot take.
-  it("does not promise the reclaim to the Ledger vault wallet", () => {
-    render(
-      <DepositFeesBreakdown
-        {...baseProps}
-        amountSats={100_000_000n}
-        depositorClaimValue={3_000_000n}
-        commissionBaseValues={[100_000_000n]}
-        commissionBps={250}
-        isLedgerVaultWallet
-      />,
-    );
-
-    expect(reserveRowTooltip()).toContain("not supported yet");
-    expect(reserveRowTooltip()).not.toContain("you can reclaim it");
   });
 });

@@ -12,7 +12,7 @@ import type { Hex } from "viem";
 import { logger } from "@/infrastructure";
 
 import { getNetworkConfigBTC } from "../config";
-import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
+import { STORAGE_UPDATE_EVENT } from "../constants";
 import {
   ContractStatus,
   getPeginState,
@@ -26,6 +26,7 @@ import {
   addPendingPegin as addPendingPeginToStorage,
   filterPendingPegins,
   getPendingPegins,
+  getPendingPeginsStorageKey,
   markRefundBroadcast as markRefundBroadcastInStorage,
   type PendingPeginRequest,
   PendingPeginStorageReadError,
@@ -206,7 +207,7 @@ export function usePeginStorage({
     if (!ethAddress) return;
 
     const handleStorageEvent = (e: StorageEvent) => {
-      if (e.key === `${STORAGE_KEY_PREFIX}-${ethAddress}`) {
+      if (e.key === getPendingPeginsStorageKey(ethAddress)) {
         setStorageVersion((v) => v + 1);
       }
     };

@@ -18,8 +18,9 @@ import type {
 
 /**
  * The refresher injects `GET_APP_AND_VERSION` mid-ceremony, and whether that
- * nullifies a loaded intent is unconfirmed (#2110) — so it stays off for the
- * whole session. (DMK does offer a scoped `disableDeviceSessionRefresher`
+ * disturbs a ceremony in flight is unconfirmed (#2110) — so it stays off for
+ * the whole session. (Between ceremonies the read leaves a loaded intent in
+ * place: Speculos e2e stage 4c @ b89dd580.) (DMK does offer a scoped `disableDeviceSessionRefresher`
  * window; deliberately not used until nullification is understood.)
  */
 const SESSION_REFRESHER_OPTIONS = { isRefresherDisabled: true } as const;
@@ -29,8 +30,8 @@ export interface DmkSessionHandle {
   readonly sessionId: DeviceSessionId;
   /**
    * App name/version at connect time ("BOLOS" = dashboard); absent when the
-   * preflight failed. The host gates connect on it, and re-reads it only while
-   * idle via `refreshSessionApp` — never between intent phases.
+   * preflight failed. The host gates connect on it, and re-reads it via
+   * `refreshSessionApp` between ceremonies — never between the phases of one.
    */
   readonly appName?: string;
   readonly appVersion?: string;

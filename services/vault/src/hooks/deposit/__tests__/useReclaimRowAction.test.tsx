@@ -29,12 +29,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
     locked: wallet.locked,
     publicKeyNoCoord: wallet.publicKeyNoCoord,
   }),
-  useChainConnector: () => undefined,
 }));
 
-vi.mock("@/context/wallet/ledgerVaultConnector", () => ({
-  isLedgerVaultConnector: () => false,
-}));
 // Reached through the `@/context/wallet` barrel. The real module reads
 // APPKIT_BTC_CONNECTOR_ID at module scope, which the wallet-connector mock
 // does not carry, and nothing here renders the provider.

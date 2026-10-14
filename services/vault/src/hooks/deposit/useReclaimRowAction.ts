@@ -25,12 +25,10 @@
  * there before changing when this is offered.
  */
 
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback } from "react";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { useBTCWallet } from "@/context/wallet";
-import { isLedgerVaultConnector } from "@/context/wallet/ledgerVaultConnector";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import {
@@ -81,10 +79,6 @@ function isOwnedByConnectedWallet(
 
 export function useReclaimRowAction() {
   const { publicKeyNoCoord, connected: btcConnected } = useBTCWallet();
-  // The wallet id lives on the connector, not the BTC wallet context — same
-  // accessor `useRefundState` uses.
-  const btcConnector = useChainConnector("BTC");
-  const isLedgerWallet = isLedgerVaultConnector(btcConnector);
   // Reclaim is an exit, so it follows withdraw's pause semantics.
   const withdrawBlocked = isWithdrawBlocked(useProtocolGateState());
 
@@ -113,7 +107,6 @@ export function useReclaimRowAction() {
         // `ReclaimStatus.observedTipHeight`.
         tipHeight: status?.observedTipHeight,
         isOwnedByWallet: assumeOwnership || isOwnedByWallet,
-        isLedgerWallet,
         isWithdrawBlocked: withdrawBlocked,
         isReclaimInFlight,
       });
@@ -133,6 +126,6 @@ export function useReclaimRowAction() {
             : (status?.reserveValueSats ?? null),
       };
     },
-    [publicKeyNoCoord, btcConnected, isLedgerWallet, withdrawBlocked],
+    [publicKeyNoCoord, btcConnected, withdrawBlocked],
   );
 }

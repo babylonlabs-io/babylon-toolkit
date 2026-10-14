@@ -1,11 +1,15 @@
 /**
- * The two APDU instructions the vault app adds over the Bitcoin base app,
+ * The three APDU instructions the vault app adds over the Bitcoin base app,
  * and the ceremony that sequences them. Everything else — notably SIGN_PSBT —
  * falls through to the base app. Framing verified against Ledger's reference
- * client (`tests/vault_client.py`).
+ * client (`tests/vault_client.py`); GET_VAULT_STATE against `docs/apdu.md`
+ * §INS 0x82 @ app-babylon-vault-dev `b89dd580`.
  *
  * @module ledger-vault-signer/vaultCommands
  */
+
+import { crypto as bcrypto } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 import {
   MAX_APDU_DATA_BYTES,
@@ -19,12 +23,13 @@ import type { Apdu } from "./rawApdu";
 
 /**
  * The ONE class byte for the whole app: the base app's dispatcher gates every
- * instruction — GET_EXTENDED_PUBKEY and the vault's 0x80/0x81 alike — on this
+ * instruction — GET_EXTENDED_PUBKEY and the vault's 0x80-0x82 alike — on this
  * CLA (`apdu_handler.c:19`). derivation.ts imports it for the base-app read.
  */
 export const CLA_APP = 0xe1;
 const INS_APPROVE_VAULT_INTENT = 0x80;
 const INS_DERIVE_CONTEXT_HASH = 0x81;
+const INS_GET_VAULT_STATE = 0x82;
 
 /** DERIVE_CONTEXT_HASH P1. */
 const P1_INITIAL = 0x00;
@@ -46,6 +51,15 @@ const APP_NAME_MAX_BYTES = 64;
 const CONTEXT_MAX_BYTES = 1024;
 const DERIVATION_PATH_MAX_LEVELS = 10;
 const ROOT_BYTES = 32;
+
+/** GET_VAULT_STATE takes P1 = P2 = 0x00 and no data (`fw:src/handler/get_vault_state.c:8-15`). */
+const P1_NONE = 0x00;
+const P2_NONE = 0x00;
+/** A fingerprint is the last 4 bytes of a SHA-256 digest (`fw:src/vault_context.h:14`). */
+const VAULT_FINGERPRINT_BYTES = 4;
+const SHA256_BYTES = 32;
+/** One length byte per fingerprint, then the fingerprint when that byte is non-zero. */
+const STATE_LENGTH_BYTE = 1;
 
 /** Transport seam: send one APDU, return the response data or throw on error SW. */
 export type ApduSender = (apdu: Apdu) => Promise<Uint8Array>;
@@ -148,6 +162,34 @@ export interface ApproveVaultIntentParams {
   challengerPubkeys: readonly Uint8Array[];
 }
 
+/** Last {@link VAULT_FINGERPRINT_BYTES} bytes of SHA-256 over the concatenation of `parts`. */
+function fingerprint(parts: readonly Uint8Array[]): Uint8Array {
+  return Uint8Array.from(bcrypto.sha256(Buffer.from(concat([...parts]))).subarray(SHA256_BYTES - VAULT_FINGERPRINT_BYTES));
+}
+
+/** The CData of every APPROVE_VAULT_INTENT APDU, in the order {@link approveVaultIntent} sends them. */
+function encodeIntentApdus({ scalars, groups, keeperPubkeys, challengerPubkeys }: ApproveVaultIntentParams): {
+  readonly scalars: Uint8Array;
+  readonly groups: Uint8Array[];
+  readonly keyBatches: Uint8Array[];
+} {
+  return {
+    scalars: encodeIntentScalars(scalars),
+    groups: groups.map(encodeIntentGroup),
+    keyBatches: encodeKeyBatches(keeperPubkeys, challengerPubkeys),
+  };
+}
+
+/**
+ * The fingerprint GET_VAULT_STATE reports once this intent is approved:
+ * last 4 bytes of SHA-256 over the CData of every APDU {@link approveVaultIntent}
+ * sends, in order (`fw:docs/apdu.md` §Fingerprint definitions). Pure — no I/O.
+ */
+export function intentFingerprint(params: ApproveVaultIntentParams): Uint8Array {
+  const apdus = encodeIntentApdus(params);
+  return fingerprint([apdus.scalars, ...apdus.groups, ...apdus.keyBatches]);
+}
+
 /**
  * Load and approve a vault intent. The device enforces the phase order —
  * scalars (P1=0x00), groups (P1=0x01), keys (P1=0x02) — and requires a
@@ -155,10 +197,8 @@ export interface ApproveVaultIntentParams {
  *
  * @throws If the declared counts disagree with the supplied data
  */
-export async function approveVaultIntent(
-  send: ApduSender,
-  { scalars, groups, keeperPubkeys, challengerPubkeys }: ApproveVaultIntentParams,
-): Promise<void> {
+export async function approveVaultIntent(send: ApduSender, params: ApproveVaultIntentParams): Promise<void> {
+  const { scalars, groups, keeperPubkeys, challengerPubkeys } = params;
   // The device cross-checks these against what actually arrives, and a
   // mismatch surfaces as an opaque status word mid-ceremony.
   if (groups.length !== scalars.vaultCount) {
@@ -179,31 +219,68 @@ export async function approveVaultIntent(
     throw new Error(`challengerCount ${scalars.challengerCount} does not match ${challengerPubkeys.length} key(s)`);
   }
 
-  await send({
+  // One encoder for the ceremony and for intentFingerprint, so the device's
+  // fingerprint of what was sent is reproducible from the same terms.
+  const apdus = encodeIntentApdus(params);
+  await send({ cla: CLA_APP, ins: INS_APPROVE_VAULT_INTENT, p1: P1_SCALARS, p2: P2_SHOW, data: apdus.scalars });
+  for (const group of apdus.groups) {
+    await send({ cla: CLA_APP, ins: INS_APPROVE_VAULT_INTENT, p1: P1_GROUP, p2: P2_SHOW, data: group });
+  }
+  for (const batch of apdus.keyBatches) {
+    await send({ cla: CLA_APP, ins: INS_APPROVE_VAULT_INTENT, p1: P1_KEY_BATCH, p2: P2_SHOW, data: batch });
+  }
+}
+
+/**
+ * What the device's vault session holds (`fw:docs/apdu.md` §INS 0x82): nothing,
+ * a derived context root, or an approved intent over that root.
+ */
+export type VaultSessionState =
+  | { readonly phase: "idle" }
+  | { readonly phase: "hash-derived"; readonly contextFingerprint: Uint8Array }
+  | { readonly phase: "intent-loaded"; readonly intentFingerprint: Uint8Array; readonly contextFingerprint: Uint8Array };
+
+/** Read one `len ‖ fingerprint` field at `offset`; `undefined` when the length byte is 0. */
+function readFingerprintField(
+  response: Uint8Array,
+  offset: number,
+): { fingerprint: Uint8Array | undefined; next: number } {
+  if (offset >= response.length) throw new Error("GET_VAULT_STATE response is truncated");
+  const length = response[offset];
+  const start = offset + STATE_LENGTH_BYTE;
+  if (length === 0) return { fingerprint: undefined, next: start };
+  if (length !== VAULT_FINGERPRINT_BYTES) {
+    throw new Error(`GET_VAULT_STATE fingerprint length must be 0 or ${VAULT_FINGERPRINT_BYTES}, got ${length}`);
+  }
+  if (start + length > response.length) throw new Error("GET_VAULT_STATE response is truncated");
+  return { fingerprint: response.slice(start, start + length), next: start + length };
+}
+
+/**
+ * Silent, read-only query of the device's vault session (ADR-001). No screen,
+ * no state change; any host may call it.
+ *
+ * @throws If the response is not one of the three encodings the device sends
+ */
+export async function getVaultState(send: ApduSender): Promise<VaultSessionState> {
+  const response = await send({
     cla: CLA_APP,
-    ins: INS_APPROVE_VAULT_INTENT,
-    p1: P1_SCALARS,
-    p2: P2_SHOW,
-    data: encodeIntentScalars(scalars),
+    ins: INS_GET_VAULT_STATE,
+    p1: P1_NONE,
+    p2: P2_NONE,
+    data: new Uint8Array(0),
   });
-
-  for (const group of groups) {
-    await send({
-      cla: CLA_APP,
-      ins: INS_APPROVE_VAULT_INTENT,
-      p1: P1_GROUP,
-      p2: P2_SHOW,
-      data: encodeIntentGroup(group),
-    });
+  const intent = readFingerprintField(response, 0);
+  const context = readFingerprintField(response, intent.next);
+  if (context.next !== response.length) throw new Error("GET_VAULT_STATE response has trailing bytes");
+  if (intent.fingerprint === undefined && context.fingerprint === undefined) return { phase: "idle" };
+  if (intent.fingerprint === undefined && context.fingerprint !== undefined) {
+    return { phase: "hash-derived", contextFingerprint: context.fingerprint };
   }
-
-  for (const batch of encodeKeyBatches(keeperPubkeys, challengerPubkeys)) {
-    await send({
-      cla: CLA_APP,
-      ins: INS_APPROVE_VAULT_INTENT,
-      p1: P1_KEY_BATCH,
-      p2: P2_SHOW,
-      data: batch,
-    });
+  if (intent.fingerprint !== undefined && context.fingerprint !== undefined) {
+    return { phase: "intent-loaded", intentFingerprint: intent.fingerprint, contextFingerprint: context.fingerprint };
   }
+  // The device reports the context fingerprint whenever it reports an intent
+  // (`fw:src/vault_context.h:255-257`), so an intent alone is not a device answer.
+  throw new Error("GET_VAULT_STATE reported an intent without a context root");
 }

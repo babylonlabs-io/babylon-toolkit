@@ -17,9 +17,9 @@
  * Cold-resume specifics: unlike the happy path (which holds the vault root in memory), the resume
  * RE-DERIVES the vault root from the BTC wallet — a `deriveContextHash` approval dialog — to recompute
  * the WOTS keys and verify them against the on-chain hash. That dialog is the same one normal peg-in
- * step 1 (DERIVE_VAULT_SECRET) fires, so the shared pop-up approver already handles it; the resume steps
- * otherwise auto-fire on mount, so the only dapp-page interactions are the pending-row CTA click, the
- * Activate gate, and "Go to Dashboard" — all owned by `walkStepMachine`.
+ * step 1 (DERIVE_VAULT_SECRET) fires, so the shared pop-up approver already handles it. Only the step the
+ * row CTA named auto-starts; each later step waits on a named Start card, which `walkStepMachine` clicks
+ * along with the Activate gate and "Go to Dashboard".
  *
  * v3 note (markdown/e2e-v3/06-resume.md): pending deposits are flat, always-visible rows — the v2
  * expander they used to hide behind is gone, so there is nothing to expand.
