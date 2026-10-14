@@ -33,8 +33,6 @@ import {
 } from "./lib/networkProfiles";
 import { REGISTRY_DERIVED_ENV_KEYS } from "./lib/registryDerivedEnv";
 
-export { REGISTRY_DERIVED_ENV_KEYS };
-
 const NETWORKS_REPO = "babylonlabs-io/tbv-networks";
 const FETCH_TIMEOUT_MS = 15_000;
 const ENV_PATH = join(NETWORKS_DIR, "..", ".env");
@@ -254,7 +252,18 @@ function main(): void {
   for (const name of args.names) {
     const path = networkProfilePath(name);
     const existing = existsSync(path) ? readNetworkProfile(name) : null;
+    if (args.check && existing === null) {
+      stale += 1;
+      console.log(`sync-env: networks/${name}.json does not exist.`);
+      continue;
+    }
     if (existing !== null && existing.registryCommit === null) {
+      if (args.check) {
+        console.log(
+          `sync-env: networks/${name}.json is hand-written (registryCommit null); nothing to check.`,
+        );
+        continue;
+      }
       throw new Error(
         `networks/${name}.json is hand-written (registryCommit null); not synced`,
       );

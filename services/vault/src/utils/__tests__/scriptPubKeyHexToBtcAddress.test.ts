@@ -36,7 +36,6 @@ beforeEach(async () => {
   );
   configureBabylonConfig({
     kind: "test",
-    networkName: "test-fixture",
     btcNetwork: "signet",
     ethChainId: 11155111,
     ethRpcUrl: "https://test.example/eth",
@@ -91,7 +90,6 @@ describe("scriptPubKeyHexToBtcAddress", () => {
       );
       configureBabylonConfig({
         kind: "production",
-        networkName: "test-fixture",
         btcNetwork: "mainnet",
         ethChainId: 1,
         ethRpcUrl: "https://test.example/eth",

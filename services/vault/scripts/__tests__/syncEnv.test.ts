@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { NetworkProfile } from "../../src/config/network/profile";
+import { REGISTRY_DERIVED_ENV_KEYS } from "../lib/registryDerivedEnv";
 import {
   buildProfile,
-  REGISTRY_DERIVED_ENV_KEYS,
   serializeProfile,
   stripRegistryDerivedKeys,
 } from "../sync-env";

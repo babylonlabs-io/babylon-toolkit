@@ -7,6 +7,7 @@ import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
 import {
+  findDotenvSelector,
   findRegistryDerivedLeftovers,
   selectNetworkProfile,
 } from "./scripts/lib/selectNetworkProfile";
@@ -109,9 +110,20 @@ function resolveNetworkProfileJson(
     if (process.env.CI) throw new Error(message);
     console.warn(`⚠️ ${message}`);
   }
+  // Refused everywhere, not only in CI: Nx loads a dotenv selector into the build
+  // but hashes the cache key without it, so a stale bundle could come back.
+  const dotenvSelectors = findDotenvSelector([
+    __dirname,
+    resolve(__dirname, "..", ".."),
+  ]);
+  if (dotenvSelectors.length > 0) {
+    throw new Error(
+      `NEXT_PUBLIC_TBV_NETWORK is set in ${dotenvSelectors.join(", ")}. ` +
+        "Remove it there and pass it on the command line: NEXT_PUBLIC_TBV_NETWORK=<name> pnpm dev",
+    );
+  }
   return selectNetworkProfile({
-    name:
-      process.env.NEXT_PUBLIC_TBV_NETWORK ?? fileEnv.NEXT_PUBLIC_TBV_NETWORK,
+    name: process.env.NEXT_PUBLIC_TBV_NETWORK,
     isCI: Boolean(process.env.CI),
     command,
   });

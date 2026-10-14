@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_LOCAL_NETWORK,
+  findDotenvSelector,
   findRegistryDerivedLeftovers,
   selectNetworkProfile,
 } from "../lib/selectNetworkProfile";
@@ -95,6 +99,66 @@ describe("findRegistryDerivedLeftovers", () => {
   it("returns an empty list when only live variables are set", () => {
     expect(
       findRegistryDerivedLeftovers({ NEXT_PUBLIC_TBV_NETWORK: "devnet" }, {}),
+    ).toEqual([]);
+  });
+});
+
+describe("findDotenvSelector", () => {
+  const dirs: string[] = [];
+  const tempDir = () => {
+    const dir = mkdtempSync(join(tmpdir(), "vault-dotenv-"));
+    dirs.push(dir);
+    return dir;
+  };
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true });
+  });
+
+  it("names every dotenv file Vite or Nx would read that assigns the selector", () => {
+    const project = tempDir();
+    const workspace = tempDir();
+    writeFileSync(join(project, ".env"), "NEXT_PUBLIC_TBV_NETWORK=testnet-2\n");
+    writeFileSync(
+      join(project, ".env.build.local"),
+      "export NEXT_PUBLIC_TBV_NETWORK = staging\n",
+    );
+    writeFileSync(
+      join(workspace, ".local.env"),
+      "NEXT_PUBLIC_TBV_NETWORK=devnet\n",
+    );
+    writeFileSync(
+      join(workspace, ".env.local"),
+      "NEXT_PUBLIC_REOWN_PROJECT_ID=x\n",
+    );
+
+    expect(findDotenvSelector([project, workspace])).toEqual(
+      [
+        join(project, ".env"),
+        join(project, ".env.build.local"),
+        join(workspace, ".local.env"),
+      ].sort(),
+    );
+  });
+
+  it("ignores a commented-out selector, non-dotenv files and directories", () => {
+    const project = tempDir();
+    writeFileSync(
+      join(project, ".env.example"),
+      "# NEXT_PUBLIC_TBV_NETWORK=devnet\nNEXT_PUBLIC_MEMPOOL_API=https://mempool.space\n",
+    );
+    writeFileSync(
+      join(project, "notes.txt"),
+      "NEXT_PUBLIC_TBV_NETWORK=devnet\n",
+    );
+    mkdirSync(join(project, ".env.d"));
+
+    expect(findDotenvSelector([project])).toEqual([]);
+  });
+
+  it("treats a missing directory as having no dotenv files", () => {
+    expect(
+      findDotenvSelector([join(tmpdir(), "vault-dotenv-missing")]),
     ).toEqual([]);
   });
 });

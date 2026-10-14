@@ -56,6 +56,30 @@ function parseOptionalUrl(value: string | undefined): string | undefined {
   return trimmed;
 }
 
+/** The RPC override: unset means the profile default; set and invalid is an error. */
+export function resolveEthRpcUrl(
+  raw: string | undefined,
+  profileDefault: string,
+  errors: string[],
+): string {
+  const trimmed = (raw ?? "").trim().replace(/\/$/, "");
+  if (!trimmed) return profileDefault;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    errors.push(`NEXT_PUBLIC_ETH_RPC_URL is not a valid URL: "${trimmed}"`);
+    return INVALID_LOCAL_URL;
+  }
+  if (!ALLOWED_URL_SCHEMES.includes(parsed.protocol)) {
+    errors.push(
+      `NEXT_PUBLIC_ETH_RPC_URL must use http or https scheme, got: "${parsed.protocol}"`,
+    );
+    return INVALID_LOCAL_URL;
+  }
+  return trimmed;
+}
+
 const ALREADY_CONFIGURED_MESSAGE = "already been called";
 
 const INVALID_LOCAL_URL = "https://invalid.local";
@@ -135,16 +159,19 @@ function validateEnvVars(): EnvValidationResult {
   );
   const UTILS_API_URL = parseOptionalUrl(process.env.NEXT_PUBLIC_TBV_UTILS_API);
   const mempoolApiUrl = parseOptionalUrl(process.env.NEXT_PUBLIC_MEMPOOL_API);
-  // A deployment may point at its own RPC; the profile's is the default.
-  const ethRpcUrl =
-    parseOptionalUrl(process.env.NEXT_PUBLIC_ETH_RPC_URL) ?? profile.ethRpcUrl;
+  // A deployment may point at its own RPC; the profile's is the default. A
+  // set-but-invalid override is a configuration error, never a silent fallback.
+  const ethRpcUrl = resolveEthRpcUrl(
+    process.env.NEXT_PUBLIC_ETH_RPC_URL,
+    profile.ethRpcUrl,
+    errors,
+  );
 
   // The runtime MUST end up initialised even when the profile is unusable:
   // modules later in the import graph read it at evaluation time.
   try {
     configureBabylonConfig({
       kind: profile.kind,
-      networkName: profile.name,
       ethChainId: profile.ethChainId,
       ethRpcUrl,
       btcNetwork: profile.btcNetwork,
@@ -155,7 +182,6 @@ function validateEnvVars(): EnvValidationResult {
     try {
       configureBabylonConfig({
         kind: INERT_FALLBACK_PROFILE.kind,
-        networkName: INERT_FALLBACK_PROFILE.name,
         ethChainId: INERT_FALLBACK_PROFILE.ethChainId,
         ethRpcUrl: INERT_FALLBACK_PROFILE.ethRpcUrl,
         btcNetwork: INERT_FALLBACK_PROFILE.btcNetwork,

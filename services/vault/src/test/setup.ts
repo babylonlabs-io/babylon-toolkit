@@ -48,7 +48,6 @@ vi.mock("@/config/network", () => ({
   }),
   getBTCNetwork: () => "signet",
   getDeploymentKind: () => "test",
-  getNetworkName: () => "devnet",
   getNetworkConfigETH: () => ({
     name: "Ethereum Sepolia",
     chainId: 11155111,

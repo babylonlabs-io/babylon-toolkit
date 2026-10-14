@@ -1,12 +1,6 @@
 export {
-  PROFILE_KINDS,
-  type NetworkProfile,
-  type ProfileKind,
-} from "./profile";
-export {
   configureBabylonConfig,
   getDeploymentKind,
-  getNetworkName,
   type BabylonConfigOptions,
   type BabylonConfigState,
   type EthChainId,

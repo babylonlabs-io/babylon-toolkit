@@ -79,7 +79,9 @@ overrides. Every name the app reads is listed with its class in `env-manifest.js
 | `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                  | build-only | Set by the release workflow.                                                                        |
 
 Local development: `pnpm dev` runs devnet; `pnpm dev:testnet` runs the `testnet-2`
-profile. Put `NEXT_PUBLIC_TBV_NETWORK=<name>` in `.env` to pick another.
+profile. Run `NEXT_PUBLIC_TBV_NETWORK=<name> pnpm dev` to pick another. The selector must
+not be set in a dotenv file: Nx loads `.env` into the build but keys its cache on the process
+environment, so a selector found there is refused by the build and the dev server.
 
 ## Available Scripts
 

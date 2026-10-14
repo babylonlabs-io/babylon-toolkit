@@ -142,8 +142,9 @@ that reaches a signature.
   VP. Downloaded to the user's disk; never transmitted anywhere by this app.
 - **CI credentials** — `SENTRY_AUTH_TOKEN`, the AWS OIDC roles assumed by
   `.github/workflows/service-release-vault.yml` (the shared `gha-s3-frontend-push` of each AWS
-  account, and `gha-s3-frontend-push-real-money-devnet` for `vault-real-money-devnet`, an internal
-  environment where testers sign real BTC), and the npm publish identity used by
+  account, and `gha-s3-frontend-push-real-money-devnet`, reserved for `vault-real-money-devnet`, an
+  internal environment where testers sign real BTC, which the workflow assumes once that
+  environment's matrix entry returns), and the npm publish identity used by
   `package-release.yml`. Compromise of an AWS role means arbitrary JavaScript served to every vault
   user of the environments that role publishes for; compromise of the npm identity means arbitrary
   code in every downstream consumer.
@@ -558,8 +559,12 @@ address therefore needs a reviewed diff to this repository, not an environment e
 The same validator (`src/config/network/profile.ts`) runs three times: when a profile is
 generated, in `vite.config.ts` (an unknown or invalid profile fails the build; a dev server
 inlines an error marker instead so the app can show its modal), and in
-`services/vault/src/config/env.ts` at module load, together with the override variables
-(`ETH_RPC_URL`, mempool host, Reown id, Sentry, flags). Errors accumulate into
+`services/vault/src/config/env.ts` at module load, together with the override URLs it reads
+(`NEXT_PUBLIC_ETH_RPC_URL`, `NEXT_PUBLIC_MEMPOOL_API`, `NEXT_PUBLIC_TBV_UTILS_API`,
+`NEXT_PUBLIC_TBV_SIDECAR_API_URL`, `NEXT_PUBLIC_TBV_VP_EXPLORER_URL`); a set-but-invalid RPC
+override is an error, the other four are optional and ignored when invalid. The Reown id is
+checked by wagmi initialisation, and feature flags are read lazily and never block. Errors
+accumulate into
 `envInitError`, which `GeoFencingProvider` turns into a **blocking** error modal before the
 app is usable. After the build, `scripts/check-built-profile.ts` asserts the bundle inlines
 the matrix profile's registry address and no other profile's; it proves consistency with
@@ -829,9 +834,11 @@ roles have different review requirements. Satisfy both.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
   bundle to S3. Note `continue-on-error` is set for the production environment in multi-env runs so
   a prod OIDC failure cannot block devnet — deliberate, and worth knowing when reading a green run.
-  `vault-real-money-devnet` publishes with its own role, which trusts this workflow on
+  `vault-real-money-devnet` is out of the matrix until `services/vault/networks/real-money-devnet.json`
+  exists; its matrix entry and `ENVIRONMENT` dispatch option come back from git history with the
+  profile. Once present, it publishes with its own role, which trusts this workflow on
   `refs/heads/main` alone; the shared role is denied on that environment's build and checksum
-  prefixes. Off `main` its leg is therefore left out of an all-environment run (a notice in the
+  prefixes. Off `main` its leg is then left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
   has not published it. It also has no immutable per-sha release manifest: that step stays
   `vault-testnet` only. Its checksums exist only in the checksum bucket, where its own publish

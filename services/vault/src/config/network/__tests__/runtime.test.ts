@@ -47,7 +47,6 @@ describe("resolveMempoolApiUrl", () => {
 
 const BASE_OPTIONS = {
   kind: "test" as const,
-  networkName: "devnet",
   ethChainId: 11155111 as const,
   ethRpcUrl: "https://rpc.example",
   btcNetwork: "signet" as const,
@@ -63,11 +62,10 @@ describe("configureBabylonConfig", () => {
     vi.resetModules();
   });
 
-  it("accepts a test profile on signet + Sepolia and exposes kind and name", async () => {
+  it("accepts a test profile on signet + Sepolia and exposes its kind", async () => {
     const runtime = await freshRuntime();
     runtime.configureBabylonConfig(BASE_OPTIONS);
     expect(runtime.getDeploymentKind()).toBe("test");
-    expect(runtime.getNetworkName()).toBe("devnet");
   });
 
   it("accepts an internal profile on BTC mainnet + Sepolia", async () => {
@@ -76,7 +74,6 @@ describe("configureBabylonConfig", () => {
       runtime.configureBabylonConfig({
         ...BASE_OPTIONS,
         kind: "internal",
-        networkName: "real-money-devnet",
         btcNetwork: "mainnet",
       }),
     ).not.toThrow();

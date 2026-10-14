@@ -125,8 +125,8 @@ function indexBy(
  * Install the recorded backend on `page`.
  *
  * Call before `page.goto`. Registers one handler per boundary; each matches
- * the localhost bases pinned in `MOCK_ENV_VARS` by path shape, so the
- * handlers stay correct if a port moves.
+ * the localhost bases pinned in `networks/e2e-replay.json` and `MOCK_ENV_VARS`
+ * by path shape, so the handlers stay correct if a port moves.
  */
 export interface ReplayOptions {
   /** Which recording to replay. */

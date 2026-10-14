@@ -30,9 +30,6 @@ export interface BabylonConfigOptions {
   /** Deployment class from the network profile; decides the allowed pairing and the badge. */
   kind: ProfileKind;
 
-  /** Profile name, e.g. "devnet"; shown in diagnostics only. */
-  networkName: string;
-
   /** Ethereum chain ID. 1 or 11155111; which one is legal depends on `kind`. */
   ethChainId: EthChainId;
 
@@ -57,7 +54,6 @@ export interface BabylonConfigOptions {
 
 export interface BabylonConfigState {
   kind: ProfileKind;
-  networkName: string;
   ethChainId: EthChainId;
   ethRpcUrl: string;
   btcNetwork: BtcNetworkName;
@@ -127,7 +123,6 @@ export function configureBabylonConfig(opts: BabylonConfigOptions): void {
 
   state = {
     kind: opts.kind,
-    networkName: opts.networkName,
     ethChainId: opts.ethChainId,
     ethRpcUrl: opts.ethRpcUrl,
     btcNetwork: opts.btcNetwork,
@@ -153,9 +148,4 @@ export function getBabylonConfigState(): BabylonConfigState {
 /** Deployment class of the running profile (production, test or internal). */
 export function getDeploymentKind(): ProfileKind {
   return getBabylonConfigState().kind;
-}
-
-/** Name of the running profile, e.g. "devnet". */
-export function getNetworkName(): string {
-  return getBabylonConfigState().networkName;
 }

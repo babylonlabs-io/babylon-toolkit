@@ -3,6 +3,9 @@
  * networks/*.json, so vite.config.ts stays a thin caller and this is testable.
  */
 
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+
 import {
   listNetworkProfileNames,
   readResolvedNetworkProfile,
@@ -12,7 +15,7 @@ import { REGISTRY_DERIVED_ENV_KEYS } from "./registryDerivedEnv";
 export const DEFAULT_LOCAL_NETWORK = "devnet";
 
 interface SelectInput {
-  /** Raw NEXT_PUBLIC_TBV_NETWORK from the process env or a .env file. */
+  /** Raw NEXT_PUBLIC_TBV_NETWORK from the process env. */
   name: string | undefined;
   isCI: boolean;
   command: "build" | "serve";
@@ -40,6 +43,31 @@ export function selectNetworkProfile(input: SelectInput): string {
     console.error(message);
     return JSON.stringify({ $error: message });
   }
+}
+
+/** Every dotenv name Vite's loadEnv or Nx's task runner reads: `.env`, `.env.*` and `.*.env`. */
+const DOTENV_FILE_NAME = /^(?:\.env(?:\..+)?|\..+\.env)$/;
+/** An active assignment of the selector; a commented-out line does not count. */
+const SELECTOR_ASSIGNMENT = /^\s*(?:export\s+)?NEXT_PUBLIC_TBV_NETWORK\s*=/m;
+
+/**
+ * Dotenv files under `dirs` that set the selector. Nx loads a project's and the
+ * workspace's dotenv files into every task but hashes the cache key from the
+ * process env, so a selector in one would restore the wrong bundle.
+ */
+export function findDotenvSelector(dirs: string[]): string[] {
+  return dirs
+    .flatMap((dir) =>
+      (existsSync(dir) ? readdirSync(dir) : [])
+        .filter((name) => DOTENV_FILE_NAME.test(name))
+        .map((name) => join(dir, name))
+        .filter(
+          (path) =>
+            statSync(path).isFile() &&
+            SELECTOR_ASSIGNMENT.test(readFileSync(path, "utf-8")),
+        ),
+    )
+    .sort();
 }
 
 /** Moved variables that are still set; the app ignores them, the build reports them. */

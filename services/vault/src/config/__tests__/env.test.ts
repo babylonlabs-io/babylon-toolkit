@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ENV, envInitError, readInlinedProfile } from "@/config/env";
+import {
+  ENV,
+  envInitError,
+  readInlinedProfile,
+  resolveEthRpcUrl,
+} from "@/config/env";
 
 const PROFILE = {
   name: "devnet",
@@ -91,5 +96,44 @@ describe("ENV with a mispaired profile", () => {
     expect(env.ENV.BTC_VAULT_REGISTRY).toBe(
       "0x0000000000000000000000000000000000000000",
     );
+  });
+});
+
+describe("resolveEthRpcUrl", () => {
+  const PROFILE_RPC = "https://rpc.example";
+
+  it("uses the profile RPC when the override is unset or blank", () => {
+    const errors: string[] = [];
+    expect(resolveEthRpcUrl(undefined, PROFILE_RPC, errors)).toBe(PROFILE_RPC);
+    expect(resolveEthRpcUrl("   ", PROFILE_RPC, errors)).toBe(PROFILE_RPC);
+    expect(errors).toEqual([]);
+  });
+
+  it("uses a valid override, trimmed and without a trailing slash", () => {
+    const errors: string[] = [];
+    expect(
+      resolveEthRpcUrl(" https://node.example/ ", PROFILE_RPC, errors),
+    ).toBe("https://node.example");
+    expect(errors).toEqual([]);
+  });
+
+  it("records an error and refuses any RPC when the override is not a URL", () => {
+    const errors: string[] = [];
+    expect(resolveEthRpcUrl("node.example", PROFILE_RPC, errors)).toBe(
+      "https://invalid.local",
+    );
+    expect(errors).toEqual([
+      'NEXT_PUBLIC_ETH_RPC_URL is not a valid URL: "node.example"',
+    ]);
+  });
+
+  it("records an error when the override uses a non-http scheme", () => {
+    const errors: string[] = [];
+    expect(resolveEthRpcUrl("wss://node.example", PROFILE_RPC, errors)).toBe(
+      "https://invalid.local",
+    );
+    expect(errors).toEqual([
+      'NEXT_PUBLIC_ETH_RPC_URL must use http or https scheme, got: "wss:"',
+    ]);
   });
 });
