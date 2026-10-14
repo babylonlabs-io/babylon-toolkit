@@ -142,8 +142,9 @@ that reaches a signature.
   VP. Downloaded to the user's disk; never transmitted anywhere by this app.
 - **CI credentials** — `SENTRY_AUTH_TOKEN`, the AWS OIDC roles assumed by
   `.github/workflows/service-release-vault.yml` (the shared `gha-s3-frontend-push` of each AWS
-  account, and `gha-s3-frontend-push-real-money-devnet` for `vault-real-money-devnet`, an internal
-  environment where testers sign real BTC), and the npm publish identity used by
+  account, and `gha-s3-frontend-push-real-money-devnet`, reserved for `vault-real-money-devnet`, an
+  internal environment where testers sign real BTC, which the workflow assumes once that
+  environment's matrix entry returns), and the npm publish identity used by
   `package-release.yml`. Compromise of an AWS role means arbitrary JavaScript served to every vault
   user of the environments that role publishes for; compromise of the npm identity means arbitrary
   code in every downstream consumer.
@@ -468,7 +469,7 @@ the validator reopens this hole.
 
 ### Vault provider — the hostile-counterparty boundary
 
-All VP traffic goes through the vault-provider proxy (`NEXT_PUBLIC_TBV_VP_PROXY_URL`,
+All VP traffic goes through the vault-provider proxy (`vpProxyUrl` in `services/vault/networks/<name>.json`,
 `services/vault/src/utils/rpc/vpProxy.ts`), addressed per-VP as `${VP_PROXY_URL}/rpc/${vpAddress}`.
 The proxy is what dereferences provider-supplied URLs and enforces SSRF policy — the frontend never
 fetches a provider-supplied URL directly, and must not start.
@@ -510,7 +511,7 @@ does not apply.
 ### Indexer (GraphQL)
 
 `services/vault/src/clients/graphql/client.ts` reads vault state from
-`NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT` with a 30s timeout. The endpoint is unauthenticated and the data
+`indexerUrl` from the network profile with a 30s timeout. The endpoint is unauthenticated and the data
 is public; the risk is **integrity**, per adversary **B**.
 
 The app's defence is not to trust the indexer for anything irreversible: statuses drive UI and
@@ -538,25 +539,49 @@ activity.
 amplifies 429s; React Query is the outer retry layer).
 
 The RPC is a **trusted dependency with unverified output** — the app performs no header or proof
-validation. More importantly: `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` is the address from which the
+validation. More importantly: `contracts.btcVaultRegistry` in `services/vault/networks/<name>.json` is the address from which the
 rest of the contract set is discovered. **A wrong registry address redirects the app to an
-attacker's contracts wholesale.** Treat that build-time variable with the care of a key
+attacker's contracts wholesale.** Treat that profile field with the care of a key
 configuration, not a URL.
 
-### Environment configuration — the fail-fast path and its fallback
+### Environment configuration — profiles, the fail-fast path and its fallback
 
-`services/vault/src/config/env.ts` validates every `NEXT_PUBLIC_*` input at module load: required
-addresses must be valid, non-zero EVM addresses; required URLs must parse and use `http:`/`https:`;
-`ETH_CHAINID` must be exactly `1` or `11155111`; `BTC_NETWORK` must be `mainnet` or `signet`. Errors
-accumulate into `envInitError`, which `GeoFencingProvider` turns into a **blocking** error modal
-before the app is usable.
+A deployment's contracts, endpoints and Bitcoin/Ethereum pairing live in a committed
+profile, `services/vault/networks/<name>.json`, generated from the private
+`babylonlabs-io/tbv-networks` registry by `scripts/sync-env.ts` (allowlisted fields only,
+registry commit recorded). The profile's `kind` — `production`, `test` or `internal` —
+decides the one pairing it may use (`mainnet+1`, `signet+11155111`, `mainnet+11155111`);
+`kind` is set by hand and never taken from the registry. `NEXT_PUBLIC_TBV_NETWORK` names
+the profile; the release workflow passes it from the matrix, not from a GitHub Environment,
+and asserts the profile's `kind` against the matrix before the build. A wrong registry
+address therefore needs a reviewed diff to this repository, not an environment edit.
 
-The subtlety worth understanding: on validation failure the runtime is **still initialised**, with a
-known-invalid signet/Sepolia fallback (`https://invalid.local`). This is deliberate — modules later
-in the import graph read config at evaluation time and an uninitialised runtime would crash before
+The same validator (`src/config/network/profile.ts`) runs three times: when a profile is
+generated, in `vite.config.ts` (an unknown or invalid profile fails the build; a dev server
+inlines an error marker instead so the app can show its modal), and in
+`services/vault/src/config/env.ts` at module load, together with the override URLs it reads
+(`NEXT_PUBLIC_ETH_RPC_URL`, `NEXT_PUBLIC_MEMPOOL_API`, `NEXT_PUBLIC_TBV_UTILS_API`,
+`NEXT_PUBLIC_TBV_SIDECAR_API_URL`, `NEXT_PUBLIC_TBV_VP_EXPLORER_URL`); a set-but-invalid RPC
+override is an error, the other four are optional and ignored when invalid. The Reown id is
+checked by wagmi initialisation, and feature flags are read lazily and never block. Errors
+accumulate into
+`envInitError`, which `GeoFencingProvider` turns into a **blocking** error modal before the
+app is usable. After the build, `scripts/check-built-profile.ts` asserts the bundle inlines
+the matrix profile's registry address and no other profile's; it proves consistency with
+the committed profile, not that the profile's contracts are the right ones.
+
+The subtlety worth understanding: on validation failure the runtime is **still initialised**,
+with an inert signet/Sepolia fallback (`https://invalid.local`, zero addresses) that is a
+constant in `env.ts`, never a generated file. This is deliberate — modules later in the
+import graph read config at evaluation time and an uninitialised runtime would crash before
 the blocking modal could render. It is only safe as long as the blocking modal genuinely blocks.
 **Any change that lets the app render an actionable surface while `envInitError` is set converts a
 loud misconfiguration into a silent one operating on fallback network parameters.**
+
+`services/vault/env-manifest.json` lists every `NEXT_PUBLIC_*` name the app reads by class;
+`scripts/check-env-manifest.ts` (run by `verify.yml`) fails when source, the release
+workflow's build step or the Nx build inputs disagree with it, which is what keeps retired
+variables from lingering in environments and new reads from going unlisted.
 
 Note the interaction with CSP: `ALLOWED_URL_SCHEMES` accepts `http:`, but the CSP `connect-src`
 permits only `self`, `https:`, `wss:`, and `localhost`. A plaintext non-localhost endpoint therefore
@@ -809,15 +834,21 @@ roles have different review requirements. Satisfy both.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
   bundle to S3. Note `continue-on-error` is set for the production environment in multi-env runs so
   a prod OIDC failure cannot block devnet — deliberate, and worth knowing when reading a green run.
-  `vault-real-money-devnet` publishes with its own role, which trusts this workflow on
+  `vault-real-money-devnet` is out of the matrix until `services/vault/networks/real-money-devnet.json`
+  exists; its matrix entry and `ENVIRONMENT` dispatch option come back from git history with the
+  profile. Once present, it publishes with its own role, which trusts this workflow on
   `refs/heads/main` alone; the shared role is denied on that environment's build and checksum
-  prefixes. Off `main` its leg is therefore left out of an all-environment run (a notice in the
+  prefixes. Off `main` its leg is then left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
   has not published it. It also has no immutable per-sha release manifest: that step stays
   `vault-testnet` only. Its checksums exist only in the checksum bucket, where its own publish
   role can write a newer version under the same key. That bucket is versioned with Object Lock,
   so an earlier version is kept, but a plain read returns the newest and no integrity checker
   watches this environment.
+  Each matrix entry names the profile it builds (`network`) and its `expected_kind`; the job
+  checks the profile before the build and the bundle after it (see "Environment
+  configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
+  prefix via the deploy repository; nothing in this workflow is mutable per sha.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
   no longer exist, and reports them to a tracker issue. Paths registered ahead of their code sit in a
   `pending` list that is exempt from the existence check and reported separately once the files land.
@@ -916,7 +947,7 @@ only repository-local safeguards.
 | Indexer             | B         | Wrong vault status induces an irreversible user action                            | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification | deposit-context tests                                             |
 | Indexer             | B         | Indexer rewrites a reserve's hub, asset ID or decimals but keeps its underlying   | Borrow decided on false rates, liquidity or Max amount                  | Every indexed reserve's underlying, hub, asset ID and decimals proven via Core Spoke `getReserve`               | `fetchConfig.test.ts`                                             |
 | Aave writes         | C/—       | A broadcast borrow outlives the receipt wait (congestion, a low fee, a slow RPC) and is reported as failed, so the user signs it again | Unintended extra debt and liquidation exposure | The hash is kept and waited on in bounded rounds, and every Aave form for the account stays locked until it is mined, reverted or replaced (in memory only); before any Aave write the app RPC's `pending` vs `latest` nonce refuses while a transaction from the account is still in flight. **Residual:** a reload or second tab after a private-relay send; Safe proposals (no nonce guard); the nonce check fails open when the RPC cannot answer; "Stop waiting" while the wallet still holds the transaction | `pendingAaveWrite.test.ts`, `transactionInFlight.test.ts`, Aave `transaction.test.ts` |
-| Config              | G         | Wrong `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` points the app at attacker contracts   | **User fund loss**                                                      | Strict env validation; blocking modal on failure — but a _valid wrong address_ passes                           | deployment review                                                 |
+| Config              | G         | Wrong `contracts.btcVaultRegistry` points the app at attacker contracts   | **User fund loss**                                                      | Reviewed profile diff + the matrix `expected_kind` check + the post-build bundle check; blocking modal on failure — but a _valid wrong address_ passes                           | deployment review                                                 |
 | Screening           | G         | Typo'd or unset `NEXT_PUBLIC_TBV_UTILS_API` disables screening silently           | Compliance bypass                                                       | **Known gap** — `parseOptionalUrl` warns and returns `undefined`; `verifyAddress` then allows all               | add a production startup gate                                     |
 | Screening           | —         | User edits the `localStorage` verdict or the bundle                               | Compliance bypass                                                       | None possible client-side — documented as advisory, enforcement belongs server/contract-side                    | —                                                                 |
 | Local storage       | D         | Tampered entry throws in `normalizeTransactionId` and wipes all pending deposits  | Availability, loss of resume state                                      | `hasValidSecurityFields` strict shape validation                                                                | `peginStorage.test.ts`                                            |
@@ -1006,7 +1037,7 @@ Concrete calibration examples for this repository. These are illustrations, not 
 | Severity          | Example finding in this repo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Critical**      | Any path that lets a VP-supplied value reach a signature without independent re-derivation — a payout amount, an HTLC value, or PSBT sighash metadata (I4 × L2, ↑ silent). Removal or weakening of a WASM value guard on a path feeding a signed transaction (I4 × L2). A `VAULT_WASM_COMMIT` bump that changes expander output and ships without golden-vector verification, invalidating in-flight deposits (I4 × L2). Accepting a corrupt claimer-artifact body because only the envelope prefix is validated, discovered only at claim time (I4 × L1 → High, ↑ silent → Critical). A telemetry refactor that renames a secret-bearing field out of the denylist and silently discloses vault secrets (I3 × L2 → High, ↑ silent → Critical). Write access to the vault S3 bucket or the release OIDC role, i.e. arbitrary JavaScript in every user's browser with a wallet connected (I4 × L1 → High by matrix; ↑ raise to Critical, since it is unattributable and defeats every other control). `'unsafe-inline'` or `'unsafe-eval'` added to `script-src` (I3 × L3). |
-| **High**          | Undersigning or oversigning the challenger set — recovery material missing for an active challenger, or a signature handed to an unrecognised key (I4 × L1). A wrong-but-valid `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` shipping to production (I4 × L1). A `localStorage`-sourced value reaching PSBT construction without passing `hasValidSecurityFields` (I3 × L2). Enabling Sentry tracing or replay without the corresponding URL scrubber, transmitting depositor addresses (I3 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **High**          | Undersigning or oversigning the challenger set — recovery material missing for an active challenger, or a signature handed to an unrecognised key (I4 × L1). A wrong-but-valid `contracts.btcVaultRegistry` shipping to production (I4 × L1). A `localStorage`-sourced value reaching PSBT construction without passing `hasValidSecurityFields` (I3 × L2). Enabling Sentry tracing or replay without the corresponding URL scrubber, transmitting depositor addresses (I3 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Medium**        | Screening silently disabled by a typo'd `NEXT_PUBLIC_TBV_UTILS_API` (I3 × L2 by impact of the compliance bypass, ↓ because the gate is advisory client-side ⇒ Medium; state the reasoning). Missing `X-Frame-Options`/HSTS at the CDN, enabling clickjacking of the dApp (I2 × L2). A known-vulnerable transitive dependency shipping because no SCA gate exists (I2 × L2). A tampered `localStorage` entry wiping all pending deposit records (I2 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Low**           | An external link with `target="_blank"` and no `rel="noopener"` (I1 × L2). `connect-src https:` remaining broad in an environment where a narrow allowlist is feasible (I1 × L2 — raise if paired with any script-injection path). Verbose error text exposing an internal endpoint URL in a user-facing message (I1 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | **Informational** | `claude-md-drift.yml` reporting stale critical paths to a tracker issue rather than gating merges. `nx affected`-scoped tests in `verify.yml` while build and lint are full-sweep.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |

@@ -37,9 +37,9 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { installRecordedBackend } from "./fixtures/replay";
 
-// Sentinel URLs - must match MOCK_ENV_VARS in playwright.config.ts.
-// Pinning these here means the intercept matches the exact URL the app
-// fetches, independent of whichever .env file vite happens to load.
+// Sentinel URLs - must match ethRpcUrl / vpProxyUrl in networks/e2e-replay.json,
+// the profile the Playwright servers select. Pinning them here means the
+// intercept matches the exact URL the app fetches.
 const ETH_RPC_URL = "http://localhost:9997/rpc";
 const VP_PROXY_URL = "http://localhost:9998";
 const VP_HEALTH_URL = `${VP_PROXY_URL}/vp-health`;

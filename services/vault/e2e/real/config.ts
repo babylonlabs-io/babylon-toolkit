@@ -47,12 +47,8 @@ export interface NetworkConfig {
   /** Sepolia RPC + chain id used for the ETH balance pre-flight. */
   sepoliaRpcUrl: string;
   ethChainId: number;
-  /**
-   * Vite mode whose env the app resolves for this network (`pnpm dev` ⇒ `development`, `dev:testnet`
-   * ⇒ `dev-testnet`). The pegin pre-flight loads the contract addresses + endpoints from that mode's
-   * env (see peginParams.ts) rather than hardcoding them — they rotate via `scripts/sync-env.mjs`.
-   */
-  viteMode: string;
+  /** Profile in services/vault/networks the app runs on for this network (`pnpm dev` ⇒ devnet, `dev:testnet` ⇒ testnet-2). */
+  profile: string;
 }
 
 const SIGNET_MEMPOOL = "https://mempool.space/signet/api";
@@ -66,15 +62,15 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
-    viteMode: "development",
+    profile: "devnet",
   },
   testnet: {
     websiteUrl: "https://btc-vaults.testnet.babylonlabs.io/",
-    devScript: "dev:testnet", // `pnpm dev:testnet` (uses committed .env.dev-testnet)
+    devScript: "dev:testnet", // `pnpm dev:testnet` (runs the testnet-2 profile)
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
-    viteMode: "dev-testnet",
+    profile: "testnet-2",
   },
 };
 

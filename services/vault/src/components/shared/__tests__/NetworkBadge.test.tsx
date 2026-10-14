@@ -1,51 +1,30 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { COPY } from "@/copy";
+import { getDeploymentKind } from "@/config";
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
-  Network: {
-    MAINNET: "mainnet",
-    SIGNET: "signet",
-  },
-}));
-
-const mockGetBTCNetwork = vi.fn(() => "signet");
-vi.mock("@/config", () => ({
-  getBTCNetwork: () => mockGetBTCNetwork(),
-}));
-
-// Import after mocks
 import { NetworkBadge } from "../NetworkBadge";
 
+vi.mock("@/config", () => ({
+  getDeploymentKind: vi.fn(),
+}));
+
 describe("NetworkBadge", () => {
-  it("renders nothing on mainnet", () => {
-    mockGetBTCNetwork.mockReturnValue("mainnet");
-
-    const { container } = render(<NetworkBadge />);
-
-    expect(
-      screen.queryByText(COPY.header.networkBadge),
-    ).not.toBeInTheDocument();
-    expect(container.firstChild).toBeNull();
-  });
-
-  it("renders the badge on signet", () => {
-    mockGetBTCNetwork.mockReturnValue("signet");
-
+  it("shows Testnet for a test deployment", () => {
+    vi.mocked(getDeploymentKind).mockReturnValue("test");
     render(<NetworkBadge />);
-
-    expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
+    expect(screen.getByText("Testnet")).toBeInTheDocument();
   });
 
-  it("renders nothing on an unrecognized network value", () => {
-    mockGetBTCNetwork.mockReturnValue("unknown");
+  it("shows the internal label for an internal deployment", () => {
+    vi.mocked(getDeploymentKind).mockReturnValue("internal");
+    render(<NetworkBadge />);
+    expect(screen.getByText("Internal test")).toBeInTheDocument();
+  });
 
+  it("renders nothing for production", () => {
+    vi.mocked(getDeploymentKind).mockReturnValue("production");
     const { container } = render(<NetworkBadge />);
-
-    expect(
-      screen.queryByText(COPY.header.networkBadge),
-    ).not.toBeInTheDocument();
-    expect(container.firstChild).toBeNull();
+    expect(container).toBeEmptyDOMElement();
   });
 });

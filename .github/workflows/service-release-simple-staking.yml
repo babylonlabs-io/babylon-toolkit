@@ -49,6 +49,9 @@ jobs:
 
       - name: Build
         run: pnpm run build
+        env:
+          # The vault build inlines a network profile and refuses to guess one in CI.
+          NEXT_PUBLIC_TBV_NETWORK: devnet
 
   s3_publish:
     needs: [lint_test]
@@ -118,6 +121,8 @@ jobs:
         run: pnpm run build
         env:
           NODE_OPTIONS: "--max-old-space-size=8192" # 8GB node memory limit
+          # The vault build inlines a network profile and refuses to guess one in CI.
+          NEXT_PUBLIC_TBV_NETWORK: devnet
           NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_NETWORK: ${{ vars.NEXT_PUBLIC_NETWORK }}

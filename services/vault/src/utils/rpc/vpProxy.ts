@@ -12,11 +12,6 @@ import { ETH_ADDRESS_PATTERN } from "../validation";
  * @returns Proxy URL: `${VP_PROXY_URL}/rpc/${vpAddress}`
  */
 export function getVpProxyUrl(vpAddress: string): string {
-  if (!ENV.VP_PROXY_URL) {
-    throw new Error(
-      "VP_PROXY_URL is not configured. Set NEXT_PUBLIC_TBV_VP_PROXY_URL.",
-    );
-  }
   if (!vpAddress || !ETH_ADDRESS_PATTERN.test(vpAddress)) {
     throw new Error(
       `Invalid vault provider address: "${vpAddress}". Expected a 20-byte hex address starting with 0x.`,

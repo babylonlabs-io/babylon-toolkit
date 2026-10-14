@@ -37,7 +37,8 @@ export interface RecordedExchange {
  *
  * Recognised by hostname/path shape rather than by exact URL: the recording
  * was made against devnet hosts and the capture runs against the localhost
- * bases pinned in `MOCK_ENV_VARS`, so the two never match literally.
+ * bases pinned in `networks/e2e-replay.json` (the mempool base in
+ * `MOCK_ENV_VARS`), so the two never match literally.
  */
 export type RecordedBackend =
   | "eth-rpc"
@@ -320,9 +321,9 @@ function stableStringify(value: unknown): string {
  * NO miss recorded.
  *
  * A POST is keyed on its operation rather than its path because the two
- * differ by design: the recorded indexer serves GraphQL at `/`, while
- * `MOCK_ENV_VARS` pins `/graphql`. Keying a POST on its path would match
- * nothing and every screen would render empty.
+ * differ by design: the recorded indexer serves GraphQL at `/`, while the
+ * `indexerUrl` in `networks/e2e-replay.json` ends in `/graphql`. Keying a
+ * POST on its path would match nothing and every screen would render empty.
  *
  * `variables` are part of the key because an operation name is not one
  * question. `fetchVaultProviderStats` issues one `GetVaultsByProviders` whose

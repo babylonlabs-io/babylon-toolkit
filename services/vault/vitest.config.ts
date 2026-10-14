@@ -3,6 +3,7 @@ import path from "path";
 import type { Alias } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { configDefaults, defineConfig } from "vitest/config";
+import { readResolvedNetworkProfile } from "./scripts/lib/networkProfiles";
 
 const CONTRACTS_TEST_DIR = "src/__tests__/contracts";
 const TS_SDK_DIR = path.resolve(__dirname, "../../packages/babylon-ts-sdk");
@@ -90,9 +91,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     env: {
-      NEXT_PUBLIC_BTC_NETWORK: "signet",
-      NEXT_PUBLIC_ETH_CHAINID: "11155111", // Sepolia
-      NEXT_PUBLIC_ETH_RPC_URL: "https://test.example/eth",
+      TBV_NETWORK_PROFILE: JSON.stringify(
+        readResolvedNetworkProfile("e2e-replay"),
+      ),
     },
     exclude: [
       "**/node_modules/**",

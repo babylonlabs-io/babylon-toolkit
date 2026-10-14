@@ -18,6 +18,7 @@ import {
   ETH_MAINNET_CHAIN_ID,
   ETH_SEPOLIA_CHAIN_ID,
 } from "./constants";
+import { assertPairingAllowed, type ProfileKind } from "./profile";
 
 export type EthChainId =
   | typeof ETH_MAINNET_CHAIN_ID
@@ -26,7 +27,10 @@ export type EthChainId =
 export type { BtcNetworkName };
 
 export interface BabylonConfigOptions {
-  /** Ethereum chain ID. Must be 1 (mainnet) or 11155111 (sepolia). */
+  /** Deployment class from the network profile; decides the allowed pairing and the badge. */
+  kind: ProfileKind;
+
+  /** Ethereum chain ID. 1 or 11155111; which one is legal depends on `kind`. */
   ethChainId: EthChainId;
 
   /**
@@ -49,6 +53,7 @@ export interface BabylonConfigOptions {
 }
 
 export interface BabylonConfigState {
+  kind: ProfileKind;
   ethChainId: EthChainId;
   ethRpcUrl: string;
   btcNetwork: BtcNetworkName;
@@ -79,14 +84,6 @@ export function resolveMempoolApiUrl(
 
 let state: BabylonConfigState | null = null;
 
-const VALID_PAIRINGS: Array<{
-  btc: BtcNetworkName;
-  eth: EthChainId;
-}> = [
-  { btc: BTC_MAINNET, eth: ETH_MAINNET_CHAIN_ID },
-  { btc: BTC_SIGNET, eth: ETH_SEPOLIA_CHAIN_ID },
-];
-
 /**
  * Initialize the runtime. Call once at startup before any reader runs.
  *
@@ -94,8 +91,8 @@ const VALID_PAIRINGS: Array<{
  * singletons (e.g. `ethClient`) drift from the new state.
  *
  * @throws if `configureBabylonConfig` has already been called.
- * @throws if any field is invalid or if the BTC/ETH pairing is not a known
- *   safe combination (mainnet+1, signet+11155111).
+ * @throws if any field is invalid or if the BTC/ETH pairing is not the one
+ *   allowed for the profile's kind (see assertPairingAllowed).
  */
 export function configureBabylonConfig(opts: BabylonConfigOptions): void {
   if (state !== null) {
@@ -122,17 +119,10 @@ export function configureBabylonConfig(opts: BabylonConfigOptions): void {
     );
   }
 
-  const isPaired = VALID_PAIRINGS.some(
-    (p) => p.btc === opts.btcNetwork && p.eth === opts.ethChainId,
-  );
-  if (!isPaired) {
-    throw new Error(
-      `Invalid network pairing: btcNetwork="${opts.btcNetwork}" with ethChainId=${opts.ethChainId}. ` +
-        `Allowed pairings: mainnet+1 (production), signet+11155111 (testnet).`,
-    );
-  }
+  assertPairingAllowed(opts);
 
   state = {
+    kind: opts.kind,
     ethChainId: opts.ethChainId,
     ethRpcUrl: opts.ethRpcUrl,
     btcNetwork: opts.btcNetwork,
@@ -153,4 +143,9 @@ export function getBabylonConfigState(): BabylonConfigState {
     );
   }
   return state;
+}
+
+/** Deployment class of the running profile (production, test or internal). */
+export function getDeploymentKind(): ProfileKind {
+  return getBabylonConfigState().kind;
 }

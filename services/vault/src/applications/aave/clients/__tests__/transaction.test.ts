@@ -68,6 +68,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 }));
 
 vi.mock("@/config/network", () => ({
+  configureBabylonConfig: vi.fn(),
   getETHChain: () => ({ id: 1 }),
 }));
 
