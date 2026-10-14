@@ -1,7 +1,8 @@
 /**
- * Tests for useReorderModal — verifies the modal-open baseline is
- * captured, preserved across drag, and threaded into executeReorder so
- * the signing-time guard can detect concurrent live-state changes.
+ * Tests for useReorderModal — verifies the modal-open baseline (vault order
+ * and amounts) is captured, preserved across drag, and threaded into
+ * executeReorder so the signing-time guards can detect concurrent live-state
+ * changes and bind the reviewed amounts to the registry.
  */
 
 import { act, renderHook } from "@testing-library/react";
@@ -39,6 +40,7 @@ function makeVault(
     lifecycle: "active",
     vaultId,
     amountBtc: 0.5,
+    amountSats: 50_000_000n,
     addedAt: 0,
     inUse: true,
     providerAddress: "0xprovider",
@@ -51,7 +53,7 @@ const VAULT_A = makeVault("a", VAULT_A_ID, 0);
 const VAULT_B = makeVault("b", VAULT_B_ID, 1);
 const VAULT_C = makeVault("c", VAULT_C_ID, 2);
 
-describe("useReorderModal — baseline capture for the signing-time staleness guard", () => {
+describe("useReorderModal — baseline capture for the signing-time guards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockExecuteReorder.mockResolvedValue(true);
@@ -85,7 +87,11 @@ describe("useReorderModal — baseline capture for the signing-time staleness gu
     const [submittedIds, options] = mockExecuteReorder.mock.calls[0];
     expect(submittedIds).toEqual([VAULT_B_ID, VAULT_A_ID]);
     expect(options).toEqual({
-      expectedCurrentVaultIds: [VAULT_A_ID, VAULT_B_ID],
+      kind: "manual",
+      expectedCurrentVaults: [
+        { vaultId: VAULT_A_ID, amountSats: 50_000_000n },
+        { vaultId: VAULT_B_ID, amountSats: 50_000_000n },
+      ],
     });
   });
 
@@ -112,7 +118,48 @@ describe("useReorderModal — baseline capture for the signing-time staleness gu
 
     const [, options] = mockExecuteReorder.mock.calls[0];
     expect(options).toEqual({
-      expectedCurrentVaultIds: [VAULT_A_ID, VAULT_B_ID],
+      kind: "manual",
+      expectedCurrentVaults: [
+        { vaultId: VAULT_A_ID, amountSats: 50_000_000n },
+        { vaultId: VAULT_B_ID, amountSats: 50_000_000n },
+      ],
+    });
+  });
+
+  it("forwards the modal-open amounts, not the amounts of a refetch that arrives while the modal stays open", async () => {
+    // An indexer refetch relabels A's amount while the modal is open. The
+    // user still sees the modal-open amount, so that is what the signing
+    // guard must bind to the registry.
+    const { result, rerender } = renderHook(
+      ({
+        vaults,
+        isOpen,
+      }: {
+        vaults: CollateralVaultEntry[];
+        isOpen: boolean;
+      }) => useReorderModal({ vaults, isOpen }),
+      { initialProps: { vaults: [VAULT_A, VAULT_B], isOpen: true } },
+    );
+
+    rerender({
+      vaults: [
+        { ...VAULT_A, amountBtc: 0.7, amountSats: 70_000_000n },
+        VAULT_B,
+      ],
+      isOpen: true,
+    });
+
+    await act(async () => {
+      await result.current.handleConfirm();
+    });
+
+    const [, options] = mockExecuteReorder.mock.calls[0];
+    expect(options).toEqual({
+      kind: "manual",
+      expectedCurrentVaults: [
+        { vaultId: VAULT_A_ID, amountSats: 50_000_000n },
+        { vaultId: VAULT_B_ID, amountSats: 50_000_000n },
+      ],
     });
   });
 
@@ -139,7 +186,11 @@ describe("useReorderModal — baseline capture for the signing-time staleness gu
 
     const [, options] = mockExecuteReorder.mock.calls[0];
     expect(options).toEqual({
-      expectedCurrentVaultIds: [VAULT_C_ID, VAULT_A_ID],
+      kind: "manual",
+      expectedCurrentVaults: [
+        { vaultId: VAULT_C_ID, amountSats: 50_000_000n },
+        { vaultId: VAULT_A_ID, amountSats: 50_000_000n },
+      ],
     });
   });
 });

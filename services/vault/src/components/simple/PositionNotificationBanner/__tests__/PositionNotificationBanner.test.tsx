@@ -520,6 +520,7 @@ describe("PositionNotificationBanner", () => {
 
     fireEvent.click(screen.getByText("Apply Optimal Order"));
     expect(mockExecuteReorder).toHaveBeenCalledWith(["0xabc", "0xdef"], {
+      kind: "optimal",
       optimalOrderContext: mockReorderVerificationContext,
     });
   });

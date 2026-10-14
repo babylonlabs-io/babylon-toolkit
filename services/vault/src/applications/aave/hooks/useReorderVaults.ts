@@ -28,11 +28,15 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { getAaveAdapterAddress } from "../config";
 import {
+  CollateralAmountMismatchError,
+  CollateralRegistryReadError,
   PositionChangedError,
+  assertCollateralAmountsMatchOnChain,
   assertOptimalOrderMatchesOnChain,
   assertReorderBaseline,
   assertReorderMembership,
   reorderVaultOrder,
+  type CollateralAmountPair,
   type ReorderVerificationContext,
 } from "../services";
 import {
@@ -42,23 +46,44 @@ import {
 
 import { usePendingAaveWrite } from "./usePendingAaveWrite";
 
-export interface ExecuteReorderOptions {
-  /**
-   * Trusted calculator inputs from the auto-suggestion CTA. When provided,
-   * the hook re-runs the optimizer against on-chain amounts and refuses to
-   * sign if the result diverges from the submitted permutation. Manual
-   * drag-and-drop reorders omit this so users can pick non-optimal orders.
-   */
-  optimalOrderContext?: ReorderVerificationContext;
-  /**
-   * The on-chain vault ordering the caller observed at the time it built
-   * the submission (e.g. the modal-open snapshot). When provided, the hook
-   * refuses to sign if the live ordering has drifted from this baseline
-   * — closes the same-set/different-order race the on-chain
-   * `InvalidVaultsArray` check cannot catch.
-   */
-  expectedCurrentVaultIds?: readonly Hex[];
-}
+/**
+ * Which pre-sign guards a reorder runs, keyed by where the submission comes
+ * from. The literal `kind` is required: a structural union would accept a
+ * mixed literal and silently skip the amount check.
+ */
+export type ExecuteReorderOptions =
+  | {
+      /** The auto-suggestion banner CTA. */
+      kind: "optimal";
+      /**
+       * Trusted calculator inputs. The hook re-runs the optimizer against
+       * on-chain amounts and refuses to sign if the result diverges from the
+       * submitted permutation.
+       */
+      optimalOrderContext: ReorderVerificationContext;
+    }
+  | {
+      /** The drag-and-drop modal. */
+      kind: "manual";
+      /**
+       * The vaults and amounts the user reviewed at modal open, in the
+       * on-chain order observed then. The hook refuses to sign if the live
+       * ordering has drifted from this baseline (the same-set/different-order
+       * race the on-chain `InvalidVaultsArray` check cannot catch), or if any
+       * reviewed amount differs from the registry.
+       */
+      expectedCurrentVaults: readonly CollateralAmountPair[];
+    }
+  | {
+      /** The split-order repair card; its signed order is registry-derived. */
+      kind: "baseline";
+      /**
+       * The on-chain vault ordering the caller observed when it built the
+       * submission. The hook refuses to sign if the live ordering has drifted
+       * from it.
+       */
+      expectedCurrentVaultIds: readonly Hex[];
+    };
 
 export interface UseReorderVaultsResult {
   /**
@@ -68,7 +93,7 @@ export interface UseReorderVaultsResult {
    */
   executeReorder: (
     permutedVaultIds: Hex[],
-    options?: ExecuteReorderOptions,
+    options: ExecuteReorderOptions,
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
@@ -91,12 +116,33 @@ export interface UseReorderVaultsResult {
 }
 
 /**
+ * The message shown under the action for a failed reorder. A stale baseline
+ * or an amount the registry does not confirm is its own user-facing error so
+ * the user understands they need to refresh, not retry. Retry with the same
+ * stale input cannot help.
+ */
+function reorderErrorMessage(error: unknown): string {
+  if (error instanceof PositionChangedError) return error.message;
+  if (error instanceof CollateralAmountMismatchError) {
+    return COPY.reorder.collateralAmountsChanged;
+  }
+  if (error instanceof CollateralRegistryReadError) {
+    return COPY.reorder.collateralVerificationFailed;
+  }
+  if (error instanceof Error) {
+    return mapViemErrorToContractError(error, "Reorder Vaults").message;
+  }
+  return COPY.reorder.unexpectedError;
+}
+
+/**
  * Hook for executing vault reorder transactions.
  *
  * Handles:
  * 1. Wallet validation
- * 2. On-chain integrity guards (membership; optimal-order recompute when
- *    invoked from the auto-suggestion CTA)
+ * 2. On-chain integrity guards (membership; then, by `options.kind`, the
+ *    optimal-order recompute, the baseline check, or the baseline check
+ *    followed by the per-vault amount check)
  * 3. Reorder transaction execution
  *
  * After a success, cache invalidation is deferred to the success modal close
@@ -120,7 +166,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
   }, []);
 
   const executeReorder = useCallback(
-    async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
+    async (permutedVaultIds: Hex[], options: ExecuteReorderOptions) => {
       // Reorder is an aave-scope entry action: Freeze or Pause blocks it. Guard
       // the shared execution chokepoint so neither the banner CTA nor the
       // reorder modal can broadcast while blocked, regardless of how the handler
@@ -164,20 +210,43 @@ export function useReorderVaults(): UseReorderVaultsResult {
             permutedVaultIds,
           );
 
-          if (options?.expectedCurrentVaultIds) {
-            assertReorderBaseline(
-              currentVaultIds,
-              options.expectedCurrentVaultIds,
-            );
-          }
-
-          if (options?.optimalOrderContext) {
-            await assertOptimalOrderMatchesOnChain(
-              permutedVaultIds,
-              currentVaultIds,
-              adapterAddress,
-              options.optimalOrderContext,
-            );
+          // The baseline check is pure over Guard A's result, so it runs
+          // before any registry read.
+          switch (options.kind) {
+            case "optimal":
+              await assertOptimalOrderMatchesOnChain(
+                permutedVaultIds,
+                currentVaultIds,
+                adapterAddress,
+                options.optimalOrderContext,
+              );
+              break;
+            case "manual":
+              assertReorderBaseline(
+                currentVaultIds,
+                options.expectedCurrentVaults.map((vault) => vault.vaultId),
+              );
+              await assertCollateralAmountsMatchOnChain(
+                options.expectedCurrentVaults,
+                adapterAddress,
+              );
+              break;
+            case "baseline":
+              assertReorderBaseline(
+                currentVaultIds,
+                options.expectedCurrentVaultIds,
+              );
+              break;
+            default: {
+              // Exhaustive over `ExecuteReorderOptions`: a kind with no
+              // guards must refuse, never sign.
+              const unknownOptions: never = options;
+              throw new Error(
+                `Reorder options have no guards for kind ${String(
+                  (unknownOptions as { kind?: unknown }).kind,
+                )}`,
+              );
+            }
           }
 
           await reorderVaultOrder(
@@ -205,17 +274,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
           return false;
         }
         logger.error(error, { data: { context: "Reorder vaults failed" } });
-        // Surface a stale-baseline mismatch as its own user-facing error so
-        // the user understands they need to refresh, not retry. Retry with
-        // the same stale baseline cannot help.
-        const isPositionChanged = error instanceof PositionChangedError;
-        const mappedError = isPositionChanged
-          ? error
-          : error instanceof Error
-            ? mapViemErrorToContractError(error, "Reorder Vaults")
-            : new Error(COPY.reorder.unexpectedError);
-
-        setError(mappedError.message);
+        setError(reorderErrorMessage(error));
 
         return false;
       } finally {

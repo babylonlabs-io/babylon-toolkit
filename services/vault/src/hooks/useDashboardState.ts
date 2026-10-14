@@ -21,6 +21,7 @@ import { calculateBorrowCapacityUsd } from "@/applications/aave/utils";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { truncateHash } from "@/utils/addressUtils";
+import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import {
   applyPendingWithdrawals,
   toCollateralVaultEntries,
@@ -133,7 +134,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
           id: `activating-${entry.vaultId}`,
           lifecycle: "activating",
           vaultId: entry.vaultId,
-          amountBtc: entry.amountBtc,
+          amountBtc: satoshiToBtcNumber(entry.amountSats),
+          amountSats: entry.amountSats,
           addedAt: 0,
           inUse: false,
           providerAddress: entry.providerAddress ?? "",

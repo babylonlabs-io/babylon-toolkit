@@ -9,7 +9,7 @@
  * can return the user's real vault IDs but falsified amounts to steer the
  * dApp-side optimizer toward an attacker-chosen-but-valid order.
  *
- * Two guards close that gap. Both fail closed.
+ * The guards below close that gap. All fail closed.
  *
  * - `assertReorderMembership` reads `AaveIntegrationAdapter.getPosition(user)`
  *   from the env-pinned adapter and refuses if the submitted multiset
@@ -22,20 +22,22 @@
  *   application check fails or if the trusted calculator's
  *   `optimalVaultOrder` does not equal the submission (including the
  *   case where the trusted calculator would have suggested no reorder at
- *   all). Only called when the caller is the auto-suggested CTA — manual
- *   drag-and-drop reorders intentionally skip this guard so the user can
- *   pick a non-optimal order.
+ *   all). Only called when the caller is the auto-suggested CTA. A manual
+ *   drag-and-drop reorder may pick a non-optimal order, so it skips the
+ *   order recompute; it binds the amounts the user reviewed to the
+ *   registry through `assertCollateralAmountsMatchOnChain` instead.
  */
 
-import { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { getPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address, Hex } from "viem";
 
-import { getBtcVaultBasicInfoFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { ethClient } from "@/clients/eth-contract/client";
+import { COPY } from "@/copy";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import { calculate, type Vault } from "../positionNotifications";
+
+import { readTrustedVaultAmountsSats } from "./assertCollateralAmountsMatchOnChain";
 
 export class ReorderMembershipMismatchError extends Error {
   readonly code = "REORDER_MEMBERSHIP_MISMATCH";
@@ -160,8 +162,8 @@ export async function assertReorderMembership(
  * makes these structurally redundant, but they fail closed regardless).
  *
  * Only invoked from the auto-suggested CTA. The manual drag-and-drop modal
- * intentionally does not call this guard, so users can choose a non-optimal
- * order without being second-guessed by the dApp.
+ * does not call this guard, so users can choose a non-optimal order; its
+ * amount integrity comes from `assertCollateralAmountsMatchOnChain`.
  *
  * @param currentVaultIds - Ordering returned by
  *   `AaveIntegrationAdapter.getPosition(user).vaultIds`. Used as the
@@ -170,6 +172,7 @@ export async function assertReorderMembership(
  * @throws {OptimalReorderMismatchError} when any per-vault check fails,
  *   the trusted calculator suggests no reorder, or the optimal order
  *   does not equal the submission.
+ * @throws {CollateralRegistryReadError} when the registry read fails.
  */
 export async function assertOptimalOrderMatchesOnChain(
   submittedVaultIds: readonly Hex[],
@@ -183,34 +186,17 @@ export async function assertOptimalOrderMatchesOnChain(
     );
   }
 
-  const basicInfo = await getBtcVaultBasicInfoFromChain(currentVaultIds);
+  const onChainAmounts = await readTrustedVaultAmountsSats(
+    currentVaultIds,
+    trustedAdapterAddress,
+    (message) => new OptimalReorderMismatchError(message),
+  );
 
-  const vaults: Vault[] = currentVaultIds.map((id, i) => {
-    const info = basicInfo.get(lower(id) as Hex);
-    if (info === undefined) {
-      throw new OptimalReorderMismatchError(
-        `On-chain basic info for vault ${id} not returned by registry multicall.`,
-      );
-    }
-    if (info.status !== ContractStatus.ACTIVE) {
-      throw new OptimalReorderMismatchError(
-        `Vault ${id} has on-chain status ${info.status}, expected ACTIVE (${ContractStatus.ACTIVE}). Refusing to recompute reorder against a non-active vault.`,
-      );
-    }
-    if (
-      info.applicationEntryPoint.toLowerCase() !==
-      trustedAdapterAddress.toLowerCase()
-    ) {
-      throw new OptimalReorderMismatchError(
-        `Vault ${id} is bound to application ${info.applicationEntryPoint}, expected the env-pinned Aave adapter ${trustedAdapterAddress}.`,
-      );
-    }
-    return {
-      id: lower(id),
-      btc: satoshiToBtcNumber(info.amount),
-      name: `Vault ${i + 1}`,
-    };
-  });
+  const vaults: Vault[] = currentVaultIds.map((id, i) => ({
+    id: lower(id),
+    btc: satoshiToBtcNumber(onChainAmounts[i]),
+    name: `Vault ${i + 1}`,
+  }));
 
   // Re-runs the full optimizer (worst case ~100-200ms for an exact DP at the
   // 17-vault cap). Acceptable on this path: it's a one-shot guard immediately
@@ -274,8 +260,6 @@ export function assertReorderBaseline(
   expectedCurrentVaultIds: readonly Hex[],
 ): void {
   if (!sameOrderedSequence(liveVaultIds, expectedCurrentVaultIds)) {
-    throw new PositionChangedError(
-      "Your collateral order changed since you opened this dialog. Close it, review the refreshed order, and try again.",
-    );
+    throw new PositionChangedError(COPY.reorder.positionChanged);
   }
 }

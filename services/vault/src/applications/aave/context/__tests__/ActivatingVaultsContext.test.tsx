@@ -33,19 +33,28 @@ describe("ActivatingVaultsContext", () => {
   it("addActivatingVault records an entry keyed by lowercased vaultId", () => {
     const { result } = renderHook(() => useActivatingVaults(), { wrapper });
     act(() =>
-      result.current.addActivatingVault({ vaultId: VAULT_A, amountBtc: 1 }),
+      result.current.addActivatingVault({
+        vaultId: VAULT_A,
+        amountSats: 100_000_000n,
+      }),
     );
     expect(result.current.activatingVaults.get(VAULT_A.toLowerCase())).toEqual({
       vaultId: VAULT_A,
-      amountBtc: 1,
+      amountSats: 100_000_000n,
     });
   });
 
   it("clearActivatingVault removes a single entry (case-insensitive)", () => {
     const { result } = renderHook(() => useActivatingVaults(), { wrapper });
     act(() => {
-      result.current.addActivatingVault({ vaultId: VAULT_A, amountBtc: 1 });
-      result.current.addActivatingVault({ vaultId: VAULT_B, amountBtc: 2 });
+      result.current.addActivatingVault({
+        vaultId: VAULT_A,
+        amountSats: 100_000_000n,
+      });
+      result.current.addActivatingVault({
+        vaultId: VAULT_B,
+        amountSats: 200_000_000n,
+      });
     });
     act(() => result.current.clearActivatingVault(VAULT_A.toUpperCase()));
     expect(result.current.activatingVaults.has(VAULT_A.toLowerCase())).toBe(
@@ -59,7 +68,10 @@ describe("ActivatingVaultsContext", () => {
   it("auto-clears an entry after the backstop timeout", () => {
     const { result } = renderHook(() => useActivatingVaults(), { wrapper });
     act(() =>
-      result.current.addActivatingVault({ vaultId: VAULT_A, amountBtc: 1 }),
+      result.current.addActivatingVault({
+        vaultId: VAULT_A,
+        amountSats: 100_000_000n,
+      }),
     );
 
     act(() => vi.advanceTimersByTime(OVERRIDE_TIMEOUT_MS - 1));
@@ -91,12 +103,12 @@ describe("ActivatingVaultsContext", () => {
     act(() =>
       result.current.writer.addActivatingVault({
         vaultId: VAULT_A,
-        amountBtc: 3,
+        amountSats: 300_000_000n,
       }),
     );
 
     expect(
       result.current.reader.activatingVaults.get(VAULT_A.toLowerCase()),
-    ).toEqual({ vaultId: VAULT_A, amountBtc: 3 });
+    ).toEqual({ vaultId: VAULT_A, amountSats: 300_000_000n });
   });
 });

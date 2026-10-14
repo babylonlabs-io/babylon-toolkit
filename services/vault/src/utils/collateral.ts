@@ -59,7 +59,12 @@ export function toCollateralVaultEntries(
       vaultId: c.vaultId,
       peginTxHash: c.vault?.peginTxHash,
       prePeginTxHash: derivePrePeginTxHash(c.vault?.unsignedPrePeginTx),
+      // The top-level row `amount` is the field the chain-sum check in
+      // `positionService` covers. Both fields derive from it, never from
+      // `c.vault.amount`, so the displayed amount is the one the signing
+      // guards verify.
       amountBtc: satoshiToBtcNumber(c.amount),
+      amountSats: c.amount,
       addedAt: Number(c.addedAt),
       inUse: c.vault?.inUse ?? false,
       providerAddress: providerAddress,

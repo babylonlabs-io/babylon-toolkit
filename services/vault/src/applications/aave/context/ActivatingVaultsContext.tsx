@@ -46,8 +46,11 @@ export interface ActivatingVaultEntry {
    * activating vault onto another's dashboard.
    */
   depositorEthAddress?: string;
-  /** Optimistic BTC amount, replaced by the indexer value on reconciliation. */
-  amountBtc: number;
+  /**
+   * Optimistic amount in satoshis, parsed losslessly from the deposit record.
+   * Replaced by the indexer value on reconciliation.
+   */
+  amountSats: bigint;
   /** Vault provider Ethereum address (for resolving name/icon in display). */
   providerAddress?: string;
 }
