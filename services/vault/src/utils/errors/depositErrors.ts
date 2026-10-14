@@ -113,6 +113,7 @@ import {
   isPositionCapacityExceededError,
   isPositionCapacityUnavailableError,
 } from "./positionCapacityError";
+import { isStaleProtocolAddressesError } from "./staleProtocolAddresses";
 import {
   isTypedUserRejectionFrame,
   isUserCancellation,
@@ -298,6 +299,18 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // error for the bug report instead of becoming the callout body, which is
   // what the final bucket would do with an unrecognised error.
   if (isBuildPreconditionError(err)) {
+    return {
+      title: ERRORS.defaultTitle,
+      body: ERRORS.genericBody,
+      diagnostics: formatErrorDiagnostics(err),
+    };
+  }
+
+  // 3a''-stale. The protocol contract addresses could not be re-read from the
+  // registry and the cached ones are past their maximum age, so the build
+  // refused them. Mapped for the same reason as 3a'': the message names
+  // internals and would otherwise become the callout body.
+  if (isStaleProtocolAddressesError(err)) {
     return {
       title: ERRORS.defaultTitle,
       body: ERRORS.genericBody,
