@@ -21,8 +21,9 @@ const ERC20_INSUFFICIENT_ALLOWANCE_REASON = "ERC20InsufficientAllowance";
 
 /**
  * True for an ERC20InsufficientAllowance raised at pre-flight simulation:
- * nothing was signed or broadcast, so with a receipt-verified approval it can
- * only mean the simulating backend has not caught up to the approve block.
+ * nothing that can still be mined was sent, so with a receipt-verified
+ * approval it can only mean the simulating backend has not caught up to the
+ * approve block.
  */
 function isStaleAllowanceSimulationError(err: unknown): boolean {
   return (

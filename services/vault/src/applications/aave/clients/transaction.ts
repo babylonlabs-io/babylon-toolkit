@@ -137,6 +137,8 @@ async function simulateTx(
  *   lag, or a Safe Transaction Service error). It may still be mined.
  * @throws TransactionReplacedError when the wallet replaced the transaction
  *   with a cancel or a different call.
+ * @throws SendOutcomeUnknownError when the wallet refused the send as "nonce
+ *   too low" without proof that it was never broadcast. It may still be mined.
  */
 async function executeTx(
   connectedWalletClient: WalletClient,
@@ -165,8 +167,9 @@ async function executeTx(
     try {
       await simulateTx(to, data, account);
     } catch (error) {
-      // Tagged so callers can safely auto-retry: nothing was signed or sent,
-      // and the failure may be a lagging RPC backend, not the chain.
+      // Tagged so callers can safely auto-retry: nothing that can still be
+      // mined was sent, and the failure may be a lagging RPC backend, not the
+      // chain.
       throw tagSimulationPhase(
         mapViemErrorToContractError(
           error,
@@ -188,8 +191,8 @@ async function executeTx(
     walletClient,
     publicClient,
     account,
-    send: () =>
-      walletClient.sendTransaction({
+    send: (submissionClient) =>
+      submissionClient.sendTransaction({
         to,
         data,
         chain,

@@ -387,9 +387,11 @@ export function getContractErrorArgs(
 const SIMULATION_PHASE = "simulation";
 
 /**
- * Mark a mapped error as raised during pre-flight simulation — nothing was
- * signed or broadcast. Retry logic must only auto-retry these: the same error
- * from a mined revert means the chain itself rejected the call.
+ * Mark a mapped error as raised during pre-flight simulation — nothing that
+ * can still be mined was sent (the simulation before a stale-nonce retry runs
+ * only once the rejected transaction never can be; see
+ * `sendWithStaleNonceRetry`). Retry logic must only auto-retry these: the same
+ * error from a mined revert means the chain itself rejected the call.
  */
 export function tagSimulationPhase(err: ContractError): ContractError {
   return new ContractError(

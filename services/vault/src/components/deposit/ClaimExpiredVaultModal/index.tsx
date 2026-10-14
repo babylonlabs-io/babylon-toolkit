@@ -98,6 +98,7 @@ export function ClaimExpiredVaultModal({
     claimed,
     error: claimError,
     errorTerminal,
+    errorOutcomeUnknown,
     handleClaim,
   } = useClaimExpiredVault({
     activity,
@@ -272,6 +273,11 @@ export function ClaimExpiredVaultModal({
   const staleClaimError = (secretStaged || deriving) && !errorTerminal;
   const error = localError ?? (staleClaimError ? null : claimError);
   const isTerminal = localError == null && errorTerminal;
+  // A redeem the wallet refused but may have broadcast: no Retry, since a
+  // second one while the first is pending only reverts. Closing unmounts the
+  // modal, so reopening it starts a fresh attempt.
+  const isOutcomeUnknown =
+    localError == null && !staleClaimError && errorOutcomeUnknown;
 
   // Block close while the redeem is in flight; a held derive's cancel ends
   // the wait instead.
@@ -282,6 +288,7 @@ export function ClaimExpiredVaultModal({
         claiming={claiming}
         error={error}
         errorTerminal={isTerminal}
+        errorOutcomeUnknown={isOutcomeUnknown}
         onConfirm={secretStaged ? handleContinue : handleConfirm}
         onCancel={
           awaitingAppName !== null ? ledgerDevice.cancelAppWait : handleClose

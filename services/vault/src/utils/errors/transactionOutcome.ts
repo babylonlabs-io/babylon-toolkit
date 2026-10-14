@@ -73,6 +73,28 @@ export class TransactionReplacedError extends ContractError {
 }
 
 /**
+ * The wallet refused the send as "nonce too low" without proof that the
+ * refused transaction can never be mined: the refusal named no nonce (or
+ * several), or one not yet used when the send started, or the account's count
+ * could not be read before the send (`sendWithStaleNonceRetry`). A wallet
+ * that retried a broadcast whose answer it lost answers that way for a
+ * transaction it did send, so the call may have been executed. The caller
+ * must not report a failure; with no hash, nothing can wait on it.
+ */
+export class SendOutcomeUnknownError extends ContractError {
+  constructor(cause: unknown) {
+    super(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
+      ErrorCode.CONTRACT_NONCE_ERROR,
+      undefined,
+      undefined,
+      { cause },
+    );
+    this.name = "SendOutcomeUnknownError";
+  }
+}
+
+/**
  * Refusal before signing: the app's RPC counts more transactions from the
  * account at `pending` than at `latest`, so one is still waiting to be mined.
  * Nothing was signed or sent.
@@ -97,14 +119,16 @@ export class WriteInProgressError extends ContractError {
 
 /**
  * True for an outcome that is not a failure and must not be shown as one: a
- * refusal before anything was signed, or a replacement that may have done the
- * same call.
+ * refusal before anything was signed, a replacement that may have done the
+ * same call, or a "nonce too low" for a send the wallet may have broadcast.
  */
 export function isWriteNotice(error: unknown): error is ContractError {
   return (
     error instanceof TransactionInFlightError ||
     error instanceof WriteInProgressError ||
-    (error instanceof TransactionReplacedError && error.outcome === "unknown")
+    (error instanceof TransactionReplacedError &&
+      error.outcome === "unknown") ||
+    error instanceof SendOutcomeUnknownError
   );
 }
 

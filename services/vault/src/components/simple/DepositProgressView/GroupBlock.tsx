@@ -31,6 +31,11 @@ interface GroupBlockProps {
   currentStep: number;
   /** When true, this lane's current step failed — render it as an error. */
   hasError?: boolean;
+  /**
+   * When true, this lane's current step stopped with an outcome the app cannot
+   * tell — render it as unknown, neither running nor failed.
+   */
+  outcomeUnknown?: boolean;
   /** Detail panel rendered under the active sub-step. */
   activeStepDetail?: ReactNode;
   /**
@@ -48,6 +53,7 @@ export function GroupBlock({
   steps,
   currentStep,
   hasError = false,
+  outcomeUnknown = false,
   activeStepDetail,
   preSignDetail,
 }: GroupBlockProps) {
@@ -116,7 +122,9 @@ export function GroupBlock({
                   : globalStepNum === currentStep
                     ? hasError
                       ? "error"
-                      : "active"
+                      : outcomeUnknown
+                        ? "unknown"
+                        : "active"
                     : "pending";
 
               return (

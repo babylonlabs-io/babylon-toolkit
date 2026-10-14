@@ -88,6 +88,13 @@ export interface BtcConfirmationDetailData {
 export interface DepositProgressViewProps {
   currentStep: DepositFlowStep;
   error: DepositErrorContent | null;
+  /**
+   * How `error` reads. `warning` is for an outcome the app cannot tell yet —
+   * the wallet refused a send it may have broadcast — so the callout is not
+   * styled as a failure and the current step reads as unknown, neither failed
+   * nor running. Defaults to `error`.
+   */
+  errorVariant?: "error" | "warning";
   isComplete: boolean;
   isProcessing: boolean;
   canClose: boolean;
@@ -342,6 +349,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const {
     currentStep,
     error,
+    errorVariant = "error",
     isComplete,
     isProcessing,
     canClose,
@@ -430,6 +438,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // A terminal-but-not-final milestone: closeable success without marking the
   // whole flow complete (so the stepper keeps its real position).
   const isTerminalSuccess = !isComplete && !error && Boolean(terminalMessage);
+  // A status-unknown warning marks the step unknown, not failed and not
+  // running: it may have gone through, and nothing is in flight.
+  const stepFailed = error !== null && errorVariant === "error";
+  const stepOutcomeUnknown = error !== null && errorVariant === "warning";
 
   // At the pre-sign entry (`!started`) a silently locked wallet can't sign, so
   // the primary CTA becomes an unlock action (matching the navbar and deposit
@@ -622,7 +634,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
 
           {error && (
             <Callout
-              variant="error"
+              variant={errorVariant}
               title={error.title}
               actions={
                 error.diagnostics
@@ -760,7 +772,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             vaultCount={vaultCount}
             currentVaultIndex={currentVaultIndex}
             rawStep={currentStep}
-            hasError={Boolean(error)}
+            hasError={stepFailed}
+            outcomeUnknown={stepOutcomeUnknown}
             renderStepDetail={renderStepDetail}
             perVaultSteps={perVaultSteps}
             started={started}
@@ -771,7 +784,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             steps={steps}
             currentStep={visualStep}
             activeStepDetail={activeStepDetail}
-            hasError={Boolean(error)}
+            hasError={stepFailed}
+            outcomeUnknown={stepOutcomeUnknown}
             started={started}
             preSignDetail={started ? undefined : preSignFeeSelector}
           />

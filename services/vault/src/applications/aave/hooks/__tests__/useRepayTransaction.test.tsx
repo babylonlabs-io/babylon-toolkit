@@ -58,6 +58,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 
 import { COPY } from "@/copy";
 import {
+  SendOutcomeUnknownError,
   TransactionInFlightError,
   TransactionReplacedError,
 } from "@/utils/errors";
@@ -274,6 +275,32 @@ describe("useRepayTransaction — wallet replacement", () => {
     expect(resolved).toBe("unknown");
     expect(result.current.notice).toBe(
       COPY.common.unconfirmedTransaction.replacedOutcomeUnknown,
+    );
+    expect(result.current.error).toBeNull();
+    expect(
+      mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
+    ).toContainEqual(["aaveUserPosition"]);
+  });
+
+  it('reports a "nonce too low" for a repay the wallet may have broadcast as an unknown outcome, not a failure, and refreshes the position', async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockRepayAll.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(resolved).toBe("unknown");
+    expect(result.current.notice).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
     );
     expect(result.current.error).toBeNull();
     expect(

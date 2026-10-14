@@ -12,6 +12,7 @@ import { COPY } from "@/copy";
 import {
   ContractError,
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   UnconfirmedTransactionError,
   isSimulationPhaseError,
@@ -111,7 +112,13 @@ const repayCall = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   mockSendWithStaleNonceRetry.mockImplementation(
-    ({ send }: { send: () => Promise<unknown> }) => send(),
+    ({
+      send,
+      walletClient,
+    }: {
+      send: (submissionClient: unknown) => Promise<unknown>;
+      walletClient: unknown;
+    }) => send(walletClient),
   );
   mockWaitForWalletToCountTransaction.mockResolvedValue(undefined);
 });
@@ -391,12 +398,14 @@ describe("executeTx wallet nonce handling (via repayToCorePosition)", () => {
       async ({
         send,
         prepare,
+        walletClient,
       }: {
-        send: () => Promise<unknown>;
+        send: (submissionClient: unknown) => Promise<unknown>;
         prepare: () => Promise<void>;
+        walletClient: unknown;
       }) => {
         await prepare();
-        return send();
+        return send(walletClient);
       },
     );
 
@@ -419,6 +428,34 @@ describe("executeTx wallet nonce handling (via repayToCorePosition)", () => {
 
     expect(isSimulationPhaseError(thrown)).toBe(true);
     expect(walletClient.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it("sends through the submission client the stale-nonce helper hands it, not the connected wallet client", async () => {
+    mockPublicClient.call.mockResolvedValue({});
+    const submissionClient = {
+      sendTransaction: vi.fn().mockRejectedValue(new Error("stop here")),
+    };
+    mockSendWithStaleNonceRetry.mockImplementation(
+      ({
+        send,
+      }: {
+        send: (client: typeof submissionClient) => Promise<unknown>;
+      }) => send(submissionClient),
+    );
+
+    await repayCall().catch(() => undefined);
+
+    expect(submissionClient.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(walletClient.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it("passes a send whose outcome is unknown through as is, so the hooks do not report it as failed", async () => {
+    const unknown = new SendOutcomeUnknownError(
+      new Error("nonce too low: next nonce 789, tx nonce 788"),
+    );
+    mockSendWithStaleNonceRetry.mockRejectedValue(unknown);
+
+    await expect(repayCall()).rejects.toBe(unknown);
   });
 });
 

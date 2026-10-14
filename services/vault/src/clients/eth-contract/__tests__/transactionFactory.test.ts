@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ContractError, isSimulationPhaseError } from "@/utils/errors";
+import {
+  ContractError,
+  SendOutcomeUnknownError,
+  isSimulationPhaseError,
+} from "@/utils/errors";
 
 const {
   mockPublicClient,
@@ -85,7 +89,13 @@ const write = (
 beforeEach(() => {
   vi.clearAllMocks();
   mockSendWithStaleNonceRetry.mockImplementation(
-    ({ send }: { send: () => Promise<unknown> }) => send(),
+    ({
+      send,
+      walletClient,
+    }: {
+      send: (submissionClient: unknown) => Promise<unknown>;
+      walletClient: unknown;
+    }) => send(walletClient),
   );
   mockWaitForWalletToCountTransaction.mockResolvedValue(undefined);
 });
@@ -217,12 +227,14 @@ describe("executeWrite wallet nonce handling", () => {
       async ({
         send,
         prepare,
+        walletClient,
       }: {
-        send: () => Promise<unknown>;
+        send: (submissionClient: unknown) => Promise<unknown>;
         prepare: () => Promise<void>;
+        walletClient: unknown;
       }) => {
         await prepare();
-        return send();
+        return send(walletClient);
       },
     );
 
@@ -245,6 +257,34 @@ describe("executeWrite wallet nonce handling", () => {
 
     expect(isSimulationPhaseError(thrown)).toBe(true);
     expect(walletClient.writeContract).not.toHaveBeenCalled();
+  });
+
+  it("writes through the submission client the stale-nonce helper hands it, not the connected wallet client", async () => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    const submissionClient = {
+      writeContract: vi.fn().mockRejectedValue(new Error("stop here")),
+    };
+    mockSendWithStaleNonceRetry.mockImplementation(
+      ({
+        send,
+      }: {
+        send: (client: typeof submissionClient) => Promise<unknown>;
+      }) => send(submissionClient),
+    );
+
+    await write().catch(() => undefined);
+
+    expect(submissionClient.writeContract).toHaveBeenCalledTimes(1);
+    expect(walletClient.writeContract).not.toHaveBeenCalled();
+  });
+
+  it("passes a send whose outcome is unknown through as is, so the caller does not report it as failed", async () => {
+    const unknown = new SendOutcomeUnknownError(
+      new Error("nonce too low: next nonce 789, tx nonce 788"),
+    );
+    mockSendWithStaleNonceRetry.mockRejectedValue(unknown);
+
+    await expect(write()).rejects.toBe(unknown);
   });
 });
 
@@ -305,12 +345,14 @@ describe("executeWrite caller pre-flight", () => {
       async ({
         send,
         prepare,
+        walletClient,
       }: {
-        send: () => Promise<unknown>;
+        send: (submissionClient: unknown) => Promise<unknown>;
         prepare: () => Promise<void>;
+        walletClient: unknown;
       }) => {
         await prepare();
-        return send();
+        return send(walletClient);
       },
     );
 
@@ -337,12 +379,14 @@ describe("executeWrite caller pre-flight", () => {
       async ({
         send,
         prepare,
+        walletClient,
       }: {
-        send: () => Promise<unknown>;
+        send: (submissionClient: unknown) => Promise<unknown>;
         prepare: () => Promise<void>;
+        walletClient: unknown;
       }) => {
         await prepare();
-        return send();
+        return send(walletClient);
       },
     );
 

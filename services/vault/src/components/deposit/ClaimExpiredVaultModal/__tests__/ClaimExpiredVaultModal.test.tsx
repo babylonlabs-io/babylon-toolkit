@@ -32,14 +32,17 @@ vi.mock("@/services/vault/htlcSecretDerivation", () => ({
 
 const claimState = vi.hoisted(() => ({
   claimed: false,
+  error: null as string | null,
+  errorOutcomeUnknown: false,
   handleClaim: vi.fn(async () => {}),
 }));
 vi.mock("@/hooks/deposit/useClaimExpiredVault", () => ({
   useClaimExpiredVault: () => ({
     claiming: false,
     claimed: claimState.claimed,
-    error: null,
+    error: claimState.error,
     errorTerminal: false,
+    errorOutcomeUnknown: claimState.errorOutcomeUnknown,
     handleClaim: claimState.handleClaim,
   }),
 }));
@@ -119,6 +122,8 @@ function confirmButton() {
 beforeEach(() => {
   vi.clearAllMocks();
   claimState.claimed = false;
+  claimState.error = null;
+  claimState.errorOutcomeUnknown = false;
   pollingResult.value = undefined;
   btcActionWallet.connected = true;
   ledgerDevice.isLedgerVault = false;
@@ -180,6 +185,18 @@ describe("ClaimExpiredVaultModal", () => {
     expect(confirmButton()).toBeDisabled();
     fireEvent.click(confirmButton());
     expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
+  });
+
+  it("shows a redeem the wallet may have broadcast as a status-unknown warning with Redeem disabled", () => {
+    claimState.error = COPY.common.classifiedErrors.sendOutcomeUnknown;
+    claimState.errorOutcomeUnknown = true;
+    renderModal();
+
+    expect(
+      screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.body),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
   });
 
   it("holds the success screen until Done, then reports success and closes", () => {

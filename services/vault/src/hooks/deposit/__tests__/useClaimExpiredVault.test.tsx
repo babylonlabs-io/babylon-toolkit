@@ -14,6 +14,7 @@ import { getWalletClient, switchChain } from "wagmi/actions";
 import { COPY } from "@/copy";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
+import { SendOutcomeUnknownError } from "@/utils/errors";
 
 import { useClaimExpiredVault } from "../useClaimExpiredVault";
 
@@ -139,14 +140,17 @@ function renderClaim() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  return renderHook(
-    () =>
-      useClaimExpiredVault({
-        activity: ACTIVITY,
-        depositorEthAddress: DEPOSITOR_ETH,
-      }),
-    { wrapper },
-  );
+  return {
+    queryClient,
+    ...renderHook(
+      () =>
+        useClaimExpiredVault({
+          activity: ACTIVITY,
+          depositorEthAddress: DEPOSITOR_ETH,
+        }),
+      { wrapper },
+    ),
+  };
 }
 
 async function claim(
@@ -214,6 +218,58 @@ describe("useClaimExpiredVault", () => {
     );
   });
 
+  it("does not capture a claim the wallet may have broadcast as a failure, and shows the outcome-unknown text", async () => {
+    mockClaimExpiredVaultWithSecret.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { result } = renderClaim();
+
+    await claim(result);
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(result.current.error).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
+    );
+    expect(result.current.claimed).toBe(false);
+  });
+
+  it("flags a claim the wallet may have broadcast as outcome-unknown", async () => {
+    mockClaimExpiredVaultWithSecret.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { result } = renderClaim();
+
+    await claim(result);
+
+    expect(result.current.errorOutcomeUnknown).toBe(true);
+    expect(result.current.errorTerminal).toBe(false);
+  });
+
+  it("refreshes the vault and activity reads after a claim the wallet may have broadcast", async () => {
+    mockClaimExpiredVaultWithSecret.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { queryClient, result } = renderClaim();
+    queryClient.setQueryData(["vaults", DEPOSITOR_ETH], "cached");
+    queryClient.setQueryData(["user-activities", DEPOSITOR_ETH], "cached");
+
+    await claim(result);
+
+    expect(
+      queryClient.getQueryState(["vaults", DEPOSITOR_ETH])?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(["user-activities", DEPOSITOR_ETH])
+        ?.isInvalidated,
+    ).toBe(true);
+  });
+
   it("refuses, retryably, when the PegIn's witness does not prove the secret is already public", async () => {
     mockPeginWitnessRevealsSecret.mockReturnValue(false);
     const { result } = renderClaim();
@@ -224,6 +280,7 @@ describe("useClaimExpiredVault", () => {
       COPY.deposit.claimExpired.errors.peginProofFailed,
     );
     expect(result.current.errorTerminal).toBe(false);
+    expect(result.current.errorOutcomeUnknown).toBe(false);
     expect(mockClaimExpiredVaultWithSecret).not.toHaveBeenCalled();
   });
 

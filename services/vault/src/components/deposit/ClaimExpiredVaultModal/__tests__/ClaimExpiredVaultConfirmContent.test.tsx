@@ -37,6 +37,7 @@ function renderConfirm(
       claiming={false}
       error={null}
       errorTerminal={false}
+      errorOutcomeUnknown={false}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
     />,
@@ -90,6 +91,7 @@ describe("ClaimExpiredVaultConfirmContent", () => {
         claiming={false}
         error={null}
         errorTerminal={false}
+        errorOutcomeUnknown={false}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,
@@ -113,6 +115,62 @@ describe("ClaimExpiredVaultConfirmContent", () => {
       screen.getByText(COPY.deposit.claimExpired.errors.alreadyRedeemed),
     ).toBeInTheDocument();
     expect(confirmButton()).toBeDisabled();
+  });
+
+  it("shows a redeem that may have been broadcast as a status-unknown warning with Redeem disabled and no Retry", () => {
+    const onConfirm = vi.fn();
+    render(
+      <ClaimExpiredVaultConfirmContent
+        claimWindow={{ state: "open", blocksRemaining: 7_200 }}
+        claiming={false}
+        error={COPY.common.classifiedErrors.sendOutcomeUnknown}
+        errorTerminal={false}
+        errorOutcomeUnknown={true}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.title),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.body),
+    ).toBeInTheDocument();
+    // Callout gives the error variant role alert; the warning is a status.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.deposit.claimExpired.retryButton,
+      }),
+    ).not.toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
+    fireEvent.click(confirmButton());
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("offers Retry after a redeem that failed", () => {
+    render(
+      <ClaimExpiredVaultConfirmContent
+        claimWindow={{ state: "open", blocksRemaining: 7_200 }}
+        claiming={false}
+        error="Transaction reverted"
+        errorTerminal={false}
+        errorOutcomeUnknown={false}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByText(COPY.deposit.errors.sendOutcomeUnknown.title),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Transaction reverted");
+    expect(
+      screen.getByRole("button", {
+        name: COPY.deposit.claimExpired.retryButton,
+      }),
+    ).toBeEnabled();
   });
 
   it("disables Redeem and explains why while the protocol is paused", () => {
@@ -142,6 +200,7 @@ describe("ClaimExpiredVaultConfirmContent — live state handoff", () => {
         claiming={false}
         error={null}
         errorTerminal={false}
+        errorOutcomeUnknown={false}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />

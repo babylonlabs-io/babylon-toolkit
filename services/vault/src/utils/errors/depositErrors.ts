@@ -16,6 +16,10 @@
  *  - Wallet rejection — user declines a signing prompt (typed top frame:
  *    EIP-1193 4001 / viem UserRejectedRequestError / CONNECTION_REJECTED; or,
  *    later and cause-walking, "user rejected" / "denied" wording).
+ *  - Send outcome unknown — the wallet refused an Ethereum send as "nonce too
+ *    low" but may have broadcast it (`SendOutcomeUnknownError`, or its message
+ *    as the activation hook flattens it). Not a failure, so it gets its own
+ *    status-unknown title.
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
  *  - Peg-in fingerprint changed — the registry re-derived the protocol
  *    configuration and it differed from the one the Pre-Pegin was built
@@ -271,6 +275,13 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // wording check is step 6, deliberately below the typed buckets.
   if (isTypedUserRejectionFrame(err)) {
     return ERRORS.signingRejected;
+  }
+
+  // 2a. A send the wallet refused as "nonce too low" but may have broadcast.
+  // It may have done the call, so it is not shown under the failure title.
+  // Arrives typed, or from the activation hook flattened to its message.
+  if (classifyError(err) === "send-outcome-unknown") {
+    return ERRORS.sendOutcomeUnknown;
   }
 
   if (err instanceof PendingPeginStorageReadError) {

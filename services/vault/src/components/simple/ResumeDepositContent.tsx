@@ -755,6 +755,7 @@ function ResumeActivationContentConnected({
     outcome,
     error: activationError,
     errorTerminal,
+    errorOutcomeUnknown,
     handleActivation,
   } = useActivationState({
     activity,
@@ -861,6 +862,12 @@ function ResumeActivationContentConnected({
   // cause no retry can change), never a local pre-flight error — which
   // localError would override via `??` above.
   const isTerminal = localError == null && errorTerminal;
+  // A reveal the wallet refused but may have broadcast: a warning without
+  // Retry, since a second reveal while the first is pending only reverts. The
+  // vault status refresh moves this screen on if it landed; closing and
+  // reopening starts a fresh attempt if it did not.
+  const isOutcomeUnknown =
+    localError == null && !staleActivationError && errorOutcomeUnknown;
 
   // Track the live contract status so an activation completed elsewhere
   // (another tab, a previous session) still lands on the success terminal
@@ -869,8 +876,10 @@ function ResumeActivationContentConnected({
   const active =
     pollingResult?.peginState?.contractStatus === ContractStatus.ACTIVE;
 
+  // A reveal whose outcome is unknown stays on the activation step: the secret
+  // was retrieved, and the reveal is what may have gone through.
   const renderStep =
-    activating || secretStaged
+    activating || secretStaged || isOutcomeUnknown
       ? DepositFlowStep.ACTIVATE_VAULT
       : DepositFlowStep.RETRIEVE_SECRET;
   const derived = computeDepositDerivedState(
@@ -917,6 +926,7 @@ function ResumeActivationContentConnected({
             : mapDepositErrorAfterRegistration(error.raw)
           : null
       }
+      errorVariant={isOutcomeUnknown ? "warning" : "error"}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -927,7 +937,9 @@ function ResumeActivationContentConnected({
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
-      onRetry={error && !isTerminal ? handleSubmit : undefined}
+      onRetry={
+        error && !isTerminal && !isOutcomeUnknown ? handleSubmit : undefined
+      }
       offchainParamsVersion={activity.offchainParamsVersion}
       continuePrompt={
         secretStaged && !loading && !activating

@@ -73,7 +73,10 @@ import { getNextLocalStatus, PeginAction } from "@/models/peginStateMachine";
 import { ACTIVITIES_QUERY_KEY } from "@/services/activity";
 import { claimExpiredVaultWithSecret } from "@/services/vault/vaultActivationService";
 import type { VaultActivity } from "@/types/activity";
-import { isVaultRecordEmptyError } from "@/utils/errors";
+import {
+  isVaultRecordEmptyError,
+  SendOutcomeUnknownError,
+} from "@/utils/errors";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 /**
@@ -100,6 +103,11 @@ export interface UseClaimExpiredVaultResult {
   error: string | null;
   /** The vault's on-chain state rules the redeem out — no Retry. */
   errorTerminal: boolean;
+  /**
+   * The wallet refused the redeem as "nonce too low" but may have broadcast
+   * it — a status-unknown warning, not a failure, and no Retry.
+   */
+  errorOutcomeUnknown: boolean;
   handleClaim: (secretHex: string) => Promise<void>;
 }
 
@@ -115,6 +123,7 @@ export function useClaimExpiredVault({
   const [claimed, setClaimed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorTerminal, setErrorTerminal] = useState(false);
+  const [errorOutcomeUnknown, setErrorOutcomeUnknown] = useState(false);
 
   // The redeem awaits an on-chain transaction, so the modal can close before
   // it settles; the setters below must not fire on an unmounted tree.
@@ -136,12 +145,14 @@ export function useClaimExpiredVault({
       if (isActivateAndRedeemBlocked(gate)) {
         setError(COPY.pegin.claimExpiredPaused);
         setErrorTerminal(false);
+        setErrorOutcomeUnknown(false);
         return;
       }
 
       setClaiming(true);
       setError(null);
       setErrorTerminal(false);
+      setErrorOutcomeUnknown(false);
 
       // Telemetry discriminators for the catch below, as in the activation
       // flow: routine pre-submission refusals are not redeem failures, and
@@ -306,9 +317,19 @@ export function useClaimExpiredVault({
           setClaiming(false);
         }
       } catch (err) {
+        // A claim the wallet refused as "nonce too low" but may have
+        // broadcast is not a failure: it is not captured, and the vault and
+        // activity reads are refreshed in case it went through.
+        const outcomeUnknown = err instanceof SendOutcomeUnknownError;
+        if (outcomeUnknown) {
+          void invalidateVaultQueries(queryClient);
+          void queryClient.invalidateQueries({
+            queryKey: [ACTIVITIES_QUERY_KEY],
+          });
+        }
         // Captured regardless of mount — there is no abort signal, and a real
         // failure is worth knowing even if the modal closed mid-flight.
-        if (!expectedInterruption && !submitted) {
+        if (!expectedInterruption && !submitted && !outcomeUnknown) {
           captureFunnelFailure(
             TELEMETRY_STAGE.EXPIRED_VAULT_REDEEM,
             err,
@@ -326,6 +347,7 @@ export function useClaimExpiredVault({
               : rawMessage,
           );
           setErrorTerminal(err instanceof ClaimExpiredNotPossibleError);
+          setErrorOutcomeUnknown(outcomeUnknown);
           setClaiming(false);
         }
       }
@@ -333,5 +355,12 @@ export function useClaimExpiredVault({
     [activity.id, depositorEthAddress, gate, queryClient, setOptimisticStatus],
   );
 
-  return { claiming, claimed, error, errorTerminal, handleClaim };
+  return {
+    claiming,
+    claimed,
+    error,
+    errorTerminal,
+    errorOutcomeUnknown,
+    handleClaim,
+  };
 }

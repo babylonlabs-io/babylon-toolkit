@@ -103,6 +103,7 @@ export function EmergencyWithdrawModal({
     outcome,
     error: activationError,
     errorTerminal,
+    errorOutcomeUnknown,
     handleActivation,
   } = useActivationState({
     activity,
@@ -311,6 +312,11 @@ export function EmergencyWithdrawModal({
   // Terminal only applies to the on-chain failure (deadline passed), never a
   // local pre-flight error — which localError would override via `??` above.
   const isTerminal = localError == null && errorTerminal;
+  // A reveal the wallet refused but may have broadcast: no Retry, since a
+  // second one while the first is pending only reverts. Closing unmounts the
+  // modal, so reopening it starts a fresh attempt.
+  const isOutcomeUnknown =
+    localError == null && !staleActivationError && errorOutcomeUnknown;
 
   // Block close while the reveal is in flight to avoid dismissing the dialog
   // mid-signing; a held derive's cancel ends the wait instead.
@@ -321,6 +327,7 @@ export function EmergencyWithdrawModal({
         withdrawing={withdrawing}
         error={error}
         errorTerminal={isTerminal}
+        errorOutcomeUnknown={isOutcomeUnknown}
         onConfirm={secretStaged ? handleContinue : handleConfirm}
         onCancel={
           awaitingAppName !== null ? ledgerDevice.cancelAppWait : handleClose

@@ -67,6 +67,7 @@ import { COPY } from "@/copy";
 import {
   ContractError,
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionInFlightError,
   TransactionReplacedError,
   UnconfirmedTransactionError,
@@ -329,6 +330,29 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     expect(resolved).toBe("unknown");
     expect(result.current.notice).toBe(
       COPY.common.unconfirmedTransaction.replacedOutcomeUnknown,
+    );
+    expect(result.current.error).toBeNull();
+    expect(
+      mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
+    ).toContainEqual(["aaveUserPosition"]);
+  });
+
+  it('reports a "nonce too low" for a borrow the wallet may have broadcast as an unknown outcome, not a failure, and refreshes the position', async () => {
+    mockBorrow.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(resolved).toBe("unknown");
+    expect(result.current.notice).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
     );
     expect(result.current.error).toBeNull();
     expect(
