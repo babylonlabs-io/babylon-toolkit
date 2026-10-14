@@ -1,0 +1,217 @@
+name: vault-image
+run-name: vault-image ${{ inputs.network }} by ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: Committed network profile under services/vault/networks/
+        type: choice
+        required: true
+        options:
+          - devnet
+          - staging
+          - testnet-2
+          - testnet
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.network }}-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Refuse dispatch off main
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::vault-image publishes from main only (got $GITHUB_REF)."
+            exit 1
+          fi
+
+  lint_test:
+    needs: [guard]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: 24
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for browser tests
+        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium
+
+      - name: Test SDK in Chromium
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
+
+      - name: Test
+        run: pnpm run test
+        env:
+          NX_PARALLEL: "1"
+
+  resolve:
+    needs: [guard]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      environment: ${{ steps.map.outputs.environment }}
+      expected_kind: ${{ steps.map.outputs.expected_kind }}
+    steps:
+      - name: Map network to environment
+        id: map
+        env:
+          NETWORK: ${{ inputs.network }}
+        run: |
+          set -euo pipefail
+          case "$NETWORK" in
+            devnet)    environment="vault-devnet";         expected_kind="test" ;;
+            staging)   environment="vault-staging-devnet"; expected_kind="test" ;;
+            testnet-2) environment="vault-testnet";        expected_kind="test" ;;
+            testnet)   environment="testnet-3";            expected_kind="test" ;;
+            *)
+              echo "::error::Unknown network '$NETWORK'; no environment mapping."
+              exit 1
+              ;;
+          esac
+          {
+            echo "environment=$environment"
+            echo "expected_kind=$expected_kind"
+          } >> "$GITHUB_OUTPUT"
+
+  check_profile:
+    needs: [guard, resolve]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: 24
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check network profile
+        env:
+          NETWORK: ${{ inputs.network }}
+          EXPECTED_KIND: ${{ needs.resolve.outputs.expected_kind }}
+        run: pnpm --filter @services/vault run check:network-profile "$NETWORK" --kind "$EXPECTED_KIND"
+
+  build_args:
+    needs: [guard, resolve]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: ${{ needs.resolve.outputs.environment }}
+    outputs:
+      build_args: ${{ steps.args.outputs.build_args }}
+    steps:
+      - name: Collect build-time configuration
+        id: args
+        env:
+          TARGET_ENVIRONMENT: ${{ needs.resolve.outputs.environment }}
+          NEXT_PUBLIC_TBV_NETWORK: ${{ inputs.network }}
+          NEXT_PUBLIC_ETH_RPC_URL: ${{ vars.NEXT_PUBLIC_ETH_RPC_URL }}
+          NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
+          NEXT_PUBLIC_TBV_VP_EXPLORER_URL: ${{ vars.NEXT_PUBLIC_TBV_VP_EXPLORER_URL }}
+          NEXT_PUBLIC_TBV_SIDECAR_API_URL: ${{ vars.NEXT_PUBLIC_TBV_SIDECAR_API_URL }}
+          NEXT_PUBLIC_TBV_ORDINALS_API_URL: ${{ vars.NEXT_PUBLIC_TBV_ORDINALS_API_URL }}
+          NEXT_PUBLIC_TBV_UTILS_API: ${{ vars.NEXT_PUBLIC_TBV_UTILS_API }}
+          NEXT_PUBLIC_COMMIT_HASH: ${{ github.sha }}
+          NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
+          NEXT_PUBLIC_REOWN_PROJECT_ID: ${{ vars.NEXT_PUBLIC_REOWN_PROJECT_ID }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_SENTRY_TUNNEL_URL: ${{ vars.NEXT_PUBLIC_SENTRY_TUNNEL_URL }}
+          NEXT_PUBLIC_RELEASE_ID: ${{ github.sha }}
+          NEXT_PUBLIC_DIST_ID: ${{ github.run_id }}
+          NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ needs.resolve.outputs.environment }}-image
+          NEXT_PUBLIC_FF_DISABLE_VAULT_CAP: ${{ vars.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP }}
+          NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET: ${{ vars.NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET }}
+          NEXT_PUBLIC_FF_ENABLE_EXPLORE: ${{ vars.NEXT_PUBLIC_FF_ENABLE_EXPLORE }}
+          NEXT_PUBLIC_FF_ENABLE_MOBILE: ${{ vars.NEXT_PUBLIC_FF_ENABLE_MOBILE }}
+          NEXT_PUBLIC_FF_DISABLE_DEPOSIT: ${{ vars.NEXT_PUBLIC_FF_DISABLE_DEPOSIT }}
+          NEXT_PUBLIC_FF_DISABLE_BORROW: ${{ vars.NEXT_PUBLIC_FF_DISABLE_BORROW }}
+          NEXT_PUBLIC_FF_PROTOCOL_FROZEN: ${{ vars.NEXT_PUBLIC_FF_PROTOCOL_FROZEN }}
+          NEXT_PUBLIC_FF_PROTOCOL_PAUSED: ${{ vars.NEXT_PUBLIC_FF_PROTOCOL_PAUSED }}
+          NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT: ${{ vars.NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT }}
+          NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS: ${{ vars.NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS }}
+          NEXT_PUBLIC_NOTICE_BANNER_MESSAGE: ${{ vars.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE }}
+        run: |
+          set -euo pipefail
+          required=(
+            NEXT_PUBLIC_TBV_NETWORK
+            NEXT_PUBLIC_REOWN_PROJECT_ID
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Unset in environment $TARGET_ENVIRONMENT: ${missing[*]}"
+            exit 1
+          fi
+          if [ -n "${NEXT_PUBLIC_TBV_UTILS_API:-}" ] && [[ ! "$NEXT_PUBLIC_TBV_UTILS_API" =~ ^https://[^[:space:]/]+ ]]; then
+            echo "::error::NEXT_PUBLIC_TBV_UTILS_API must be an https:// URL"
+            exit 1
+          fi
+          names=$(compgen -e | grep -E '^NEXT_PUBLIC_[A-Z0-9_]+$' | sort)
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "build_args<<$delimiter"
+            for name in $names; do
+              value="${!name}"
+              if [[ "$value" == *$'\n'* || "$value" == *$'\r'* || "$value" == *"$delimiter"* ]]; then
+                echo "::error::$name must be a single line" >&2
+                exit 1
+              fi
+              if [[ "$value" == *'"'* || "$value" != "${value#[[:space:]]}" || "$value" != "${value%[[:space:]]}" ]]; then
+                echo "::error::$name must not contain double quotes or leading/trailing whitespace" >&2
+                exit 1
+              fi
+              printf '%s=%s\n' "$name" "$value"
+            done
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+  docker_publish:
+    needs: [guard, resolve, check_profile, build_args, lint_test]
+    uses: babylonlabs-io/.github/.github/workflows/reusable_docker_pipeline.yml@902082b8e5c0a1fed7be6980fa6a1b77fc005c06 # v0.23.0 https://github.com/babylonlabs-io/.github/releases/tag/v0.23.0
+    with:
+      publish: true
+      push_to_dockerhub: false
+      disable_arm64: true
+      dockerfile: ./services/vault/Dockerfile
+      repoName: vault-frontend
+      imageTag: ${{ inputs.network }}-${{ github.sha }}-r${{ github.run_id }}.${{ github.run_attempt }}
+      buildArgs: ${{ needs.build_args.outputs.build_args }}
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write

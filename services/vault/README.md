@@ -125,8 +125,12 @@ To add an environment:
    add an `overrides` block only if the registry entry is wrong, and open a PR.
 3. Create the GitHub Environment with the override variables it needs (`NEXT_PUBLIC_REOWN_PROJECT_ID`,
    Sentry, `NEXT_PUBLIC_CANONICAL`, flags). Never add a contract address or endpoint there.
-4. Add a matrix entry to `service-release-vault.yml` with `"network":"<name>"` and
-   `"expected_kind":"<kind>"`, plus the AWS account and, for a main-only environment, its role.
+4. For an environment served from S3 and the CDN, add a matrix entry to `service-release-vault.yml`
+   with `"network":"<name>"` and `"expected_kind":"<kind>"`, plus the AWS account and, for a
+   main-only environment, its role.
+5. Add `<name>` to the `network` choice list and to the `resolve` map in
+   `service-image-vault.yml` (environment and expected kind); the image workflow offers every
+   deployable profile, whether or not the environment is served from a cluster image today.
 
 ## Troubleshooting
 

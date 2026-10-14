@@ -67,10 +67,13 @@ rubric below.
   that must actually hold belong in the contracts or in a server the user does not control. This
   document describes what these checks protect users _from mistakes and from a hostile
   counterparty_, not what they protect the protocol from.
-- The repository **terminates no TLS and serves no HTTP**. Builds are static artifacts uploaded to
-  S3 and served through a CDN. Response headers (HSTS, CSP-as-header, `X-Frame-Options` on the real
-  origin), TLS policy, and edge rate limiting are **deployment responsibilities** — see _Delivery and
-  response headers_.
+- The repository **terminates no TLS and, except for the vault dapp image, serves no HTTP**.
+  Builds are static artifacts uploaded to S3 and served through a CDN, except that image built for one of the four
+  deployable committed profiles (the `testnet` profile, served as testnet-3, is the first from the cluster), which is pushed to the
+  `vault-frontend` ECR repository, pinned by digest in flux-gitops, and served by the nginx inside
+  it (which sets the framing and content-type headers for that origin). Response headers (HSTS,
+  CSP-as-header, `X-Frame-Options` on the real origin), TLS policy, and edge rate limiting are
+  otherwise **deployment responsibilities** — see _Delivery and response headers_.
 - The user's **wallet, browser, extension set, and OS are trusted and unverified**. A malicious
   extension injected into the app's origin, or a wallet that silently signs something other than what
   it was handed, defeats every control described here. The mitigations below reduce what a _remote_
@@ -144,9 +147,14 @@ that reaches a signature.
   `.github/workflows/service-release-vault.yml` (the shared `gha-s3-frontend-push` of each AWS
   account, and `gha-s3-frontend-push-real-money-devnet`, reserved for `vault-real-money-devnet`, an
   internal environment where testers sign real BTC, which the workflow assumes once that
-  environment's matrix entry returns), and the npm publish identity used by
-  `package-release.yml`. Compromise of an AWS role means arbitrary JavaScript served to every vault
-  user of the environments that role publishes for; compromise of the npm identity means arbitrary
+  environment's matrix entry returns), the npm publish identity used by
+  `package-release.yml`, and the shared `gha-ecr-push` role that
+  `.github/workflows/service-image-vault.yml` assumes to publish the vault dapp image built for one of the four
+  deployable committed profiles (the `testnet` profile, served as testnet-3, is the first from the cluster) to the `vault-frontend`
+  ECR repository. Compromise of an S3 role means arbitrary JavaScript
+  served to every vault user of the environments that role publishes for. Compromise of the ECR
+  push role means a hostile image in the `vault-frontend` repository, which reaches users only
+  through a reviewed digest change in flux-gitops. Compromise of the npm identity means arbitrary
   code in every downstream consumer.
 - **`E2E_WALLET_MNEMONIC` / `E2E_WALLET_PASSWORD`** (`services/vault/e2e/real/secrets.ts`). Real
   signet/Sepolia funds. Sourced from the environment or a gitignored `.env.local`; must never be
@@ -165,7 +173,8 @@ that reaches a signature.
   amounts, fee totals, payout amounts, the challenger set, `depositorWotsPkHash`, and the OP*RETURN
   auth-anchor preimage. Their correctness \_is* the security property.
 - **The built bundle on S3 and its SRI hashes.** Whoever can write to the bucket decides what code
-  runs in every user's browser with their wallet connected.
+  runs in every user's browser with their wallet connected. For the vault dapp image the same
+  holds for the `vault-frontend` ECR image and the digest flux-gitops pins it by.
 
 ## Threat model (assumed adversaries)
 
@@ -582,7 +591,9 @@ loud misconfiguration into a silent one operating on fallback network parameters
 `services/vault/env-manifest.json` lists every `NEXT_PUBLIC_*` name the app reads by class;
 `scripts/check-env-manifest.ts` (run by `verify.yml`) fails when source, the release
 workflow's build step or the Nx build inputs disagree with it, which is what keeps retired
-variables from lingering in environments and new reads from going unlisted.
+variables from lingering in environments and new reads from going unlisted. **Known gap:** the
+env block of `service-image-vault.yml` and the `ARG` list in `services/vault/Dockerfile`
+are mirrored by hand from the release workflow's `Build project` step and are outside this check.
 
 Note the interaction with CSP: `ALLOWED_URL_SCHEMES` accepts `http:`, but the CSP `connect-src`
 permits only `self`, `https:`, `wss:`, and `localhost`. A plaintext non-localhost endpoint therefore
@@ -692,7 +703,11 @@ unprotected. Two details that are correct and non-obvious:
 SRI protects against a modified asset served from the CDN. It does **not** protect `index.html`
 itself — nothing does, on a static host. Whoever can write `index.html` in the bucket controls the
 CSP, the SRI hashes, and the script list. This is why the S3/OIDC write path in
-`.github/workflows/service-release-vault.yml` is treated as key material.
+`.github/workflows/service-release-vault.yml` is treated as key material, and why the
+`gha-ecr-push` path in `.github/workflows/service-image-vault.yml` and the `vault-frontend` ECR
+repository it pushes to are treated the same way: the vault dapp image serves its own `index.html`
+from the nginx inside it, so whoever can push that image controls the same three things for every
+user the image reaches.
 
 The workflow emits per-file and global `sha256sum` manifests alongside every upload. Those are the
 artifact that makes "is what is being served what we built?" answerable — use them.
@@ -708,6 +723,11 @@ production users depends entirely on CDN configuration that lives outside this r
 CSP does ship, but `X-Frame-Options` and HSTS **cannot** be delivered via `<meta>`. Verify the edge
 configuration sets them; do not infer their presence from this file. A dApp that can be framed is a
 clickjacking target with a wallet attached.
+
+The vault dapp image is the exception: `services/vault/docker/nginx.conf` sets
+`X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy` and
+`Permissions-Policy: camera=(self), microphone=(), geolocation=()` itself (camera stays allowed for
+the Keystone QR scan). HSTS is left to the Cloudflare edge in front of it.
 
 ### Telemetry and PII
 
@@ -850,6 +870,35 @@ roles have different review requirements. Satisfy both.
   checks the profile before the build and the bundle after it (see "Environment
   configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
   prefix via the deploy repository; nothing in this workflow is mutable per sha.
+- `service-image-vault.yml` builds `services/vault/Dockerfile` into the vault dapp image built for one of the four
+  deployable committed profiles (the `testnet` profile, served as testnet-3, is the first from the cluster), on manual dispatch,
+  and publishes it to the immutable `vault-frontend` ECR repository through the org reusable
+  Docker pipeline, using the shared `gha-ecr-push` role. Publishing is confined to `main` by that
+  role's OIDC trust, which accepts from this repository only `repo:babylonlabs-io/babylon-toolkit:ref:refs/heads/main`
+  (terraform `service-modules/github-oidc/common-role-ecr-push.tf`), so a dispatch from any other ref
+  fails at the AWS credential step before anything is pushed. The workflow's `guard` job, which
+  fails any ref other than `main`, is a convenience check only: a dispatch from a branch runs that
+  branch's copy of the workflow, so the job is not a control. A `lint_test` job (the release
+  workflow's SDK browser tests and `pnpm run test`) must pass before the publish job starts, and
+  the image reports to Sentry as `<environment>-image` (for example `vault-testnet-image`), never
+  under the environment name the CDN build uses. The dispatch input `network` is a choice over the four
+  deployable committed profiles (`e2e-replay` is excluded); a `resolve` job maps it to the GitHub Environment and expected profile kind
+  (`devnet` -> `vault-devnet`, `staging` -> `vault-staging-devnet`, `testnet-2` -> `vault-testnet`,
+  `testnet` -> `testnet-3`, all kind `test`) and fails on anything else. The testnet-3 image is
+  served from the testnet cluster: first at a preview hostname behind Cloudflare Access in front
+  of a cloudflared tunnel, until the public hostname is pointed at it. It is a second delivery
+  path, not a matrix entry: contracts, endpoints and the network pairing come from
+  `services/vault/networks/<network>.json` (`NEXT_PUBLIC_TBV_NETWORK` is the dispatch input,
+  never read from an environment), checked for the resolved kind before the build and against the
+  bundle inside the image after it. From the resolved environment this workflow reads only override variables: Reown
+  project id, Sentry DSN and tunnel, canonical, the ETH RPC URL override, the mempool, VP explorer,
+  sidecar, ordinals and utils URLs, feature flags, disabled BTC wallets and the notice banner; the
+  `vars.*` reads of the workflow's `build_args` step are the exhaustive list. The job fails on a
+  missing network or Reown project id, a utils endpoint that is set but not https, and values
+  containing `"` or edge whitespace. The image tag is `<network>-<sha>-r<run>.<attempt>`. **Known gap:** that env block
+  and the Dockerfile `ARG` list are mirrored by hand from the release workflow's `Build project`
+  step and sit outside `check:env-manifest`. The role trusts many repositories, so flux-gitops
+  pins this image by digest, never by tag.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
   no longer exist, and reports them to a tracker issue. Paths registered ahead of their code sit in a
   `pending` list that is exempt from the existence check and reported separately once the files land.
@@ -955,10 +1004,10 @@ only repository-local safeguards.
 | Screening           | G         | Typo'd or unset `NEXT_PUBLIC_TBV_UTILS_API` disables screening silently           | Compliance bypass                                                       | **Known gap** — `parseOptionalUrl` warns and returns `undefined`; `verifyAddress` then allows all               | add a production startup gate                                     |
 | Screening           | —         | User edits the `localStorage` verdict or the bundle                               | Compliance bypass                                                       | None possible client-side — documented as advisory, enforcement belongs server/contract-side                    | —                                                                 |
 | Local storage       | D         | Tampered entry throws in `normalizeTransactionId` and wipes all pending deposits  | Availability, loss of resume state                                      | `hasValidSecurityFields` strict shape validation                                                                | `peginStorage.test.ts`                                            |
-| Delivery            | D         | Attacker with S3/CDN write serves modified `index.html`                           | **Total compromise — arbitrary code with the user's wallet connected**  | OIDC-scoped role; SHA manifests per release; SRI protects assets but not `index.html`                           | deployment review                                                 |
+| Delivery            | D         | Attacker with S3/CDN write, or with `vault-frontend` ECR push for the vault dapp image, serves modified `index.html` | **Total compromise — arbitrary code with the user's wallet connected**  | OIDC-scoped role; SHA manifests per release; SRI protects assets but not `index.html`; the vault dapp image reaches users only through a reviewed digest pin in flux-gitops | deployment review                                                 |
 | CSP                 | D         | Injected script exfiltrates derived secrets to an arbitrary HTTPS host            | Confidentiality of vault secrets                                        | `script-src` blocks injection; **`connect-src https:` provides no exfiltration control**                        | narrow `connect-src` per environment                              |
 | CSP                 | D         | Script injection in simple-staking runs without an application-defined CSP        | Wallet action manipulation / data exposure                              | **Known gap** — no CSP meta tag; verify whether deployment supplies an equivalent response header               | `services/simple-staking/index.html`, deployment review           |
-| Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
+| Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`; the vault dapp image's nginx sets `X-Frame-Options` for its origin, HSTS stays with the edge | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions            | `.npmrc`, syncpack in CI                                          |

@@ -55,7 +55,12 @@ browser storage.
   stubs, and dev-only routes. These establish no production guarantee, and none of them may become
   a production path.
 - TLS termination, response headers, CDN and object-store configuration, and edge rate limiting.
-  A static bundle cannot establish these; they are deployment responsibilities.
+  A static bundle cannot establish these; they are deployment responsibilities. The vault dapp
+  image built for one of the four deployable committed profiles (the `testnet` profile, served as testnet-3, is the first from the cluster, built by
+  `.github/workflows/service-image-vault.yml`) is the one carve-out: its nginx
+  (`docker/nginx.conf`) sets `X-Frame-Options`,
+  `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy` itself, while HSTS and TLS
+  stay with the edge.
 
 **Guarantees imported.** These are established by a named layer outside this component. This
 component depends on them and must not be read as establishing them itself.
@@ -201,7 +206,9 @@ repository-wide. [`SECURITY.md` → _Scope and non-goals_](../../SECURITY.md#sco
 authoritative for all four; they are named here only so a reader of this file knows they exist:
 **no enforcement boundary** (every client-side check is advisory), **no protection against local
 compromise**, **no user authentication**, and **deployment-layer controls a static bundle cannot
-establish** (HSTS, framing policy, TLS). If this file and root ever disagree on one of them, root
+establish** (HSTS, framing policy, TLS). The vault dapp image narrows the last one: its nginx
+sets `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy`
+itself; HSTS and TLS stay with the edge. If this file and root ever disagree on one of them, root
 is correct.
 
 Specific to this component:

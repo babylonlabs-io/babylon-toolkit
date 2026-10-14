@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+!packages/babylon-tbv-rust-wasm/dist/generated
+**/.nx
+**/.env
+**/.env.*
+!services/vault/.env.example
+.git
+**/coverage
+**/playwright-report
+**/test-results
