@@ -2680,6 +2680,22 @@ describe("LedgerVaultProvider", () => {
     expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(stale);
   });
 
+  it("refuses an app at or above the ceiling as an incompatible version", async () => {
+    const tooNew = { ...h.session, appVersion: "0.12.0" };
+    dmkSessionMock.connectDmkSession.mockResolvedValue(tooNew);
+
+    const call = new LedgerVaultProvider(Network.SIGNET).connectWallet();
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, version: "0.12.0" });
+    await expect(call).rejects.toThrow(/does not support your Babylon Vault Testnet app version \(0\.12\.0\)/);
+    expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(tooNew);
+  });
+
+  it("connects a 0.11.x app below the ceiling", async () => {
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ ...h.session, appVersion: "0.11.99" });
+
+    await expect(new LedgerVaultProvider(Network.SIGNET).connectWallet()).resolves.toBeUndefined();
+  });
+
   it("refuses a non-canonical version without claiming it is out of date", async () => {
     dmkSessionMock.connectDmkSession.mockResolvedValue({ ...h.session, appVersion: "0.11.0-rc1" });
 

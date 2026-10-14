@@ -104,6 +104,9 @@ export const APP_NAME_BY_NETWORK: Record<Network, string> = {
 // Floor = app-babylon-vault-dev develop @ b89dd580 (APPVERSION 0.11.0). Pre-PegIn change goes to
 // the depositor's `/0/0` address, which 0.10.1 rejects, so older apps cannot fund a deposit.
 const MIN_APP_VERSION = "0.11.0";
+// Exclusive ceiling. Raise only after the host intent encoding and device caps are checked
+// against the new firmware; a minor bump has changed device semantics before (0.10 → 0.11).
+const FIRST_UNSUPPORTED_APP_VERSION = "0.12.0";
 /**
  * How often a held operation re-reads the open app while waiting for the user
  * to open the vault app — one instant GET_APP_AND_VERSION exchange per tick
@@ -618,8 +621,9 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * Refuse, before the first vault APDU, an app the connect preflight shows is
-   * wrong or too old. A failed preflight (no name) is let through: the first
-   * APDU then reports its own typed error.
+   * wrong, too old, or newer than the host encoding supports. A failed
+   * preflight (no name) is let through: the first APDU then reports its own
+   * typed error.
    */
   private refuseUnexpectedApp(session: DmkSessionHandle): WalletError | undefined {
     const expected = APP_NAME_BY_NETWORK[this.network];
@@ -635,7 +639,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     if (version === "below") {
       return new WalletError({
         code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
-        message: `Your ${expected} app is out of date (${session.appVersion}). Update it to ${MIN_APP_VERSION} or later and try again.`,
+        message: `Your ${expected} app is out of date (${session.appVersion}). Update it to ${MIN_APP_VERSION} and try again.`,
         wallet: WALLET_PROVIDER_NAME,
         version: session.appVersion,
       });
@@ -645,8 +649,16 @@ export class LedgerVaultProvider implements IBTCProvider {
     if (version === "unparseable") {
       return new WalletError({
         code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
-        message: `Unable to verify your ${expected} app version. Install the official app ${MIN_APP_VERSION} or later and try again.`,
+        message: `Unable to verify your ${expected} app version. Install the official app ${MIN_APP_VERSION} and try again.`,
         wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    if (checkMinVersion(session.appVersion, FIRST_UNSUPPORTED_APP_VERSION) === "ok") {
+      return new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `This site does not support your ${expected} app version (${session.appVersion}) yet. Try again after this site is updated.`,
+        wallet: WALLET_PROVIDER_NAME,
+        version: session.appVersion,
       });
     }
     return undefined;
