@@ -30,6 +30,7 @@ vi.mock("../walletNonce", () => ({
 }));
 
 vi.mock("@/config/network", () => ({
+  configureBabylonConfig: vi.fn(),
   getETHChain: () => ({ id: 1 }),
 }));
 

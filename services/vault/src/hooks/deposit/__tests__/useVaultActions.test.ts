@@ -76,6 +76,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 vi.mock("@/config/network", () => ({
+  configureBabylonConfig: vi.fn(),
   getETHChain: vi.fn(() => ({ id: 11155111 })),
   // Reached transitively: the resume broadcast's RFC-006 key resolution pulls
   // in the shared ETHClient, which reads the RPC config at construction.
