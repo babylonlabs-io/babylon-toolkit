@@ -126,13 +126,14 @@ export function PostDepositContinuationView({
   autoStartAction,
   onClose,
 }: PostDepositContinuationViewProps) {
-  const { connected } = useBtcAction();
+  const { connected, locked } = useBtcAction();
   const [admitted, setAdmitted] = useState(connected);
   const [keyWasReady, setKeyWasReady] = useState(!!btcPublicKey);
   if (btcPublicKey && !keyWasReady) setKeyWasReady(true);
   // Allow the first key read. A lost session or key withdraws admission, so the
-  // branch waits on its named Start card rather than prompting on reconnect.
-  if (admitted && (!connected || (keyWasReady && !btcPublicKey))) {
+  // branch waits on its named Start card rather than prompting on reconnect. A
+  // locked wallet keeps it, as in BtcActionGate, so the flow resumes on unlock.
+  if (admitted && ((!connected && !locked) || (keyWasReady && !btcPublicKey))) {
     setAdmitted(false);
   }
   // A wallet prompt opens without a click only for the action the opener named;
