@@ -37,10 +37,10 @@ export function isPositionCapacityExceededError(
 
 /**
  * Typed refusal when the position-capacity check could not reach a verdict: a
- * chain read failed, or the batch has no single application to ask. The check
- * fails closed rather than defaulting to "allowed", and this attempt broadcast
- * nothing. The underlying failure, when there is one, stays on `cause` for the
- * log.
+ * chain read failed, the transaction could not be sized, or the vaults found
+ * do not hold every HTLC output exactly once. The check fails closed rather
+ * than defaulting to "allowed", and this attempt broadcast nothing. The
+ * underlying failure, when there is one, stays on `cause` for the log.
  */
 export class PositionCapacityUnavailableError extends Error {
   readonly vaultId: Hex;

@@ -1373,6 +1373,16 @@ export const COPY = {
         title: "Couldn't check your position",
         body: "We couldn't confirm that your Aave position has room for this deposit. This attempt didn't broadcast anything. Please try again in a few minutes.",
       },
+      // A BTCVault the indexer lists under this Pre-Pegin is registered on
+      // Ethereum to a different Pre-Pegin, depositor or application, so the
+      // listing cannot be trusted to name the batch this broadcast funds.
+      // Refused before any wallet prompt, so this attempt broadcast nothing.
+      // The resume modal offers Retry on every error, and a refresh does not
+      // fix a mis-grouped listing, so the body does not promise one.
+      batchSiblingMismatch: {
+        title: "Deposit batch doesn't match Ethereum",
+        body: "A BTCVault listed with this deposit is registered on Ethereum to a different Pre-Pegin, depositor or application, so the batch this broadcast would fund can't be confirmed. This attempt didn't broadcast anything. If this keeps happening, contact support.",
+      },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
       refundHashMismatch: (computedHash: string, chainHash: string) =>

@@ -37,8 +37,10 @@
  *    room; the gate's own chain-read failures map to the window-unavailable
  *    callout, by body).
  *  - Position capacity — the resume broadcast's typed refusals when the
- *    application says the depositor's position cannot take the batch, or the
- *    check could not reach a verdict. Both fire before any wallet prompt.
+ *    application says the depositor's position cannot take the batch, the
+ *    check could not reach a verdict, or a vault listed with the batch is
+ *    registered on chain to another Pre-PegIn, depositor or application. All
+ *    fire before any wallet prompt.
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -88,6 +90,7 @@ import {
 } from "@/services/vault/pinnedBuildLimits";
 import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 
+import { isBatchSiblingMismatchError } from "./batchSiblingMismatchError";
 import {
   isDepositorBtcKeyMismatchError,
   isDepositorWalletMismatchError,
@@ -339,8 +342,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
 
   // 3a''''. The other limit a deposit can run into: the depositor's own
   // position, checked by the resume broadcast before any wallet prompt. A
-  // refusal and a check with no verdict need different instructions (free
-  // room, or just try again), hence two callouts. Checked ahead of the
+  // refusal, a check with no verdict and a batch listing the chain
+  // contradicts need different instructions (free room, try again, or
+  // contact support), hence three callouts. Checked ahead of the
   // cause-walking buckets below, so the read failure kept as `cause` cannot
   // classify the refusal as something else.
   if (isPositionCapacityExceededError(err)) {
@@ -348,6 +352,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
   if (isPositionCapacityUnavailableError(err)) {
     return ERRORS.positionCapacityUnavailable;
+  }
+  if (isBatchSiblingMismatchError(err)) {
+    return ERRORS.batchSiblingMismatch;
   }
 
   // 3b. RFC-006 participant key drift. Distinct from the version mismatch

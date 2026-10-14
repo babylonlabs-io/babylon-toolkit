@@ -108,9 +108,10 @@ export interface BroadcastPrePeginParams {
   /**
    * Every vault this Pre-PegIn commits, including `vaultId`. The broadcast
    * funds all of them, so the position-capacity check sizes the whole batch.
-   * Indexer-derived, so discovery input only: a vault counts when its on-chain
-   * Pre-PegIn hash and depositor match, and the vaults found must hold every
-   * HTLC output of the transaction.
+   * Indexer-derived, so verified rather than trusted: every listed vault must
+   * be registered on chain to this Pre-PegIn, depositor and application, or
+   * the broadcast is refused, and the vaults found must hold every HTLC
+   * output of the transaction.
    */
   batchVaultIds: readonly Hex[];
   /**
@@ -426,8 +427,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // broadcasts anything or prompts the wallet; it cannot recall a Pre-PegIn
       // another device already broadcast while the on-chain status still reads
       // PENDING. The batch is sized from the hash-checked transaction's HTLC
-      // outputs, so an under-listed batch cannot pass. Fails closed when the
-      // check cannot be read or the batch is incomplete.
+      // outputs, so an under-listed batch cannot pass. Refuses a listed vault
+      // the chain registers to another Pre-PegIn, depositor or application.
+      // Fails closed when the check cannot be read or the batch is incomplete.
       await assertResumePositionCapacity({
         vaultId,
         target: {
@@ -541,11 +543,16 @@ export function useVaultActions(): UseVaultActionsReturn {
             expectedVaultCoreVersion: buildVaultCoreVersion,
           });
         } catch (err) {
-          // Only a confirmed mismatch drops the entry — transient RPC
-          // failures keep it so the user can retry. Mirrors the inline
-          // deposit path's version-check cleanup in useDepositFlow.
+          // Only a confirmed mismatch drops the entries — transient RPC
+          // failures keep them so the user can retry. Mirrors the inline
+          // deposit path's version-check cleanup in useDepositFlow. Every
+          // sibling's record goes, since a sibling's record may be the one
+          // this resume used and every record in the batch shares the
+          // drifted versions.
           if (isRegisteredVaultVersionMismatchError(err)) {
-            removePendingPegin?.(vaultId);
+            for (const id of batchVaultIds) {
+              removePendingPegin?.(id);
+            }
           }
           throw err;
         }

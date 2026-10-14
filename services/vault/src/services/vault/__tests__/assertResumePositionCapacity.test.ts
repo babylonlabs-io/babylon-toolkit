@@ -29,6 +29,7 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
 }));
 
 import {
+  BatchSiblingMismatchError,
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
 } from "@/utils/errors";
@@ -189,7 +190,7 @@ describe("assertResumePositionCapacity — batch membership and completeness", (
     expect(mockReadAllowedToDeposit).not.toHaveBeenCalled();
   });
 
-  it("ignores a listed vault registered on another Pre-PegIn without reading its full record", async () => {
+  it("refuses a listed sibling registered on another Pre-PegIn before reading its full record", async () => {
     chainHas({
       [STRANGER_ID]: onChainVault({
         prePeginTxHash: OTHER_PRE_PEGIN_TX_HASH,
@@ -197,40 +198,24 @@ describe("assertResumePositionCapacity — batch membership and completeness", (
       }),
     });
 
-    await assertResumePositionCapacity({
+    const err = await assertResumePositionCapacity({
       vaultId: VAULT_ID,
       target: targetOf(ONE_HTLC),
       unsignedTxHex: ONE_HTLC.hex,
       batchVaultIds: [VAULT_ID, STRANGER_ID],
-    });
+    }).catch((e: unknown) => e);
 
+    expect(err).toBeInstanceOf(BatchSiblingMismatchError);
+    expect(err).toMatchObject({
+      vaultId: VAULT_ID,
+      siblingId: STRANGER_ID,
+      field: "prePeginTxHash",
+    });
     expect(mockGetVaultFromChain).not.toHaveBeenCalled();
-    expect(mockReadAllowedToDeposit).toHaveBeenCalledWith(
-      expect.objectContaining({ nVaultsToDeposit: 1n }),
-    );
-  });
-
-  it("refuses when the only vault at an HTLC output belongs to another depositor", async () => {
-    chainHas({
-      [STRANGER_ID]: onChainVault({
-        prePeginTxHash: TWO_HTLCS.hash,
-        htlcVout: 1,
-        depositor: OTHER_DEPOSITOR,
-      }),
-    });
-
-    await expect(
-      assertResumePositionCapacity({
-        vaultId: VAULT_ID,
-        target: targetOf(TWO_HTLCS),
-        unsignedTxHex: TWO_HTLCS.hex,
-        batchVaultIds: [VAULT_ID, STRANGER_ID],
-      }),
-    ).rejects.toBeInstanceOf(PositionCapacityUnavailableError);
     expect(mockReadAllowedToDeposit).not.toHaveBeenCalled();
   });
 
-  it("leaves another depositor's vault out of the count when this depositor's vault holds the output", async () => {
+  it("refuses a listed sibling registered to another depositor", async () => {
     chainHas({
       [SIBLING_ID]: onChainVault({
         prePeginTxHash: TWO_HTLCS.hash,
@@ -245,19 +230,20 @@ describe("assertResumePositionCapacity — batch membership and completeness", (
       }),
     });
 
-    await assertResumePositionCapacity({
+    const err = await assertResumePositionCapacity({
       vaultId: VAULT_ID,
       target: targetOf(TWO_HTLCS),
       unsignedTxHex: TWO_HTLCS.hex,
       batchVaultIds: [VAULT_ID, SIBLING_ID, STRANGER_ID],
-    });
+    }).catch((e: unknown) => e);
 
-    expect(mockReadAllowedToDeposit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        nVaultsToDeposit: 2n,
-        amountToDeposit: 150_000n,
-      }),
-    );
+    expect(err).toBeInstanceOf(BatchSiblingMismatchError);
+    expect(err).toMatchObject({
+      vaultId: VAULT_ID,
+      siblingId: STRANGER_ID,
+      field: "depositor",
+    });
+    expect(mockReadAllowedToDeposit).not.toHaveBeenCalled();
   });
 
   it("refuses two vaults registered at the same HTLC output", async () => {
@@ -327,14 +313,19 @@ describe("assertResumePositionCapacity — batch membership and completeness", (
       }),
     });
 
-    await expect(
-      assertResumePositionCapacity({
-        vaultId: VAULT_ID,
-        target: targetOf(TWO_HTLCS),
-        unsignedTxHex: TWO_HTLCS.hex,
-        batchVaultIds: [VAULT_ID, SIBLING_ID],
-      }),
-    ).rejects.toBeInstanceOf(PositionCapacityUnavailableError);
+    const err = await assertResumePositionCapacity({
+      vaultId: VAULT_ID,
+      target: targetOf(TWO_HTLCS),
+      unsignedTxHex: TWO_HTLCS.hex,
+      batchVaultIds: [VAULT_ID, SIBLING_ID],
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(BatchSiblingMismatchError);
+    expect(err).toMatchObject({
+      vaultId: VAULT_ID,
+      siblingId: SIBLING_ID,
+      field: "applicationEntryPoint",
+    });
     expect(mockReadAllowedToDeposit).not.toHaveBeenCalled();
   });
 
