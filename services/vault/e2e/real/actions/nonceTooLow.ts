@@ -66,8 +66,8 @@ type InjectionEvent =
   | { kind: "error"; message: string };
 
 export interface NonceInjectionProbe {
-  /** Throws unless MetaMask's provider was wrapped — call before submitting the borrow. */
-  assertPatched(): void;
+  /** Rejects unless MetaMask's provider was wrapped — call before submitting the borrow. */
+  assertPatched(): Promise<void>;
   /**
    * Wait until MetaMask's node and the app's RPC count the same transactions for the account, and
    * return that count — the baseline "exactly one transaction" is measured against. The app retries a
@@ -105,8 +105,16 @@ const INJECTION_SOURCE = `(() => {
   var armed = true;
   var patched = false;
   var borrowSends = 0;
+  // The binding answers asynchronously, so a failed report is kept here for the
+  // runner to read when an expected event never arrives.
+  var reportFailures = [];
+  window.__e2eNonceInjectionReportFailures = reportFailures;
   function report(entry) {
-    try { if (window.__e2eNonceInjection) window.__e2eNonceInjection(JSON.stringify(entry)); } catch (e) {}
+    Promise.resolve()
+      .then(function () { return window.__e2eNonceInjection(JSON.stringify(entry)); })
+      .catch(function (error) {
+        reportFailures.push(entry.kind + ": " + String(error && error.message ? error.message : error));
+      });
   }
   function refusal(nextNonce, nonce) {
     var error = new Error(REFUSAL_PREFIX + "nonce too low: next nonce " + nextNonce + ", tx nonce " + nonce);
@@ -228,11 +236,21 @@ export async function installNonceTooLowInjection(
     `Nonce injection armed (${mode}) for the borrow send to ${appController}`,
   );
 
+  // Reports the page could not deliver, so a missing event names its cause.
+  const undeliveredReports = async (): Promise<string> => {
+    const failures = (await page.evaluate(
+      "window.__e2eNonceInjectionReportFailures || []",
+    )) as string[];
+    return failures.length > 0
+      ? ` Undelivered page reports: ${failures.join("; ")}.`
+      : "";
+  };
+
   return {
-    assertPatched() {
+    async assertPatched() {
       if (!events.some((event) => event.kind === "patched"))
         throw new Error(
-          "Nonce injection: MetaMask's EIP-6963 provider was never wrapped, so the borrow would run without the injected refusal.",
+          `Nonce injection: MetaMask's EIP-6963 provider was never wrapped, so the borrow would run without the injected refusal.${await undeliveredReports()}`,
         );
     },
     async settledCount(ethAddress) {
@@ -264,7 +282,7 @@ export async function installNonceTooLowInjection(
         await page.waitForTimeout(NONCE_INJECTION_POLL_MS);
       }
       throw new Error(
-        `Nonce injection: the borrow send was not answered within ${Math.round(NONCE_INJECTION_TIMEOUT_MS / MS_PER_SECOND)}s — the app never sent it through MetaMask's wrapped provider.`,
+        `Nonce injection: the borrow send was not answered within ${Math.round(NONCE_INJECTION_TIMEOUT_MS / MS_PER_SECOND)}s — the app never sent it through MetaMask's wrapped provider.${await undeliveredReports()}`,
       );
     },
     assertNotResent() {

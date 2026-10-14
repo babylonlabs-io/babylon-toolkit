@@ -579,7 +579,7 @@ async function runBorrowFlow(
   onStep("borrow-submit");
   // With an injected refusal, the account's count before the send is what "exactly one transaction"
   // is measured against.
-  injection?.probe.assertPatched();
+  await injection?.probe.assertPatched();
   const countBefore = injection
     ? await injection.probe.settledCount(ctx.eth.address)
     : undefined;
