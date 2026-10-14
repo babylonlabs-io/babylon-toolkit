@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { RECORDED_DEPLOYMENT } from "./e2e/fixtures/replay/contracts";
+import { RECORDED_ENDPOINTS } from "./e2e/fixtures/replay/contracts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,10 +24,7 @@ const GOD_MODE_SPECS = [
  * Pixel 7 is a Chromium descriptor; an iPhone one would switch to WebKit,
  * which CI does not install.
  */
-const PHONE_SPECS = [
-  "**/eth-first-access.spec.ts",
-  "**/phone-session.spec.ts",
-];
+const PHONE_SPECS = ["**/eth-first-access.spec.ts", "**/phone-session.spec.ts"];
 /** Specs that run only on the phone projects. */
 const PHONE_ONLY_SPECS = ["**/phone-journey.spec.ts"];
 /**
@@ -45,34 +42,18 @@ const DEMO_VIDEO = process.env.E2E_VIDEO === "on" ? "on" : "off";
 const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", ...GOD_MODE_SPECS];
 
 /**
- * Mock backend the e2e suite pins so no spec reaches a live host. Exported
- * because `playwright.visual.config.ts` spreads it: two hand-maintained
- * copies would drift, and the capture would still pass — just against a
- * different app than the one under test.
+ * Mock backend the e2e suite pins so no spec reaches a live host. The
+ * contracts and endpoints come from networks/e2e-replay.json; this object
+ * holds only what is not a profile field. Exported because
+ * `playwright.visual.config.ts` spreads it.
  */
 export const MOCK_ENV_VARS = {
-  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: RECORDED_DEPLOYMENT.AAVE_ADAPTER_CONFIG,
-  NEXT_PUBLIC_TBV_BTC_PRICE_FEED: RECORDED_DEPLOYMENT.BTC_PRICE_FEED,
-  NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: "http://localhost:9999/graphql",
-  NEXT_PUBLIC_TBV_VP_PROXY_URL: "http://localhost:9998",
-  NEXT_PUBLIC_ETH_RPC_URL: "http://localhost:9997/rpc",
-  // Both are required by `validateEnvVars` (src/config/env.ts), and their
-  // absence here was invisible on a developer machine: vite-plugin-environment
-  // reads `.env` files as well as the process env, and `services/vault/.env`
-  // supplies them. A clean runner has no `.env`, so validation failed,
-  // `envInitError` was set, and the app rendered the blocking "Configuration
-  // Error" modal on every screen instead of itself. Anything spawned from this
-  // object must therefore stand on its own, without a `.env` behind it.
-  // Sepolia + signet is the pairing `configureBabylonConfig` accepts.
-  NEXT_PUBLIC_ETH_CHAINID: "11155111",
-  NEXT_PUBLIC_BTC_NETWORK: "signet",
+  NEXT_PUBLIC_TBV_NETWORK: "e2e-replay",
+  // Pinned so a developer's .env override cannot send reads to a live RPC.
+  NEXT_PUBLIC_ETH_RPC_URL: RECORDED_ENDPOINTS.ETH_RPC_URL,
   // Pinned mempool base so route handlers in
   // `services/vault/e2e/fixtures/networkRoutes.ts` can match
-  // deterministic paths. Without this the dApp falls through to a
-  // signet/mainnet default and tests would have to intercept the live
-  // hostname.
+  // deterministic paths.
   NEXT_PUBLIC_MEMPOOL_API: "http://localhost:9996/mempool",
   NEXT_PUBLIC_REOWN_PROJECT_ID: "test-project-id-12345",
   NEXT_PUBLIC_SENTRY_DSN: "https://test@o12345.ingest.sentry.io/12345",
@@ -82,22 +63,11 @@ export const MOCK_ENV_VARS = {
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "e2e-test",
   // Gate that the page-side `getInjectedWallets()` helper reads to
   // decide whether to surface `window.__BABYLON_E2E_WALLETS__`.
-  // Vite's EnvironmentPlugin inlines NEXT_PUBLIC_* from process.env at
-  // build time, so this must be set when the dev server is spawned.
   NEXT_PUBLIC_E2E_MODE: "1",
 };
 
-/**
- * Keep the recorded deployment available to the god-mode and visual servers.
- * Visual captures also use these values when testing baseline code.
- */
-export const RECORDED_DEPLOYMENT_ENV = {
-  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: RECORDED_DEPLOYMENT.AAVE_ADAPTER_CONFIG,
-  NEXT_PUBLIC_TBV_BTC_PRICE_FEED: RECORDED_DEPLOYMENT.BTC_PRICE_FEED,
-  NEXT_PUBLIC_ETH_CHAINID: RECORDED_DEPLOYMENT.ETH_CHAIN_ID,
-};
+/** A profile name no file matches: the dev server boots and the app shows its configuration modal. */
+const MISSING_PROFILE_NAME = "missing-profile-for-e2e";
 
 export default defineConfig({
   testDir: path.join(__dirname, "e2e"),
@@ -173,6 +143,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       // Disable Sentry on the server with missing configuration.
       env: {
+        NEXT_PUBLIC_TBV_NETWORK: MISSING_PROFILE_NAME,
         NEXT_PUBLIC_SENTRY_DSN: "",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-missing",
       },
@@ -197,7 +168,6 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       env: {
         ...MOCK_ENV_VARS,
-        ...RECORDED_DEPLOYMENT_ENV,
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
         NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-god-mode",

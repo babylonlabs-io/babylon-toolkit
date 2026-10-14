@@ -8,8 +8,8 @@
  *    `getPegInConfiguration().minimumPegInAmount`. Reused (not reimplemented) so it can't drift.
  *  - Providers: the indexer GraphQL `GetAppProviders` query, filtered by the app controller.
  *
- * Contract addresses + endpoints are resolved per-network from the app's env via `networkContracts.ts`
- * (shared with the borrow pre-flight) — never hardcoded, so a `sync-env.mjs` rotation is picked up.
+ * Contract addresses + endpoints come from the network profile via `networkContracts.ts`
+ * (shared with the borrow pre-flight) — never hardcoded, so a `pnpm sync-env` rotation is picked up.
  */
 import {
   resolveProtocolAddresses,

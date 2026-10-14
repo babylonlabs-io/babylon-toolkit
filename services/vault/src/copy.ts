@@ -2469,9 +2469,10 @@ export const COPY = {
   },
   // v3 page-title header (services/vault/src/components/pages/RootLayout.tsx).
   header: {
-    // Network indicator chip, shown only on non-production networks (see
-    // components/shared/NetworkBadge.tsx).
+    // Network indicator chip (components/shared/NetworkBadge.tsx), by
+    // deployment kind: test and internal show one; production shows none.
     networkBadge: "Testnet",
+    internalNetworkBadge: "Internal test",
   },
   // Entry-screen footer (components/shared/EntryFooter.tsx). The legal link
   // labels it renders are the shared `nav` ones.

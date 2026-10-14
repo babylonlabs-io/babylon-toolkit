@@ -25,6 +25,7 @@ import {
   type JsonRpcRequest,
   type RecordedChain,
 } from "./chain";
+import { RECORDED_ENDPOINTS } from "./contracts";
 import {
   DEFAULT_REPLAY_STEP,
   graphqlKey,
@@ -189,11 +190,9 @@ export async function installRecordedBackend(
    * origin identifies them exactly and keeps doing so if a path moves.
    */
   const originOf = (value: string): string => new URL(value).origin;
-  const ETH_RPC_ORIGIN = originOf(MOCK_ENV_VARS.NEXT_PUBLIC_ETH_RPC_URL);
-  const VP_ORIGIN = originOf(MOCK_ENV_VARS.NEXT_PUBLIC_TBV_VP_PROXY_URL);
-  const GRAPHQL_ORIGIN = originOf(
-    MOCK_ENV_VARS.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
-  );
+  const ETH_RPC_ORIGIN = originOf(RECORDED_ENDPOINTS.ETH_RPC_URL);
+  const VP_ORIGIN = originOf(RECORDED_ENDPOINTS.VP_PROXY_URL);
+  const GRAPHQL_ORIGIN = originOf(RECORDED_ENDPOINTS.GRAPHQL_ENDPOINT);
   const MEMPOOL_ORIGIN = originOf(MOCK_ENV_VARS.NEXT_PUBLIC_MEMPOOL_API);
   const on =
     (origin: string, matches: (pathname: string) => boolean) => (url: URL) =>

@@ -6,6 +6,10 @@ import { defineConfig, loadEnv } from "vite";
 import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
+import {
+  findRegistryDerivedLeftovers,
+  selectNetworkProfile,
+} from "./scripts/lib/selectNetworkProfile";
 import { sriPlugin } from "./src/build/sriPlugin";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -40,8 +44,7 @@ const SECURITY_HEADERS = {
 const SIDECAR_PROXY_PATH = "/sidecar";
 
 // .env files are not loaded into process.env for this config module, so read them
-// directly. The mode must come from Vite rather than NODE_ENV, or `vite --mode
-// dev-testnet` would miss the .env.dev-testnet override.
+// directly, keyed by Vite's mode so a `--mode` override file is honoured.
 function resolveSidecarProxy(mode: string) {
   const { SIDECAR_PROXY_TARGET: target } = loadEnv(mode, __dirname, "SIDECAR_");
   if (!target) return undefined;
@@ -91,6 +94,28 @@ const enableSentryPlugin =
       process.env.SENTRY_ORG &&
       process.env.SENTRY_PROJECT,
   );
+
+// The selected profile is inlined as a constant; see src/config/env.ts for the reader.
+function resolveNetworkProfileJson(
+  mode: string,
+  command: "build" | "serve",
+): string {
+  const fileEnv = loadEnv(mode, __dirname, "NEXT_PUBLIC_");
+  const leftovers = findRegistryDerivedLeftovers(process.env, fileEnv);
+  if (leftovers.length > 0) {
+    const message =
+      `${leftovers.join(", ")} moved into networks/<name>.json and are ignored. ` +
+      "Remove them (pnpm sync-env strips them from .env).";
+    if (process.env.CI) throw new Error(message);
+    console.warn(`⚠️ ${message}`);
+  }
+  return selectNetworkProfile({
+    name:
+      process.env.NEXT_PUBLIC_TBV_NETWORK ?? fileEnv.NEXT_PUBLIC_TBV_NETWORK,
+    isCI: Boolean(process.env.CI),
+    command,
+  });
+}
 
 export default defineConfig(({ mode, command }) => ({
   cacheDir:
@@ -181,6 +206,9 @@ export default defineConfig(({ mode, command }) => ({
     ),
     "import.meta.env.NEXT_PUBLIC_CANONICAL": JSON.stringify(
       resolveCanonicalOrigin(),
+    ),
+    "import.meta.env.TBV_NETWORK_PROFILE": JSON.stringify(
+      resolveNetworkProfileJson(mode, command),
     ),
   },
 }));

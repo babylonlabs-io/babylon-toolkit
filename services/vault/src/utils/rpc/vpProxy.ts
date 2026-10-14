@@ -14,7 +14,7 @@ import { ETH_ADDRESS_PATTERN } from "../validation";
 export function getVpProxyUrl(vpAddress: string): string {
   if (!ENV.VP_PROXY_URL) {
     throw new Error(
-      "VP_PROXY_URL is not configured. Set NEXT_PUBLIC_TBV_VP_PROXY_URL.",
+      "VP_PROXY_URL is not configured. The network profile's vpProxyUrl is empty.",
     );
   }
   if (!vpAddress || !ETH_ADDRESS_PATTERN.test(vpAddress)) {

@@ -298,10 +298,9 @@ vi.mock("@/infrastructure", () => ({
 }));
 
 // The registry address is a fingerprint input, and the encoder rejects the
-// zero address — which is what `ENV` falls back to when
-// NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY is unset, as it is under vitest. Mock it
-// with a real address, as the other config-reading suites do, so the value the
-// assertions use is visible here rather than depending on ambient env.
+// zero address, which is what `ENV` falls back to when the inlined network
+// profile is unusable. Mock it with a real address, as the other
+// config-reading suites do, so the value the assertions use is visible here.
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
     BTC_VAULT_REGISTRY:

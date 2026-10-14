@@ -103,6 +103,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   getSharedWagmiConfig: () => ({}),
 }));
 vi.mock("@/config/network", () => ({
+  configureBabylonConfig: vi.fn(),
   getETHChain: () => ({ id: 11155111 }),
 }));
 

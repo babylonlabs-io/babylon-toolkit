@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { MOCK_ENV_VARS, RECORDED_DEPLOYMENT_ENV } from "./playwright.config";
+import { MOCK_ENV_VARS } from "./playwright.config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -12,12 +12,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // missing export is not an error: it arrives as `undefined`, `{ ...undefined }`
 // spreads to `{}`, and the dev server silently boots with no mock env - so
 // guard that case loudly here.
-if (
-  (MOCK_ENV_VARS as unknown) === undefined ||
-  (RECORDED_DEPLOYMENT_ENV as unknown) === undefined
-) {
+if ((MOCK_ENV_VARS as unknown) === undefined) {
   throw new Error(
-    "MOCK_ENV_VARS or RECORDED_DEPLOYMENT_ENV imported from " +
+    "MOCK_ENV_VARS imported from " +
       "./playwright.config is undefined - the " +
       "playwright.config.ts on disk does not export it. In CI this means " +
       "the visual-regression workflow restored playwright.visual.config.ts " +
@@ -65,7 +62,6 @@ export const VISUAL_OUTPUT_DIR =
  */
 const VISUAL_ENV_VARS = {
   ...MOCK_ENV_VARS,
-  ...RECORDED_DEPLOYMENT_ENV,
   // Sentry off: a capture run must not transmit anything. The e2e suite
   // needs the opposite (it asserts on tunnelled events).
   NEXT_PUBLIC_SENTRY_DSN: "",
