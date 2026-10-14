@@ -200,7 +200,7 @@ export interface UseVaultActionsReturn {
   // Activation state
   activating: boolean;
   activationError: string | null;
-  /** True when the activation failure is terminal (deadline passed) — no Retry. */
+  /** True when no retry can change the activation failure (a passed deadline, an EXPIRED vault, an endpoint that cannot run the activation check) — no Retry. */
   activationErrorTerminal: boolean;
   handleActivation: (params: ActivateVaultParams) => Promise<void>;
 }
@@ -1010,7 +1010,8 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // The chain switch can prompt and wait on the user, so the margin is
       // checked again on a fresh head as the last step before the secret is
-      // used. One gap remains and cannot be closed from here: `writeContract`
+      // used. Two gaps remain and cannot be closed from here: the activation
+      // gas search (a few simulations, seconds) and `writeContract`, which
       // asks the wallet to sign and sends in one step, so the time the user
       // spends in that prompt is covered only by the margin's size.
       if (
@@ -1036,6 +1037,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
         hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
+        depositorBtcPubKey: expectedDepositorBtcPubkey,
         walletClient,
       });
       revealed = true;
@@ -1125,7 +1127,8 @@ export function useVaultActions(): UseVaultActionsReturn {
           : rawMessage;
         setActivationError(errorMessage);
         // Classify from the typed error before it is flattened to a string — a
-        // passed deadline or an already-EXPIRED vault is terminal (no Retry).
+        // passed deadline, an already-EXPIRED vault or an endpoint that cannot
+        // run the activation check is terminal (no Retry).
         setActivationErrorTerminal(isTerminalActivationError(err));
         setActivating(false);
       }

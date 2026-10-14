@@ -34,9 +34,8 @@ export interface BabylonConfigOptions {
   ethChainId: EthChainId;
 
   /**
-   * Ethereum RPC endpoint. Required — must point at an RPC that can see
-   * the deployed contracts. Public RPCs (drpc.org, publicnode.com) do
-   * not see contracts on private/devnet deployments.
+   * Ethereum RPC endpoint. Required — must serve the chain the contracts are
+   * deployed on and `eth_simulateV1`, which the activation gas check needs.
    */
   ethRpcUrl: string;
 

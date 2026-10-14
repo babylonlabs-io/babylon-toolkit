@@ -7,6 +7,7 @@
 import { waitForTransactionReceiptSmartAware } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   type Abi,
+  type Account,
   type Address,
   type Chain,
   type Hash,
@@ -18,11 +19,11 @@ import {
 } from "viem";
 
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 import { normalizeError } from "@/utils/errors/normalizeError";
 
 import {
-  isSimulationPhaseError,
   mapViemErrorToContractError,
   tagSimulationPhase,
 } from "../../utils/errors";
@@ -58,6 +59,27 @@ export interface ExecuteWriteOptions {
    * the receipt wait fails. Omitted, the SDK's own default applies (hours).
    */
   safePollTimeoutMs?: number;
+  /**
+   * Gas limit for the transaction. Omitted, the wallet estimates one; given,
+   * viem forwards it and MetaMask uses it as is
+   * (MetaMask/core@a7be4d8f:packages/transaction-controller/src/utils/gas.ts:513-516).
+   */
+  gas?: bigint;
+  /**
+   * Replaces the `eth_call` pre-flight when its success does not prove the
+   * call does what the caller wants. Runs before the first send and before a
+   * stale-nonce resend, and throws its own simulation-phase errors.
+   */
+  preflight?: () => Promise<void>;
+}
+
+/** The wallet's account, which every write signs with. */
+export function requireWalletAccount(walletClient: WalletClient): Account {
+  const account = walletClient.account;
+  if (!account) {
+    throw new Error(COPY.common.walletAccountUnavailable);
+  }
+  return account;
 }
 
 /**
@@ -82,6 +104,8 @@ export async function executeWrite(
     args,
     errorContext,
     safePollTimeoutMs,
+    gas,
+    preflight,
   } = options;
 
   // Reject if the wallet is connected to the wrong chain
@@ -93,28 +117,35 @@ export async function executeWrite(
   }
 
   const publicClient = ethClient.getPublicClient();
-  const account = walletClient.account;
+  const account = requireWalletAccount(walletClient);
 
-  if (!account) {
-    throw new Error("Wallet account not available");
-  }
-
-  // Pre-flight simulation - catches errors before user signs
+  // Pre-flight simulation - catches errors before user signs. Its error is
+  // final: nothing was signed or sent.
+  let preflightError: unknown;
   const simulate = async () => {
     try {
+      if (preflight) {
+        await preflight();
+        return;
+      }
       await publicClient.simulateContract({
         address,
         abi,
         functionName,
         args,
         account,
+        gas,
       });
     } catch (error) {
-      // Tagged so callers can safely auto-retry: nothing was signed or sent,
-      // and the failure may be a lagging RPC backend, not the chain.
-      throw tagSimulationPhase(
-        mapViemErrorToContractError(error, errorContext, [abi as Abi]),
-      );
+      // The default is tagged so callers can safely auto-retry: the failure
+      // may be a lagging RPC backend, not the chain. A caller's own pre-flight
+      // throws what its callers should see.
+      preflightError = preflight
+        ? error
+        : tagSimulationPhase(
+            mapViemErrorToContractError(error, errorContext, [abi as Abi]),
+          );
+      throw preflightError;
     }
   };
   await simulate();
@@ -135,6 +166,7 @@ export async function executeWrite(
           args,
           chain,
           account,
+          gas,
         }),
       prepare: simulate,
     });
@@ -181,8 +213,9 @@ export async function executeWrite(
       receipt,
     };
   } catch (error) {
-    // The simulation re-run before a stale-nonce retry is already mapped.
-    if (isSimulationPhaseError(error)) throw error;
+    // The pre-flight re-run before a stale-nonce retry already threw what the
+    // caller should see.
+    if (error === preflightError) throw error;
     throw mapViemErrorToContractError(error, errorContext, [abi as Abi]);
   }
 }
@@ -214,8 +247,10 @@ export async function throwRevertError(
   const tx = await publicClient.getTransaction({ hash });
   if (tx.gas > 0n && receipt.gasUsed >= (tx.gas * OUT_OF_GAS_RATIO) / 100n) {
     throw new Error(
-      `Transaction ran out of gas (used ${receipt.gasUsed} of ${tx.gas} limit). ` +
-        `Try again — the wallet should estimate a higher gas limit on retry.`,
+      COPY.common.transactionOutOfGas(
+        receipt.gasUsed.toString(),
+        tx.gas.toString(),
+      ),
     );
   }
 
