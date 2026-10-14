@@ -22,7 +22,7 @@ import {
 import { isAddress } from "viem";
 
 import { logger } from "@/infrastructure";
-import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
+import { isPegoutClaimBroadcast } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
 import { canonicalizeTxid } from "@/utils/txid";
 
@@ -114,7 +114,7 @@ export async function resolveRedeemClaimTxids(
             // claim tx is on-chain. Only surface it once the claimer status
             // says it's been broadcast — otherwise the row would link to a tx
             // that isn't in any mempool yet, the exact broken link this fixes.
-            if (!getPegoutTxLinkFlags(claimer.status).linkClaim) return;
+            if (!isPegoutClaimBroadcast(claimer.status)) return;
             // Don't trust the VP's txid shape — a malformed value would link to
             // mempool.space/tx/<garbage> and 404.
             const claimTxid = claimer.claim_txid;

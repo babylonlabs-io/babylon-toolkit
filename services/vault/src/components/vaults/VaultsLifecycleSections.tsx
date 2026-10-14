@@ -3,7 +3,8 @@
  *
  * Owns two sections sharing one polling tree: "Pending Deposit" (one row per
  * in-flight deposit, with live step progress and the state's primary action)
- * and "Inactive Vaults" (expired deposits and their refunds, plus settled
+ * and "Inactive Vaults" (expired deposits and their refunds, redeemed vaults
+ * that never became collateral and are waiting for their payout, plus settled
  * vaults with a reserve to reclaim).
  * `children` (the Active Vaults section) renders between them, giving the
  * page's Pending → Active → Inactive order. Polling state comes from the app's
@@ -62,8 +63,11 @@ import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import { useRedeemClaimTxids } from "@/hooks/useRedeemClaimTxids";
+import { logger } from "@/infrastructure";
 import {
   canPerformAction,
+  ContractStatus,
   getPeginProgressStep,
   hasActionableStep,
   isRefundInFlightOrSettled,
@@ -77,6 +81,7 @@ import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
 import { getBatchSiblings } from "@/utils/batchedPegin";
+import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatDurationShort, formatSats } from "@/utils/formatting";
 
@@ -98,6 +103,38 @@ const RECLAIM_BUTTON_TEST_ID = "vault-reclaim-button";
 const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
 
 const DISMISS_ICON_SIZE = 20;
+
+/**
+ * Payout scriptPubKeys that failed to decode, keyed `${vaultId}:${hex}`, so a
+ * malformed value is reported once rather than on every poll tick or render.
+ * A backend fix that changes the hex is reported again if it still fails.
+ */
+const loggedPayoutDecodeFailures = new Set<string>();
+
+/**
+ * The address a redeemed vault's payout goes to, from the indexer's raw
+ * scriptPubKey. Undefined when the indexer carries none or it does not decode:
+ * the row then shows no destination rather than a wrong one.
+ */
+function decodePayoutAddress(activity: VaultActivity): string | undefined {
+  const scriptPubKey = activity.depositorPayoutBtcAddress;
+  if (!scriptPubKey) return undefined;
+  try {
+    return scriptPubKeyHexToBtcAddress(scriptPubKey);
+  } catch (error) {
+    const key = `${activity.id}:${scriptPubKey}`;
+    if (!loggedPayoutDecodeFailures.has(key)) {
+      loggedPayoutDecodeFailures.add(key);
+      logger.error(error, {
+        data: {
+          context: "Decode payout scriptPubKey for the redeemed vault row",
+          vaultId: activity.id,
+        },
+      });
+    }
+    return undefined;
+  }
+}
 
 /** Dot color per display variant. Danger keeps the error red explicitly —
  *  there is no "no dot" state in this compact row layout (v2's cards swap in
@@ -370,6 +407,7 @@ function InactiveRow({
   onClaimExpired,
   onReclaim,
   reclaimAction,
+  claimTxid,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
@@ -377,6 +415,8 @@ function InactiveRow({
   onClaimExpired: (depositId: string) => void;
   onReclaim: (depositId: string) => void;
   reclaimAction: ReclaimRowAction | undefined;
+  /** The vault provider's BTC claim of a redeemed vault, once broadcast. */
+  claimTxid: string | undefined;
 }) {
   const result = useDepositPollingResult(activity.id);
   const provider = findProvider(vaultProviders, activity.providers[0]?.id);
@@ -413,10 +453,40 @@ function InactiveRow({
     ? COPY.reclaim.rowStatusReclaiming
     : peginState?.displayLabel;
 
+  // A redeemed vault's sub-line names the payout destination; every other
+  // row keeps its state's own text. The address is truncated for the cell
+  // and carried whole as the title.
+  const payoutAddress = useMemo(
+    () =>
+      activity.contractStatus === ContractStatus.REDEEMED
+        ? decodePayoutAddress(activity)
+        : undefined,
+    [activity],
+  );
+  const subtext = payoutAddress
+    ? COPY.vaults.payoutTo(truncateHash(payoutAddress))
+    : (peginState?.inlineSubtext ?? "");
+  const subtextTitle = payoutAddress
+    ? COPY.vaults.payoutTo(payoutAddress)
+    : peginState?.inlineSubtext;
+
+  // The transaction cell shows the refund once one exists, the vault
+  // provider's claim once it is broadcast, and the Pre-PegIn otherwise. The
+  // first two never meet: a refund belongs to an EXPIRED vault, a claim to a
+  // REDEEMED one. Both link directly; the Pre-PegIn link is gated on its
+  // broadcast (`getRowExplorerUrl`).
   const hasRefund = peginState && isRefundInFlightOrSettled(peginState);
+  const hasClaim = claimTxid !== undefined;
   const hash = hasRefund
     ? result?.refundTxId
-    : (activity.prePeginTxHash ?? activity.peginTxHash);
+    : hasClaim
+      ? claimTxid
+      : (activity.prePeginTxHash ?? activity.peginTxHash);
+  const hashLabel = hasRefund
+    ? COPY.vaults.refundTransactionLabel
+    : hasClaim
+      ? COPY.vaults.claimTransactionLabel
+      : undefined;
 
   return (
     <ListRowCard className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}>
@@ -435,10 +505,10 @@ function InactiveRow({
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
           <span
-            title={peginState?.inlineSubtext}
+            title={subtextTitle}
             className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
           >
-            {peginState?.inlineSubtext ?? ""}
+            {subtext}
           </span>
         </div>
       </div>
@@ -484,17 +554,15 @@ function InactiveRow({
       <div
         className={`flex flex-col items-start [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
       >
-        {hasRefund && hash && (
-          <span className="text-xs text-accent-secondary">
-            {COPY.vaults.refundTransactionLabel}
-          </span>
+        {hashLabel && hash && (
+          <span className="text-xs text-accent-secondary">{hashLabel}</span>
         )}
         {hash && (
           <CopyableHash
             hash={hash}
             chain="BTC"
             explorerUrl={
-              hasRefund
+              hasRefund || hasClaim
                 ? getBtcExplorerTxUrl(hash)
                 : getRowExplorerUrl(activity, peginState)
             }
@@ -615,10 +683,16 @@ type ViewingBatch =
 
 export function VaultsLifecycleSections({
   deposits,
+  returnedRedeemedActivities,
   children,
 }: {
   /** The page's single `usePendingDeposits` result, shared with the emptiness hook. */
   deposits: ReturnType<typeof usePendingDeposits>;
+  /**
+   * Redeemed vaults with no collateral row (`utils/returnedVaults`), selected
+   * once by the page and shared with the emptiness hook.
+   */
+  returnedRedeemedActivities: VaultActivity[];
   children?: ReactNode;
 }) {
   // The batch whose multistepper view modal is open — the full batch for a
@@ -652,9 +726,14 @@ export function VaultsLifecycleSections({
 
   const { candidates: actionableReclaims, actions: reclaimActions } =
     useActionableReclaims(reclaimableCandidates, reclaimModal.inFlightVaultIds);
+  const claimTxids = useRedeemClaimTxids(returnedRedeemedActivities);
   const inactiveActivities: VaultActivity[] = useMemo(
-    () => [...expiredActivities, ...actionableReclaims],
-    [expiredActivities, actionableReclaims],
+    () => [
+      ...expiredActivities,
+      ...returnedRedeemedActivities,
+      ...actionableReclaims,
+    ],
+    [expiredActivities, returnedRedeemedActivities, actionableReclaims],
   );
 
   const rows = [...pendingActivities, ...inactiveActivities];
@@ -933,6 +1012,7 @@ export function VaultsLifecycleSections({
                 onClaimExpired={handleClaimExpired}
                 onReclaim={handleReclaim}
                 reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
+                claimTxid={claimTxids.get(activity.id)}
               />
             ))}
           </div>

@@ -217,16 +217,18 @@ export const COPY = {
         "BTCVault activation submitted. Waiting for on-chain confirmation...",
       // The activation landed but the registry redeemed the BTCVault for the
       // depositor instead of adding it to the position. Shown until the
-      // indexer reports it REDEEMED. No day count, for the reason given at
-      // `deposit.emergencyWithdraw.bodyStuck`.
+      // indexer reports it REDEEMED, when the same row reads
+      // `redemptionInProgress`; the second sentence is that text, so the row
+      // does not change its story at the flip. No day count, for the reason
+      // given at `deposit.emergencyWithdraw.bodyStuck`.
       activationReturned:
-        "This BTCVault could not be added to your position, so it was redeemed instead of activated. The vault provider will send your BTC to your payout address.",
+        "This BTCVault could not be added to your position, so it was redeemed instead of activated. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       readyToActivate:
         "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTCVault.",
       // Deliberately reassuring: this state looks alarming but the BTC is
       // recoverable. Lead with that before explaining what happened.
       activationIncomplete:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Click 'Withdraw' and the vault provider will send your BTC to your payout address.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Click 'Withdraw' and the vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       // Always-visible one-liner under the amount; same reassuring tone. The
       // full sentence above is tooltip-only, and the /vaults pending row no
       // longer renders that tooltip.
@@ -239,7 +241,7 @@ export const COPY = {
       // copy names the state, not the order of events. It also shows while
       // that spend is still unconfirmed, so it claims no confirmation.
       peginSweptWhileExpired:
-        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, so a refund is no longer possible. Your BTC is not lost: redeem this BTCVault before its grace window closes and the vault provider will send your BTC to your payout address.",
+        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, so a refund is no longer possible. Your BTC is not lost: redeem this BTCVault before its grace window closes, and the vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       // Compact form under the amount. The remaining time is an estimate from
       // Ethereum slot time, rounded down so it never overstates the window.
       peginSweptWhileExpiredSubtext: (remaining: string) =>
@@ -310,8 +312,16 @@ export const COPY = {
         "This split deposit's on-chain records are inconsistent, so its activation order cannot be confirmed. Nothing was submitted — contact support.",
       inUseCannotRedeem:
         "BTCVault is currently being used as collateral. Repay all debt before redeeming.",
+      // Every REDEEMED BTCVault: the Aave withdrawal, the activation the
+      // registry redeemed instead, the activate-and-redeem escape hatch and
+      // the expired redeem all end here, so this names the mechanism and not
+      // the cause. Same words as `deposit.claimExpired.body` and the withdraw
+      // bodies. States what the vault provider does, with the commission, and
+      // promises nothing: a keeper claim (#2717) or a blocked claim means it
+      // never pays. No day count, for the reason given at
+      // `deposit.emergencyWithdraw.bodyStuck`.
       redemptionInProgress:
-        "Your redemption is being processed. The vault provider is preparing your BTC withdrawal. This typically takes up to 3 days.",
+        "This BTCVault was redeemed. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       liquidated:
         "This BTCVault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
@@ -778,7 +788,7 @@ export const COPY = {
       // — the real wait is the vault's `timelockAssert`, a protocol parameter
       // this screen does not resolve, and a hardcoded one would be a guess.
       bodyStuck:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault — the vault provider will send your BTC to your payout address, which takes several days.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault — the vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
       // Shown when the vault's application is registered but not Active on
@@ -799,7 +809,7 @@ export const COPY = {
       },
       success: {
         heading: "Withdrawal submitted",
-        body: "Your BTCVault has been redeemed. The vault provider will send your BTC to your payout address. This typically takes up to 3 days.",
+        body: "Your BTCVault has been redeemed. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission. This takes several days.",
         doneButton: "Done",
       },
     },
@@ -831,7 +841,7 @@ export const COPY = {
     // body does — the BTC returns through the vault provider's claim pipeline.
     claimExpired: {
       title: "Redeem expired BTCVault",
-      body: "The peg-in transaction spent this deposit on Bitcoin and the BTCVault expired before it was activated, so it can no longer be refunded. Redeeming reveals your HTLC secret on Ethereum. The vault provider then claims the BTC on Bitcoin and sends it to your payout address, minus its commission. This takes several days.",
+      body: "The peg-in transaction spent this deposit on Bitcoin and the BTCVault expired before it was activated, so it can no longer be refunded. Redeeming reveals your HTLC secret on Ethereum. The vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission. This takes several days.",
       deadline: (remaining: string) =>
         `The grace window closes in ${remaining}. After that, this BTCVault can no longer be redeemed.`,
       deadlineUnknown:
@@ -888,7 +898,7 @@ export const COPY = {
       },
       success: {
         heading: "Redemption submitted",
-        body: "Your BTCVault has been redeemed. The vault provider will claim the BTC on Bitcoin and send it to your payout address. This takes several days.",
+        body: "Your BTCVault has been redeemed. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission. This takes several days.",
         doneButton: "Done",
       },
     },
@@ -936,11 +946,11 @@ export const COPY = {
     vaultReturnedSuccess: {
       full: {
         heading: "Your BTC is being returned",
-        body: "Your deposit could not be added to your position, so it was redeemed instead of activated. The vault provider will send your BTC to your payout address, which takes several days.",
+        body: "Your deposit could not be added to your position, so it was redeemed instead of activated. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       },
       partial: {
         heading: "Part of your deposit is being returned",
-        body: "Not every BTCVault in this deposit could be added to your position. Any that could not were redeemed instead of activated, and the vault provider will send their BTC to your payout address, which takes several days.",
+        body: "Not every BTCVault in this deposit could be added to your position. Any that could not were redeemed instead of activated, and the vault provider claims their BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       },
       // Same label as the activated screen: the real-wallet E2E
       // (e2e/real/actions/stepMachine.ts) detects the end of a deposit by it.
@@ -1980,6 +1990,12 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
+      // The indexer already reports the BTCVault withdrawn, but the payout is
+      // not yet buried deeply enough on Bitcoin for the reserve to be safe to
+      // sweep (models/reclaimEligibility.ts). The count is the gate's own
+      // constant, passed in so the two cannot drift.
+      payoutSettling: (confirmations: number) =>
+        `Reclaim becomes available once the withdrawal has ${confirmations} confirmations on Bitcoin. Your reserve is safe where it is.`,
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is
@@ -2048,53 +2064,10 @@ export const COPY = {
     },
     initiated: {
       title: "Withdrawal initiated",
-      // Describes the real claim -> challenge period -> payout path.
-      body: "Your withdrawal has been submitted. The vault provider will broadcast a claim transaction on Bitcoin; after a challenge period, your BTC will be sent to your nominated address.",
+      // The claim -> challenge period -> payout path, in the words of
+      // `pegin.messages.redemptionInProgress`: no promise and no day count.
+      body: "Your withdrawal has been submitted. The vault provider claims the BTC on Bitcoin and, after a challenge period, pays it to your payout address, minus its commission.",
       doneButton: "Done",
-    },
-  },
-  // Peg-out (withdrawal) progress — status badges/messages on the Pending
-  // Withdraw card, plus the live payout countdown and claim/assert tx labels.
-  pegout: {
-    status: {
-      claimEventReceived: {
-        label: "Submitted",
-        message:
-          "Your withdrawal request has been received and is being processed.",
-      },
-      claimBroadcast: {
-        label: "In progress",
-        message:
-          "Your withdrawal is in progress. A claim transaction has been broadcast to Bitcoin.",
-      },
-      assertBroadcast: {
-        label: "Challenge period",
-        message:
-          "Your withdrawal is going through its on-chain challenge period before the BTC payout can be broadcast.",
-      },
-      payoutBroadcast: {
-        label: "Payout sent",
-        message:
-          "The Bitcoin payout transaction has been broadcast to your nominated address.",
-      },
-      payoutBlocked: {
-        label: "Blocked",
-        message:
-          "Withdrawal was blocked on-chain (challenger or council override). Please contact support.",
-      },
-      initiating: {
-        // Pre-claim state folds into the "Submitted" stage on the card.
-        label: "Submitted",
-        message: "Your withdrawal is being prepared by the vault provider.",
-      },
-      unavailable: {
-        label: "Status Unavailable",
-        message:
-          "Unable to determine withdrawal status. The vault provider may be unreachable. Please try again later or contact support.",
-      },
-      unknownLabel: "Unknown",
-      unknownMessage: (status: string) =>
-        `Unknown status: ${status}. Please contact support.`,
     },
   },
   loans: {
@@ -2719,6 +2692,12 @@ export const COPY = {
   },
   vaults: {
     refundTransactionLabel: "Refund transaction",
+    // Transaction-cell caption on a redeemed vault's row once the vault
+    // provider has broadcast its claim; the cell then links that tx.
+    claimTransactionLabel: "Claim transaction",
+    // Sub-line under a redeemed vault's amount: where the payout goes. The
+    // row truncates the address (start…end) and carries it whole as a title.
+    payoutTo: (address: string) => `To ${address}`,
     empty: {
       title: "Your BTCVaults will appear here",
       description:
