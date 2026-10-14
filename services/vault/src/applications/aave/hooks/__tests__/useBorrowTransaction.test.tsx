@@ -68,6 +68,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { COPY } from "@/copy";
 import {
   ContractError,
@@ -127,6 +128,7 @@ describe("useBorrowTransaction — pause gating", () => {
     expect(resolved).toBe("failed");
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockBorrow).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 });
 
@@ -143,6 +145,7 @@ describe("useBorrowTransaction — cache invalidation", () => {
     });
 
     expect(resolved).toBe("succeeded");
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
     expect(
       mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
     ).toEqual([
@@ -206,6 +209,7 @@ describe("useBorrowTransaction — unreadable borrow cap", () => {
       COPY.loans.borrowLimit.capUnavailableError,
     );
     expect(mockBorrow).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 });
 
@@ -226,6 +230,7 @@ describe("useBorrowTransaction — a transaction already in flight", () => {
     expect(result.current.error).toBeNull();
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockBorrow).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 });
 
@@ -257,6 +262,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       mine({ status: "success", transactionHash: HASH, from: "0xuser" });
       await expect(borrowing).resolves.toBe("succeeded");
     });
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
     expect(result.current.pendingWrite).toBeNull();
     expect(mockInvalidateQueries).toHaveBeenCalled();
   });
@@ -287,6 +293,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       COPY.common.unconfirmedTransaction.inProgress,
     );
     expect(mockBorrow).toHaveBeenCalledTimes(1);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       mine({ status: "success", transactionHash: HASH, from: "0xuser" });

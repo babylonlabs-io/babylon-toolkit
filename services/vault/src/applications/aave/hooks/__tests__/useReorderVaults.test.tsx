@@ -93,6 +93,7 @@ vi.mock("../../services", () => ({
   reorderVaultOrder: (...args: unknown[]) => mockReorderVaultOrder(...args),
 }));
 
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { COPY } from "@/copy";
 import {
   SendOutcomeUnknownError,
@@ -156,6 +157,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(result.current.error).toBeNull();
     expect(mockAssertMembership).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 
   it("refreshes the position when the wallet replaced the reorder, which a speed-up may have done anyway", async () => {
@@ -217,6 +219,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(mockAssertMembership.mock.calls[0][1]).toBe(USER);
     expect(mockAssertMembership.mock.calls[0][2]).toEqual([VAULT_A, VAULT_B]);
     expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
 
   it("blocks the reorder tx and surfaces the error when membership fails", async () => {
@@ -231,6 +234,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
     expect(result.current.error).not.toBeNull();
   });
 
@@ -247,6 +251,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(resolved).toBe(false);
     expect(mockAssertMembership).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
     expect(result.current.error).toBeNull();
   });
 
@@ -259,6 +264,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(mockAssertOptimalOrder).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
 
   it("forwards the on-chain ordering and env-pinned adapter into the recompute when context is provided", async () => {
@@ -281,6 +287,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
       CTX,
     );
     expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
 
   it("blocks the reorder tx when the optimal-order recompute rejects", async () => {
@@ -297,6 +304,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
     expect(result.current.error).not.toBeNull();
   });
 
@@ -313,6 +321,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(resolved).toBe(false);
     expect(mockAssertMembership).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 
   it("forwards Guard A's live ordering into the baseline check when expectedCurrentVaultIds is provided", async () => {
@@ -332,6 +341,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
       [VAULT_A, VAULT_B],
     );
     expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
 
   it("does not call the baseline check on the banner CTA path (no expectedCurrentVaultIds)", async () => {
@@ -343,6 +353,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(mockAssertBaseline).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
 
   it("blocks the reorder tx and surfaces PositionChangedError unwrapped when the baseline differs", async () => {
@@ -364,6 +375,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     expect(resolved).toBe(false);
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
     expect(result.current.error).toBe(positionChangedError.message);
   });
 });
