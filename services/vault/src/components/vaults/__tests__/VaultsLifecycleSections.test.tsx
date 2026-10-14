@@ -10,6 +10,7 @@ import { COPY } from "@/copy";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
+import { useRedeemClaimTxids } from "@/hooks/useRedeemClaimTxids";
 import {
   ContractStatus,
   getPeginState,
@@ -21,7 +22,14 @@ import {
 import type { RemovePendingPeginsResult } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
+import { truncateHash } from "@/utils/addressUtils";
 import { formatDurationShort } from "@/utils/formatting";
+
+/** A redeemed vault's payout destination, as the indexer and the row show it. */
+const { PAYOUT_SCRIPT_PUBKEY, PAYOUT_ADDRESS } = vi.hoisted(() => ({
+  PAYOUT_SCRIPT_PUBKEY: `0x5120${"ab".repeat(32)}`,
+  PAYOUT_ADDRESS: `tb1p${"q".repeat(58)}`,
+}));
 
 const mockUseDepositPollingResult = vi.hoisted(() =>
   vi.fn<(depositId: string) => DepositPollingResult | undefined>(
@@ -90,6 +98,21 @@ vi.mock("@/hooks/useReclaimStatus", () => ({
 
 vi.mock("@/hooks/useReclaimVaultChainData", () => ({
   useReclaimVaultChainData: vi.fn(() => new Map()),
+}));
+
+// The claim-link query needs a QueryClient the sections never mount; what it
+// resolves is driven per test.
+vi.mock("@/hooks/useRedeemClaimTxids", () => ({
+  useRedeemClaimTxids: vi.fn(() => new Map<string, string>()),
+}));
+
+// The decode itself is covered in utils/btc; here only the row's use of it.
+vi.mock("@/utils/btc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/utils/btc")>()),
+  scriptPubKeyHexToBtcAddress: (scriptPubKeyHex: string) => {
+    if (scriptPubKeyHex === PAYOUT_SCRIPT_PUBKEY) return PAYOUT_ADDRESS;
+    throw new Error(`Unexpected scriptPubKey ${scriptPubKeyHex}`);
+  },
 }));
 
 vi.mock("@/components/simple/PendingDepositModals", () => ({
@@ -255,10 +278,17 @@ function renderPendingRow(
   ) => RemovePendingPeginsResult = vi.fn(
     (): RemovePendingPeginsResult => "removed",
   ),
+  // Selected by the page outside `usePendingDeposits` (utils/returnedVaults).
+  returnedRedeemedActivities: VaultActivity[] = [],
 ) {
   mockUseDepositPollingResult.mockReturnValue(result);
   const deposits = makeDeposits(options, removePendingPegins);
-  const view = render(<VaultsLifecycleSections deposits={deposits} />);
+  const view = render(
+    <VaultsLifecycleSections
+      deposits={deposits}
+      returnedRedeemedActivities={returnedRedeemedActivities}
+    />,
+  );
 
   return {
     deposits,
@@ -267,6 +297,7 @@ function renderPendingRow(
       view.rerender(
         <VaultsLifecycleSections
           deposits={makeDeposits({ ...options, ...next }, removePendingPegins)}
+          returnedRedeemedActivities={returnedRedeemedActivities}
         />,
       ),
     ...view,
@@ -803,7 +834,12 @@ describe("VaultsLifecycleSections reclaim connection", () => {
         ],
       ]),
     });
-    rerender(<VaultsLifecycleSections deposits={deposits} />);
+    rerender(
+      <VaultsLifecycleSections
+        deposits={deposits}
+        returnedRedeemedActivities={[]}
+      />,
+    );
 
     expect(
       screen.queryByRole("heading", { name: /Inactive Vaults/ }),
@@ -864,7 +900,12 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     expect(screen.getByTestId("vault-reclaim-button")).toBeEnabled();
 
     deposits.reclaimModal.inFlightVaultIds = new Set([ACTIVITY_ID]);
-    rerender(<VaultsLifecycleSections deposits={deposits} />);
+    rerender(
+      <VaultsLifecycleSections
+        deposits={deposits}
+        returnedRedeemedActivities={[]}
+      />,
+    );
 
     expect(
       screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
@@ -935,7 +976,12 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       screen.queryByTestId("vault-reclaim-button"),
     ).not.toBeInTheDocument();
     wallet.connected = true;
-    rerender(<VaultsLifecycleSections deposits={deposits} />);
+    rerender(
+      <VaultsLifecycleSections
+        deposits={deposits}
+        returnedRedeemedActivities={[]}
+      />,
+    );
     expect(
       screen.queryByRole("button", { name: COPY.wallet.btcAction.connect }),
     ).not.toBeInTheDocument();
@@ -972,7 +1018,12 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       const { deposits, rerender } = renderReclaim();
       if (condition === "in-flight") {
         deposits.reclaimModal.inFlightVaultIds = new Set([ACTIVITY_ID]);
-        rerender(<VaultsLifecycleSections deposits={deposits} />);
+        rerender(
+          <VaultsLifecycleSections
+            deposits={deposits}
+            returnedRedeemedActivities={[]}
+          />,
+        );
       }
       expect(
         screen.queryByRole("button", { name: COPY.wallet.btcAction.connect }),
@@ -980,6 +1031,95 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       expect(deposits.reclaimModal.handleReclaimClick).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("VaultsLifecycleSections returned vault", () => {
+  // Redeemed by the registry at activation, so never collateral: the row the
+  // page selects through utils/returnedVaults.
+  const REDEEMED_ID = "0xredeemed" as Hex;
+  const REDEEMED_ACTIVITY: VaultActivity = {
+    ...ACTIVITY,
+    id: REDEEMED_ID,
+    contractStatus: ContractStatus.REDEEMED,
+    displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+    peginTxHash: "0xpegin" as Hex,
+    depositorPayoutBtcAddress: PAYOUT_SCRIPT_PUBKEY as Hex,
+  };
+
+  afterEach(() => {
+    vi.mocked(useRedeemClaimTxids).mockReturnValue(new Map());
+  });
+
+  function renderReturnedRow(activity = REDEEMED_ACTIVITY) {
+    return renderPendingRow(
+      pollingResult(getPeginState(ContractStatus.REDEEMED, {}), {
+        depositId: REDEEMED_ID,
+      }),
+      { pendingActivities: [], allActivities: [activity] },
+      undefined,
+      [activity],
+    );
+  }
+
+  it("lists the vault as redeem in progress, with its payout destination and no action", () => {
+    renderReturnedRow();
+
+    expect(
+      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("row-hint")).toHaveTextContent(
+      COPY.pegin.messages.redemptionInProgress,
+    );
+    expect(
+      screen.getByText(COPY.vaults.payoutTo(truncateHash(PAYOUT_ADDRESS))),
+    ).toHaveAttribute("title", COPY.vaults.payoutTo(PAYOUT_ADDRESS));
+    // The Pre-PegIn stays the row's transaction until the provider's claim.
+    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.vaults.claimTransactionLabel),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: COPY.vaults.actions.withdraw }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: COPY.vaults.actions.redeem }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("vault-reclaim-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("links the vault provider's claim once it is broadcast", () => {
+    const claimTxid = "ef".repeat(32);
+    vi.mocked(useRedeemClaimTxids).mockReturnValue(
+      new Map([[REDEEMED_ID, claimTxid]]),
+    );
+
+    renderReturnedRow();
+
+    expect(
+      screen.getByText(COPY.vaults.claimTransactionLabel),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      `https://mempool.space/signet/tx/${claimTxid}`,
+    );
+  });
+
+  it("shows no payout destination when the indexer carries none", () => {
+    renderReturnedRow({
+      ...REDEEMED_ACTIVITY,
+      depositorPayoutBtcAddress: undefined,
+    });
+
+    expect(
+      screen.getByText(PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^To /)).not.toBeInTheDocument();
+  });
 });
 
 describe("VaultsLifecycleSections expired refunds", () => {
@@ -1090,6 +1230,7 @@ describe("VaultsLifecycleSections expired refunds", () => {
           ...deposits,
           expiredActivities: [...deposits.expiredActivities],
         }}
+        returnedRedeemedActivities={[]}
       />,
     );
 

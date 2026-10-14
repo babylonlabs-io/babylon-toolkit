@@ -6,23 +6,20 @@
  * vaults available for collateral (not currently in use or pending).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { usePrice } from "@/hooks/usePrices";
 import { useVaults } from "@/hooks/useVaults";
-import { logger } from "@/infrastructure";
 import {
   ContractStatus,
   getPeginState,
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
 import type { Vault, VaultProvider } from "@/types";
-import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatProviderDisplayName } from "@/utils/formatting";
-import { derivePrePeginTxHash } from "@/utils/vaultTransformers";
 
 import { usePendingVaults } from "../context";
 import type { VaultData } from "../types";
@@ -57,35 +54,11 @@ function transformVaultToTableData(
   };
 }
 
-export interface RedeemedVaultInfo {
-  id: string;
-  /** Raw BTC pegin transaction hash (for VP RPC operations) */
-  peginTxHash: string;
-  /** Pre-PegIn txid, derived from the unsigned tx. Undefined when unavailable. */
-  prePeginTxHash?: string;
-  amountBtc: number;
-  providerName: string;
-  providerIconUrl?: string;
-  /** Vault provider's Ethereum address (used to look up RPC URL for pegout polling) */
-  vaultProviderAddress: string;
-  /** Timestamp in milliseconds when vault was created */
-  createdAt: number;
-  /** Decoded BTC address the pegout will land at (from on-chain
-   *  `depositorPayoutBtcAddress` scriptPubKey). Undefined when the scriptPubKey
-   *  fails to decode — surfaced as "row omitted" rather than blocking the section. */
-  payoutBtcAddress?: string;
-  /** Offchain-params version this vault was created under. Resolves the vault's
-   *  `timelockAssert` for the payout-eligibility countdown. */
-  offchainParamsVersion: number;
-}
-
 export interface UseAaveVaultsResult {
   /** All active vaults (for display in table) */
   vaults: VaultData[];
   /** Vaults available for use as collateral (not currently in use) */
   availableForCollateral: VaultData[];
-  /** Vaults with "redeemed" status (withdrawal in progress, awaiting VP payout) */
-  redeemedVaults: RedeemedVaultInfo[];
   /** Loading state */
   isLoading: boolean;
   /** Error state */
@@ -107,19 +80,14 @@ export function useAaveVaults(
     requireCompleteKeeperRoster: false,
   });
 
-  // When redeemed vaults exist, we poll so the indexer's DEPOSITOR_WITHDRAWN
-  // update (from btc-monitor detecting the vault UTXO spend) gets picked up
-  // and the vault disappears from the pending withdraw section.
-  // Uses state (not ref) so the transition to zero redeemed vaults triggers
-  // a re-render that stops polling.
-  const [hasRedeemedVaults, setHasRedeemedVaults] = useState(false);
-
+  // Polled only while an operation this page submitted is unindexed. The
+  // vault list is otherwise refreshed app-wide by `useVaultDeposits`.
   const {
     data: vaultsResult,
     isLoading: vaultsLoading,
     error,
   } = useVaults(depositorAddress as Address | undefined, {
-    poll: hasPendingOperations || hasRedeemedVaults,
+    poll: hasPendingOperations,
   });
   const vaults = vaultsResult?.vaults;
   const btcPriceUSD = usePrice("BTC");
@@ -131,60 +99,6 @@ export function useAaveVaults(
     if (!vaults) return [];
     return vaults.filter((vault) => vault.status === ContractStatus.ACTIVE);
   }, [vaults]);
-
-  // Dedupes Sentry events when a malformed `depositorPayoutBtcAddress` would
-  // otherwise be re-logged on every polling tick or re-render. Keyed by
-  // `${vaultId}:${scriptPubKey}` so a backend fix that changes the scriptPubKey
-  // does get re-logged if it still fails. Cleared on hook unmount (page nav).
-  const loggedDecodeFailuresRef = useRef<Set<string>>(new Set());
-
-  // Vaults with "redeemed" status — withdrawal initiated, VP is processing BTC payout
-  const redeemedVaults: RedeemedVaultInfo[] = useMemo(() => {
-    if (!vaults) return [];
-    const loggedKeys = loggedDecodeFailuresRef.current;
-    return vaults
-      .filter((vault) => vault.status === ContractStatus.REDEEMED)
-      .map((vault) => {
-        const provider = findProvider(vault.vaultProvider);
-        const providerName = formatProviderDisplayName(
-          provider?.name,
-          vault.vaultProvider,
-        );
-        let payoutBtcAddress: string | undefined;
-        try {
-          payoutBtcAddress = scriptPubKeyHexToBtcAddress(
-            vault.depositorPayoutBtcAddress,
-          );
-        } catch (error) {
-          const decodeKey = `${vault.id}:${vault.depositorPayoutBtcAddress}`;
-          if (!loggedKeys.has(decodeKey)) {
-            loggedKeys.add(decodeKey);
-            logger.error(error, {
-              data: {
-                context: "Decode payout scriptPubKey for pending withdraw card",
-                vaultId: vault.id,
-              },
-            });
-          }
-        }
-        return {
-          id: vault.id,
-          peginTxHash: vault.peginTxHash,
-          prePeginTxHash: derivePrePeginTxHash(vault.unsignedPrePeginTx),
-          amountBtc: satoshiToBtcNumber(vault.amount),
-          providerName,
-          providerIconUrl: provider?.iconUrl,
-          vaultProviderAddress: vault.vaultProvider,
-          createdAt: vault.createdAt,
-          payoutBtcAddress,
-          offchainParamsVersion: vault.offchainParamsVersion,
-        };
-      });
-  }, [vaults, findProvider]);
-
-  useEffect(() => {
-    setHasRedeemedVaults(redeemedVaults.length > 0);
-  }, [redeemedVaults.length]);
 
   const allVaults = useMemo(() => {
     return activeVaults.map((vault) => {
@@ -207,7 +121,6 @@ export function useAaveVaults(
   return {
     vaults: allVaults,
     availableForCollateral,
-    redeemedVaults,
     isLoading,
     error: error as Error | null,
   };

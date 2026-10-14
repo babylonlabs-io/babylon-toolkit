@@ -209,17 +209,37 @@ export function getReclaimEligibility(
 
   // A sweep we broadcast this session, before the 60s poll has observed it.
   // Without this the row would keep offering an enabled button for up to a
-  // minute after the user confirmed.
-  if (isReclaimInFlight && payoutSettled) return { type: "reclaiming" };
+  // minute after the user confirmed. Not gated on the payout: the sweep was
+  // signed only after the settlement check held, so a later read that shows
+  // the payout shallower (a node behind, a reorg) must not turn it into a wait.
+  if (isReclaimInFlight) return { type: "reclaiming" };
 
-  if (!payoutSettled) return { type: "absent" };
-
-  // Past this point the reserve is genuinely reclaimable and the depositor
-  // should be told so even when they cannot act right now.
+  // Past this point the reserve is the row's action — reclaimable now, or once
+  // the payout settles — and the depositor should be told so even when they
+  // cannot act right now. The pause block comes first: a depositor who cannot
+  // reach `available` must not be told to wait for the settlement.
 
   // Reclaim is an exit, so it follows withdraw's pause semantics.
   if (isWithdrawBlocked) {
     return { type: "blocked", tooltip: COPY.reclaim.blocked.protocolPaused };
+  }
+
+  // The indexer reports the vault DEPOSITOR_WITHDRAWN a few blocks before the
+  // gate above holds: babylon-btc-monitor writes it once the Payout is
+  // `spend-finality-depth` deep (default 2; `internal/service/service.go:292-295`
+  // @ 1b3662c), and this app's own Bitcoin node can lag the monitor's, or
+  // after a reorg never agree with it. `absent` here would drop the row from
+  // the one section that lists the vault at this status, so the vault would
+  // vanish for the few blocks until the depth is reached. The row stays, with
+  // the action disabled. Not `available`: `isPayoutSettled` is the safety
+  // condition, and this branch leaves it untouched.
+  if (!payoutSettled) {
+    return {
+      type: "blocked",
+      tooltip: COPY.reclaim.blocked.payoutSettling(
+        RECLAIM_MIN_PAYOUT_CONFIRMATIONS,
+      ),
+    };
   }
 
   return { type: "available" };

@@ -111,7 +111,8 @@ describe("useReclaimStatus", () => {
     const carried = result.current.statusByDepositId.get(VAULT_ID);
     expect(carried).toBeDefined();
     // The entry survives the failure — that is the point of carrying it —
-    // but it carries the tip it was read at, so the gate still says no.
+    // but it carries the tip it was read at, so the gate still says no: the
+    // payout reads as one confirmation and the action stays disabled.
     expect(carried?.observedTipHeight).toBe(TIP_AT_FIRST_TICK);
     expect(
       getReclaimEligibility({
@@ -123,7 +124,7 @@ describe("useReclaimStatus", () => {
         isWithdrawBlocked: false,
         isReclaimInFlight: false,
       }),
-    ).toEqual({ type: "absent" });
+    ).toMatchObject({ type: "blocked" });
   });
 
   it("leaves the tip stamp unset when the tip read fails", async () => {
