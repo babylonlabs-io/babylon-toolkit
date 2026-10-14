@@ -77,6 +77,14 @@ export interface DepositPageFormData {
   selectedProvider: string;
 }
 
+export interface UseDepositPageFormParams {
+  /**
+   * Whether the protocol and position allow a two-vault split: it is offered
+   * and no output-cap or per-position reason forbids it.
+   */
+  isSplitPermitted: boolean;
+}
+
 export interface UseDepositPageFormResult {
   formData: DepositPageFormData;
   setFormData: (data: Partial<DepositPageFormData>) => void;
@@ -229,7 +237,9 @@ export interface UseDepositPageFormResult {
   resetForm: () => void;
 }
 
-export function useDepositPageForm(): UseDepositPageFormResult {
+export function useDepositPageForm({
+  isSplitPermitted,
+}: UseDepositPageFormParams): UseDepositPageFormResult {
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
   const { isConnected: sessionConnected } = useConnection();
   const isWalletConnected = sessionConnected && btcConnected;
@@ -438,15 +448,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   // selector will later spend. No PSBT is built here — this is integer
   // vbyte budgeting only.
   //
-  // Budget for two vaults only when the split is actually in effect (user
-  // wants it AND the amount can split). When the amount drops below the
-  // splittable threshold the deposit falls back to a single vault, so the
-  // Max/fee reserves must follow — otherwise Max is understated and can
-  // falsely read "below the minimum deposit".
-  // Deliberately looser than submit's effective-split condition (which also
-  // requires `allowSplit`): when split intent is on but disallowed, reserving
-  // for 2 vaults only understates Max — conservative, never underfunding.
-  const vaultCount = isTwoVaultSplit && canSplit ? 2 : 1;
+  // Budget for two vaults only when the split is in effect: the user wants it,
+  // the amount can split, and the cap allows it. This matches the submit-time
+  // split decision (`shouldSplit`); the params/sizing parts of `allowSplit`
+  // already force `canSplit` false. A stale split intent (amount below the
+  // split minimum, or the cap dropping while the form is open) must fall back
+  // to one vault, otherwise Max and the fee are budgeted for two and an
+  // affordable single-vault deposit reads "Insufficient balance".
+  const vaultCount = isTwoVaultSplit && canSplit && isSplitPermitted ? 2 : 1;
   const numPeginOutputs = peginOutputCount(vaultCount, true);
 
   const {

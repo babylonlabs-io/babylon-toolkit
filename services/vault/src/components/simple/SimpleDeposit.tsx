@@ -113,63 +113,6 @@ function SimpleDepositContent({
   const [isReconnectingWallet, setIsReconnectingWallet] = useState(false);
 
   const {
-    formData,
-    setFormData,
-    applyMaxAmount,
-    effectiveSelectedApplication,
-    isWalletConnected,
-    canConnectBtcWallet,
-    btcBalance,
-    unconfirmedBalance,
-    btcPrice,
-    hasPriceFetchError,
-    applications,
-    providers,
-    isLoadingProviders,
-    amountSats,
-    minDeposit,
-    maxDeposit,
-    estimatedFeeSats,
-    estimatedFeeRate,
-    isLoadingFee,
-    feeError,
-    maxDepositSats,
-    fundingInputCapExceeded,
-    effectiveRemaining,
-    capUnavailable,
-    minPeginFee,
-    minPeginFeeError,
-    appVersionUnsupported,
-    p2aAnchorValueSats,
-    isTwoVaultSplit,
-    setIsTwoVaultSplit,
-    canSplit,
-    vaultAmounts,
-    isSplitLoading,
-    splitRatioLabel,
-    minDepositForSplit,
-    isSplitAmountTooLow,
-    isSplitSizingRefused,
-    isSplitParamsUnavailable,
-    depositorClaimValue,
-    depositorClaimValueError,
-    btcPublicKeyError,
-    refetchBtcPublicKey,
-    ordinalsCheckPending,
-    validateForm,
-    resetForm,
-  } = useDepositPageForm();
-
-  // Live commission (bps) for the selected provider, read from the current
-  // providers list. Captured into the deposit snapshot at commit time
-  // (`handleDeposit`) so the value the signing flow binds is exactly what the
-  // depositor reviewed — not a value a background refetch changed afterwards.
-  // `undefined` while it loads or if the read failed.
-  const selectedProviderCommissionBps = providers.find(
-    (provider) => provider.id === formData.selectedProvider,
-  )?.commissionBps;
-
-  const {
     depositStep,
     depositAmount,
     selectedApplication,
@@ -225,6 +168,66 @@ function SimpleDepositContent({
   const isSplitOffered =
     !isSupplementalDeposit &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
+
+  const isSplitPermitted = isSplitOffered && splitUnavailableReason === null;
+
+  const {
+    formData,
+    setFormData,
+    applyMaxAmount,
+    effectiveSelectedApplication,
+    isWalletConnected,
+    canConnectBtcWallet,
+    btcBalance,
+    unconfirmedBalance,
+    btcPrice,
+    hasPriceFetchError,
+    applications,
+    providers,
+    isLoadingProviders,
+    amountSats,
+    minDeposit,
+    maxDeposit,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    maxDepositSats,
+    fundingInputCapExceeded,
+    effectiveRemaining,
+    capUnavailable,
+    minPeginFee,
+    minPeginFeeError,
+    appVersionUnsupported,
+    p2aAnchorValueSats,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
+    canSplit,
+    vaultAmounts,
+    isSplitLoading,
+    splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
+    isSplitSizingRefused,
+    isSplitParamsUnavailable,
+    depositorClaimValue,
+    depositorClaimValueError,
+    btcPublicKeyError,
+    refetchBtcPublicKey,
+    ordinalsCheckPending,
+    validateForm,
+    resetForm,
+  } = useDepositPageForm({ isSplitPermitted });
+
+  // Live commission (bps) for the selected provider, read from the current
+  // providers list. Captured into the deposit snapshot at commit time
+  // (`handleDeposit`) so the value the signing flow binds is exactly what the
+  // depositor reviewed — not a value a background refetch changed afterwards.
+  // `undefined` while it loads or if the read failed.
+  const selectedProviderCommissionBps = providers.find(
+    (provider) => provider.id === formData.selectedProvider,
+  )?.commissionBps;
+
   // The split sizing rules refusing the split is handled like a cap: the
   // deposit proceeds as a single vault and the form says why.
   const depositSplitUnavailableReason = resolveDepositSplitUnavailableReason({
