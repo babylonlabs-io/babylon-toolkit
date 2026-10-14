@@ -7,6 +7,8 @@
  *
  * Resolves ProtocolParams and ApplicationRegistry addresses from
  * BTCVaultRegistry on first use, then caches the reader instances.
+ * A failed refresh falls back to the cached readers for at most
+ * READER_CACHE_MAX_STALE_MS after the last successful resolve.
  */
 
 import {
@@ -17,6 +19,8 @@ import {
   ViemVaultKeeperReader,
   ViemVaultRegistryReader,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+
+import { StaleProtocolAddressesError } from "@/utils/errors/staleProtocolAddresses";
 
 import { CONTRACTS } from "../../config/contracts";
 
@@ -31,12 +35,25 @@ import { ethClient } from "./client";
  */
 const READER_CACHE_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * Maximum age of the last successful address resolve. Readers older than
+ * this are refused on every path, whatever the call pattern. Inside it, a
+ * failed refresh falls back to the cached readers as a transient RPC
+ * failure; past it, only a successful resolve returns readers. These
+ * readers feed transaction construction, so stale addresses are refused
+ * rather than extended.
+ */
+const READER_CACHE_MAX_STALE_MS = 2 * READER_CACHE_TTL_MS;
+
 interface ResolvedReaders {
   protocolParamsReader: ViemProtocolParamsReader;
   vaultKeeperReader: ViemVaultKeeperReader;
   universalChallengerReader: ViemUniversalChallengerReader;
   operationKeyReader: ViemOperationKeyReader;
-  fetchedAt: number;
+  /** Last successful address resolve. Set only on success. */
+  resolvedAt: number;
+  /** Last refresh attempt, successful or not. Gates the TTL. */
+  refreshedAt: number;
 }
 
 /**
@@ -63,7 +80,12 @@ async function getResolvedReaders(): Promise<ResolvedReaders> {
   const chainId = publicClient.chain.id;
 
   const cached = resolvedReadersCache.get(chainId);
-  if (cached && Date.now() - cached.fetchedAt < READER_CACHE_TTL_MS) {
+  const now = Date.now();
+  if (
+    cached &&
+    now - cached.refreshedAt < READER_CACHE_TTL_MS &&
+    now - cached.resolvedAt < READER_CACHE_MAX_STALE_MS
+  ) {
     return cached;
   }
 
@@ -77,6 +99,7 @@ async function getResolvedReaders(): Promise<ResolvedReaders> {
         CONTRACTS.BTC_VAULT_REGISTRY,
       );
 
+      const resolvedNow = Date.now();
       const resolved: ResolvedReaders = {
         protocolParamsReader: new ViemProtocolParamsReader(
           publicClient,
@@ -99,25 +122,33 @@ async function getResolvedReaders(): Promise<ResolvedReaders> {
           applicationRegistry: addresses.applicationRegistry,
           protocolParams: addresses.protocolParams,
         }),
-        fetchedAt: Date.now(),
+        resolvedAt: resolvedNow,
+        refreshedAt: resolvedNow,
       };
 
       resolvedReadersCache.set(chainId, resolved);
       return resolved;
     } catch (error) {
-      // Stale-while-revalidate: if a re-resolve fails but we have a
-      // previously fetched (now-expired) entry, hand that back rather
-      // than block the UI on a transient RPC failure. Governance
-      // upgrades are rare; transient RPC errors are not.
-      //
-      // Bump `fetchedAt` so we don't hammer RPC on every subsequent
-      // call during a sustained outage — the next refresh attempt is
-      // gated by the same TTL window.
-      if (cached) {
-        cached.fetchedAt = Date.now();
+      // No cached entry: nothing to fall back to.
+      if (!cached) throw error;
+
+      // Stale-while-revalidate, bounded by the age of the last successful
+      // resolve. Inside READER_CACHE_MAX_STALE_MS, hand back the cached readers
+      // rather than block the UI on a transient RPC failure, and bump
+      // `refreshedAt` so a sustained outage retries once per TTL window. Past
+      // it, refuse: the fast path also rejects the entry by age, so every later
+      // call retries the resolve and the first success restores the cache.
+      const ageMs = Date.now() - cached.resolvedAt;
+      if (ageMs < READER_CACHE_MAX_STALE_MS) {
+        cached.refreshedAt = Date.now();
         return cached;
       }
-      throw error;
+      throw new StaleProtocolAddressesError(
+        chainId,
+        ageMs,
+        READER_CACHE_MAX_STALE_MS,
+        { cause: error },
+      );
     } finally {
       initPromises.delete(chainId);
     }
