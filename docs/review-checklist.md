@@ -72,8 +72,8 @@ reinvention.
 
 - **Bugfix**: the regression test fails without the fix. A visual-only fix
   needs none: its only test would be a render or snapshot test, which the
-  Tests section rejects. Net lines added
-  should not exceed net lines removed; if they do, say what the extra code
+  Tests section rejects. Production lines added, test files excluded, should
+  not exceed production lines removed; if they do, say what the extra code
   buys.
 - **Refactor**: every deletion and replacement has preserved-behavior
   evidence. New observable behavior makes it a feature or a fix.
@@ -126,9 +126,9 @@ that turns it red. Missing either, and the test should not exist.
 
 ## Toolkit UI
 
-- A new user-facing surface or copy with no Figma reference is not
-  implemented; ask first
-  ([#2529](https://github.com/babylonlabs-io/babylon-toolkit/pull/2529)).
+- A new user-facing surface with no Figma reference is not implemented; ask
+  first ([#2529](https://github.com/babylonlabs-io/babylon-toolkit/pull/2529)).
+  Error and status messages follow the copy rules, not this gate.
 - A risk-band or health-factor threshold change recolors every surface that
   reads it. Enumerate the consumers
   ([#2405](https://github.com/babylonlabs-io/babylon-toolkit/pull/2405)).
@@ -140,12 +140,15 @@ that turns it red. Missing either, and the test should not exist.
   ([#2490](https://github.com/babylonlabs-io/babylon-toolkit/pull/2490)).
 - Typed error chains reach the user. "Broadcast failed" is not an error
   message ([#2508](https://github.com/babylonlabs-io/babylon-toolkit/pull/2508)).
-- A new feature flag needs three edits: `featureFlags.ts`,
-  `services/vault/.env.example`, and the flag block of the matching
-  `service-release-*.yml`. Missing the workflow leaves the flag off in
-  production. A flag the code gates on `import.meta.env.DEV`, directly or
-  through the dev-only panel it mounts inside, stays out of the workflow on
-  purpose.
+- Adding, renaming or removing a feature flag needs five edits:
+  `featureFlags.ts`, `services/vault/.env.example`, the flag block of the
+  matching `service-release-*.yml`, the flag's class in
+  `services/vault/env-manifest.json`, and the build inputs in
+  `services/vault/project.json`. Missing the workflow leaves the flag off in
+  production; `check:env-manifest` fails on the last two. A flag the code
+  gates on `import.meta.env.DEV`, directly or through the dev-only panel it
+  mounts inside, is classed `dev-test-only` and stays out of the workflow and
+  the build inputs on purpose.
 - Strings live in `copy.ts`, spelled as the file header pins them, with no
   duplicate literal across sites
   ([#2460](https://github.com/babylonlabs-io/babylon-toolkit/pull/2460)).
