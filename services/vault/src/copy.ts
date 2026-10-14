@@ -66,6 +66,15 @@ const borrowAssetsPerPosition = (limit: number) =>
 const AVAILABLE_LIQUIDITY_COLUMN = "Available Liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
+// The wallet refused a send as "nonce too low" but may have broadcast it.
+// Shown on the loan forms and the deposit screens alike, so it lives in one
+// place. It points away from the wallet: the wallet's own record is the failed
+// send, so it would read "failed" for a transaction that went through. It names
+// no position either: a redeem changes none, and the redeem screens show this
+// text too. Must not contain "transaction failed": the real-wallet E2E fails on
+// that text at once.
+const SEND_OUTCOME_UNKNOWN =
+  "Your wallet reported an error, but this transaction may still have gone through. Check a block explorer before trying again.";
 // The reassurance every pre-signing abort carries. It is the load-bearing half
 // of those messages — it is what distinguishes them from the post-registration
 // failures, which have spent an Ethereum fee — so it lives in one place.
@@ -529,6 +538,7 @@ export const COPY = {
       stepActive: (number: number) => `Step ${number} active`,
       stepPending: (number: number) => `Step ${number} not started`,
       stepFailed: (number: number) => `Step ${number} failed`,
+      stepUnknown: (number: number) => `Step ${number} status unknown`,
       groupStatus: {
         completed: "Completed",
         active: "In progress",
@@ -1258,6 +1268,13 @@ export const COPY = {
       copyDiagnostics: "Copy error details",
       diagnosticsCopied: "Copied",
       diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
+      // A send the wallet may have broadcast despite refusing it: not a
+      // failure, so it does not take the failure title. The deposit screens
+      // show it without Retry, so the body says how to try again.
+      sendOutcomeUnknown: {
+        title: "Transaction status unknown",
+        body: `${SEND_OUTCOME_UNKNOWN} If it did not go through, close this window and open it again to retry.`,
+      },
       // Ethereum finality gate (see services/vault/ethConfirmationGate.ts).
       // Both fire before the Pre-PegIn broadcast, so no Bitcoin has moved —
       // say that first, because stopping right after an on-chain registration
@@ -1823,6 +1840,7 @@ export const COPY = {
         "This transaction was already submitted. Check your wallet or a block explorer for its status.",
       staleNonce:
         "Your wallet hadn't caught up with your last transaction yet. Check your wallet's activity, then try again.",
+      sendOutcomeUnknown: SEND_OUTCOME_UNKNOWN,
       staleDeploy:
         "This page is out of date — a newer version of the app was deployed. Refresh the page and try again.",
     },

@@ -36,13 +36,16 @@ vi.mock("@/services/vault/htlcSecretDerivation", () => ({
 const handleActivation = vi.hoisted(() => vi.fn(async () => {}));
 const activationState = vi.hoisted(() => ({
   outcome: null as "activated" | "returned" | null,
+  error: null as string | null,
+  errorOutcomeUnknown: false,
 }));
 vi.mock("@/hooks/deposit/useActivationState", () => ({
   useActivationState: () => ({
     activating: false,
     outcome: activationState.outcome,
-    error: null,
+    error: activationState.error,
     errorTerminal: false,
+    errorOutcomeUnknown: activationState.errorOutcomeUnknown,
     handleActivation,
   }),
 }));
@@ -136,6 +139,8 @@ function renderModal(client?: QueryClient) {
 
 beforeEach(() => {
   activationState.outcome = null;
+  activationState.error = null;
+  activationState.errorOutcomeUnknown = false;
   btcActionWallet.connected = true;
   ledgerDevice.isLedgerVault = false;
   vi.clearAllMocks();
@@ -164,6 +169,30 @@ describe("EmergencyWithdrawModal — success", () => {
     expect(
       screen.getByText(COPY.deposit.emergencyWithdraw.success.heading),
     ).toBeInTheDocument();
+  });
+});
+
+describe("EmergencyWithdrawModal — outcome unknown", () => {
+  it("shows a withdraw the wallet may have broadcast as a status-unknown warning with the action disabled", () => {
+    activationState.error = COPY.common.classifiedErrors.sendOutcomeUnknown;
+    activationState.errorOutcomeUnknown = true;
+    render(
+      <Wrapper>
+        <EmergencyWithdrawModal
+          open
+          activity={ACTIVITY}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+        />
+      </Wrapper>,
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    expect(
+      screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.body),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
   });
 });
 

@@ -129,6 +129,7 @@ type ErrorKind =
   | "rpc-error" // node/provider JSON-RPC failure via RpcRequestError — not the user's connection
   | "already-submitted" // "already known" / "already imported" — the tx is already in the mempool
   | "stale-nonce" // "nonce too low" — the wallet signed with a nonce the chain already used
+  | "send-outcome-unknown" // SendOutcomeUnknownError — "nonce too low" for a send the wallet may have broadcast
   | "stale-deploy"; // Vite dynamic-import 404 after redeploy
 
 const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
@@ -142,6 +143,7 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
   "rpc-error": COPY.common.classifiedErrors.rpcError,
   "already-submitted": COPY.common.classifiedErrors.alreadySubmitted,
   "stale-nonce": COPY.common.classifiedErrors.staleNonce,
+  "send-outcome-unknown": COPY.common.classifiedErrors.sendOutcomeUnknown,
   "stale-deploy": COPY.common.classifiedErrors.staleDeploy,
 };
 
@@ -181,6 +183,12 @@ function classifyFrame(frame: unknown): ErrorKind | null {
   // handles bare-string frames (some wallet adapters reject with a string
   // as a wrapper's `cause`).
   if (isUserCancellationFrame(frame)) return "user-rejection";
+
+  // The deposit hooks show an error as text, flattening SendOutcomeUnknownError
+  // to its message, so that message is recognised as a bare string too.
+  if (frame === COPY.common.classifiedErrors.sendOutcomeUnknown) {
+    return "send-outcome-unknown";
+  }
 
   if (frame === null || typeof frame !== "object") return null;
 
@@ -246,6 +254,10 @@ function classifyFrame(frame: unknown): ErrorKind | null {
   // unwrapped, so the node text below this frame decides which one it is.
   // (NonceTooHigh is a gap, not a duplicate, so it stays in the generic
   // rpc-error retry bucket.)
+  // Raised over a "nonce too low" that may be for a broadcast send. Matched by
+  // name (transactionOutcome.ts imports this module), and before the nonce
+  // checks, which its cause would match.
+  if (obj.name === "SendOutcomeUnknownError") return "send-outcome-unknown";
   if (frameMessageMatches(obj, ALREADY_SUBMITTED_PATTERN)) {
     return "already-submitted";
   }

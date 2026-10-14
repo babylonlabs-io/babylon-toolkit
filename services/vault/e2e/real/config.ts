@@ -12,6 +12,24 @@ export type NetworkName = "devnet" | "testnet";
 export type BtcWalletId = "unisat" | "okx" | "onekey";
 export type EthWalletId = "metamask";
 export type DataMode = "real" | "mock";
+/** `--inject-nonce-too-low`: which "nonce too low" the borrow send gets (see actions/nonceTooLow.ts). */
+export type NonceTooLowInjection =
+  | "stale"
+  | "already-sent"
+  | "already-sent-fallback"
+  | "stale-then-already-sent";
+export const NONCE_TOO_LOW_INJECTIONS: readonly NonceTooLowInjection[] = [
+  "stale",
+  "already-sent",
+  "already-sent-fallback",
+  "stale-then-already-sent",
+];
+
+export function isNonceTooLowInjection(
+  value: string,
+): value is NonceTooLowInjection {
+  return (NONCE_TOO_LOW_INJECTIONS as readonly string[]).includes(value);
+}
 export type ActionId =
   | "connect"
   | "observe"
@@ -256,6 +274,15 @@ export interface RunConfig {
    * irreversible, so this is the safe way to rehearse it.
    */
   reclaimDryRun?: boolean;
+  /**
+   * Borrow only: answer the borrow send with "nonce too low" (`--inject-nonce-too-low`) — `stale` (an
+   * earlier transaction used the nonce, so the app must send once more), `already-sent` (the
+   * transaction was broadcast, so the app must not send it again), `already-sent-fallback` (the same,
+   * from a wallet that would take viem's `wallet_sendTransaction` resend) or `stale-then-already-sent`
+   * (`stale`, then `already-sent` for the app's retry) — and check the account sent exactly one
+   * transaction.
+   */
+  injectNonceTooLow?: NonceTooLowInjection;
 }
 
 /** Resolve the target URL a run should open. */

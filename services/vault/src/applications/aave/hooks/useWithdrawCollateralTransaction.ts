@@ -19,6 +19,7 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   WalletError,
   isWriteNotice,
@@ -41,8 +42,9 @@ export interface UseWithdrawCollateralTransactionResult {
    * Execute the withdraw collateral transaction. Resolves `succeeded` once it
    * is mined, including a transaction mined after the normal receipt wait,
    * which this keeps waiting for, and `unknown` when it may still be mined:
-   * the user stopped waiting, or the wallet replaced it with a transaction
-   * that could not be read.
+   * the user stopped waiting, the wallet replaced it with a transaction that
+   * could not be read, or the wallet refused as "nonce too low" a send it may
+   * have broadcast.
    * @param vaultIds - IDs of vaults currently used as collateral (to mark as pending)
    */
   executeWithdraw: (vaultIds: string[]) => Promise<AaveActionResult>;
@@ -57,9 +59,10 @@ export interface UseWithdrawCollateralTransactionResult {
   error: string | null;
   /**
    * Last outcome that is not a failure (null when none): a refusal before
-   * anything was signed, a wallet replacement that may have done the
-   * withdrawal, a withdrawal the user stopped waiting for, or another Aave
-   * form's write holding the lock. Shown without the failure title.
+   * anything was signed, a wallet replacement or a "nonce too low" for a
+   * broadcast send, either of which may have done the withdrawal, a
+   * withdrawal the user stopped waiting for, or another Aave form's write
+   * holding the lock. Shown without the failure title.
    */
   notice: string | null;
   /** Clear the last failure message and notice (e.g. when the dialog reopens). */
@@ -149,17 +152,22 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         setNotice(COPY.common.unconfirmedTransaction.stopped);
         return "unknown";
       } catch (error) {
-        // The wallet replaced the transaction. A speed-up may still have done
-        // the withdrawal, so the position must show the chain's answer before
-        // the user decides whether to try again.
-        if (error instanceof TransactionReplacedError) {
+        // The wallet replaced the transaction, or refused as "nonce too low" a
+        // send it may have broadcast. Either may still have done the
+        // withdrawal, so the position must show the chain's answer before the
+        // user decides whether to try again.
+        if (
+          error instanceof TransactionReplacedError ||
+          error instanceof SendOutcomeUnknownError
+        ) {
           await invalidateVaultQueries(queryClient);
         }
-        // Not a failure: a refusal before anything was signed, or a
-        // replacement that may have done the withdrawal.
+        // Not a failure: a refusal before anything was signed, or an outcome
+        // that may have done the withdrawal.
         if (isWriteNotice(error)) {
           setNotice(error.message);
-          return error instanceof TransactionReplacedError
+          return error instanceof TransactionReplacedError ||
+            error instanceof SendOutcomeUnknownError
             ? "unknown"
             : "failed";
         }

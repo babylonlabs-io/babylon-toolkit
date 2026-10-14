@@ -43,6 +43,7 @@ import {
   DepositorWalletMismatchError,
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
+  SendOutcomeUnknownError,
 } from "@/utils/errors";
 
 import { useVaultActions } from "../useVaultActions";
@@ -1964,6 +1965,73 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(ctx.tags.funnelStage).toBe("activation.reveal");
     expect(ctx.tags.vaultId).toBe("0xva...ltId");
     expect(result.current.activationError).toContain("execution reverted");
+  });
+
+  it("does not capture a reveal the wallet may have broadcast as a failure, and refetches the activities", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(baseActivationParams.onRefetchActivities).toHaveBeenCalledTimes(1);
+    expect(result.current.activationError).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
+    );
+  });
+
+  it("flags a reveal the wallet may have broadcast as outcome-unknown", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationOutcomeUnknown).toBe(true);
+    expect(result.current.activationErrorTerminal).toBe(false);
+  });
+
+  it("does not flag a reveal the wallet declined as outcome-unknown", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockRejectedValue(
+      Object.assign(new Error("User rejected the request"), { code: 4001 }),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationError).not.toBeNull();
+    expect(result.current.activationOutcomeUnknown).toBe(false);
   });
 
   it("does not capture a wallet decline of the activation tx, but still surfaces it", async () => {

@@ -194,6 +194,7 @@ vi.mock("@/hooks/deposit/useActivationState", () => ({
     outcome: null,
     error: null,
     errorTerminal: false,
+    errorOutcomeUnknown: false,
     handleActivation: mockHandleActivation,
   })),
 }));
@@ -245,6 +246,7 @@ vi.mock("../DepositProgressView", () => ({
   DepositProgressView: ({
     currentStep,
     error,
+    errorVariant,
     isComplete,
     isProcessing,
     terminalMessage,
@@ -260,6 +262,7 @@ vi.mock("../DepositProgressView", () => ({
   }: {
     currentStep?: string;
     error?: { title: string; body: string } | null;
+    errorVariant?: "error" | "warning";
     isComplete?: boolean;
     isProcessing?: boolean;
     terminalMessage?: string | null;
@@ -287,6 +290,8 @@ vi.mock("../DepositProgressView", () => ({
       <span data-testid="step">{String(currentStep)}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="error-title">{error?.title ?? ""}</span>
+      {/* Mirrors the real prop default. */}
+      <span data-testid="error-variant">{errorVariant ?? "error"}</span>
       <span data-testid="has-retry">{String(!!onRetry)}</span>
       <span data-testid="complete">{String(!!isComplete)}</span>
       <span data-testid="processing">{String(!!isProcessing)}</span>
@@ -776,6 +781,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
       outcome: null,
       error: "User rejected the request.",
       errorTerminal: false,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
     const connector = vi.mocked(useChainConnector)("BTC");
@@ -813,6 +819,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
         outcome: null,
         error: null,
         errorTerminal: false,
+        errorOutcomeUnknown: false,
         handleActivation: mockHandleActivation,
       });
     }
@@ -1386,6 +1393,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: "activated",
       error: null,
       errorTerminal: false,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1406,6 +1414,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: "returned",
       error: null,
       errorTerminal: false,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1428,6 +1437,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: "returned",
       error: null,
       errorTerminal: false,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1448,6 +1458,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: null,
       error: null,
       errorTerminal: false,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1468,6 +1479,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: null,
       error: null,
       errorTerminal: false,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1487,6 +1499,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: null,
       error: "The activation deadline has passed.",
       errorTerminal: true,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
 
@@ -1509,6 +1522,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: null,
       error: COPY.pegin.messages.activationOrderInconsistent,
       errorTerminal: true,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
 
@@ -1531,6 +1545,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: null,
       error: COPY.deposit.errors.activationCheckUnsupported,
       errorTerminal: true,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
 
@@ -1553,6 +1568,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       outcome: null,
       error: "Some transient RPC error",
       errorTerminal: false,
+      errorOutcomeUnknown: false,
       handleActivation: mockHandleActivation,
     });
 
@@ -1564,6 +1580,33 @@ describe("ResumeActivationContent — activated success terminal", () => {
     expect(getByTestId("error-title").textContent).not.toBe(
       COPY.deposit.errors.activationDeadlinePassed.title,
     );
+    expect(getByTestId("error-variant").textContent).toBe("error");
+  });
+
+  it("shows a reveal that may have been broadcast as a status-unknown warning without Retry", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      outcome: null,
+      error: COPY.common.classifiedErrors.sendOutcomeUnknown,
+      errorTerminal: false,
+      errorOutcomeUnknown: true,
+      handleActivation: mockHandleActivation,
+    });
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("error-title").textContent).toBe(
+        COPY.deposit.errors.sendOutcomeUnknown.title,
+      ),
+    );
+    expect(getByTestId("error").textContent).toBe(
+      COPY.deposit.errors.sendOutcomeUnknown.body,
+    );
+    expect(getByTestId("error-variant").textContent).toBe("warning");
+    expect(getByTestId("has-retry").textContent).toBe("false");
+    // ACTIVATE_VAULT: the reveal is the step whose outcome is unknown.
+    expect(getByTestId("step").textContent).toBe("14");
   });
 
   it("shows the original-account guidance when activation secret recovery fails", async () => {

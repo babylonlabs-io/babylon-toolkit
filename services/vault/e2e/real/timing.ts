@@ -139,6 +139,26 @@ export const BORROW_CTA_ENABLE_TIMEOUT_MS = 150_000;
  */
 export const BORROW_TX_TIMEOUT_MS = 90_000;
 
+// ── nonce-too-low injection (`--inject-nonce-too-low`) ───────────────────────
+/**
+ * The injected borrow send to be answered, and then the one borrow transaction to mine on Sepolia:
+ * MetaMask's prompt, a block, and an RPC that may be a block behind.
+ */
+export const NONCE_INJECTION_TIMEOUT_MS = 120_000;
+/**
+ * How long to keep watching the account for a second transaction after the borrow mined. A retry the
+ * app should not send would come after its wallet wait (up to 45 s, WALLET_NONCE_SYNC_TIMEOUT_MS in
+ * src/clients/eth-contract/walletNonce.ts), the approver's confirm and a broadcast — so well inside this.
+ */
+export const NONCE_INJECTION_SETTLE_MS = 90_000;
+/** Poll cadence for the injection's event and the account's transaction count. */
+export const NONCE_INJECTION_POLL_MS = 3_000;
+/**
+ * How long to wait, before submitting, for MetaMask's node and the app's RPC to count the same
+ * transactions for the account: MetaMask re-reads its block about every 20 s, so two of its polls.
+ */
+export const NONCE_INJECTION_COUNT_SETTLE_TIMEOUT_MS = 45_000;
+
 // ── repay ─────────────────────────────────────────────────────────────────────
 /**
  * The /loans "Repay" button to become visible + enabled. It only renders when `hasLoans` and is

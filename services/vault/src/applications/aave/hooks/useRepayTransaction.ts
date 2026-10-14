@@ -21,6 +21,7 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   WalletError,
   isWriteNotice,
@@ -120,9 +121,9 @@ export interface UseRepayTransactionResult {
   error: string | null;
   /**
    * Last outcome that is not a failure (null when none): a refusal before
-   * anything was signed, a wallet replacement that may have done the
-   * repay, or another Aave form's write holding the lock. Shown without the
-   * failure title.
+   * anything was signed, a wallet replacement or a "nonce too low" for a
+   * broadcast send, either of which may have done the repay, or another Aave
+   * form's write holding the lock. Shown without the failure title.
    */
   notice: string | null;
   /** Clear the last failure message and notice (e.g. when the repay asset changes). */
@@ -290,20 +291,27 @@ export function useRepayTransaction({
 
       return outcome === "mined" ? "succeeded" : "unknown";
     } catch (error) {
-      // The wallet replaced the transaction. A speed-up may still have done
-      // the repay, so the position must show the chain's answer before the user
-      // decides whether to try again.
-      if (error instanceof TransactionReplacedError) {
+      // The wallet replaced the transaction, or refused as "nonce too low" a
+      // send it may have broadcast. Either may still have done the repay, so
+      // the position must show the chain's answer before the user decides
+      // whether to try again.
+      if (
+        error instanceof TransactionReplacedError ||
+        error instanceof SendOutcomeUnknownError
+      ) {
         await Promise.all([
           invalidateVaultQueries(queryClient),
           invalidateHubQueries(queryClient),
         ]);
       }
-      // Not a failure: a refusal before anything was signed, or a replacement
+      // Not a failure: a refusal before anything was signed, or an outcome
       // that may have done the repay.
       if (isWriteNotice(error)) {
         setNotice(error.message);
-        return error instanceof TransactionReplacedError ? "unknown" : "failed";
+        return error instanceof TransactionReplacedError ||
+          error instanceof SendOutcomeUnknownError
+          ? "unknown"
+          : "failed";
       }
       logger.error(error, {
         data: { context: "Repay failed" },

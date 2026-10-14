@@ -120,7 +120,8 @@ export async function executeWrite(
   const account = requireWalletAccount(walletClient);
 
   // Pre-flight simulation - catches errors before user signs. Its error is
-  // final: nothing was signed or sent.
+  // final: nothing that can still be mined was signed or sent (before a
+  // stale-nonce resend it re-runs after a refusal that can never be mined).
   let preflightError: unknown;
   const simulate = async () => {
     try {
@@ -158,8 +159,8 @@ export async function executeWrite(
       walletClient,
       publicClient,
       account: account.address,
-      send: () =>
-        walletClient.writeContract({
+      send: (submissionClient) =>
+        submissionClient.writeContract({
           address,
           abi,
           functionName,

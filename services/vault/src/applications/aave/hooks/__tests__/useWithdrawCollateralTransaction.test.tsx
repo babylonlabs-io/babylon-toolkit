@@ -47,6 +47,7 @@ vi.mock("@/infrastructure", () => ({
 import { COPY } from "@/copy";
 import {
   ContractError,
+  SendOutcomeUnknownError,
   TransactionInFlightError,
   UnconfirmedTransactionError,
 } from "@/utils/errors";
@@ -138,6 +139,27 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
     expect(result.current.notice).toBe(COPY.common.transactionInFlight);
     expect(result.current.error).toBeNull();
     expect(mockWithdraw).not.toHaveBeenCalled();
+  });
+
+  it('reports a "nonce too low" for a withdrawal the wallet may have broadcast as an unknown outcome, not a failure, and refreshes the position', async () => {
+    mockWithdraw.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { client, result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeWithdraw([VAULT_ID]);
+    });
+
+    expect(resolved).toBe("unknown");
+    expect(result.current.notice).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
+    );
+    expect(result.current.error).toBeNull();
+    expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
   });
 
   it("reports an unknown outcome with the stopped notice, and does not mark the vaults withdrawing, when the user stops waiting", async () => {

@@ -7,6 +7,7 @@ import type { VaultActivity } from "@/types/activity";
 
 let mockCollateralAdded = true;
 let mockRedeemed = false;
+let mockActivationOutcomeUnknown = false;
 const mockHandleActivation = vi.fn(
   async ({
     onShowSuccessModal,
@@ -31,6 +32,7 @@ vi.mock("../useVaultActions", () => ({
     activating: false,
     activationError: null,
     activationErrorTerminal: false,
+    activationOutcomeUnknown: mockActivationOutcomeUnknown,
     handleActivation: mockHandleActivation,
   }),
 }));
@@ -99,9 +101,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCollateralAdded = true;
   mockRedeemed = false;
+  mockActivationOutcomeUnknown = false;
 });
 
 describe("useActivationState", () => {
+  it("reports a reveal the wallet may have broadcast as outcome-unknown", () => {
+    mockActivationOutcomeUnknown = true;
+
+    const { result } = setup();
+
+    expect(result.current.errorOutcomeUnknown).toBe(true);
+  });
+
   it("invalidates the vault and position queries once activation succeeds", async () => {
     const { client, result } = setup();
 

@@ -25,6 +25,8 @@ interface GroupedProgressProps {
   activeStepDetail?: ReactNode;
   /** When true, the current step failed — render it as an error, not active. */
   hasError?: boolean;
+  /** When true, the current step's outcome is unknown — neither running nor failed. */
+  outcomeUnknown?: boolean;
   /** False in the pre-entry state — no group expands (see buildStepGroups). */
   started?: boolean;
   /** Pre-sign entry panel, rendered under the Pre-PegIn step (see GroupBlock). */
@@ -36,6 +38,7 @@ export function GroupedProgress({
   currentStep,
   activeStepDetail,
   hasError = false,
+  outcomeUnknown = false,
   started = true,
   preSignDetail,
 }: GroupedProgressProps) {
@@ -56,6 +59,7 @@ export function GroupedProgress({
       steps={steps}
       currentStep={currentStep}
       hasError={hasError}
+      outcomeUnknown={outcomeUnknown}
       activeStepDetail={activeStepDetail}
       preSignDetail={preSignDetail}
     />

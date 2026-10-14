@@ -26,6 +26,12 @@ interface ClaimExpiredVaultConfirmContentProps {
   error: string | null;
   /** The vault's on-chain state rules the redeem out — confirm stays disabled. */
   errorTerminal: boolean;
+  /**
+   * The wallet refused the redeem but may have broadcast it: shown as the
+   * status-unknown warning, which says how to retry, instead of `error`, and
+   * confirm stays disabled.
+   */
+  errorOutcomeUnknown: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   /**
@@ -45,6 +51,7 @@ export function ClaimExpiredVaultConfirmContent({
   claiming,
   error,
   errorTerminal,
+  errorOutcomeUnknown,
   onConfirm,
   onCancel,
   ledgerStep = null,
@@ -55,7 +62,8 @@ export function ClaimExpiredVaultConfirmContent({
   // depositor is not asked to derive a secret the submission would refuse.
   const ruledOut =
     claimWindow?.state === "closed" || claimWindow?.state === "redeemed";
-  const canClaim = !claiming && !errorTerminal && !paused && !ruledOut;
+  const canClaim =
+    !claiming && !errorTerminal && !errorOutcomeUnknown && !paused && !ruledOut;
 
   const copy = COPY.deposit.claimExpired;
   const windowNotice = (() => {
@@ -110,7 +118,17 @@ export function ClaimExpiredVaultConfirmContent({
         {paused && (
           <Callout variant="warning">{COPY.pegin.claimExpiredPaused}</Callout>
         )}
-        {error && <Callout variant="error">{error}</Callout>}
+        {error &&
+          (errorOutcomeUnknown ? (
+            <Callout
+              variant="warning"
+              title={COPY.deposit.errors.sendOutcomeUnknown.title}
+            >
+              {COPY.deposit.errors.sendOutcomeUnknown.body}
+            </Callout>
+          ) : (
+            <Callout variant="error">{error}</Callout>
+          ))}
         {ledgerStep?.kind === "awaiting-app" && (
           <DeviceAppWaitDetail appName={ledgerStep.appName} />
         )}
@@ -145,7 +163,7 @@ export function ClaimExpiredVaultConfirmContent({
               COPY.deposit.ledger.activationPause.continue
             ) : ledgerStep?.kind === "reconnect-required" ? (
               COPY.deposit.ledger.reconnectButton
-            ) : error && !errorTerminal ? (
+            ) : error && !errorTerminal && !errorOutcomeUnknown ? (
               copy.retryButton
             ) : (
               copy.confirmButton
