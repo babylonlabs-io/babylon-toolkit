@@ -23,10 +23,10 @@
  *
  * The amounts are bound-checked once, early in the flow, against the cached
  * React Query configuration — a snapshot with a five minute `staleTime` that
- * nothing invalidates. If a bound tightened after that snapshot was taken, the
- * build proceeds and the registration reverts on-chain, after the depositor has
- * completed a signing ceremony. This runs against the pinned read instead, so
- * the deposit stops while restarting is still free.
+ * only a drift abort refreshes early. If a bound tightened after that snapshot
+ * was taken, the build proceeds and the registration reverts on-chain, after
+ * the depositor has completed a signing ceremony. This runs against the pinned
+ * read instead, so the deposit stops while restarting is still free.
  *
  * This guard re-checks only the amounts and the vault count; the other
  * unversioned fields are not re-checked here. A lowered `maxFundingInputCount`

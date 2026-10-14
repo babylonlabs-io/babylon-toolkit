@@ -3,10 +3,10 @@
  * parameters the Bitcoin lock is about to be built from.
  *
  * The form reads the peg-in configuration from the React Query context — a
- * cached snapshot with a five minute `staleTime` that nothing invalidates. The
- * build re-reads it from chain, pinned to a block. Those two are normally the
- * same, and before the build was pinned they could not diverge at all, because
- * both halves read one object.
+ * cached snapshot with a five minute `staleTime` that only a drift abort
+ * refreshes early. The build re-reads it from chain, pinned to a block. Those
+ * two are normally the same, and before the build was pinned they could not
+ * diverge at all, because both halves read one object.
  *
  * They can diverge now. A governance change landing between the cache being
  * filled and the deposit being built leaves the form having gated and sized
