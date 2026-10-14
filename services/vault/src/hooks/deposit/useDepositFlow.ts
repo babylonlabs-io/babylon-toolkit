@@ -449,10 +449,11 @@ export function useDepositFlow(
   const { findProvider } = useVaultProviders(selectedApplication);
   // Nothing the Pre-PegIn commits to comes from this context. Those values are
   // re-read inside `executeDeposit`, pinned to one block: the cached copy is
-  // refreshed on nothing and is additionally frozen at the render that started
-  // the flow. In particular the peg-in and refund timelocks live on the same
-  // cached object and go straight into the PegIn output and the HTLC refund
-  // leaf, so they must come from the pinned read like everything else.
+  // refreshed only on `staleTime` expiry or a drift abort, and is additionally
+  // frozen at the render that started the flow. In particular the peg-in and
+  // refund timelocks live on the same cached object and go straight into the
+  // PegIn output and the HTLC refund leaf, so they must come from the pinned
+  // read like everything else.
   //
   // `config` is still taken, for one purpose: it is the snapshot this page
   // gated and sized against, and the build asserts the pinned read agrees with
