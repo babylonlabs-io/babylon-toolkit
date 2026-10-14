@@ -19,8 +19,9 @@
  *       `signInputIndexes: [0]`) + NoPayout against a production-SDK-built
  *       graph fixture, still under the stage-4 intent.
  *   12. abort/dispatcher recovery (T7 stage b): interrupt SIGN_PSBT mid-loop,
- *       pin the eaten-APDU behavior and the full re-ceremony recovery. Runs
- *       LAST — it re-derives, which resets the vault session.
+ *       pin the eaten-APDU behavior and the full re-ceremony recovery. Last
+ *       of the intent-bound stages — it re-derives, which resets the vault
+ *       session. Stages 13 and 14 are standalone flows that run after it.
  *   13. standalone Refund, with and without a loaded intent.
  *   14. standalone Reclaim of the claim reserve (Screen 9).
  *

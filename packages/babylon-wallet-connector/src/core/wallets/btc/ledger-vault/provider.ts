@@ -1615,6 +1615,10 @@ export class LedgerVaultProvider implements IBTCProvider {
   private async signStaged(staged: StagedPsbt, ctx: SignContext, controller: AbortController): Promise<string> {
     const { prepared, fingerprintKey, label, standalone } = staged;
     const { session, rawSend, generation } = ctx;
+    // Recorded before the send: a failure after dispatch may still have been
+    // counted. A pre-dispatch lock proves it was not, so that path removes it
+    // again unless an earlier attempt had already sent it.
+    const recordedEarlier = this.dispatchedSinceCounterReset.has(fingerprintKey);
     if (!standalone) this.dispatchedSinceCounterReset.add(fingerprintKey);
     try {
       const result = await signPreparedVaultPsbt(rawSend, prepared, {
@@ -1637,6 +1641,9 @@ export class LedgerVaultProvider implements IBTCProvider {
       // Pre-dispatch lock keeps the intent (provenance in the method doc); an
       // unproven lock is treated like any other sign failure.
       const lockedBeforeDispatch = isLedgerDeviceLockedError(error) && error.preDispatch === true;
+      if (lockedBeforeDispatch && !standalone && !recordedEarlier && generation === this.connectionGeneration) {
+        this.dispatchedSinceCounterReset.delete(fingerprintKey);
+      }
       if (
         generation === this.connectionGeneration &&
         !isLedgerSignPsbtAbortedError(error) &&

@@ -164,6 +164,7 @@ export async function signAndSubmitPayouts(
       providerAddress: vaultProviderAddress,
       depositorBtcPubkey,
       requireFreshDeviceCeremony,
+      signal,
     });
 
     await runDepositorPresignFlow({

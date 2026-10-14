@@ -2457,6 +2457,21 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.signPsbt(PSBT_SIGNED_BEFORE_RESET)).rejects.toThrow(/already signed/);
     });
 
+    it("a PSBT a locked device refused before dispatch still signs under the resumed intent after a reconnect", async () => {
+      await deviceHoldsTerms();
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      const never = "ef".repeat(40);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515, { preDispatch: true }));
+      await expect(provider.signPsbt(never)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+      await provider.disconnect();
+      await provider.connectWallet();
+
+      await provider.approveDepositTerms(TERMS);
+
+      await expect(provider.signPsbt(never)).resolves.toBe(`signed:${never}`);
+    });
+
     it("does not query the device while the host record already holds the intent", async () => {
       const provider = await derived();
       await provider.approveDepositTerms(TERMS);
@@ -2661,7 +2676,7 @@ describe("LedgerVaultProvider", () => {
 
     const call = new LedgerVaultProvider(Network.SIGNET).connectWallet();
     await expect(call).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, version: "0.10.1" });
-    await expect(call).rejects.toThrow(/0\.10\.1/);
+    await expect(call).rejects.toThrow(/0\.11\.0/);
     expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(stale);
   });
 
