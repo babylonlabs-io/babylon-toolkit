@@ -39,6 +39,7 @@ import {
 } from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 import {
+  BatchSiblingMismatchError,
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
   PositionCapacityExceededError,
@@ -1016,6 +1017,40 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(removePendingPegin).toHaveBeenCalledWith(
       baseBroadcastParams.vaultId,
     );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("removes every batch sibling's pending entry when version drift is confirmed on resume", async () => {
+    // The clicked vault may resume on a sibling's record, so removing only
+    // the clicked vault's entry would leave the drifted record in place and
+    // every retry would fail the same way.
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: vi.fn().mockResolvedValue([
+        {
+          offchainParamsVersion:
+            basePendingPegin.buildOffchainParamsVersion + 1,
+          appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
+          universalChallengersVersion:
+            basePendingPegin.buildUniversalChallengersVersion,
+        },
+      ]),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const removePendingPegin = vi.fn();
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        batchVaultIds: ["0xsiblingId", "0xvaultId"] as Hex[],
+        pendingPegin: { ...basePendingPegin, id: "0xsiblingId" },
+        removePendingPegin,
+      });
+    });
+
+    expect(removePendingPegin).toHaveBeenCalledTimes(2);
+    expect(removePendingPegin).toHaveBeenCalledWith("0xsiblingId");
+    expect(removePendingPegin).toHaveBeenCalledWith("0xvaultId");
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
@@ -3643,6 +3678,42 @@ describe("useVaultActions — handleBroadcast position capacity", () => {
       COPY.deposit.errors.positionCapacityUnavailable,
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses a listed sibling the chain contradicts before any BTC wallet prompt", async () => {
+    mockAssertResumePositionCapacity.mockRejectedValue(
+      new BatchSiblingMismatchError({
+        vaultId: "0xvaultId",
+        siblingId: "0xsiblingId",
+        field: "prePeginTxHash",
+      }),
+    );
+    // "unisat" is a probe-safe wallet, so a liveness probe would call
+    // connectWallet(); none may happen for a broadcast that is refused.
+    const connector = makeDefaultChainConnector();
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: { ...connector.connectedWallet, id: "unisat" },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        batchVaultIds: ["0xvaultId", "0xsiblingId"] as Hex[],
+        pendingPegin: { ...basePendingPegin },
+      }),
+    );
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.batchSiblingMismatch,
+    );
+    expect(
+      connector.connectedWallet.provider.connectWallet,
+    ).not.toHaveBeenCalled();
+    expect(mockGetPublicKeyHex).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
   });
 
   it("checks the whole batch against the hash-checked transaction and the on-chain record, then broadcasts", async () => {
