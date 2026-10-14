@@ -114,6 +114,7 @@ export function ResumeSignContent(props: ResumeSignContentProps) {
       onClose={props.onClose}
       ready={!!props.btcPublicKey}
       autoStart={props.autoStart}
+      start={COPY.deposit.resume.start.payout}
     >
       {btcPublicKey && (
         <ResumeSignContentConnected
@@ -270,7 +271,11 @@ export interface ResumeBroadcastContentProps {
 
 export function ResumeBroadcastContent(props: ResumeBroadcastContentProps) {
   return (
-    <BtcActionGate onClose={props.onClose} autoStart={props.autoStart}>
+    <BtcActionGate
+      onClose={props.onClose}
+      autoStart={props.autoStart}
+      start={COPY.deposit.resume.start.broadcast}
+    >
       <ResumeBroadcastContentConnected {...props} />
     </BtcActionGate>
   );
@@ -360,7 +365,11 @@ export interface ResumeWotsContentProps {
 
 export function ResumeWotsContent(props: ResumeWotsContentProps) {
   return (
-    <BtcActionGate onClose={props.onClose} autoStart={props.autoStart}>
+    <BtcActionGate
+      onClose={props.onClose}
+      autoStart={props.autoStart}
+      start={COPY.deposit.resume.start.wots}
+    >
       <ResumeWotsContentConnected {...props} />
     </BtcActionGate>
   );

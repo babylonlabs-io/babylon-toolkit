@@ -106,6 +106,15 @@ const BROADCAST_REQUIRED_LABEL = "Broadcast required";
 const ACTIVATION_REQUIRED_LABEL = "Activation required";
 const WITHDRAW_REQUIRED_LABEL = "Withdraw required";
 const REDEEM_REQUIRED_LABEL = "Redeem required";
+// Row action labels and step names, shared with the resume start card so the
+// card names the same operation the row and the stepper do.
+const SUBMIT_WOTS_KEY_ACTION = "Submit WOTS Key";
+const SIGN_PAYOUTS_ACTION = "Sign Payouts";
+const BROADCAST_PRE_PEGIN_ACTION = "Broadcast Pre-Pegin";
+const SIGN_AND_BROADCAST_PRE_PEGIN_STEP =
+  "Sign and broadcast BTC Pre-Pegin transaction";
+const SUBMIT_WOTS_KEY_STEP = "Set up Winternitz One-Time Signature (WOTS)";
+const SIGN_PAYOUTS_STEP = "Sign payout transactions";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
@@ -339,9 +348,9 @@ export const COPY = {
         "The vault provider reported a status this app does not recognize. Please contact support.",
     },
     primaryAction: {
-      SUBMIT_WOTS_KEY: "Submit WOTS Key",
-      SIGN_PAYOUT_TRANSACTIONS: "Sign Payouts",
-      SIGN_AND_BROADCAST_TO_BITCOIN: "Broadcast Pre-Pegin",
+      SUBMIT_WOTS_KEY: SUBMIT_WOTS_KEY_ACTION,
+      SIGN_PAYOUT_TRANSACTIONS: SIGN_PAYOUTS_ACTION,
+      SIGN_AND_BROADCAST_TO_BITCOIN: BROADCAST_PRE_PEGIN_ACTION,
       ACTIVATE_VAULT: "Activate",
       ACTIVATE_AND_REDEEM: "Withdraw",
       REFUND_HTLC: "Refund",
@@ -423,13 +432,13 @@ export const COPY = {
       signPeginBtc: "Sign the peg-in BTC transaction",
       signLinkProofs: "Sign proof to link your Bitcoin and ETH addresses",
       signAndBroadcastEth: "Sign and broadcast ETH registration",
-      signAndBroadcastPrePegin: "Sign and broadcast BTC Pre-Pegin transaction",
+      signAndBroadcastPrePegin: SIGN_AND_BROADCAST_PRE_PEGIN_STEP,
       confirmingDeposit:
         "Awaiting Pre-Pegin inclusion (1 Bitcoin block · ~10 min)",
-      submitWotsKey: "Set up Winternitz One-Time Signature (WOTS)",
+      submitWotsKey: SUBMIT_WOTS_KEY_STEP,
       awaitPayoutTransactions: "Prepare claim and payout transactions",
       authenticateSession: "Authenticate session with vault provider",
-      signPayouts: "Sign payout transactions",
+      signPayouts: SIGN_PAYOUTS_STEP,
       signRecoveryTxs: "Sign recovery transactions",
       awaitVpVerification: "Awaiting vault provider verification",
       retrieveSecret: "Retrieve secret",
@@ -1153,6 +1162,25 @@ export const COPY = {
       // mention, and some extensions queue it without surfacing a popup.
       wotsWalletApprovalHint:
         "You may be asked to approve a request in your BTC wallet. If no approval window appears, open your wallet extension.",
+      // The card a resumed deposit shows before its wallet prompt, unless the
+      // depositor opened it from the row button naming this same action.
+      start: {
+        broadcast: {
+          heading: SIGN_AND_BROADCAST_PRE_PEGIN_STEP,
+          body: "Your wallet will ask you to sign the Pre-Pegin transaction, which is broadcast to the Bitcoin network right after.",
+          button: BROADCAST_PRE_PEGIN_ACTION,
+        },
+        wots: {
+          heading: SUBMIT_WOTS_KEY_STEP,
+          body: "Your wallet will ask to derive a key that sets up this BTCVault's one-time signatures.",
+          button: SUBMIT_WOTS_KEY_ACTION,
+        },
+        payout: {
+          heading: SIGN_PAYOUTS_STEP,
+          body: "Your wallet may first ask to derive a key that signs you in with the vault provider, then ask you to sign the Payout and NoPayout transactions. No signature is sent to the vault provider until all of them are signed.",
+          button: SIGN_PAYOUTS_ACTION,
+        },
+      },
     },
     warnings: {
       depositRecordNotSaved:
