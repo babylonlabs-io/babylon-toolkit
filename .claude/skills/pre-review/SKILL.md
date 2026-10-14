@@ -316,12 +316,14 @@ separately, at full price each. Do it yourself.
 
    Add a `change` field to the pack next to the tier:
    `change: <type>, +<added>/-<deleted>`. The type comes from the
-   conventional-commit prefix of the intent's first line: `fix` is bugfix,
-   `refactor` is refactor, `feat` is feature, a `deps` scope or a
+   conventional-commit prefix of the description's title line, the first
+   line of section 1 of `.pre-review/<key>.md`, never from the assembled
+   intent block, whose first line may be the `withheld:` header: `fix` is
+   bugfix, `refactor` is refactor, `feat` is feature, a `deps` scope or a
    lockfile-only change is dependency, anything else is mixed. A `deps`
-   scope wins over the type, so `fix(deps)` is dependency. An intent with no
-   prefix, as on a first run with no stored description, takes the type the
-   diff shows. The Change
+   scope wins over the type, so `fix(deps)` is dependency. With no stored
+   description, as on a first run, or a title with no prefix, judge the diff
+   against the kinds the checklist's Change type pass defines. The Change
    type pass reads this field; it is not written to the description.
 
 9. **Lint and typecheck, then snapshot the content.** Some packages' `lint`
