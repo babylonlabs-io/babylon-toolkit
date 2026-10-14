@@ -236,7 +236,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Pattern: `NEXT_PUBLIC_FF_*`
 - Defined in `services/vault/src/config/featureFlags.ts`
-- Adding, renaming or removing a flag edits three places: `featureFlags.ts`, `services/vault/.env.example`, and the flag block of the matching `service-release-*.yml`. A flag the code gates on `import.meta.env.DEV`, directly or through the dev-only panel it mounts inside, stays out of the workflow on purpose.
+- Adding, renaming or removing a flag edits five places: `featureFlags.ts`, `services/vault/.env.example`, the flag block of the matching `service-release-*.yml`, the flag's class in `services/vault/env-manifest.json`, and the build inputs in `services/vault/project.json`. `check:env-manifest` fails when the last two disagree with the code or the workflow. A flag the code gates on `import.meta.env.DEV`, directly or through the dev-only panel it mounts inside, is classed `dev-test-only` and stays out of the workflow and the build inputs on purpose.
 
 ### Network Profiles
 
@@ -269,7 +269,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - **Exception:** Contract / on-chain error messages live in `services/vault/src/utils/errors/errorMessages.ts`, keyed by ABI error name. Treat that file as part of the copy surface — same review rules apply.
 - Follow the style rules documented at the top of `copy.ts` (Pre-Pegin / peg-in conventions, sentence-case status labels, "has been broadcast" tense, American English, vault provider lowercase mid-sentence).
 - When adding strings that interpolate values, prefer a function (`(amount: string) => \`Your ${amount}...\``) in `copy.ts` over building the string in the component.
-- A new user-facing surface or string with no Figma reference is not implemented. Ask first.
+- A new user-facing surface with no Figma reference is not implemented. Ask first. Error and status messages follow the copy rules above, not this gate.
 
 ---
 
