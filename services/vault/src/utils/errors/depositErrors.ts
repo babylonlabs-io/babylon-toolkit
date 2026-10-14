@@ -155,6 +155,9 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   // Nothing was broadcast: the ack-window gate failed closed on a chain read
   // before any wallet prompt, and a later read can succeed.
   ERRORS.broadcastAckWindowUnavailable,
+  // Nothing was broadcast: the position-capacity gate failed closed on a
+  // chain read before any wallet prompt, and a later read can succeed.
+  ERRORS.positionCapacityUnavailable,
 ]);
 
 const STAGE_FAILED = ERRORS.prePeginStageFailed;
@@ -338,11 +341,11 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3a''''. The other limit a deposit can run into: the depositor's own
-  // position, checked by the resume broadcast before any wallet prompt. A
-  // refusal and a check with no verdict need different instructions (free
-  // room, or just try again), hence two callouts. Checked ahead of the
-  // cause-walking buckets below, so the read failure kept as `cause` cannot
-  // classify the refusal as something else.
+  // position, checked before any Pre-PegIn broadcast, new or resumed, and
+  // before any wallet prompt. A refusal and a check with no verdict need
+  // different instructions (free room, or just try again), hence two
+  // callouts. Checked ahead of the cause-walking buckets below, so the read
+  // failure kept as `cause` cannot classify the refusal as something else.
   if (isPositionCapacityExceededError(err)) {
     return ERRORS.positionCapacityExceeded;
   }

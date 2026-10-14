@@ -1,5 +1,5 @@
 /**
- * Position-capacity gate for a resumed Pre-PegIn broadcast.
+ * Position-capacity gate before a Pre-PegIn broadcast (fresh and resumed).
  *
  * Activation runs the adapter's size check once per vault and, on failure, the
  * registry redeems the vault instead of activating it
@@ -190,6 +190,40 @@ function assertBatchCoversEveryHtlc(
 }
 
 /**
+ * Refuse unless the application would accept `vaultCount` more vaults
+ * totalling `amount` satoshis into the depositor's position. Fails closed.
+ *
+ * @throws {PositionCapacityExceededError} the application says the position
+ *   would exceed its BTCVault count or BTC limit.
+ * @throws {PositionCapacityUnavailableError} the read failed.
+ */
+export async function assertPositionAcceptsBatch({
+  vaultId,
+  applicationEntryPoint,
+  depositor,
+  vaultCount,
+  amount,
+}: {
+  vaultId: Hex;
+  applicationEntryPoint: Address;
+  depositor: Address;
+  vaultCount: number;
+  amount: bigint;
+}): Promise<void> {
+  const allowed = await readAllowedToDeposit({
+    applicationEntryPoint,
+    vaultReceiver: depositor,
+    nVaultsToDeposit: BigInt(vaultCount),
+    amountToDeposit: amount,
+  }).catch(
+    capacityUnavailable(vaultId, "read allowedToDeposit from the application"),
+  );
+  if (!allowed) {
+    throw new PositionCapacityExceededError({ vaultId, vaultCount, amount });
+  }
+}
+
+/**
  * Refuse unless the vault's application would accept the whole batch into the
  * depositor's position.
  *
@@ -275,19 +309,11 @@ export async function assertResumePositionCapacity(
   assertBatchCoversEveryHtlc(vaultId, htlcCount, members);
 
   const amount = members.reduce((sum, member) => sum + member.amount, 0n);
-  const allowed = await readAllowedToDeposit({
+  await assertPositionAcceptsBatch({
+    vaultId,
     applicationEntryPoint: target.applicationEntryPoint,
-    vaultReceiver: target.depositor,
-    nVaultsToDeposit: BigInt(htlcCount),
-    amountToDeposit: amount,
-  }).catch(
-    capacityUnavailable(vaultId, "read allowedToDeposit from the application"),
-  );
-  if (!allowed) {
-    throw new PositionCapacityExceededError({
-      vaultId,
-      vaultCount: htlcCount,
-      amount,
-    });
-  }
+    depositor: target.depositor,
+    vaultCount: htlcCount,
+    amount,
+  });
 }

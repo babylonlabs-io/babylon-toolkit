@@ -1371,16 +1371,18 @@ export const COPY = {
         title: "Couldn't check the deposit window",
         body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast — please try again in a moment. If this keeps happening, check that this device's date and time are correct.",
       },
-      // Resume broadcast refused because the application says the depositor's
-      // position cannot take this batch: activating would fail and redeem the
-      // BTCVaults instead. Refused before any wallet prompt, so this attempt
-      // broadcast nothing. It does not say the BTC has not moved: the check
-      // runs while the vault reads PENDING on chain, which includes a
-      // Pre-Pegin already broadcast from another device and not yet
-      // acknowledged, which has already sent the BTC to the HTLC. Not "has
-      // reached its limit": a lowered limit can be exceeded by this deposit
-      // alone. Recoverable by the depositor (free a slot or BTC headroom) or
-      // by a limit change, and the resume modal offers Retry.
+      // Pre-Pegin broadcast refused, new or resumed, because the application
+      // says the depositor's position cannot take this batch: activating would
+      // fail and redeem the BTCVaults instead. Refused before any wallet
+      // prompt, so this attempt broadcast nothing. It does not say the BTC has
+      // not moved: on resume the check runs while the vault reads PENDING on
+      // chain, which includes a Pre-Pegin already broadcast from another device
+      // and not yet acknowledged, which has already sent the BTC to the HTLC.
+      // Not "has reached its limit": a lowered limit can be exceeded by this
+      // deposit alone. Recoverable by the depositor (free a slot or BTC
+      // headroom) or by a limit change. The resume modal offers Retry; the new
+      // deposit modal does not, so a new deposit resumes from its pending
+      // entry in the vault list.
       positionCapacityExceeded: {
         title: "Not enough room in your position",
         body: "Your Aave position doesn't have room for this deposit under its BTCVault count or BTC limit. This attempt didn't broadcast anything. Free up room in your position, for example by withdrawing a BTCVault, or wait for the limit to change, then try again.",

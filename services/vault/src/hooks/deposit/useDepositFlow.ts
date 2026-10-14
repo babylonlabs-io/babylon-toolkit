@@ -72,6 +72,7 @@ import {
   resolveFundingInputCap,
 } from "@/services/deposit/fundingInputCap";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import { assertPositionAcceptsBatch } from "@/services/vault/assertResumePositionCapacity";
 import {
   assertBuildConfigMatchesForm,
   isBuildConfigDriftError,
@@ -1132,6 +1133,17 @@ export function useDepositFlow(
           status: registrationInfo.status,
           createdAt: registrationInfo.createdAt,
           offchainParamsVersion: buildConfig.offchainParamsVersion,
+        });
+
+        // Position capacity, live. The submit gate read a cached cap; a cap
+        // lowered or a slot filled since then would let activation redeem the
+        // locked BTC instead (same check as the resume path).
+        await assertPositionAcceptsBatch({
+          vaultId: batchRegistration.vaults[0].vaultId as Hex,
+          applicationEntryPoint: selectedApplication as Address,
+          depositor: confirmedEthAddress,
+          vaultCount: vaultAmounts.length,
+          amount: vaultAmounts.reduce((sum, a) => sum + a, 0n),
         });
 
         // A flow abandoned during the minutes-long gate must not raise an
