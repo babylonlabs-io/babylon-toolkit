@@ -59,15 +59,15 @@ export interface AssertChallengerSetMatchesVaultParams {
   /** Depositor's BTC public key, registered on chain for this vault. */
   depositorBtcPubkey: string;
   /**
-   * Vault provider's BTC public key, registered on chain for this vault.
+   * Vault provider's operation key at the vault's frozen `vpKeyEpoch`.
    * The depositor-as-claimer branch does not use it, but the shared
    * derivation takes it, and passing a stand-in would be a lie that the
    * next change to that function could turn into a wrong set.
    */
   vaultProviderBtcPubkey: string;
-  /** Vault keepers registered on chain for this vault. */
+  /** Vault keepers' operation keys at the vault's frozen `appKeeperKeyEpoch`. */
   vaultKeeperBtcPubkeys: string[];
-  /** Universal challengers registered on chain. */
+  /** Universal challengers' operation keys at the vault's frozen `ucKeyEpoch`. */
   universalChallengerBtcPubkeys: string[];
 }
 

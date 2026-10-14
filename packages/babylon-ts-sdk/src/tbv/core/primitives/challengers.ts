@@ -16,18 +16,25 @@ function normalizeKey(key: string): string {
 }
 
 /**
- * Compute the number of local challengers for a vault.
+ * Count `{vault_provider} ∪ {vault_keepers} − {depositor}`: an upper bound on
+ * the local challengers of any of a vault's claim graphs, given the protocol
+ * rule that the depositor is not a vault keeper. Use it for UI estimates such
+ * as a deposit form's claim reserve and balance check.
  *
- * Mirrors the VP's `compute_num_challengers()` logic:
- * local challengers = {vault_provider} ∪ {vault_keepers} − {depositor}
+ * This is the VP's `compute_num_challengers()` rule with the depositor in the
+ * claimer's place, but no claim graph is built that way: the depositor's own
+ * graph has the vault keepers alone, and a vault provider's or a keeper's
+ * graph removes that claimer instead. So it is normally the keeper count plus
+ * one. Do not use it for `PrePeginParams.numLocalChallengers`, which is the
+ * keeper count.
  *
  * Keys are normalized to x-only lowercase hex before comparison, so
  * `0x`-prefixed, compressed, or mixed-case keys are handled correctly.
  *
  * @param vaultProviderPubkey - Vault provider BTC public key
  * @param vaultKeeperPubkeys - Vault keeper BTC public keys
- * @param depositorPubkey - Depositor (claimer) BTC public key
- * @returns Number of local challengers
+ * @param depositorPubkey - Depositor BTC public key, left out of the count
+ * @returns The size of `{vault_provider} ∪ {vault_keepers} − {depositor}`
  */
 export function computeNumLocalChallengers(
   vaultProviderPubkey: string,

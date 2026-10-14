@@ -134,9 +134,6 @@ declare const ethWallet: WalletClient;
 // Values you source before starting — see Get Started → Where config values come from.
 declare const BTC_VAULT_REGISTRY: Address;
 declare const vaultProviderProxyUrl: string;
-declare const vaultProviderBtcPubkey: string;
-declare const vaultKeeperBtcPubkeys: string[];
-declare const universalChallengerBtcPubkeys: string[];
 declare const timelockPegin: number;
 declare const timelockRefund: number;
 declare const protocolFeeRate: bigint;
@@ -162,9 +159,12 @@ declare function saveFingerprint(peginTxid: string, fingerprint: string): void;
 declare function loadFingerprint(peginTxid: string): string;
 declare const artifactTxGraph: Record<string, unknown>;
 
-// The two block-pinned protocol reads the fingerprint is computed from. Resolve
-// ONE block number and pass it to both, so they describe the same chain state
-// as each other and as the Bitcoin scripts built below.
+// The two block-pinned protocol reads the Bitcoin scripts and the fingerprint
+// are built from. Resolve ONE block number and pass it to both, so they
+// describe the same chain state as each other. `validatedKeys` carries the
+// participants' current operation keys at that block — the keys the scripts
+// must commit to. The rosters list registration keys, which differ from them
+// for any participant that has rotated; see Get Started → Participant keys.
 declare const validatedKeys: ValidatedOnChainParticipantKeys;
 declare const pegInConfig: PegInConfiguration;
 // 1. Prepare Pre-PegIn + PegIn transactions. The SDK orchestrator
@@ -176,10 +176,11 @@ declare const pegInConfig: PegInConfiguration;
 const result = await peginManager.preparePegin({
   vaultCoreVersion,                  // contract activeVaultCoreVersion()
   amounts: [100_000n],               // satoshis, one per vault
-  vaultProviderBtcPubkey,
+  // Current operation keys at the pinned block.
+  vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
   commissionBps,                     // quoted by the vault provider
-  vaultKeeperBtcPubkeys,
-  universalChallengerBtcPubkeys,
+  vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,
+  universalChallengerBtcPubkeys: validatedKeys.universalChallengerBtcPubkeysSorted,
   timelockPegin,
   timelockAssert,
   timelockRefund,
@@ -256,12 +257,17 @@ const btcTxid = await peginManager.signAndBroadcast({
 //    signs with your BitcoinWallet, and posts signatures back.
 const vpClient = new VaultProviderRpcClient(vaultProviderProxyUrl);
 
+// Straight after registering, `validatedKeys` are the vault's frozen-epoch
+// keys: the fingerprint made registration revert if any of them moved. On a
+// resume (a later session, or after a reload) re-read them for the vault with
+// `readStampedParticipantKeys` instead: a participant may have rotated since,
+// and only the keys at the vault's frozen epochs match its graph.
 const signingContext: PayoutSigningContext = {
   vaultCoreVersion,
   peginTxHex: firstVault.peginTxHex,
-  vaultProviderBtcPubkey,
-  vaultKeeperBtcPubkeys,
-  universalChallengerBtcPubkeys,
+  vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
+  vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,
+  universalChallengerBtcPubkeys: validatedKeys.universalChallengerBtcPubkeysSorted,
   depositorBtcPubkey: stripHexPrefix(depositorBtcPubkey),
   timelockPegin,
   timelockAssert,
@@ -272,7 +278,7 @@ const signingContext: PayoutSigningContext = {
   commissionBps,
   councilMembers,
   councilQuorum,
-  vkClaimerPayoutScriptPubKeys,            // vaultKeeperPubkey -> scriptPubKey hex
+  vkClaimerPayoutScriptPubKeys,            // keeper operation pubkey -> scriptPubKey hex
   vpCommissionScriptPubKey,
 };
 

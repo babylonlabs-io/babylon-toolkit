@@ -83,7 +83,11 @@ function partition<T>(
  * Usage:
  * ```ts
  * const reader = new ViemOperationKeyReader(publicClient, contracts);
- * const keys = await reader.getCurrentOperationKeys(query);
+ * // A fresh deposit: the keys current at the block the deposit is built at.
+ * const current = await reader.getCurrentOperationKeys(query, blockNumber);
+ * // An existing vault (refund, resume, payout, claim): the keys at its
+ * // frozen epochs, from `VaultRegistryReader.getVaultKeyEpochs(vaultId)`.
+ * const frozen = await reader.getOperationKeysAtEpochs(query, epochs);
  * ```
  */
 export class ViemOperationKeyReader implements OperationKeyReader {
