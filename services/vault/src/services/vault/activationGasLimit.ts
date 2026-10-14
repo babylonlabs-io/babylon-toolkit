@@ -78,6 +78,37 @@ const COLLATERAL_ADDED_EVENT_ABI = [
 ] as const;
 
 /**
+ * The registry's `PeginActivated`, emitted by `_activateVaultWithSecret` before
+ * the cap check and the application call, so every successful run carries it
+ * (vault-contracts-aave-v4@a20b5e0d:src/protocol/BTCVaultRegistry.sol:719,1189;
+ * src/protocol/lib/types/Events.sol:159).
+ */
+const PEGIN_ACTIVATED_EVENT_ABI = [
+  {
+    type: "event",
+    name: "PeginActivated",
+    inputs: [
+      { indexed: true, name: "vaultId", type: "bytes32" },
+      { indexed: true, name: "depositor", type: "address" },
+      { indexed: false, name: "secret", type: "bytes32" },
+    ],
+  },
+] as const;
+
+/** True when `logs` carry the registry's `PeginActivated` for this vault. */
+function logsCarryPeginActivated(logs: Log[], vaultId: Hex): boolean {
+  return parseEventLogs({
+    abi: PEGIN_ACTIVATED_EVENT_ABI,
+    logs,
+    eventName: "PeginActivated",
+  }).some(
+    (log) =>
+      isAddressEqual(log.address, CONTRACTS.BTC_VAULT_REGISTRY) &&
+      log.args.vaultId.toLowerCase() === vaultId.toLowerCase(),
+  );
+}
+
+/**
  * True when `logs` carry the Aave adapter's `CollateralAdded` for this vault.
  * The registry can confirm an activation and still add no collateral (for
  * example, it redeems the vault when a cap is exceeded), so the registry's
@@ -161,7 +192,10 @@ function activationCheckUnsupported(cause: unknown): ContractError {
   );
 }
 
-/** One simulated activation: the registry call's outcome and, on success, its logs. */
+/**
+ * One simulated activation: the registry call's outcome and, on success, its
+ * logs, which carry the registry's `PeginActivated` for the vault.
+ */
 type ActivationSimulation =
   | { status: "success"; gasUsed: bigint; logs: Log[] }
   | { status: "failure"; gasUsed: bigint; error: unknown };
@@ -211,6 +245,15 @@ async function simulateActivation(
   if (result.logs === undefined) {
     throw activationCheckUnsupported(
       new Error("eth_simulateV1 returned a successful call without logs"),
+    );
+  }
+  // Every successful run emits the registry's PeginActivated before the
+  // application call, so a success without it is incomplete evidence.
+  if (!logsCarryPeginActivated(result.logs, params.vaultId)) {
+    throw activationCheckUnsupported(
+      new Error(
+        "eth_simulateV1 returned a successful call without the registry's PeginActivated log",
+      ),
     );
   }
   return { status: "success", gasUsed: result.gasUsed, logs: result.logs };

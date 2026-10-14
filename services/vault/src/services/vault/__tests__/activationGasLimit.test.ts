@@ -90,11 +90,26 @@ const collateralAddedLog = {
   data: "0x",
 } as unknown as Log;
 
-// The registry's PeginActivated, which every successful run carries.
+// The registry's PeginActivated, which every successful run carries
+// (Events.sol:159 at a20b5e0d: vaultId and depositor indexed, secret in data).
 const peginActivatedLog = {
   address: REGISTRY,
-  topics: [("0x" + "01".repeat(32)) as Hex, vaultId],
-  data: "0x",
+  topics: encodeEventTopics({
+    abi: [
+      {
+        type: "event",
+        name: "PeginActivated",
+        inputs: [
+          { indexed: true, name: "vaultId", type: "bytes32" },
+          { indexed: true, name: "depositor", type: "address" },
+          { indexed: false, name: "secret", type: "bytes32" },
+        ],
+      },
+    ],
+    eventName: "PeginActivated",
+    args: { vaultId, depositor: DEPOSITOR },
+  }) as Log["topics"],
+  data: encodeAbiParameters([{ type: "bytes32" }], [call.args[1] as Hex]),
 } as unknown as Log;
 
 /** The registry's redeem log for one claimer key. */
@@ -359,6 +374,30 @@ describe("planActivationGasLimit", () => {
         .mockResolvedValue([
           { calls: [{ status: "success", gasUsed: ACTIVATION_GAS_USED }] },
         ]),
+    } as unknown as PublicClient;
+
+    const thrown = await planActivationGasLimit({
+      publicClient,
+      ...activation,
+    }).catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect((thrown as ContractError).message).toBe(
+      COPY.deposit.errors.activationCheckUnsupported,
+    );
+    expect(isSimulationPhaseError(thrown)).toBe(true);
+    expect(isTerminalActivationError(thrown)).toBe(true);
+  });
+
+  it("fails closed when a successful simulation carries no registry activation log", async () => {
+    const publicClient = {
+      simulateBlocks: vi.fn().mockResolvedValue([
+        {
+          calls: [
+            { status: "success", gasUsed: ACTIVATION_GAS_USED, logs: [] },
+          ],
+        },
+      ]),
     } as unknown as PublicClient;
 
     const thrown = await planActivationGasLimit({
