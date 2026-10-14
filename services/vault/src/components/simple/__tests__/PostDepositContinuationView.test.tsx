@@ -14,11 +14,19 @@ import type { VaultActivity } from "@/types/activity";
 
 import { PostDepositContinuationView } from "../PostDepositContinuationView";
 
-const btcAction = vi.hoisted(() => ({ connected: true, locked: false }));
+const btcAction = vi.hoisted(() => ({
+  btcConnected: true,
+  sessionConfirmed: true,
+  locked: false,
+}));
 
 vi.mock("@/hooks/useBtcAction", () => ({
   useBtcAction: () => ({
-    connected: btcAction.connected,
+    // Derived as in production: a locked extension counts as disconnected.
+    connected:
+      btcAction.btcConnected && btcAction.sessionConfirmed && !btcAction.locked,
+    btcConnected: btcAction.btcConnected,
+    sessionConfirmed: btcAction.sessionConfirmed,
     locked: btcAction.locked,
   }),
 }));
@@ -429,7 +437,8 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    btcAction.connected = true;
+    btcAction.btcConnected = true;
+    btcAction.sessionConfirmed = true;
     btcAction.locked = false;
     vi.mocked(getPeginProgressStep).mockReturnValue(
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
@@ -1369,10 +1378,12 @@ describe("PostDepositContinuationView", () => {
     expect(payout).toHaveAttribute("data-auto-start", "false");
   });
 
-  // A named opener admitted the view while payout was not yet actionable; the
+  // A named opener opened the view while payout was not yet actionable; the
   // wallet then changed state before payout became actionable. Fresh element
-  // each render, as above: a reused one makes React skip the re-render.
-  function renderNamedPayoutOpener() {
+  // each render, as above: a reused one makes React skip the re-render. The
+  // key prop follows the wallet: the key hook returns none while locked, so a
+  // view mounted while locked starts without one.
+  function renderNamedPayoutOpener(initialKey: string | undefined) {
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.NONE] }),
     );
@@ -1381,39 +1392,52 @@ describe("PostDepositContinuationView", () => {
       activities: [activityWithId("0xvault0")],
       onClose: vi.fn(),
     };
-    const view = () => (
+    const view = (btcPublicKey: string | undefined) => (
       <PostDepositContinuationView
         vaultIds={props.vaultIds}
         activities={props.activities}
         depositorEthAddress={ETH}
-        btcPublicKey="btcpub"
+        btcPublicKey={btcPublicKey}
         autoStartAction={PeginAction.SIGN_PAYOUT_TRANSACTIONS}
         onClose={props.onClose}
       />
     );
-    const rendered = render(view(), { wrapper: MemoryRouter });
+    const rendered = render(view(initialKey), { wrapper: MemoryRouter });
     return {
       ...rendered,
+      // The key is passed explicitly: a default would swallow `undefined`.
+      rerenderWaiting: (btcPublicKey: string | undefined) =>
+        rendered.rerender(view(btcPublicKey)),
       rerenderWithPayoutActionable: () => {
         mockGetPollingResult.mockReturnValue(
           resultWith({
             availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
           }),
         );
-        rendered.rerender(view());
+        rendered.rerender(view("btcpub"));
       },
-      rerenderWaiting: () => rendered.rerender(view()),
     };
   }
 
   it("keeps a named opener's admission through a wallet lock, so the flow resumes after the unlock", () => {
-    const view = renderNamedPayoutOpener();
+    const view = renderNamedPayoutOpener("btcpub");
 
-    btcAction.connected = false;
     btcAction.locked = true;
-    view.rerenderWaiting();
+    view.rerenderWaiting(undefined);
 
-    btcAction.connected = true;
+    btcAction.locked = false;
+    view.rerenderWithPayoutActionable();
+
+    expect(view.getByTestId("payout")).toHaveAttribute(
+      "data-auto-start",
+      "true",
+    );
+  });
+
+  it("admits a named opener whose wallet is already locked when the view mounts", () => {
+    btcAction.locked = true;
+    const view = renderNamedPayoutOpener(undefined);
+
     btcAction.locked = false;
     view.rerenderWithPayoutActionable();
 
@@ -1424,12 +1448,24 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("withdraws a named opener's admission when the wallet disconnects, even after it reconnects", () => {
-    const view = renderNamedPayoutOpener();
+    const view = renderNamedPayoutOpener("btcpub");
 
-    btcAction.connected = false;
-    view.rerenderWaiting();
+    btcAction.btcConnected = false;
+    view.rerenderWaiting("btcpub");
 
-    btcAction.connected = true;
+    btcAction.btcConnected = true;
+    view.rerenderWithPayoutActionable();
+
+    expect(view.getByTestId("payout")).toHaveAttribute(
+      "data-auto-start",
+      "false",
+    );
+  });
+
+  it("withdraws a named opener's admission when the key is lost while unlocked", () => {
+    const view = renderNamedPayoutOpener("btcpub");
+
+    view.rerenderWaiting(undefined);
     view.rerenderWithPayoutActionable();
 
     expect(view.getByTestId("payout")).toHaveAttribute(
