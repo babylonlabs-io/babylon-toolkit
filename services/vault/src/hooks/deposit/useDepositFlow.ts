@@ -28,7 +28,6 @@ import {
 import {
   primeVpTokenRegistry,
   VpResponseValidationError,
-  vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -488,10 +487,6 @@ export function useDepositFlow(
         warnings.push(warning);
         setLastWarnings([...warnings]);
       };
-
-      // Track registry entries we primed so we can release them on
-      // user-cancel (bound `authAnchorHex` lifetime to the flow).
-      const primedRegistryTxids: string[] = [];
 
       // Set once the ETH batch registration is mined: a later cancel gets the
       // after-registration copy, a later device failure gets the in-modal resume.
@@ -1264,7 +1259,6 @@ export function useDepositFlow(
                 refreshVpJsonRpcPinnedPubkey(vpAddress),
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
-            primedRegistryTxids.push(peginTxid);
           }
         } catch (err) {
           logger.warn("Failed to fetch VP pubkey for registry priming", {
@@ -1731,15 +1725,12 @@ export function useDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        // On user-cancel, release any registry entries we primed so
-        // `authAnchorHex` doesn't outlive the abandoned flow. On other
-        // errors keep the entries — the user may retry, in which case
-        // the cache hit avoids a second wallet popup.
-        if (signal.aborted) {
-          for (const peginTxid of primedRegistryTxids) {
-            vpTokenRegistry.release(peginTxid);
-          }
-        }
+        // The primed registry entries stay on every exit, a cancel included:
+        // the depositor may close the flow during the long deposit wait and
+        // finish from the dashboard, and only the cached login lets that
+        // presign reuse the approval the device still holds. A fresh login
+        // derives on the device, which clears it. The cache is in memory
+        // only, so a reload or a closed tab drops it; activation releases it.
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
