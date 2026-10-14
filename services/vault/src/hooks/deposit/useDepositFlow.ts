@@ -714,17 +714,20 @@ export function useDepositFlow(
         } catch (driftError) {
           // Both aborts tell the depositor to start again, and the only way to
           // do that is to close and reopen the form, which reads the cached
-          // configuration — five minute `staleTime`, nothing invalidates it. So
-          // a restart would hand back the same snapshot that just caused this
-          // and fail identically. Overwrite it with the pinned read.
+          // configuration — five minute `staleTime`, nothing else refreshes it.
+          // So a restart would hand back the same snapshot that just caused
+          // this and fail identically. Seed it with the pinned read, then
+          // invalidate it.
           //
           // The justification is NOT that the pinned read is fresher: it is
           // `head - 2`, and `resolvePinnedReadBlock` says freshness is
           // explicitly not its goal, so a cache entry refilled at `latest`
           // moments ago can legitimately be newer. It is that this particular
           // value is the one the build just proved the cache disagrees with, on
-          // the axis that failed. Overwriting rather than invalidating avoids a
-          // refetch race where the form renders the stale bounds first.
+          // the axis that failed. The seed stops a restarted form rendering the
+          // stale bounds first; the invalidate then refetches at `latest`, so a
+          // cache entry newer than the pinned block comes back within one round
+          // trip, and any read already in flight is cancelled.
           //
           // Gated on the drift predicates, not on reaching the catch at all: an
           // unrelated throw from either assert must not rewrite a cache the
@@ -737,6 +740,9 @@ export function useDepositFlow(
               pegInConfigQueryOptions().queryKey,
               buildConfig,
             );
+            void queryClient.invalidateQueries({
+              queryKey: pegInConfigQueryOptions().queryKey,
+            });
           }
           throw driftError;
         }
