@@ -62,6 +62,16 @@ export const DONE_BUTTON_RX = /^done$/i;
 export const TX_FAILED_RX = /transaction failed/i;
 /** The notice for a send the wallet refused but may have broadcast (COPY.common.classifiedErrors.sendOutcomeUnknown). */
 export const SEND_OUTCOME_UNKNOWN_COPY_RX = /may still have gone through/i;
+/** A loan form's submit label while its mined write gets deep enough on the chain (COPY.common.confirming). */
+export const CONFIRMING_LABEL_RX = /^confirming/i;
+/** The callout title for a broadcast Aave write whose outcome is not known yet (COPY.common.unconfirmedTransaction.title). */
+export const UNCONFIRMED_WRITE_TITLE_RX = /waiting for confirmation/i;
+/**
+ * The copy for an Aave write that ended without taking effect, or may have been replaced
+ * (COPY.common.unconfirmedTransaction.replaced, .replacedOutcomeUnknown, .reverted).
+ */
+export const WRITE_NOT_EXECUTED_RX =
+  /canceled or replaced|may have been replaced|reverted on-chain/i;
 
 /**
  * The text of the loan form's "Transaction failed" callout, title and body, whitespace-collapsed: the

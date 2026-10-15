@@ -16,8 +16,8 @@ export interface BroadcastTransaction {
 }
 
 /**
- * A broadcast transaction whose receipt wait ended without an answer, with
- * what the app's RPC said about it right after the send. Read then, because a
+ * A broadcast transaction whose outcome is not known yet, with what the
+ * app's RPC said about it right after the send. Read then, because a
  * wallet replacement drops the original from the node's pool, after which the
  * nonce cannot be learned from its hash.
  */
@@ -29,10 +29,13 @@ export interface UnconfirmedBroadcast extends BroadcastTransaction {
 }
 
 /**
- * The transaction was broadcast, but the wait for its receipt ended without an
- * answer: viem's receipt timeout ran out, or the RPC failed while polling. It
- * can still be mined, so the caller must not report a failure or offer the
- * same action again until the outcome is known (`services/vault/
+ * The transaction was broadcast, but its outcome is not known yet: the wait
+ * for its receipt ended without an answer (viem's receipt timeout ran out, or
+ * the RPC failed while polling), its receipt did not get deep enough on the
+ * chain in time, or a Safe execution did not settle the proposal (it reverted,
+ * or its log names another proposal). It can still be mined, or the proposal
+ * still executed, so the caller must not report a failure or offer the same
+ * action again until the outcome is known (`services/vault/
  * SECURITY_MODEL.md`, property 10). The message is the mapped original, kept
  * for the log.
  */
@@ -46,6 +49,38 @@ export class UnconfirmedTransactionError extends ContractError {
     });
     this.name = "UnconfirmedTransactionError";
     this.broadcast = broadcast;
+  }
+}
+
+/**
+ * A mined transaction's receipt did not reach the required depth on the chain
+ * the app's RPC follows before the wait's budget ran out: its block was
+ * reorganized out and the transaction not mined again yet, or the RPC lagged
+ * or failed. The transaction can still be mined, so its outcome is unknown.
+ * The message avoids the words the contract-error mapper classifies by, so
+ * the mapped error keeps a generic code.
+ */
+export class ReceiptNotCanonicalError extends Error {
+  readonly hash: Hash;
+
+  constructor({
+    hash,
+    confirmations,
+    timeoutMs,
+    cause,
+  }: {
+    hash: Hash;
+    confirmations: number;
+    timeoutMs: number;
+    cause?: unknown;
+  }) {
+    super(
+      `Transaction ${hash} was not ${confirmations} blocks deep on the chain ` +
+        `the RPC follows within ${timeoutMs} ms`,
+      { cause },
+    );
+    this.name = "ReceiptNotCanonicalError";
+    this.hash = hash;
   }
 }
 

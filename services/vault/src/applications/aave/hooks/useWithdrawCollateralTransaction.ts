@@ -52,6 +52,11 @@ export interface UseWithdrawCollateralTransactionResult {
   /** Whether transaction is currently processing */
   isProcessing: boolean;
   /**
+   * This form's own withdrawal is mined, and its outcome waits for it to be deep
+   * enough on the chain. Clears when the withdrawal ends.
+   */
+  isConfirming: boolean;
+  /**
    * The account's Aave write in progress, from this form or any other. Every
    * Aave action stays disabled while it is set.
    */
@@ -81,6 +86,7 @@ export interface UseWithdrawCollateralTransactionResult {
  */
 export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const account = useETHWallet().address as Address | undefined;
@@ -105,6 +111,9 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
       setError(null);
       setNotice(null);
       setIsProcessing(true);
+      // The button reads "Confirming" while the withdrawal gets deep enough
+      // on the chain.
+      const markIncluded = () => setIsConfirming(true);
       try {
         if (!account) {
           throw new WalletError(
@@ -128,8 +137,14 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
             walletClient,
             getETHChain(),
             vaultIds as Hex[],
+            markIncluded,
           );
         });
+        // "Confirming" holds through the refresh only for a mined withdrawal:
+        // one the lock's watch found after the first wait gave up never
+        // reported its inclusion, and one the user stopped waiting on is not
+        // confirming.
+        setIsConfirming(outcome === "mined");
 
         // Mark vaults as pending withdrawal before indexer updates, only once
         // the withdrawal is known to be mined
@@ -177,6 +192,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         return "failed";
       } finally {
         setIsProcessing(false);
+        setIsConfirming(false);
       }
     },
     [account, queryClient, markVaultsAsPending, gate],
@@ -190,6 +206,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   return {
     executeWithdraw,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error,
     notice:

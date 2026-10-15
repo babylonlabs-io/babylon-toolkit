@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockBorrow = vi.fn();
@@ -40,6 +40,12 @@ vi.mock("@/clients/eth-contract/transactionInFlight", () => ({
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   waitForTransactionReceiptSmartAware: (...a: unknown[]) =>
     mockWaitReceipt(...a),
+}));
+
+// A late receipt is taken as already deep enough on the chain; the depth
+// check itself is covered by canonicalReceipt.test.ts.
+vi.mock("@/clients/eth-contract/canonicalReceipt", () => ({
+  waitForCanonicalReceipt: async ({ receipt }: { receipt: unknown }) => receipt,
 }));
 
 vi.mock("@/infrastructure", () => ({
@@ -129,6 +135,76 @@ describe("useBorrowTransaction — pause gating", () => {
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockBorrow).not.toHaveBeenCalled();
     expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
+  });
+});
+
+describe("useBorrowTransaction — confirming", () => {
+  it("reads as confirming from the moment the borrow's transaction is included until the borrow ends", async () => {
+    let finish!: () => void;
+    mockBorrow.mockImplementation(async (...args: unknown[]) => {
+      const onIncluded = args[args.length - 1] as () => void;
+      onIncluded();
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { transactionHash: "0xhash" };
+    });
+    const { result } = renderHook(() => useBorrowTransaction());
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+    await waitFor(() => expect(result.current.isConfirming).toBe(true));
+
+    await act(async () => {
+      finish();
+      await pending;
+    });
+    expect(result.current.isConfirming).toBe(false);
+  });
+
+  it("reads as confirming while it refreshes after the lock's watch finds an unconfirmed borrow mined", async () => {
+    let mine!: (receipt: unknown) => void;
+    mockWaitReceipt.mockReturnValue(
+      new Promise((resolve) => {
+        mine = resolve;
+      }),
+    );
+    mockBorrow.mockRejectedValue(unconfirmedBorrow());
+    let refreshed!: () => void;
+    const refresh = new Promise<void>((resolve) => {
+      refreshed = resolve;
+    });
+    mockInvalidateQueries.mockImplementation(() => refresh);
+    const { result } = renderHook(() => useBorrowTransaction());
+    let borrowing!: Promise<string>;
+    await act(async () => {
+      borrowing = result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    await act(async () => {
+      mine({
+        status: "success",
+        transactionHash: HASH,
+        from: "0xuser",
+        logs: [],
+      });
+    });
+    try {
+      await waitFor(() => {
+        expect(result.current.pendingWrite).toBeNull();
+        expect(result.current.isConfirming).toBe(true);
+      });
+      expect(result.current.isProcessing).toBe(true);
+    } finally {
+      // Ends the write either way, so the account's lock does not outlive
+      // this test.
+      await act(async () => {
+        refreshed();
+        await borrowing;
+      });
+    }
+    expect(result.current.isConfirming).toBe(false);
   });
 });
 
@@ -259,7 +335,12 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     expect(result.current.error).toBeNull();
 
     await act(async () => {
-      mine({ status: "success", transactionHash: HASH, from: "0xuser" });
+      mine({
+        status: "success",
+        transactionHash: HASH,
+        from: "0xuser",
+        logs: [],
+      });
       await expect(borrowing).resolves.toBe("succeeded");
     });
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
@@ -296,7 +377,12 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      mine({ status: "success", transactionHash: HASH, from: "0xuser" });
+      mine({
+        status: "success",
+        transactionHash: HASH,
+        from: "0xuser",
+        logs: [],
+      });
       await borrowing;
     });
   });
@@ -375,6 +461,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
   it("fails with the reverted copy when the late borrow is mined but reverted", async () => {
     mockWaitReceipt.mockResolvedValue({
       status: "reverted",
+      logs: [],
       transactionHash: HASH,
       from: "0xuser",
     });
@@ -420,6 +507,53 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       expect(result.current.pendingWrite).toBeNull();
       expect(mockInvalidateQueries).toHaveBeenCalled();
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops reading as confirming while it refreshes after the user stops waiting on a borrow seen mined", async () => {
+    vi.useFakeTimers();
+    let refreshed!: () => void;
+    const refresh = new Promise<void>((resolve) => {
+      refreshed = resolve;
+    });
+    let borrowing: Promise<string> | undefined;
+    try {
+      // Seen mined, then never deep enough on the chain.
+      mockBorrow.mockImplementation(async (...args: unknown[]) => {
+        const onIncluded = args[args.length - 1] as () => void;
+        onIncluded();
+        throw unconfirmedBorrow();
+      });
+      mockWaitReceipt.mockReturnValue(new Promise(() => {}));
+      mockInvalidateQueries.mockImplementation(() => refresh);
+      const { result } = renderHook(() => useBorrowTransaction());
+      await act(async () => {
+        borrowing = result.current.executeBorrow(100, LIVE_RESERVE);
+      });
+      expect(result.current.isConfirming).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);
+      });
+      const pending = result.current.pendingWrite;
+      if (pending?.phase !== "unconfirmed" || !pending.stopWaiting) {
+        throw new Error("expected the stop-waiting action to be offered");
+      }
+
+      await act(async () => {
+        pending.stopWaiting?.();
+      });
+
+      expect(result.current.pendingWrite).toBeNull();
+      expect(result.current.isProcessing).toBe(true);
+      expect(result.current.isConfirming).toBe(false);
+    } finally {
+      // Ends the borrow either way, so the account's lock does not outlive
+      // this test.
+      await act(async () => {
+        refreshed();
+        await borrowing;
+      });
       vi.useRealTimers();
     }
   });

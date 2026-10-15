@@ -111,6 +111,7 @@ export function Repay() {
   const {
     executeRepay,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error: txError,
     notice: txNotice,
@@ -424,7 +425,7 @@ export function Repay() {
       >
         {isRepayUnavailable
           ? COPY.loans.repay.unavailable
-          : unconfirmedWrite
+          : unconfirmedWrite || isConfirming
             ? COPY.common.confirming
             : isProcessing || isSubmitting || pendingWrite
               ? COPY.loans.repay.processing

@@ -39,6 +39,7 @@ import { repayWithStaleSimulationRetry } from "./repayStaleSimulationRetry";
  * @param chain - Chain configuration
  * @param debtReserveId - Reserve ID for the asset to borrow
  * @param amount - Amount to borrow (in debt token decimals)
+ * @param onIncluded - Called once the borrow is first seen mined
  * @returns Transaction result
  */
 export async function borrow(
@@ -46,6 +47,7 @@ export async function borrow(
   chain: Chain,
   debtReserveId: bigint,
   amount: bigint,
+  onIncluded: () => void,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const userAddress = walletClient.account?.address;
   if (!userAddress) {
@@ -59,6 +61,7 @@ export async function borrow(
     debtReserveId,
     amount,
     userAddress,
+    onIncluded,
   );
 
   return {
@@ -78,6 +81,7 @@ export async function borrow(
  * @param borrower - Borrower's address (for self-repay, use connected wallet address)
  * @param debtReserveId - Reserve ID for the debt token
  * @param amount - Amount to repay (in debt token decimals)
+ * @param onIncluded - Called once the repay is first seen mined
  * @returns Transaction result
  */
 export async function repay(
@@ -86,6 +90,7 @@ export async function repay(
   borrower: Address,
   debtReserveId: bigint,
   amount: bigint,
+  onIncluded: () => void,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const adapterAddress = getAaveAdapterAddress();
   if (amount <= 0n) {
@@ -99,6 +104,7 @@ export async function repay(
     borrower,
     debtReserveId,
     amount,
+    onIncluded,
   );
 
   return {
@@ -120,6 +126,8 @@ export async function repay(
  * @param debtReserveId - Reserve ID for the debt token
  * @param tokenAddress - Token address for the debt
  * @param amount - Amount to repay (in debt token decimals)
+ * @param onIncluded - Called once the repay, not its approve, is first seen
+ *   mined
  * @returns Transaction result
  */
 export async function repayPartial(
@@ -129,6 +137,7 @@ export async function repayPartial(
   tokenAddress: Address,
   amount: bigint,
   token: TokenDisplay,
+  onIncluded: () => void,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const adapterAddress = getAaveAdapterAddress();
 
@@ -156,7 +165,14 @@ export async function repayPartial(
 
   return repayWithStaleSimulationRetry({
     execute: () =>
-      repay(walletClient, chain, userAddress, debtReserveId, amount),
+      repay(
+        walletClient,
+        chain,
+        userAddress,
+        debtReserveId,
+        amount,
+        onIncluded,
+      ),
     approveSent,
     forceApprove: () =>
       approveAndVerify(
@@ -198,6 +214,8 @@ export async function repayPartial(
  *   wallet asked to switch to the app's Ethereum chain, only after the quote
  *   and balance checks pass
  * @param balanceRaw - User's exact raw token balance (caps the approval)
+ * @param onIncluded - Called once the repay, not its approve, is first seen
+ *   mined
  */
 export async function repayAll(
   userAddress: Address,
@@ -207,6 +225,7 @@ export async function repayAll(
   proxyContract: Address,
   balanceRaw: bigint,
   token: TokenDisplay,
+  onIncluded: () => void,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const adapterAddress = getAaveAdapterAddress();
 
@@ -261,7 +280,14 @@ export async function repayAll(
 
   return repayWithStaleSimulationRetry({
     execute: () =>
-      repay(walletClient, chain, userAddress, debtReserveId, maxUint256),
+      repay(
+        walletClient,
+        chain,
+        userAddress,
+        debtReserveId,
+        maxUint256,
+        onIncluded,
+      ),
     approveSent,
     forceApprove: () =>
       approveAndVerify(
@@ -285,18 +311,21 @@ export async function repayAll(
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
  * @param vaultIds - Array of vault IDs (bytes32 hex strings) to withdraw
+ * @param onIncluded - Called once the withdrawal is first seen mined
  * @returns Transaction result
  */
 export async function withdrawSelectedCollateral(
   walletClient: WalletClient,
   chain: Chain,
   vaultIds: Hex[],
+  onIncluded: () => void,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const result = await AaveAdapterTx.withdrawCollaterals(
     walletClient,
     chain,
     getAaveAdapterAddress(),
     vaultIds,
+    onIncluded,
   );
 
   return {

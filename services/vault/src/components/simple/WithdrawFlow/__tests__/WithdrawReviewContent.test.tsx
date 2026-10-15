@@ -33,6 +33,7 @@ const baseProps = {
     commissionSats: 1_500_000n,
   },
   isProcessing: false,
+  isConfirming: false,
   unconfirmedWrite: null,
   error: null,
   notice: null,
@@ -212,6 +213,23 @@ describe("WithdrawReviewContent", () => {
     expect(screen.queryByText("Transaction failed")).not.toBeInTheDocument();
     expect(screen.queryByText("An earlier failure")).not.toBeInTheDocument();
     expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("labels the button as confirming while its own withdrawal is mined and waiting to be deep enough on the chain", () => {
+    render(<WithdrawReviewContent {...baseProps} isProcessing isConfirming />);
+
+    expect(screen.getByTestId("withdraw-confirm-button")).toHaveTextContent(
+      "Confirming",
+    );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("labels the button as processing while the withdrawal is being sent", () => {
+    render(<WithdrawReviewContent {...baseProps} isProcessing />);
+
+    expect(screen.getByTestId("withdraw-confirm-button")).toHaveTextContent(
+      "Processing",
+    );
   });
 
   it("shows a refusal while another transaction is pending as a notice, not as a failed transaction", () => {

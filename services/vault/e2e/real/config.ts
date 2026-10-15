@@ -30,6 +30,20 @@ export function isNonceTooLowInjection(
 ): value is NonceTooLowInjection {
   return (NONCE_TOO_LOW_INJECTIONS as readonly string[]).includes(value);
 }
+/**
+ * `--inject-reorg`: how the app's RPC shows the Aave write's block reorganized out (see
+ * actions/aaveWriteRpc.ts). `dropped`: the write's receipt is gone. `orphaned`: the receipt is still
+ * served, but the chain above that height no longer descends from its block.
+ */
+export type ReorgInjection = "dropped" | "orphaned";
+export const REORG_INJECTIONS: readonly ReorgInjection[] = [
+  "dropped",
+  "orphaned",
+];
+
+export function isReorgInjection(value: string): value is ReorgInjection {
+  return (REORG_INJECTIONS as readonly string[]).includes(value);
+}
 export type ActionId =
   | "connect"
   | "observe"
@@ -283,6 +297,14 @@ export interface RunConfig {
    * transaction.
    */
   injectNonceTooLow?: NonceTooLowInjection;
+  /**
+   * Borrow or repay only: once the write is mined, make the app's RPC show its block reorganized out
+   * (`--inject-reorg`) — `dropped` (the receipt is gone) or `orphaned` (the receipt is still served,
+   * but the chain above no longer descends from its block) — and check the app holds the write as
+   * unconfirmed instead of reporting it, then reports it once the block is back. A repay
+   * `--borrow-first` applies it to the repay only.
+   */
+  injectReorg?: ReorgInjection;
 }
 
 /** Resolve the target URL a run should open. */

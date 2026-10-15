@@ -3,13 +3,15 @@ import {
   HttpRequestError,
   WaitForTransactionReceiptTimeoutError,
   encodeErrorResult,
+  toEventSelector,
 } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import {
   ContractError,
   ErrorCode,
+  ReceiptNotCanonicalError,
   SendOutcomeUnknownError,
   TransactionReplacedError,
   UnconfirmedTransactionError,
@@ -22,16 +24,20 @@ const {
   mockSendWithStaleNonceRetry,
   mockWaitForWalletToCountTransaction,
   mockReadTransaction,
+  mockWaitForCanonicalReceipt,
 } = vi.hoisted(() => ({
   mockPublicClient: {
     call: vi.fn(),
     getTransaction: vi.fn(),
     getBlockNumber: vi.fn(),
+    getTransactionReceipt: vi.fn(),
+    getBlock: vi.fn(),
   },
   mockWaitReceipt: vi.fn(),
   mockSendWithStaleNonceRetry: vi.fn(),
   mockWaitForWalletToCountTransaction: vi.fn(),
   mockReadTransaction: vi.fn(),
+  mockWaitForCanonicalReceipt: vi.fn(),
 }));
 
 vi.mock("../../../../clients/eth-contract/client", () => ({
@@ -46,12 +52,22 @@ vi.mock("../../../../clients/eth-contract/walletNonce", () => ({
   readTransaction: (...args: unknown[]) => mockReadTransaction(...args),
 }));
 
+// The depth check itself is covered by canonicalReceipt.test.ts; two tests
+// below run it for real.
+vi.mock("../../../../clients/eth-contract/canonicalReceipt", () => ({
+  waitForCanonicalReceipt: (...args: unknown[]) =>
+    mockWaitForCanonicalReceipt(...args),
+}));
+
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   waitForTransactionReceiptSmartAware: (...args: unknown[]) =>
     mockWaitReceipt(...args),
 }));
 
-import { RECEIPT_WAIT_ROUND_MS } from "../../constants";
+import {
+  AAVE_WRITE_CONFIRMATIONS,
+  RECEIPT_WAIT_ROUND_MS,
+} from "../../constants";
 import { repayToCorePosition } from "../transaction";
 
 const ERC20_INSUFFICIENT_ALLOWANCE_ABI = [
@@ -72,7 +88,7 @@ const walletClient = {
   sendTransaction: vi.fn(),
 } as any;
 
-const repayCall = () =>
+const repayCall = (onIncluded: () => void = () => {}) =>
   repayToCorePosition(
     walletClient,
     { id: 1 } as any,
@@ -80,6 +96,7 @@ const repayCall = () =>
     "0x2000000000000000000000000000000000000002",
     0n,
     3n,
+    onIncluded,
   );
 
 beforeEach(() => {
@@ -94,6 +111,10 @@ beforeEach(() => {
     }) => send(walletClient),
   );
   mockWaitForWalletToCountTransaction.mockResolvedValue(undefined);
+  // The first receipt is already deep enough on the chain, unchanged.
+  mockWaitForCanonicalReceipt.mockImplementation(
+    async ({ receipt }: { receipt: unknown }) => receipt,
+  );
 });
 
 describe("executeTx simulation-phase tagging (via repayToCorePosition)", () => {
@@ -224,6 +245,7 @@ describe("executeTx after broadcast (via repayToCorePosition)", () => {
   it("reports a mined revert as a failure even when reading the reverted transaction fails", async () => {
     mockWaitReceipt.mockResolvedValue({
       status: "reverted",
+      logs: [],
       transactionHash: "0xsent",
       from: ACCOUNT,
       gasUsed: 21_000n,
@@ -267,6 +289,7 @@ describe("executeTx after broadcast (via repayToCorePosition)", () => {
   it("rejects the receipt of a cancel the wallet sent in place of the transaction", async () => {
     mockWaitReceipt.mockResolvedValue({
       status: "success",
+      logs: [],
       transactionHash: "0xcancel",
       from: ACCOUNT,
     });
@@ -285,6 +308,7 @@ describe("executeTx after broadcast (via repayToCorePosition)", () => {
   it("says the outcome is unknown when the replacing transaction cannot be read", async () => {
     mockWaitReceipt.mockResolvedValue({
       status: "success",
+      logs: [],
       transactionHash: "0xreplacement",
       from: ACCOUNT,
     });
@@ -304,6 +328,7 @@ describe("executeTx after broadcast (via repayToCorePosition)", () => {
   it("accepts the receipt of a speed-up that repeats the same call", async () => {
     mockWaitReceipt.mockResolvedValue({
       status: "success",
+      logs: [],
       transactionHash: "0xspedup",
       from: ACCOUNT,
     });
@@ -319,6 +344,7 @@ describe("executeTx after broadcast (via repayToCorePosition)", () => {
   it("does not look for a replacement behind a Safe's receipt, which another account sent", async () => {
     mockWaitReceipt.mockResolvedValue({
       status: "success",
+      logs: [],
       transactionHash: "0xexecuted",
       from: "0x4000000000000000000000000000000000000004",
     });
@@ -336,12 +362,475 @@ describe("executeTx after broadcast (via repayToCorePosition)", () => {
   });
 });
 
+describe("executeTx waits for the receipt to be deep on the chain (via repayToCorePosition)", () => {
+  const ACCOUNT = "0x2000000000000000000000000000000000000002";
+  const ADAPTER = "0x3000000000000000000000000000000000000003";
+
+  beforeEach(() => {
+    mockPublicClient.call.mockResolvedValue({});
+    mockPublicClient.getBlockNumber.mockResolvedValue(100n);
+    walletClient.sendTransaction.mockResolvedValue("0xsent");
+    mockReadTransaction.mockResolvedValue({
+      transaction: { nonce: 7, from: ACCOUNT },
+    });
+  });
+
+  it("waits for the receipt to be AAVE_WRITE_CONFIRMATIONS deep, within one receipt round", async () => {
+    const firstReceipt = {
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+      blockHash: "0xb1",
+    };
+    mockWaitReceipt.mockResolvedValue(firstReceipt);
+
+    await repayCall();
+
+    expect(mockWaitForCanonicalReceipt).toHaveBeenCalledWith({
+      publicClient: mockPublicClient,
+      receipt: firstReceipt,
+      confirmations: AAVE_WRITE_CONFIRMATIONS,
+      timeoutMs: RECEIPT_WAIT_ROUND_MS,
+    });
+  });
+
+  it("keeps the sent hash as unconfirmed when the receipt is not deep on the chain within the round", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+    });
+    mockWaitForCanonicalReceipt.mockRejectedValue(
+      new ReceiptNotCanonicalError({
+        hash: "0xsent",
+        confirmations: 3,
+        timeoutMs: RECEIPT_WAIT_ROUND_MS,
+      }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as UnconfirmedTransactionError).broadcast).toEqual({
+      hash: "0xsent",
+      from: ACCOUNT,
+      to: ADAPTER,
+      data: walletClient.sendTransaction.mock.calls[0][0].data,
+      nonce: 7,
+      sentAtBlock: 100n,
+    });
+    expect(mockWaitForWalletToCountTransaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps a reverted receipt that is not deep on the chain within the round as unconfirmed, not failed", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "reverted",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+    });
+    mockWaitForCanonicalReceipt.mockRejectedValue(
+      new ReceiptNotCanonicalError({
+        hash: "0xsent",
+        confirmations: 3,
+        timeoutMs: RECEIPT_WAIT_ROUND_MS,
+      }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+  });
+
+  it("returns the receipt as re-read at depth, not the first one", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+      blockHash: "0xorphaned",
+    });
+    mockWaitForCanonicalReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+      blockHash: "0xcanonical",
+    });
+
+    const result = await repayCall();
+
+    expect(result.receipt.blockHash).toBe("0xcanonical");
+  });
+
+  it("reports success when a reverted receipt is mined again as a success, so the call is not offered again", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "reverted",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+    });
+    mockWaitForCanonicalReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+    });
+
+    await expect(repayCall()).resolves.toMatchObject({
+      transactionHash: "0xsent",
+    });
+  });
+
+  it("reports a failure when a successful receipt is mined again as a revert", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+    });
+    mockWaitForCanonicalReceipt.mockResolvedValue({
+      status: "reverted",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+      gasUsed: 21_000n,
+      blockNumber: 2n,
+    });
+    mockPublicClient.getTransaction.mockRejectedValue(
+      new HttpRequestError({ url: "https://rpc.example" }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect(thrown).not.toBeInstanceOf(UnconfirmedTransactionError);
+  });
+
+  it("does not report a cancel as not executed before the cancel is deep on the chain", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xcancel",
+      from: ACCOUNT,
+    });
+    mockWaitForCanonicalReceipt.mockRejectedValue(
+      new ReceiptNotCanonicalError({
+        hash: "0xcancel",
+        confirmations: 3,
+        timeoutMs: RECEIPT_WAIT_ROUND_MS,
+      }),
+    );
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+    expect(thrown).not.toBeInstanceOf(TransactionReplacedError);
+  });
+
+  it("waits for the wallet to count the transaction only after its receipt is deep on the chain, with the re-read receipt", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+      blockHash: "0xorphaned",
+    });
+    const canonical = {
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+      blockHash: "0xcanonical",
+    };
+    mockWaitForCanonicalReceipt.mockResolvedValue(canonical);
+
+    await repayCall();
+
+    expect(mockWaitForWalletToCountTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ receipt: canonical }),
+    );
+    expect(
+      mockWaitForCanonicalReceipt.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mockWaitForWalletToCountTransaction.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("reports inclusion after the first receipt and before waiting for it to be deep on the chain", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xsent",
+      from: ACCOUNT,
+    });
+    const onIncluded = vi.fn();
+
+    await repayCall(onIncluded);
+
+    expect(onIncluded).toHaveBeenCalledTimes(1);
+    expect(mockWaitReceipt.mock.invocationCallOrder[0]).toBeLessThan(
+      onIncluded.mock.invocationCallOrder[0],
+    );
+    expect(onIncluded.mock.invocationCallOrder[0]).toBeLessThan(
+      mockWaitForCanonicalReceipt.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not report inclusion when the receipt wait ends without an answer", async () => {
+    mockWaitReceipt.mockRejectedValue(
+      new WaitForTransactionReceiptTimeoutError({ hash: "0xsent" }),
+    );
+    const onIncluded = vi.fn();
+
+    await repayCall(onIncluded).catch(() => undefined);
+
+    expect(onIncluded).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeTx for a Safe wallet (via repayToCorePosition)", () => {
+  const ACCOUNT = "0x2000000000000000000000000000000000000002";
+  const EXECUTOR = "0x4000000000000000000000000000000000000004";
+  const SUCCESS_TOPIC = toEventSelector("ExecutionSuccess(bytes32,uint256)");
+  const FAILURE_TOPIC = toEventSelector("ExecutionFailure(bytes32,uint256)");
+  /** A proposal hash as a full 32-byte word, as v1.0.0 logs it in the data. */
+  const PROPOSAL_WORD = `0x${"5a".repeat(32)}`;
+  /** The Safe's own log for proposal `proposal`; the account is the Safe. */
+  const safeLog = (topic: string, proposal: string) => ({
+    address: ACCOUNT,
+    topics: [topic, proposal],
+    data: `0x${"00".repeat(32)}`,
+  });
+
+  beforeEach(() => {
+    mockPublicClient.call.mockResolvedValue({});
+    mockPublicClient.getBlockNumber.mockResolvedValue(100n);
+    // A Safe wallet answers the send with the proposal's hash.
+    walletClient.sendTransaction.mockResolvedValue("0xsent");
+    mockReadTransaction.mockResolvedValue({ transaction: null, error: "no" });
+  });
+
+  it("reports a failure, not success, when the Safe's own call failed inside a successful execution", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [safeLog(FAILURE_TOPIC, "0xsent")],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect(thrown).not.toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.reverted,
+    );
+  });
+
+  it("reports a failure, not success, when a v1.0.0 Safe's own call failed and it logged ExecutionFailed", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [
+        {
+          address: ACCOUNT,
+          topics: [toEventSelector("ExecutionFailed(bytes32)")],
+          data: PROPOSAL_WORD,
+        },
+      ],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+    walletClient.sendTransaction.mockResolvedValue(PROPOSAL_WORD);
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect(thrown).not.toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.reverted,
+    );
+  });
+
+  it("reports success when the Safe's own call succeeded", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [safeLog(SUCCESS_TOPIC, "0xsent")],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+
+    await expect(repayCall()).resolves.toMatchObject({
+      transactionHash: "0xexecuted",
+    });
+  });
+
+  it("reports a failure when the receipt re-read at depth logs the Safe's own call as failed, though the first receipt logged it as succeeded", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [safeLog(SUCCESS_TOPIC, "0xsent")],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+    // Mined again after a reorganization, where the Safe's call failed.
+    mockWaitForCanonicalReceipt.mockResolvedValue({
+      status: "success",
+      logs: [safeLog(FAILURE_TOPIC, "0xsent")],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.reverted,
+    );
+  });
+
+  it("reports success when the wallet returned the Safe execution's own transaction hash rather than the proposal's", async () => {
+    walletClient.sendTransaction.mockResolvedValue("0xexecuted");
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [safeLog(SUCCESS_TOPIC, PROPOSAL_WORD)],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+
+    await expect(repayCall()).resolves.toMatchObject({
+      transactionHash: "0xexecuted",
+    });
+  });
+
+  it("keeps the outcome unconfirmed, not failed, when the Safe's execution reverted, since another executor may have run the proposal first", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "reverted",
+      logs: [],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as UnconfirmedTransactionError).broadcast.hash).toBe(
+      "0xsent",
+    );
+  });
+
+  it("keeps the outcome unconfirmed when the Safe's execution names another proposal", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [safeLog(SUCCESS_TOPIC, "0xother")],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as UnconfirmedTransactionError).broadcast.hash).toBe(
+      "0xsent",
+    );
+  });
+});
+
+describe("executeTx with the real depth check (via repayToCorePosition)", () => {
+  const ACCOUNT = "0x2000000000000000000000000000000000000002";
+  const H09 = `0x${"09".repeat(32)}`;
+  const H10 = `0x${"10".repeat(32)}`;
+  const H11 = `0x${"11".repeat(32)}`;
+  const H12 = `0x${"12".repeat(32)}`;
+  const ORPHAN10 = `0x${"de".repeat(32)}`;
+  const minedIn10 = {
+    status: "success",
+    logs: [],
+    transactionHash: "0xsent",
+    from: ACCOUNT,
+    blockNumber: 10n,
+    blockHash: H10,
+  };
+
+  beforeEach(async () => {
+    const { waitForCanonicalReceipt } = await vi.importActual<
+      typeof import("../../../../clients/eth-contract/canonicalReceipt")
+    >("../../../../clients/eth-contract/canonicalReceipt");
+    mockWaitForCanonicalReceipt.mockImplementation(waitForCanonicalReceipt);
+    mockPublicClient.call.mockResolvedValue({});
+    mockPublicClient.getBlockNumber.mockResolvedValue(100n);
+    walletClient.sendTransaction.mockResolvedValue("0xsent");
+    mockReadTransaction.mockResolvedValue({
+      transaction: { nonce: 7, from: ACCOUNT },
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reports success once the block two above the receipt's, read by number, descends from it", async () => {
+    mockWaitReceipt.mockResolvedValue(minedIn10);
+    mockPublicClient.getTransactionReceipt.mockResolvedValue(minedIn10);
+    mockPublicClient.getBlock.mockImplementation(
+      async ({
+        blockNumber,
+        blockHash,
+      }: {
+        blockNumber?: bigint;
+        blockHash?: string;
+      }) => {
+        if (blockNumber === 12n) return { hash: H12, parentHash: H11 };
+        if (blockHash === H11) return { hash: H11, parentHash: H10 };
+        if (blockHash === H10) return { hash: H10, parentHash: H09 };
+        throw new BlockNotFoundError({ blockNumber, blockHash: undefined });
+      },
+    );
+
+    await expect(repayCall()).resolves.toMatchObject({
+      receipt: { blockHash: H10 },
+    });
+    expect(mockPublicClient.getBlock).toHaveBeenCalledWith({
+      blockNumber: 12n,
+    });
+  });
+
+  it("holds as unconfirmed a receipt whose block the chain above does not descend from", async () => {
+    vi.useFakeTimers();
+    const orphaned = { ...minedIn10, blockHash: ORPHAN10 };
+    mockWaitReceipt.mockResolvedValue(orphaned);
+    mockPublicClient.getTransactionReceipt.mockResolvedValue(orphaned);
+    mockPublicClient.getBlock.mockImplementation(
+      async ({
+        blockNumber,
+        blockHash,
+      }: {
+        blockNumber?: bigint;
+        blockHash?: string;
+      }) => {
+        if (blockNumber === 12n) return { hash: H12, parentHash: H11 };
+        if (blockHash === H11) return { hash: H11, parentHash: H10 };
+        if (blockHash === H10) return { hash: H10, parentHash: H09 };
+        throw new BlockNotFoundError({ blockNumber, blockHash: undefined });
+      },
+    );
+
+    const outcome = repayCall().catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(RECEIPT_WAIT_ROUND_MS);
+
+    expect(await outcome).toBeInstanceOf(UnconfirmedTransactionError);
+    expect(mockWaitForWalletToCountTransaction).not.toHaveBeenCalled();
+  });
+});
+
 describe("executeTx wallet nonce handling (via repayToCorePosition)", () => {
   it("waits for the wallet to count the mined transaction before returning", async () => {
     mockPublicClient.call.mockResolvedValue({});
     walletClient.sendTransaction.mockResolvedValue("0xsent");
     mockWaitReceipt.mockResolvedValue({
       status: "success",
+      logs: [],
       transactionHash: "0xsent",
       from: "0x2000000000000000000000000000000000000002",
     });
@@ -364,6 +853,7 @@ describe("executeTx wallet nonce handling (via repayToCorePosition)", () => {
     walletClient.sendTransaction.mockResolvedValue("0xsent");
     mockWaitReceipt.mockResolvedValue({
       status: "success",
+      logs: [],
       transactionHash: "0xsent",
       from: "0x2000000000000000000000000000000000000002",
     });

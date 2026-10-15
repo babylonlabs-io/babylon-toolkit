@@ -3,6 +3,7 @@ import {
   HttpRequestError,
   TransactionReceiptNotFoundError,
   WaitForTransactionReceiptTimeoutError,
+  toEventSelector,
 } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +11,7 @@ import { COPY } from "@/copy";
 import {
   ContractError,
   ErrorCode,
+  ReceiptNotCanonicalError,
   TransactionReplacedError,
   UnconfirmedTransactionError,
   WriteInProgressError,
@@ -23,6 +25,7 @@ const {
   mockGetTransactionReceipt,
   mockGetBlockNumber,
   mockGetBlock,
+  mockWaitForCanonicalReceipt,
 } = vi.hoisted(() => ({
   mockWaitReceipt: vi.fn(),
   mockGetTransactionCount: vi.fn(),
@@ -30,6 +33,7 @@ const {
   mockGetTransactionReceipt: vi.fn(),
   mockGetBlockNumber: vi.fn(),
   mockGetBlock: vi.fn(),
+  mockWaitForCanonicalReceipt: vi.fn(),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
@@ -53,11 +57,19 @@ vi.mock("@/clients/eth-contract/client", () => ({
   },
 }));
 
+// The depth check itself is covered by canonicalReceipt.test.ts; one test
+// below runs it for real.
+vi.mock("@/clients/eth-contract/canonicalReceipt", () => ({
+  waitForCanonicalReceipt: (...args: unknown[]) =>
+    mockWaitForCanonicalReceipt(...args),
+}));
+
 vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
 }));
 
 import {
+  AAVE_WRITE_CONFIRMATIONS,
   RECEIPT_RETRY_DELAY_MS,
   RECEIPT_WAIT_ROUND_MS,
   STOP_WAITING_AVAILABLE_AFTER_MS,
@@ -70,6 +82,33 @@ const HASH =
   "0x5555555555555555555555555555555555555555555555555555555555555555";
 const REPLACEMENT_HASH =
   "0x6666666666666666666666666666666666666666666666666666666666666666";
+const BLOCK_100 =
+  "0x1000000000000000000000000000000000000000000000000000000000000100";
+const BLOCK_101 =
+  "0x1010101010101010101010101010101010101010101010101010101010101010";
+const BLOCK_102 =
+  "0x1020000000000000000000000000000000000000000000000000000000000102";
+const BLOCK_103 =
+  "0x1030000000000000000000000000000000000000000000000000000000000103";
+/** A Safe's execution: mined by an executor, under its own hash. */
+const EXECUTION_HASH =
+  "0x7777777777777777777777777777777777777777777777777777777777777777";
+const EXECUTOR = "0x8000000000000000000000000000000000000008";
+const EXECUTION_SUCCESS_TOPIC = toEventSelector(
+  "ExecutionSuccess(bytes32,uint256)",
+);
+const EXECUTION_FAILURE_TOPIC = toEventSelector(
+  "ExecutionFailure(bytes32,uint256)",
+);
+
+/** The Safe's own log for proposal `safeTxHash`, from the account (the Safe). */
+function safeExecutionLog(topic: string, safeTxHash: string) {
+  return {
+    address: ACCOUNT,
+    topics: [topic, safeTxHash],
+    data: `0x${"00".repeat(32)}`,
+  };
+}
 
 // Sent at nonce 5 while the chain was at block 100.
 const BROADCAST: UnconfirmedBroadcast = {
@@ -88,11 +127,27 @@ function unconfirmed(): UnconfirmedTransactionError {
   );
 }
 
+/** A receipt as viem returns it, mined in block 101. */
 function receipt(
   status: "success" | "reverted",
   transactionHash: string = HASH,
 ) {
-  return { status, transactionHash, from: ACCOUNT };
+  return {
+    status,
+    transactionHash,
+    from: ACCOUNT,
+    blockNumber: 101n,
+    blockHash: BLOCK_101,
+    logs: [],
+  };
+}
+
+function notCanonical(): ReceiptNotCanonicalError {
+  return new ReceiptNotCanonicalError({
+    hash: HASH,
+    confirmations: AAVE_WRITE_CONFIRMATIONS,
+    timeoutMs: RECEIPT_WAIT_ROUND_MS,
+  });
 }
 
 function deferred() {
@@ -145,6 +200,10 @@ beforeEach(() => {
   // By default the chain is at block 104 and nonce 5 is not used yet.
   mockGetBlockNumber.mockResolvedValue(104n);
   mockGetTransactionCount.mockResolvedValue(5);
+  // By default a receipt is already deep enough on the chain, unchanged.
+  mockWaitForCanonicalReceipt.mockImplementation(
+    async ({ receipt }: { receipt: unknown }) => receipt,
+  );
 });
 
 afterEach(() => {
@@ -478,6 +537,370 @@ describe("runAaveWrite", () => {
     await vi.runAllTimersAsync();
 
     await expect(result).resolves.toBe("mined");
+  });
+
+  it("waits for a late receipt to be AAVE_WRITE_CONFIRMATIONS deep before resolving mined, within one round and until the user stops", async () => {
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+
+    await runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+
+    expect(mockWaitForCanonicalReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: receipt("success"),
+        confirmations: AAVE_WRITE_CONFIRMATIONS,
+        timeoutMs: RECEIPT_WAIT_ROUND_MS,
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("keeps the lock when a late receipt is not deep on the chain within the round, and resolves mined once a later round's is", async () => {
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockWaitForCanonicalReceipt.mockRejectedValueOnce(notCanonical());
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await flush();
+
+    expect(getPendingAaveWrite(ACCOUNT)).toMatchObject({
+      phase: "unconfirmed",
+    });
+    await vi.advanceTimersByTimeAsync(RECEIPT_RETRY_DELAY_MS);
+    await expect(result).resolves.toBe("mined");
+    expect(mockWaitReceipt).toHaveBeenCalledTimes(2);
+  });
+
+  it("finds the replacement that used the nonce while the RPC keeps serving the original's receipt from a block no longer on the chain", async () => {
+    // The original was mined in a block that was reorganized out, and a
+    // speed-up took its nonce; the RPC still serves the original's receipt,
+    // to the round's wait and to direct reads alike.
+    replacedAtBlock102({ to: BROADCAST.to, input: BROADCAST.data });
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockGetTransactionReceipt.mockImplementation(
+      async ({ hash }: { hash: string }) =>
+        hash === REPLACEMENT_HASH
+          ? receipt("success", REPLACEMENT_HASH)
+          : receipt("success"),
+    );
+    mockWaitForCanonicalReceipt.mockImplementation(
+      async ({ receipt: served }: { receipt: { transactionHash: string } }) => {
+        if (served.transactionHash === HASH) throw notCanonical();
+        return served;
+      },
+    );
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await vi.runAllTimersAsync();
+
+    await expect(result).resolves.toBe("mined");
+    expect(mockGetBlock).toHaveBeenCalledWith({
+      blockNumber: 102n,
+      includeTransactions: true,
+    });
+    expect(mockWaitForCanonicalReceipt).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        receipt: receipt("success", REPLACEMENT_HASH),
+      }),
+    );
+  });
+
+  it("keeps waiting, rather than reporting a replacement, while the RPC serves the original's receipt and no block is known where the nonce was unused", async () => {
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockGetTransactionCount.mockResolvedValue(6);
+    mockGetTransactionReceipt.mockResolvedValue(receipt("success"));
+    mockWaitForCanonicalReceipt.mockRejectedValue(notCanonical());
+
+    const result = runAaveWrite(ACCOUNT, () =>
+      Promise.reject(
+        new UnconfirmedTransactionError(
+          new ContractError("Repay failed: timed out"),
+          { ...BROADCAST, sentAtBlock: null },
+        ),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(RECEIPT_RETRY_DELAY_MS * 3);
+
+    expect(getPendingAaveWrite(ACCOUNT)).toMatchObject({
+      phase: "unconfirmed",
+    });
+    await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);
+    const pending = getPendingAaveWrite(ACCOUNT);
+    if (pending?.phase !== "unconfirmed" || !pending.stopWaiting) {
+      throw new Error("expected the stop-waiting action to be offered");
+    }
+    pending.stopWaiting();
+    await expect(result).resolves.toBe("stopped");
+  });
+
+  it("keeps waiting, rather than reporting a replacement, while the RPC serves the original's receipt and the block that used the nonce holds no transaction from the account", async () => {
+    replacedAtBlock102({ to: BROADCAST.to, input: BROADCAST.data });
+    mockGetBlock.mockResolvedValue({ transactions: [] });
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockGetTransactionReceipt.mockResolvedValue(receipt("success"));
+    mockWaitForCanonicalReceipt.mockRejectedValue(notCanonical());
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await vi.advanceTimersByTimeAsync(RECEIPT_RETRY_DELAY_MS * 3);
+
+    expect(mockGetBlock).toHaveBeenCalledWith({
+      blockNumber: 102n,
+      includeTransactions: true,
+    });
+    expect(getPendingAaveWrite(ACCOUNT)).toMatchObject({
+      phase: "unconfirmed",
+    });
+    await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);
+    const pending = getPendingAaveWrite(ACCOUNT);
+    if (pending?.phase !== "unconfirmed" || !pending.stopWaiting) {
+      throw new Error("expected the stop-waiting action to be offered");
+    }
+    pending.stopWaiting();
+    await expect(result).resolves.toBe("stopped");
+  });
+
+  it("rejects with the reverted copy when a late Safe execution failed its own call inside a successful outer transaction", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      ...receipt("success", EXECUTION_HASH),
+      from: EXECUTOR,
+      logs: [safeExecutionLog(EXECUTION_FAILURE_TOPIC, HASH)],
+    });
+
+    const thrown = await runAaveWrite(ACCOUNT, () =>
+      Promise.reject(unconfirmed()),
+    ).catch((e: unknown) => e);
+
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.reverted,
+    );
+  });
+
+  it("rejects with the reverted copy when a late v1.0.0 Safe execution logged ExecutionFailed for the proposal", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      ...receipt("success", EXECUTION_HASH),
+      from: EXECUTOR,
+      logs: [
+        {
+          address: ACCOUNT,
+          topics: [toEventSelector("ExecutionFailed(bytes32)")],
+          data: HASH,
+        },
+      ],
+    });
+
+    const thrown = await runAaveWrite(ACCOUNT, () =>
+      Promise.reject(unconfirmed()),
+    ).catch((e: unknown) => e);
+
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.reverted,
+    );
+  });
+
+  it("resolves mined for a late Safe execution whose own call succeeded", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      ...receipt("success", EXECUTION_HASH),
+      from: EXECUTOR,
+      logs: [safeExecutionLog(EXECUTION_SUCCESS_TOPIC, HASH)],
+    });
+
+    await expect(
+      runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed())),
+    ).resolves.toBe("mined");
+  });
+
+  it("rejects with the reverted copy when the receipt re-read at depth logs the Safe's own call as failed, though the late receipt logged it as succeeded", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      ...receipt("success", EXECUTION_HASH),
+      from: EXECUTOR,
+      logs: [safeExecutionLog(EXECUTION_SUCCESS_TOPIC, HASH)],
+    });
+    // Mined again after a reorganization, where the Safe's call failed.
+    mockWaitForCanonicalReceipt.mockResolvedValue({
+      ...receipt("success", EXECUTION_HASH),
+      from: EXECUTOR,
+      logs: [safeExecutionLog(EXECUTION_FAILURE_TOPIC, HASH)],
+    });
+
+    const thrown = await runAaveWrite(ACCOUNT, () =>
+      Promise.reject(unconfirmed()),
+    ).catch((e: unknown) => e);
+
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.reverted,
+    );
+  });
+
+  it("keeps the lock when a late Safe execution names another proposal, and resolves mined once a later round's names this one", async () => {
+    const otherProposal =
+      "0x9999999999999999999999999999999999999999999999999999999999999999";
+    mockWaitReceipt
+      .mockResolvedValueOnce({
+        ...receipt("success", EXECUTION_HASH),
+        from: EXECUTOR,
+        logs: [safeExecutionLog(EXECUTION_SUCCESS_TOPIC, otherProposal)],
+      })
+      .mockResolvedValue({
+        ...receipt("success", EXECUTION_HASH),
+        from: EXECUTOR,
+        logs: [safeExecutionLog(EXECUTION_SUCCESS_TOPIC, HASH)],
+      });
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await flush();
+
+    expect(getPendingAaveWrite(ACCOUNT)).toMatchObject({
+      phase: "unconfirmed",
+    });
+    await vi.advanceTimersByTimeAsync(RECEIPT_RETRY_DELAY_MS);
+    await expect(result).resolves.toBe("mined");
+    expect(mockWaitReceipt).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the lock when a late Safe execution reverted, and resolves mined once a later round finds another executor's execution of the proposal", async () => {
+    // The proposal's hash commits to the Safe's nonce, so this execution
+    // reverted because another executor's run of the proposal came first;
+    // the Safe Transaction Service names that execution next.
+    mockWaitReceipt
+      .mockResolvedValueOnce({
+        ...receipt("reverted", EXECUTION_HASH),
+        from: EXECUTOR,
+      })
+      .mockResolvedValue({
+        ...receipt("success", REPLACEMENT_HASH),
+        from: OTHER_ACCOUNT,
+        logs: [safeExecutionLog(EXECUTION_SUCCESS_TOPIC, HASH)],
+      });
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await flush();
+
+    expect(getPendingAaveWrite(ACCOUNT)).toMatchObject({
+      phase: "unconfirmed",
+    });
+    await vi.advanceTimersByTimeAsync(RECEIPT_RETRY_DELAY_MS);
+    await expect(result).resolves.toBe("mined");
+  });
+
+  it("resolves mined only once the real depth check finds a late receipt's block with two blocks on top of it", async () => {
+    const { waitForCanonicalReceipt } = await vi.importActual<
+      typeof import("@/clients/eth-contract/canonicalReceipt")
+    >("@/clients/eth-contract/canonicalReceipt");
+    mockWaitForCanonicalReceipt.mockImplementation(waitForCanonicalReceipt);
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockGetTransactionReceipt.mockResolvedValue(receipt("success"));
+    const block102 = { hash: BLOCK_102, parentHash: BLOCK_101 };
+    const block101 = { hash: BLOCK_101, parentHash: BLOCK_100 };
+    // Block 103 is not on the chain yet at first.
+    let tip = 102n;
+    mockGetBlock.mockImplementation(
+      async ({
+        blockNumber,
+        blockHash,
+      }: {
+        blockNumber?: bigint;
+        blockHash?: string;
+      }) => {
+        if (blockNumber === 103n && tip >= 103n) {
+          return { hash: BLOCK_103, parentHash: BLOCK_102 };
+        }
+        if (blockHash === BLOCK_102) return block102;
+        if (blockHash === BLOCK_101) return block101;
+        throw new BlockNotFoundError({ blockNumber, blockHash: undefined });
+      },
+    );
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await flush();
+    expect(getPendingAaveWrite(ACCOUNT)).toMatchObject({
+      phase: "unconfirmed",
+    });
+
+    tip = 103n;
+    await vi.advanceTimersByTimeAsync(RECEIPT_WAIT_ROUND_MS);
+
+    await expect(result).resolves.toBe("mined");
+  });
+
+  it("rejects with the reverted copy when a late successful receipt is mined again as a revert", async () => {
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockWaitForCanonicalReceipt.mockResolvedValue(receipt("reverted"));
+
+    const thrown = await runAaveWrite(ACCOUNT, () =>
+      Promise.reject(unconfirmed()),
+    ).catch((e: unknown) => e);
+
+    expect((thrown as Error).message).toBe(
+      COPY.common.unconfirmedTransaction.reverted,
+    );
+  });
+
+  it("resolves mined when a late reverted receipt is mined again as a success", async () => {
+    mockWaitReceipt.mockResolvedValue(receipt("reverted"));
+    mockWaitForCanonicalReceipt.mockResolvedValue(receipt("success"));
+
+    await expect(
+      runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed())),
+    ).resolves.toBe("mined");
+  });
+
+  it("does not end the wait as not executed for a cancel found by its nonce until the cancel is deep on the chain", async () => {
+    replacedAtBlock102({ to: ACCOUNT, input: "0x" });
+    mockWaitForCanonicalReceipt.mockRejectedValueOnce(notCanonical());
+
+    const result = runAaveWrite(ACCOUNT, () =>
+      Promise.reject(unconfirmed()),
+    ).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+
+    expect(await result).toBeInstanceOf(TransactionReplacedError);
+    // The first time the cancel was found it was not deep yet, and the wait
+    // went on instead of ending.
+    expect(mockWaitForCanonicalReceipt).toHaveBeenCalledTimes(2);
+    expect(mockWaitForCanonicalReceipt).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        receipt: receipt("success", REPLACEMENT_HASH),
+      }),
+    );
+  });
+
+  it("ends the wait for a late receipt's depth when the user stops waiting", async () => {
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockWaitForCanonicalReceipt.mockImplementation(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason));
+        }),
+    );
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);
+    const pending = getPendingAaveWrite(ACCOUNT);
+    if (pending?.phase !== "unconfirmed" || !pending.stopWaiting) {
+      throw new Error("expected the stop-waiting action to be offered");
+    }
+    pending.stopWaiting();
+
+    await expect(result).resolves.toBe("stopped");
+    const { signal } = mockWaitForCanonicalReceipt.mock.calls[0][0] as {
+      signal: AbortSignal;
+    };
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("still offers to stop waiting after ten minutes while a late receipt never gets deep on the chain", async () => {
+    mockWaitReceipt.mockResolvedValue(receipt("success"));
+    mockWaitForCanonicalReceipt.mockRejectedValue(notCanonical());
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);
+
+    const pending = getPendingAaveWrite(ACCOUNT);
+    expect(pending).toMatchObject({ phase: "unconfirmed", hash: HASH });
+    if (pending?.phase !== "unconfirmed" || !pending.stopWaiting) {
+      throw new Error("expected the stop-waiting action to be offered");
+    }
+    pending.stopWaiting();
+    await expect(result).resolves.toBe("stopped");
   });
 
   it("offers to stop waiting only once ten minutes have passed, and stopping releases the lock", async () => {
