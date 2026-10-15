@@ -158,6 +158,10 @@ vi.mock("@/services/vault/prePeginBroadcastAckWindow", () => ({
   assertPrePeginBroadcastAckWindowOpen: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/services/vault/assertResumePositionCapacity", () => ({
+  assertPositionAcceptsBatch: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Local override of the global gate mock so we can drive a frozen/paused scope.
 const depositGateMock = vi.hoisted(() => ({
   value: { protocol: null as string | null, aave: null as string | null },

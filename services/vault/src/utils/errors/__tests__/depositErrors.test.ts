@@ -911,6 +911,16 @@ describe("isResumableDepositError", () => {
     );
   });
 
+  it("treats a position-capacity read failure as resumable after registration", () => {
+    expect(isResumableDepositError(ERRORS.positionCapacityUnavailable)).toBe(
+      true,
+    );
+  });
+
+  it("treats a position-capacity refusal as resumable after registration", () => {
+    expect(isResumableDepositError(ERRORS.positionCapacityExceeded)).toBe(true);
+  });
+
   it("treats a lost device session as resumable, and flags it for a reconnect first", () => {
     expect(isResumableDepositError(ERRORS.deviceDisconnected)).toBe(true);
     expect(isDeviceDisconnectedContent(ERRORS.deviceDisconnected)).toBe(true);

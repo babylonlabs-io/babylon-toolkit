@@ -13,7 +13,8 @@ import { useVaults } from "./useVaults";
 const VAULT_COUNT_CAP_KEY = "vaultCountCap";
 // maxVaultsPerPosition is a near-static governance param, so cache it long and
 // skip continuous polling — fetch on mount and rely on staleTime. A change is
-// rare and the activation-time revert backstops any staleness.
+// rare; the deposit flow re-reads the position's capacity before the
+// Pre-PegIn broadcast.
 const STALE_TIME_MS = 10 * 60_000;
 
 export interface VaultCountCapResult {
@@ -24,8 +25,8 @@ export interface VaultCountCapResult {
   /** True when the position is at/over the cap. */
   isAtCap: boolean;
   // True when the cap read terminally failed. Callers fail closed (block the
-  // deposit CTA) so an at-cap user can't lock BTC only to revert at activation
-  // — mirrors the supply-cap `capUnavailable` path.
+  // deposit CTA) so an at-cap user can't lock BTC only to have activation
+  // redeem it — mirrors the supply-cap `capUnavailable` path.
   capUnavailable: boolean;
 }
 
