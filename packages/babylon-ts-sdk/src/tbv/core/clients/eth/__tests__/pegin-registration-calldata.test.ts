@@ -43,6 +43,9 @@ const SIGNED_PEGIN_B = peginTransaction(0xac);
 
 function setup() {
   const ethWallet = new MockEthereumWallet({ address: DEPOSITOR });
+  Object.assign(ethWallet, {
+    getAddresses: async () => [ethWallet.account.address],
+  });
   const publicClient = {
     readContract: vi.fn(({ functionName }: { functionName: string }) => {
       if (functionName === "getPegInFee") return Promise.resolve(3n);
@@ -50,7 +53,13 @@ function setup() {
         return Promise.resolve(100);
       return Promise.resolve({ depositor: zeroAddress });
     }),
-    estimateGas: vi.fn().mockResolvedValue(250_000n),
+    prepareTransactionRequest: vi.fn().mockResolvedValue({
+      gas: 250_000n,
+      type: "eip1559",
+      maxFeePerGas: 3n,
+      maxPriorityFeePerGas: 1n,
+    }),
+    getBalance: vi.fn().mockResolvedValue(250_000n * 3n + 6n),
     getCode: vi.fn().mockResolvedValue("0x"),
     waitForTransactionReceipt: vi.fn(({ hash }: { hash: Hex }) =>
       Promise.resolve({ status: "success", transactionHash: hash }),
@@ -125,11 +134,13 @@ describe("ViemPeginRegistrationClient calldata", () => {
     // arity — but a partial ABI edit that updated only one of them would make
     // both 12 and let viem resolve by type, silently.
     expect(data.slice(0, 10)).toBe("0x564feec1");
-    expect(publicClient.estimateGas).toHaveBeenCalledWith({
+    expect(publicClient.prepareTransactionRequest).toHaveBeenCalledWith({
       to: REGISTRY,
       data,
       value: 3n,
       account: DEPOSITOR,
+      chain: sepolia,
+      parameters: ["gas", "fees", "type"],
     });
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -137,6 +148,11 @@ describe("ViemPeginRegistrationClient calldata", () => {
         data,
         value: 3n,
         gas: 250_000n,
+        type: "eip1559",
+        maxFeePerGas: 3n,
+        maxPriorityFeePerGas: 1n,
+        account: DEPOSITOR,
+        chain: sepolia,
       }),
     );
     const peginTxHash = calculateBtcTxHash(SIGNED_PEGIN_A);
@@ -211,11 +227,13 @@ describe("ViemPeginRegistrationClient calldata", () => {
     // per #555's generated snapshots/selectors.md at head 86577e40; it was
     // 0x68d177ac before the fingerprint.
     expect(data.slice(0, 10)).toBe("0x3e62a2ba");
-    expect(publicClient.estimateGas).toHaveBeenCalledWith({
+    expect(publicClient.prepareTransactionRequest).toHaveBeenCalledWith({
       to: REGISTRY,
       data,
       value: 6n,
       account: DEPOSITOR,
+      chain: sepolia,
+      parameters: ["gas", "fees", "type"],
     });
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith(
@@ -224,6 +242,11 @@ describe("ViemPeginRegistrationClient calldata", () => {
         data,
         value: 6n,
         gas: 250_000n,
+        type: "eip1559",
+        maxFeePerGas: 3n,
+        maxPriorityFeePerGas: 1n,
+        account: DEPOSITOR,
+        chain: sepolia,
       }),
     );
     expect(result.vaults).toHaveLength(2);
@@ -243,7 +266,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
       }),
     ).rejects.toThrow(/requires at least one request/);
     expect(publicClient.readContract).not.toHaveBeenCalled();
-    expect(publicClient.estimateGas).not.toHaveBeenCalled();
+    expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
     expect(ethWallet.getCurrentNonce()).toBe(0);
   });
 
@@ -276,7 +299,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
       }),
     ).rejects.toThrow(/Duplicate vault in batch/);
     expect(publicClient.readContract).not.toHaveBeenCalled();
-    expect(publicClient.estimateGas).not.toHaveBeenCalled();
+    expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
     expect(ethWallet.getCurrentNonce()).toBe(0);
   });
 
@@ -298,7 +321,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
       }),
     ).rejects.toThrow(/does not match the proof of possession BTC pubkey/);
     expect(publicClient.readContract).not.toHaveBeenCalled();
-    expect(publicClient.estimateGas).not.toHaveBeenCalled();
+    expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
     expect(ethWallet.getCurrentNonce()).toBe(0);
   });
 
@@ -331,7 +354,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
       }),
     ).rejects.toThrow(/does not match the proof of possession BTC pubkey/);
     expect(publicClient.readContract).not.toHaveBeenCalled();
-    expect(publicClient.estimateGas).not.toHaveBeenCalled();
+    expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
     expect(ethWallet.getCurrentNonce()).toBe(0);
   });
 
@@ -369,7 +392,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
       // match, so catching it here is the difference between a named error and
       // an opaque on-chain revert. Both cases must stop before any chain call.
       expect(publicClient.readContract).not.toHaveBeenCalled();
-      expect(publicClient.estimateGas).not.toHaveBeenCalled();
+      expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
       expect(ethWallet.getCurrentNonce()).toBe(0);
     },
   );
@@ -403,7 +426,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
         }),
       ).rejects.toThrow(expected);
       expect(publicClient.readContract).not.toHaveBeenCalled();
-      expect(publicClient.estimateGas).not.toHaveBeenCalled();
+      expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
       expect(ethWallet.getCurrentNonce()).toBe(0);
     },
   );

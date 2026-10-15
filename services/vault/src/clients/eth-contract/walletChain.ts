@@ -64,42 +64,6 @@ const waitForConnection = async (wagmiConfig: WagmiConfig) => {
   });
 };
 
-const fetchWalletClient = async (
-  wagmiConfig: WagmiConfig,
-  account: Address,
-  expectedChainId: number,
-): Promise<WalletClient> => {
-  await waitForConnection(wagmiConfig);
-  const connection = getAccount(wagmiConfig);
-  if (connection.status !== "connected") {
-    throw walletNotConnected();
-  }
-
-  // Connectors throw provider errors here, not wagmi's connection-lost errors;
-  // a connector that cannot report its chain cannot sign.
-  const walletChainId = await connection.connector
-    .getChainId()
-    .catch((error: unknown) => {
-      logger.error(error, {
-        data: { context: "[walletChain] connector.getChainId failed" },
-      });
-      throw walletNotConnected();
-    });
-
-  if (walletChainId !== expectedChainId) {
-    try {
-      await switchChain(wagmiConfig, { chainId: expectedChainId });
-    } catch (switchError) {
-      logger.error(switchError, {
-        data: { context: "Failed to switch chain" },
-      });
-      throw chainSwitchRequired(expectedChainId);
-    }
-  }
-
-  return getWalletClient(wagmiConfig, { chainId: expectedChainId, account });
-};
-
 /**
  * Get a wallet client on the app's Ethereum chain, asking the wallet to
  * switch network only when its live connection is on another chain.
@@ -114,8 +78,46 @@ export async function getWalletClientOnExpectedChain(
   const wagmiConfig = getSharedWagmiConfig();
   const expectedChainId = getETHChain().id;
 
-  const fetchClient = () =>
-    fetchWalletClient(wagmiConfig, account, expectedChainId);
+  let connection = getAccount(wagmiConfig);
+
+  const fetchClient = async (): Promise<WalletClient> => {
+    await waitForConnection(wagmiConfig);
+    if (connection.status !== "connected") connection = getAccount(wagmiConfig);
+    if (connection.status !== "connected" || !connection.connector) {
+      throw walletNotConnected();
+    }
+
+    // Connectors throw provider errors here, not wagmi's connection-lost errors;
+    // a connector that cannot report its chain cannot sign.
+    const walletChainId = await connection.connector
+      .getChainId()
+      .catch((error: unknown) => {
+        logger.error(error, {
+          data: { context: "[walletChain] connector.getChainId failed" },
+        });
+        throw walletNotConnected();
+      });
+
+    if (walletChainId !== expectedChainId) {
+      try {
+        await switchChain(wagmiConfig, {
+          chainId: expectedChainId,
+          connector: connection.connector,
+        });
+      } catch (switchError) {
+        logger.error(switchError, {
+          data: { context: "Failed to switch chain" },
+        });
+        throw chainSwitchRequired(expectedChainId);
+      }
+    }
+
+    return getWalletClient(wagmiConfig, {
+      chainId: expectedChainId,
+      account,
+      connector: connection.connector,
+    });
+  };
 
   return fetchClient()
     .catch((error: unknown) => {

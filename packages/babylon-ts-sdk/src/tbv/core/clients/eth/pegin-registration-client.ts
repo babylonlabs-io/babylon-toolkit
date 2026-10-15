@@ -1,5 +1,7 @@
 import {
   encodeFunctionData,
+  InsufficientFundsError,
+  isAddress,
   isAddressEqual,
   zeroAddress,
   type Address,
@@ -487,18 +489,58 @@ export class ViemPeginRegistrationClient {
     depositor: Address,
   ): Promise<Hex> {
     let account = this.assertEthAccount(depositor);
-    let gas: bigint;
+    let request;
     try {
-      gas = await this.config.publicClient.estimateGas({
+      request = await this.config.publicClient.prepareTransactionRequest({
         to: this.config.btcVaultRegistry,
         data,
         value,
         account,
+        chain: this.config.ethChain,
+        parameters: ["gas", "fees", "type"],
       });
     } catch (error) {
       handleContractError(error);
     }
 
+    const { gas, type, gasPrice, maxFeePerGas, maxPriorityFeePerGas } = request;
+    const fees =
+      type === "eip1559" &&
+      typeof maxFeePerGas === "bigint" &&
+      typeof maxPriorityFeePerGas === "bigint" &&
+      maxPriorityFeePerGas >= 0n &&
+      maxFeePerGas >= maxPriorityFeePerGas
+        ? { type, maxFeePerGas, maxPriorityFeePerGas }
+        : type === "legacy" && typeof gasPrice === "bigint" && gasPrice >= 0n
+          ? { type, gasPrice }
+          : undefined;
+    if (typeof gas !== "bigint" || gas <= 0n || !fees) {
+      throw new Error(
+        "Failed to prepare registration gas and fees. Try again.",
+      );
+    }
+    const balance = await this.config.publicClient.getBalance({
+      address: this.assertEthAccount(depositor),
+    });
+    if (typeof balance !== "bigint" || balance < 0n) {
+      throw new Error("Failed to read the Ethereum balance. Try again.");
+    }
+    const feeCap = fees.type === "eip1559" ? fees.maxFeePerGas : fees.gasPrice;
+    if (balance < value + gas * feeCap) {
+      throw new InsufficientFundsError();
+    }
+    const addresses = await this.config.ethWallet.getAddresses();
+    if (
+      !Array.isArray(addresses) ||
+      !addresses.every(
+        (address) => typeof address === "string" && isAddress(address),
+      ) ||
+      !addresses.some((address) => isAddressEqual(address, depositor))
+    ) {
+      throw new Error(
+        "The Ethereum wallet account is no longer available. Reconnect it and try again.",
+      );
+    }
     account = this.assertEthAccount(depositor);
     let submittedHash: Hex;
     try {
@@ -507,6 +549,7 @@ export class ViemPeginRegistrationClient {
         data,
         value,
         gas,
+        ...fees,
         account,
         chain: this.config.ethChain,
       });
