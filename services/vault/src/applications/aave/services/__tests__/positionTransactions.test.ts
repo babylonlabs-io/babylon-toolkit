@@ -101,7 +101,7 @@ describe("positionTransactions", () => {
 
   const mockToken = { symbol: "USDC", decimals: 6 };
 
-  // Marks the write as confirming in the lock; only the Aave call reports it.
+  // The hook's "Confirming" flag; only the Aave call reports its inclusion.
   const onIncluded = vi.fn();
 
   // `logs: []` routes ensureAllowance's verification to the fallback
