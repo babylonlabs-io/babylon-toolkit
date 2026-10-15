@@ -59,7 +59,7 @@ export function ActiveLoansList({
             >
               <div className="flex w-[200px] shrink-0 items-center gap-2 max-md:w-full">
                 <Avatar url={row.icon} alt={row.symbol} size="medium" />
-                <span className="truncate text-base leading-[1.5] tracking-[0.15px] text-accent-primary max-md:whitespace-normal max-md:break-all">
+                <span className="truncate text-base leading-[1.5] tracking-[0.15px] text-accent-primary max-md:whitespace-normal max-md:[overflow-wrap:anywhere]">
                   {row.amount} {row.symbol}
                 </span>
               </div>

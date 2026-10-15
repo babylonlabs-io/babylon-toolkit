@@ -437,14 +437,14 @@ export function Repay() {
       {unconfirmedWrite ? (
         <UnconfirmedTransactionCallout
           write={unconfirmedWrite}
-          className="mt-4 max-md:order-1 max-md:mb-4 max-md:mt-0"
+          className="mt-4 max-md:order-1"
         />
       ) : (
         statusCallout && (
           <Callout
             variant={statusCallout.variant}
             title={statusCallout.title}
-            className="mt-4 max-md:order-1 max-md:mb-4 max-md:mt-0"
+            className="mt-4 max-md:order-1"
           >
             {statusCallout.body}
           </Callout>
