@@ -29,8 +29,8 @@
  *                  `==` → `===`; `slice` → `subarray`; formatting;
  *                  LOCAL ADDITION: two `psbtIn` members the upstream enum
  *                  lacks (`TAP_LEAF_SCRIPT = 0x15`, `TAP_INTERNAL_KEY = 0x17`
- *                  — BIP-371, byte values verified against base app
- *                  psbt.h:37-42) and a public `getInputEntriesOfType` reader,
+ *                  — BIP-371, byte values verified against the base app's
+ *                  `psbt.h`) and a public `getInputEntriesOfType` reader,
  *                  both for the vault SIGN_PSBT expected-signature table.
  */
 
@@ -64,7 +64,7 @@ export enum psbtIn {
   OUTPUT_INDEX = 0x0f,
   SEQUENCE = 0x10,
   TAP_KEY_SIG = 0x13,
-  // Local additions — BIP-371; byte values verified against base app psbt.h:37-42.
+  // Local additions — BIP-371; byte values verified against the base app's psbt.h.
   TAP_LEAF_SCRIPT = 0x15, // keydata = control block; value = script ‖ leaf_version(1B trailing)
   TAP_BIP32_DERIVATION = 0x16,
   TAP_INTERNAL_KEY = 0x17, // keydata = ∅; value = 32B x-only internal key

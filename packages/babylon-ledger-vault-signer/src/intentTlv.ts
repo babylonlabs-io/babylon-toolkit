@@ -8,11 +8,11 @@
 
 import { assertBip86Path } from "./bip86Path";
 
-/** `vault_constants.h:24,30` — both pinned at 1 for the v22 protocol. */
+/** Both pinned at 1 for the v22 protocol (`vault_constants.h`). */
 const VAULT_STRUCTURE_TYPE = 0x01;
 const VAULT_PROTOCOL_VERSION = 0x01;
 
-/** P1=0x00 scalar tags (`vault_intent_tags.h:29-54`). All 13 are mandatory. */
+/** P1=0x00 scalar tags (`vault_intent_tags.h`). All 13 are mandatory. */
 const TAG_STRUCTURE_TYPE = 0x0001;
 const TAG_VERSION = 0x0002;
 const TAG_COIN_TYPE = 0x0021;
@@ -116,7 +116,7 @@ export interface IntentScalars {
   /**
    * PegIn prevout txid in INTERNAL byte order — the reverse of what an
    * explorer displays. The device compares it against the PSBT's prevout,
-   * which is also internal order (`vault_script.c:766-767`, "LE as stored").
+   * which is also internal order.
    */
   prepeginTxidInternal: Uint8Array;
   htlcRefundTimelock: number;
@@ -180,8 +180,8 @@ export function encodeIntentGroup(group: IntentVaultGroup): Uint8Array {
  * Encode the key phase into APDU-sized batches: every keeper, then every
  * challenger, each set in strictly ascending byte order.
  *
- * The device enforces both the role ordering and the ascending sort
- * positionally (`approve_vault_intent.c:204-215`), so we sort here rather than
+ * The device's intent handler enforces both the role ordering and the
+ * ascending sort positionally, so we sort here rather than
  * trusting the caller — an unsorted roster is rejected mid-ceremony.
  */
 export function encodeKeyBatches(

@@ -20,7 +20,7 @@ import type {
  * The refresher injects `GET_APP_AND_VERSION` mid-ceremony, and whether that
  * disturbs a ceremony in flight is unconfirmed (#2110) — so it stays off for
  * the whole session. (Between ceremonies the read leaves a loaded intent in
- * place: Speculos e2e stage 4c @ b89dd580.) (DMK does offer a scoped `disableDeviceSessionRefresher`
+ * place: Speculos e2e stage 4c.) (DMK does offer a scoped `disableDeviceSessionRefresher`
  * window; deliberately not used until nullification is understood.)
  */
 const SESSION_REFRESHER_OPTIONS = { isRefresherDisabled: true } as const;

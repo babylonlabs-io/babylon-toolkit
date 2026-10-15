@@ -389,8 +389,7 @@ export function assertTermsMatchVault(
  * INTENT_LOADED, and while this vault's intent is loaded a Payout whose input
  * 0 spends its PegIn is routed to the intent-bound validator, which signs
  * the depositor's input 0 only, so the claimer's input 1 is unreachable in
- * that state; Claim and WronglyChallenged sign in any state (app-babylon-vault
- * `sign_psbt_validate.c` dispatcher and routing @ b0c0ac4d). Provider (P3):
+ * that state; Claim and WronglyChallenged sign in any state. Provider (P3):
  * `LedgerVaultProvider` refuses the claimer Payout while its mirror is
  * intent-loaded, with a typed error saying to derive first. A context
  * derivation is the only release, so the order is derive → approve →

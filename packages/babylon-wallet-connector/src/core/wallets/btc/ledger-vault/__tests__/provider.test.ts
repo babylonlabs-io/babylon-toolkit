@@ -2882,8 +2882,8 @@ describe("LedgerVaultProvider", () => {
   });
 
   it("refuses differing terms while an intent is loaded — the device admits one ceremony per derive", async () => {
-    // Sending a second P1=0x00 from INTENT_LOADED returns SW_BAD_STATE
-    // (approve_vault_intent.c:45); the pre-empt must be actionable instead.
+    // Sending a second P1=0x00 from INTENT_LOADED returns SW_BAD_STATE;
+    // the pre-empt must be actionable instead.
     const provider = await derived();
     await provider.approveDepositTerms(TERMS);
     h.sent.length = 0;

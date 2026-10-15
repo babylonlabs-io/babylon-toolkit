@@ -2,13 +2,9 @@
  * The default BIP-86 wallet policy the vault app signs key-path inputs under.
  *
  * The base app signs internal (key-path) inputs only when a wallet policy is
- * present (`bitcoin_app_base/src/handler/sign_psbt.c:142-148` @ e400d8d8);
- * without one a PoP returns SW_OK with no signature
- * (`app-babylon-vault/src/sign_custom_inputs.c:101-115` @ b0c0ac4d). A default
- * policy needs no registration: empty name
- * (`bitcoin_app_base/src/handler/sign_psbt/init_global_state.c:238-242` @ e400d8d8),
- * template `tr(@0/**)`, one key info `[fpr/86'/coin'/account']xpub`
- * (`tests/test_screen7_pop.py:135-142`), hmac 32×00. The id is
+ * present; without one a PoP returns SW_OK with no signature. A default
+ * policy needs no registration: empty name, template `tr(@0/**)`, one key
+ * info `[fpr/86'/coin'/account']xpub`, hmac 32×00. The id is
  * `sha256(serialize())` and becomes the SIGN_PSBT header's wallet_id.
  *
  * The public shape is structural so the vendored class never reaches the

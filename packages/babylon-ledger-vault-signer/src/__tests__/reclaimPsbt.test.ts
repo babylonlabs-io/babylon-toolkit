@@ -1,8 +1,7 @@
 /**
  * Reclaim PSBT classification and augmentation (#2714).
  *
- * Firmware citations: `fw:` = LedgerHQ/app-babylon-vault-dev @ `b89dd580`.
- * Reclaim is the Claim leaf with ONE output (`fw:sign_psbt_validate.c:3781-3783`),
+ * Reclaim is the Claim leaf with ONE output,
  * so the accept vector is the Claim fixture with its outputs replaced by one
  * P2TR(D) output, as in `tests/test_sign_psbt_validate.py:_build_reclaim_psbt`.
  */
