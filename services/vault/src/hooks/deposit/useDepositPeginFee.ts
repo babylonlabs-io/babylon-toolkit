@@ -13,8 +13,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Address } from "viem";
+import { useAccount } from "wagmi";
 
 import { getPegInFeeFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
+import { getETHChain } from "@/config/network";
 import { usePrice } from "@/hooks/usePrices";
 
 const WEI_PER_ETH = 10n ** 18n;
@@ -31,11 +33,25 @@ export interface DepositPeginFee {
 export function useDepositPeginFee(
   vaultProvider: Address | undefined,
   batchSize: number = 1,
+  amountSats?: bigint,
 ): DepositPeginFee {
   const ethPrice = usePrice("ETH");
+  const { address, chainId } = useAccount();
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["depositPeginFee", vaultProvider?.toLowerCase() ?? null],
+  const {
+    data,
+    isFetching: isLoading,
+    isError,
+  } = useQuery({
+    queryKey: [
+      "depositPeginFee",
+      getETHChain().id,
+      address,
+      chainId,
+      vaultProvider?.toLowerCase() ?? null,
+      batchSize,
+      amountSats?.toString(),
+    ],
     queryFn: () => {
       if (!vaultProvider) {
         throw new Error("vaultProvider is required for pegin fee query");
@@ -44,6 +60,7 @@ export function useDepositPeginFee(
     },
     enabled: !!vaultProvider,
     staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: "always",
     retry: 1,
   });
 
@@ -66,7 +83,7 @@ export function useDepositPeginFee(
         isError: false,
       };
     }
-    if (isError || data == null) {
+    if (isError || typeof data !== "bigint" || data < 0n) {
       return {
         feeWei: null,
         feeEthFormatted: "--",

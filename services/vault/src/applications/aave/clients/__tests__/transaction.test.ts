@@ -43,6 +43,7 @@ const {
 }));
 
 vi.mock("wagmi/actions", () => ({
+  getAccount: () => ({ connector: { uid: "transaction-connector" } }),
   switchChain: (...args: unknown[]) => mockSwitchChain(...args),
   getWalletClient: (...args: unknown[]) => mockGetWalletClient(...args),
 }));
@@ -491,10 +492,12 @@ describe("executeTx network switch", () => {
   const expectSwitchedBeforeSend = () => {
     expect(mockSwitchChain).toHaveBeenCalledWith(sharedWagmiConfig, {
       chainId: 1,
+      connector: { uid: "transaction-connector" },
     });
     expect(mockGetWalletClient).toHaveBeenCalledWith(sharedWagmiConfig, {
       chainId: 1,
       account: ACCOUNT,
+      connector: { uid: "transaction-connector" },
     });
     expect(wrongChainWallet.sendTransaction).not.toHaveBeenCalled();
     expect(switchedWallet.sendTransaction).toHaveBeenCalledTimes(1);

@@ -1,6 +1,6 @@
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import type { Address, WalletClient } from "viem";
-import { getWalletClient, switchChain } from "wagmi/actions";
+import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
 import { getETHChain } from "@/config/network";
 import { ETH_MAINNET_CHAIN_ID } from "@/config/network/constants";
@@ -16,9 +16,11 @@ export async function getWalletClientOnExpectedChain(
 ): Promise<WalletClient> {
   const wagmiConfig = getSharedWagmiConfig();
   const expectedChainId = getETHChain().id;
+  const connector = getAccount(wagmiConfig).connector;
+  if (!connector) throw new Error("Failed to get wallet client");
 
   try {
-    await switchChain(wagmiConfig, { chainId: expectedChainId });
+    await switchChain(wagmiConfig, { chainId: expectedChainId, connector });
   } catch (switchError) {
     logger.error(switchError, { data: { context: "Failed to switch chain" } });
     throw new Error(
@@ -33,6 +35,7 @@ export async function getWalletClientOnExpectedChain(
   const walletClient = await getWalletClient(wagmiConfig, {
     chainId: expectedChainId,
     account,
+    connector,
   });
 
   if (!walletClient) {

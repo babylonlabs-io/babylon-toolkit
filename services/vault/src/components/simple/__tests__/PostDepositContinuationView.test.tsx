@@ -196,91 +196,95 @@ vi.mock("@/models/peginStateMachine", () => {
   };
 });
 
-vi.mock("@/copy", () => ({
-  COPY: {
-    deposit: {
-      vaultActivatedSuccess: {
-        heading: "Vault activated",
-        body: "Your vault is now active and ready for borrowing.",
-        goToDashboard: "Go to Dashboard",
+vi.mock("@/copy", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/copy")>();
+  return {
+    COPY: {
+      deposit: {
+        vaultActivatedSuccess: {
+          heading: "Vault activated",
+          body: "Your vault is now active and ready for borrowing.",
+          goToDashboard: "Go to Dashboard",
+        },
+        vaultReturnedSuccess: {
+          full: {
+            heading: "Your BTC is being returned",
+            body: "Your deposit could not be added.",
+          },
+          partial: {
+            heading: "Part of your deposit is being returned",
+            body: "Not every BTCVault could be added.",
+          },
+          goToDashboard: "Go to Dashboard",
+        },
+        errors: {
+          ...actual.COPY.deposit.errors,
+          defaultTitle: "Transaction failed",
+          genericBody: "Something went wrong during your deposit.",
+          appVersionUnsupported: {
+            title: "App update required",
+            body: "This deposit requires a newer version of the app.",
+          },
+          // Read by the mapper's body-keyed bucket on every call, like the
+          // entry above.
+          broadcastAckWindowUnavailable: {
+            title: "Couldn't check the deposit window",
+            body: "Could not confirm the BTCVault's acknowledgment window.",
+          },
+          signingRejected: { title: "Signing rejected", body: "You rejected." },
+          walletNotConnected: {
+            title: "Wallet not connected",
+            body: "Reconnect.",
+          },
+          walletAccountChanged: {
+            title: "Wallet account changed",
+            body: "Restart.",
+          },
+          utxosUnavailable: { title: "Funds unavailable", body: "In use." },
+          broadcastFailed: { title: "Broadcast failed", body: "Try again." },
+          // depositErrors.ts reads the stage labels while matching.
+          prePeginStageFailed: {
+            prepare: "Failed to prepare Pre-Pegin transaction",
+            sign: "Failed to sign Pre-Pegin transaction",
+            broadcast: "Failed to broadcast Pre-Pegin transaction",
+          },
+          providerNotFound: { title: "Provider not found", body: "Refresh." },
+          versionMismatch: { title: "Parameters changed", body: "Restart." },
+          insufficientEthForGas: {
+            title: "Transaction failed",
+            body: "Not enough ETH.",
+          },
+        },
       },
-      vaultReturnedSuccess: {
-        full: {
-          heading: "Your BTC is being returned",
-          body: "Your deposit could not be added.",
+      // depositErrors.ts (imported transitively here) matches liveness copy.
+      wallet: {
+        liveness: {
+          errorTitle: "Wallet not responding",
+          unresponsive: "Your BTC wallet is not responding.",
+          emptyAddress: "Your BTC wallet did not return an address.",
+          addressMismatch: "Wrong wallet account connected.",
         },
-        partial: {
-          heading: "Part of your deposit is being returned",
-          body: "Not every BTCVault could be added.",
-        },
-        goToDashboard: "Go to Dashboard",
       },
-      errors: {
-        defaultTitle: "Transaction failed",
-        genericBody: "Something went wrong during your deposit.",
-        appVersionUnsupported: {
-          title: "App update required",
-          body: "This deposit requires a newer version of the app.",
-        },
-        // Read by the mapper's body-keyed bucket on every call, like the
-        // entry above.
-        broadcastAckWindowUnavailable: {
-          title: "Couldn't check the deposit window",
-          body: "Could not confirm the BTCVault's acknowledgment window.",
-        },
-        signingRejected: { title: "Signing rejected", body: "You rejected." },
-        walletNotConnected: {
-          title: "Wallet not connected",
-          body: "Reconnect.",
-        },
-        walletAccountChanged: {
-          title: "Wallet account changed",
-          body: "Restart.",
-        },
-        utxosUnavailable: { title: "Funds unavailable", body: "In use." },
-        broadcastFailed: { title: "Broadcast failed", body: "Try again." },
-        // depositErrors.ts reads the stage labels while matching.
-        prePeginStageFailed: {
-          prepare: "Failed to prepare Pre-Pegin transaction",
-          sign: "Failed to sign Pre-Pegin transaction",
-          broadcast: "Failed to broadcast Pre-Pegin transaction",
-        },
-        providerNotFound: { title: "Provider not found", body: "Refresh." },
-        versionMismatch: { title: "Parameters changed", body: "Restart." },
-        insufficientEthForGas: {
-          title: "Transaction failed",
-          body: "Not enough ETH.",
+      common: {
+        somethingWentWrong: { body: "Please close this and try again." },
+        // formatting.ts builds FRIENDLY_MESSAGES from these at module load, and
+        // depositErrors.ts (imported transitively here) pulls formatting.ts in.
+        classifiedErrors: {
+          userRejection: "You rejected the request.",
+          insufficientFunds: "Not enough funds.",
+          walletDisconnected: "Wallet disconnected.",
+          unauthorized: "Not authorized.",
+          chainSwitchFailed: "Could not switch network.",
+          receiptTimeout: "Confirmation timed out.",
+          network: "Network error.",
+          rpcError: "Please wait a moment and try again.",
+          alreadySubmitted: "Already submitted.",
+          staleDeploy: "Reload the page.",
         },
       },
     },
-    // depositErrors.ts (imported transitively here) matches liveness copy.
-    wallet: {
-      liveness: {
-        errorTitle: "Wallet not responding",
-        unresponsive: "Your BTC wallet is not responding.",
-        emptyAddress: "Your BTC wallet did not return an address.",
-        addressMismatch: "Wrong wallet account connected.",
-      },
-    },
-    common: {
-      somethingWentWrong: { body: "Please close this and try again." },
-      // formatting.ts builds FRIENDLY_MESSAGES from these at module load, and
-      // depositErrors.ts (imported transitively here) pulls formatting.ts in.
-      classifiedErrors: {
-        userRejection: "You rejected the request.",
-        insufficientFunds: "Not enough funds.",
-        walletDisconnected: "Wallet disconnected.",
-        unauthorized: "Not authorized.",
-        chainSwitchFailed: "Could not switch network.",
-        receiptTimeout: "Confirmation timed out.",
-        network: "Network error.",
-        rpcError: "Please wait a moment and try again.",
-        alreadySubmitted: "Already submitted.",
-        staleDeploy: "Reload the page.",
-      },
-    },
-  },
-}));
+  };
+});
 
 vi.mock("../DepositProgressView", () => ({
   DepositProgressView: ({

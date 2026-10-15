@@ -544,6 +544,15 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   if (msg.includes("commission changed since quote")) {
     return ERRORS.commissionChanged;
   }
+  if (msg.includes(ERRORS.depositChanged.body.toLowerCase())) {
+    return ERRORS.depositChanged;
+  }
+  if (msg.includes(ERRORS.ethBalanceUnavailable.body.toLowerCase())) {
+    return ERRORS.ethBalanceUnavailable;
+  }
+  if (msg.includes(ERRORS.insufficientEthForGas.body.toLowerCase())) {
+    return ERRORS.insufficientEthForGas;
+  }
   if (msg.includes(COMMISSION_UNAVAILABLE_ERROR.toLowerCase())) {
     return ERRORS.commissionUnavailable;
   }

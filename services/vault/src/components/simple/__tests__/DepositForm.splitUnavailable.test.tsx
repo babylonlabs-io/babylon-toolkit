@@ -51,8 +51,16 @@ vi.mock("../VaultProviderSelectorV3", () => ({
   VaultProviderSelectorV3: () => null,
 }));
 vi.mock("@/components/shared", () => ({
-  DepositButton: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
+  DepositButton: ({
+    children,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    disabled?: boolean;
+  }) => (
+    <button type="button" disabled={disabled}>
+      {children}
+    </button>
   ),
 }));
 
@@ -100,7 +108,10 @@ const walletState: DepositWalletState = {
   isWalletConnected: true,
 };
 
-function renderForm(gatingOverrides: Partial<DepositGatingState>) {
+function renderForm(
+  gatingOverrides: Partial<DepositGatingState>,
+  feeOverrides: Partial<DepositFeeState> = {},
+) {
   const gatingState: DepositGatingState = {
     isDepositDisabled: false,
     isGeoBlocked: false,
@@ -111,7 +122,7 @@ function renderForm(gatingOverrides: Partial<DepositGatingState>) {
   render(
     <DepositForm
       amountState={amountState}
-      feeState={feeState}
+      feeState={{ ...feeState, ...feeOverrides }}
       providerState={providerState}
       walletState={walletState}
       gatingState={gatingState}
@@ -194,5 +205,30 @@ describe("DepositForm split-unavailable hint", () => {
       screen.getByText(COPY.deposit.splitSizing.unavailable),
     ).toBeInTheDocument();
     expect(screen.queryByText(PROTOCOL_HINT)).not.toBeInTheDocument();
+  });
+});
+
+describe("DepositForm ETH balance check", () => {
+  it.each([
+    COPY.deposit.form.ethBalanceChecking,
+    COPY.deposit.errors.ethBalanceUnavailable.body,
+    COPY.deposit.errors.insufficientEthForGas.body,
+  ])("blocks Deposit and shows %s", (message) => {
+    renderForm({}, { ethBalanceBlocked: true, ethBalanceMessage: message });
+    expect(screen.getByRole("button", { name: "Deposit" })).toBeDisabled();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+  it("keeps Deposit enabled and states that gas is checked later", () => {
+    renderForm(
+      {},
+      {
+        ethBalanceBlocked: false,
+        ethBalanceMessage: COPY.deposit.form.registrationGasCheckedLater,
+      },
+    );
+    expect(screen.getByRole("button", { name: "Deposit" })).toBeEnabled();
+    expect(
+      screen.getByText(COPY.deposit.form.registrationGasCheckedLater),
+    ).toBeInTheDocument();
   });
 });

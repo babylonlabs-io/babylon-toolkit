@@ -97,6 +97,7 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
 
 const mockWalletClient = vi.hoisted(() => ({ account: "wallet" }));
 vi.mock("wagmi/actions", () => ({
+  getAccount: () => ({ connector: { uid: "claim-expired-connector" } }),
   switchChain: vi.fn().mockResolvedValue(undefined),
   getWalletClient: vi.fn().mockResolvedValue(mockWalletClient),
 }));

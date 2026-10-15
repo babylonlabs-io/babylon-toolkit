@@ -31,12 +31,19 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import {
+  getSharedWagmiConfig,
+  useChainConnector,
+} from "@babylonlabs-io/wallet-connector";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
+import { useAccount } from "wagmi";
+import { getAccount } from "wagmi/actions";
 
+import { getPegInFeeFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
+import { ethClient } from "@/clients/eth-contract/client";
 import { resolvePinnedReadBlock } from "@/clients/eth-contract/pinnedReadBlock";
 import {
   getOperationKeyReader,
@@ -314,6 +321,8 @@ export function useDepositFlow(
   } = params;
 
   const btcConnector = useChainConnector("BTC");
+  const ethConnector = useChainConnector("ETH");
+  const { address: walletAccount } = useAccount();
 
   // State
   const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
@@ -444,6 +453,25 @@ export function useDepositFlow(
   // Hooks
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
+  const depositIdentity = [
+    walletAccount?.toLowerCase(),
+    btcAddress,
+    depositorEthAddress?.toLowerCase(),
+    selectedApplication,
+    selectedProviders.join(","),
+    vaultAmounts.join(","),
+    depositAmountSats.toString(),
+  ].join(":");
+  const depositIdentityRef = useRef({
+    key: depositIdentity,
+    btcWalletProvider,
+    ethProvider: ethConnector?.connectedWallet?.provider,
+  });
+  depositIdentityRef.current = {
+    key: depositIdentity,
+    btcWalletProvider,
+    ethProvider: ethConnector?.connectedWallet?.provider,
+  };
   const queryClient = useQueryClient();
   const gate = useProtocolGateState();
   const { findProvider } = useVaultProviders(selectedApplication);
@@ -497,6 +525,37 @@ export function useDepositFlow(
       let postGateUtxoFetchFailed = false;
 
       try {
+        const startingIdentity = depositIdentityRef.current;
+        const expectedChainId = getETHChain().id;
+        const startingConnectorUid = getAccount(getSharedWagmiConfig())
+          .connector?.uid;
+        let walletChainAligned = false;
+        const assertDepositIdentity = () => {
+          signal.throwIfAborted();
+          const liveAccount = getAccount(getSharedWagmiConfig());
+          if (
+            !startingConnectorUid ||
+            liveAccount.connector?.uid !== startingConnectorUid ||
+            depositIdentityRef.current.key !== startingIdentity.key ||
+            depositIdentityRef.current.btcWalletProvider !==
+              startingIdentity.btcWalletProvider ||
+            depositIdentityRef.current.ethProvider !==
+              startingIdentity.ethProvider ||
+            liveAccount.address?.toLowerCase() !==
+              depositorEthAddress?.toLowerCase() ||
+            (walletChainAligned && liveAccount.chainId !== expectedChainId)
+          ) {
+            if (registeredVaultIds) {
+              throw Object.assign(
+                new Error(COPY.deposit.errors.walletAccountChanged.body),
+                {
+                  code: "WALLET_ACCOUNT_CHANGED",
+                },
+              );
+            }
+            throw new Error(COPY.deposit.errors.depositChanged.body);
+          }
+        };
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
         // gated and the on-chain register below is contract-enforced
         // (`whenNotFrozen`), but guard the execution path too: abort cleanly
@@ -594,14 +653,31 @@ export function useDepositFlow(
         // ========================================================================
 
         // Get ETH wallet client once (chain switch + wallet client are reusable)
-        const walletClient =
+        if (
+          walletAccount?.toLowerCase() !== confirmedEthAddress.toLowerCase()
+        ) {
+          throw new Error(COPY.deposit.errors.depositChanged.body);
+        }
+        assertDepositIdentity();
+        const connectedWalletClient =
           await getWalletClientOnExpectedChain(confirmedEthAddress);
+        if (connectedWalletClient.chain?.id !== expectedChainId) {
+          throw new Error(COPY.deposit.errors.depositChanged.body);
+        }
+        walletChainAligned = true;
+        assertDepositIdentity();
+        const walletClient: typeof connectedWalletClient = {
+          ...connectedWalletClient,
+          sendTransaction: (request) => {
+            assertDepositIdentity();
+            return connectedWalletClient.sendTransaction(request);
+          },
+        };
 
         // ========================================================================
         // Step 2: Create Batch Pre-PegIn (all vaults in one BTC tx)
         // ========================================================================
 
-        advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
         // A single peg-in PSBT signs via signPsbt (the SDK's
         // signPsbtsWithFallback routes lone PSBTs there), ticking the counter
         // once. Multi-vault: one native batch call when the wallet supports
@@ -612,9 +688,10 @@ export function useDepositFlow(
           opts,
         ) => {
           advanceStep(DepositFlowStep.SIGN_PEGIN_BTC);
-          const signed = await runCancellableSign(confirmedBtcWallet, () =>
-            confirmedBtcWallet.signPsbt(psbtHex, opts),
-          );
+          const signed = await runCancellableSign(confirmedBtcWallet, () => {
+            assertDepositIdentity();
+            return confirmedBtcWallet.signPsbt(psbtHex, opts);
+          });
           setPeginSigningProgress((prev) =>
             prev
               ? { ...prev, completed: Math.min(prev.completed + 1, prev.total) }
@@ -635,9 +712,10 @@ export function useDepositFlow(
             (tick) => setPeginSigningProgress({ ...tick }),
           );
           try {
-            const signed = await runCancellableSign(confirmedBtcWallet, () =>
-              confirmedBtcWallet.signPsbts!(psbtHexes, opts),
-            );
+            const signed = await runCancellableSign(confirmedBtcWallet, () => {
+              assertDepositIdentity();
+              return confirmedBtcWallet.signPsbts!(psbtHexes, opts);
+            });
             setPeginSigningProgress({
               completed: psbtHexes.length,
               total: psbtHexes.length,
@@ -651,9 +729,19 @@ export function useDepositFlow(
         const phaseTrackingBtcWallet: typeof confirmedBtcWallet &
           Partial<DepositTermsApprover> = {
           ...confirmedBtcWallet,
-          deriveContextHash: (appName, context) => {
+          deriveContextHash: async (appName, context) => {
+            assertDepositIdentity();
             advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
-            return confirmedBtcWallet.deriveContextHash(appName, context);
+            const root = await confirmedBtcWallet.deriveContextHash(
+              appName,
+              context,
+            );
+            assertDepositIdentity();
+            return root;
+          },
+          signMessage: (message, type) => {
+            assertDepositIdentity();
+            return confirmedBtcWallet.signMessage(message, type);
           },
           signPsbt: signOnePeginPsbt,
           ...(typeof confirmedBtcWallet.signPsbts === "function"
@@ -796,6 +884,34 @@ export function useDepositFlow(
           ? await requireChangeAddress(phaseTrackingBtcWallet)
           : confirmedBtcAddress;
 
+        assertDepositIdentity();
+        let protocolFee: bigint;
+        let ethBalance: bigint;
+        try {
+          [protocolFee, ethBalance] = await Promise.all([
+            getPegInFeeFromChain(primaryProvider),
+            ethClient
+              .getPublicClient()
+              .getBalance({ address: confirmedEthAddress }),
+          ]);
+        } catch (cause) {
+          throw new Error(COPY.deposit.errors.ethBalanceUnavailable.body, {
+            cause,
+          });
+        }
+        assertDepositIdentity();
+        if (
+          typeof protocolFee !== "bigint" ||
+          typeof ethBalance !== "bigint" ||
+          protocolFee < 0n ||
+          ethBalance < 0n
+        ) {
+          throw new Error(COPY.deposit.errors.ethBalanceUnavailable.body);
+        }
+        if (ethBalance <= protocolFee * BigInt(vaultAmounts.length)) {
+          throw new Error(COPY.deposit.errors.insufficientEthForGas.body);
+        }
+        advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
         const batchResult = await preparePeginTransaction(
           phaseTrackingBtcWallet,
           walletClient,
@@ -839,7 +955,7 @@ export function useDepositFlow(
         // An account switch while the derive popup was open resets the wallet
         // connection and aborts this run. Stop before the PoP popup and the
         // on-chain registration commit the secrets that derive produced.
-        signal.throwIfAborted();
+        assertDepositIdentity();
 
         // ========================================================================
         // Step 3: Sign PoP + batch register all vaults on Ethereum
@@ -850,8 +966,12 @@ export function useDepositFlow(
         advanceStep(DepositFlowStep.SIGN_POP);
         // Wrapped as a whole: the BIP-322 signMessage inside is the
         // cancellable device call, and its prep reads are cached/fast.
-        const popSignature = await runCancellableSign(confirmedBtcWallet, () =>
-          signProofOfPossession(confirmedBtcWallet, walletClient),
+        const popSignature = await runCancellableSign(
+          confirmedBtcWallet,
+          () => {
+            assertDepositIdentity();
+            return signProofOfPossession(phaseTrackingBtcWallet, walletClient);
+          },
         );
 
         // Guard: the BTC pubkey used for WOTS derivation (in preparePegin)
@@ -904,6 +1024,7 @@ export function useDepositFlow(
         }
 
         // 3e. Single batch ETH transaction for all vaults.
+        assertDepositIdentity();
         advanceStep(DepositFlowStep.SUBMIT_PEGIN);
         const batchRegistration = await registerPeginBatchAndWait({
           btcWalletProvider: confirmedBtcWallet,
@@ -1177,7 +1298,10 @@ export function useDepositFlow(
             signPsbt: async (psbtHex: string) => {
               const signedPsbtHex = await runCancellableSign(
                 confirmedBtcWallet,
-                () => confirmedBtcWallet.signPsbt(psbtHex),
+                () => {
+                  assertDepositIdentity();
+                  return confirmedBtcWallet.signPsbt(psbtHex);
+                },
               );
               // A late cancel that still signed successfully proceeds
               // elsewhere — but here the next step is the irreversible
@@ -1192,8 +1316,15 @@ export function useDepositFlow(
               }
               return signedPsbtHex;
             },
-            deriveContextHash: (appName: string, context: string) =>
-              confirmedBtcWallet.deriveContextHash(appName, context),
+            deriveContextHash: async (appName: string, context: string) => {
+              assertDepositIdentity();
+              const root = await confirmedBtcWallet.deriveContextHash(
+                appName,
+                context,
+              );
+              assertDepositIdentity();
+              return root;
+            },
             // Object spread drops prototype methods — see forwardDepositApproval.
             ...forwardDepositApproval(confirmedBtcWallet),
           },
@@ -1314,10 +1445,13 @@ export function useDepositFlow(
             }
             setIsWaiting(false);
             try {
-              return await confirmedBtcWallet.deriveContextHash(
+              assertDepositIdentity();
+              const root = await confirmedBtcWallet.deriveContextHash(
                 appName,
                 context,
               );
+              assertDepositIdentity();
+              return root;
             } finally {
               setIsWaiting(true);
               advanceStep(returnStep);
@@ -1336,8 +1470,12 @@ export function useDepositFlow(
             }
             setIsWaiting(false);
             try {
-              const signed = await runCancellableSign(confirmedBtcWallet, () =>
-                confirmedBtcWallet.signPsbt(psbtHex, opts),
+              const signed = await runCancellableSign(
+                confirmedBtcWallet,
+                () => {
+                  assertDepositIdentity();
+                  return confirmedBtcWallet.signPsbt(psbtHex, opts);
+                },
               );
               if (isGraph) {
                 setPayoutSigningProgress({
@@ -1374,7 +1512,10 @@ export function useDepositFlow(
                   try {
                     const signed = await runCancellableSign(
                       confirmedBtcWallet,
-                      () => confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+                      () => {
+                        assertDepositIdentity();
+                        return confirmedBtcWallet.signPsbts!(psbtHexes, opts);
+                      },
                     );
                     if (phase === "graph") {
                       setPayoutSigningProgress({
@@ -1814,6 +1955,7 @@ export function useDepositFlow(
       mempoolFeeRate,
       btcWalletProvider,
       btcConnector?.connectedWallet?.id,
+      walletAccount,
       depositorEthAddress,
       selectedApplication,
       selectedProviders,

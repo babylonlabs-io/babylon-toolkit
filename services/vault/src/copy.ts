@@ -1052,6 +1052,10 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
+      ethBalanceChecking:
+        "Checking your ETH balance and registration payment...",
+      registrationGasCheckedLater:
+        "Your ETH balance covers the registration payment. Network gas is checked before Ethereum registration. Activation gas is separate.",
       transactionReserveLabel: "Depositor claim output",
       transactionReserveTooltip: `${RESERVE_PURPOSE} If it goes unused, you can reclaim it once your BTCVault has settled.`,
       // Labeled "Available", not "Balance": the field shows the depositable
@@ -1303,7 +1307,15 @@ export const COPY = {
       },
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
-        body: "Your wallet doesn't have enough ETH to cover the network fee. Add more ETH and retry the transaction.",
+        body: "Your wallet does not have enough ETH for the transaction payment and network gas. Add ETH on this network and try again.",
+      },
+      depositChanged: {
+        title: "Deposit changed",
+        body: "Your wallet, provider or amount changed. Close this screen and start the deposit again.",
+      },
+      ethBalanceUnavailable: {
+        title: "ETH balance check unavailable",
+        body: "We could not check your ETH balance or registration payment. Try again before you sign.",
       },
       // Fail-closed preflight: the protocol (or a resumed deposit's stamped
       // version) requires a transaction format this app build cannot
