@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import { useBTCWallet } from "@/context/wallet";
+import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 
 import type { AddressTypeContextType } from "./types";
 
@@ -15,13 +16,15 @@ const AddressTypeContext = createContext<AddressTypeContextType>({
 });
 
 /**
- * Checks if a BTC address is a Taproot (P2TR) address.
- * Taproot addresses start with bc1p (mainnet) or tb1p (testnet/signet).
- * Bech32/Bech32m addresses are case-insensitive per spec, so we normalize to lowercase.
+ * Checks that a BTC address decodes, for the configured network, to a P2TR
+ * scriptPubKey. Decoding verifies the checksum, length and network prefix.
  */
 function isTaprootAddress(address: string): boolean {
-  const normalized = address.trim().toLowerCase();
-  return normalized.startsWith("bc1p") || normalized.startsWith("tb1p");
+  try {
+    return btcAddressToScriptPubKeyHex(address).startsWith("0x5120");
+  } catch {
+    return false;
+  }
 }
 
 export function AddressTypeProvider({ children }: PropsWithChildren) {

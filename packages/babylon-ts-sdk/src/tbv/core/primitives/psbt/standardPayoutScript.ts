@@ -30,6 +30,8 @@
  * @module primitives/psbt/standardPayoutScript
  */
 
+import { schnorr } from "@noble/curves/secp256k1.js";
+
 import { stripHexPrefix } from "../utils/bitcoin";
 
 /** `OP_0 <20>` — P2WPKH. */
@@ -49,8 +51,17 @@ function isP2wpkh(s: string): boolean {
 function isP2wsh(s: string): boolean {
   return s.length === P2WSH_LEN * 2 && s.startsWith("0020");
 }
+/** P2TR whose 32-byte output key is an x-coordinate on secp256k1 (BIP-340 `lift_x`). */
 function isP2tr(s: string): boolean {
-  return s.length === P2TR_LEN * 2 && s.startsWith("5120");
+  if (s.length !== P2TR_LEN * 2 || !s.startsWith("5120")) {
+    return false;
+  }
+  try {
+    schnorr.utils.lift_x(BigInt(`0x${s.slice(4)}`));
+  } catch {
+    return false;
+  }
+  return true;
 }
 function isP2pkh(s: string): boolean {
   return (
