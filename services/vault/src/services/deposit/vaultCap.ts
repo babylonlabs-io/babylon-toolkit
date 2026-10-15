@@ -1,5 +1,5 @@
 /**
- * Whether a deposit fits, and whether it may be split, given two independent
+ * Whether a deposit fits, and whether it may be split, given three independent
  * on-chain caps. Drives the deposit-flow behaviour:
  *
  * - **At cap** — a single vault no longer fits: block the deposit.
@@ -8,8 +8,12 @@
  * - **HTLC output cap** — the protocol allows fewer HTLC outputs in one
  *   Pre-PegIn than a split needs: force a single vault, whatever the
  *   per-position cap says.
+ * - **Live-vault cap** — CapPolicy's protocol-wide count of live BTCVaults.
+ *   Each BTCVault reserves one slot at registration, and a batch reverts as a
+ *   whole when it cannot reserve all of them. No free slot: block the
+ *   deposit. One free slot: force a single vault.
  *
- * The two caps are unrelated and are enforced by different contracts, but they
+ * The caps are unrelated and are enforced by different contracts, but they
  * answer the same question for the form, so they resolve here together. The
  * HTLC cap matters beyond the form: `assertBuildWithinPinnedLimits` re-checks
  * it against the pinned read and aborts the build, and its message tells the
@@ -36,22 +40,32 @@ export interface VaultCapStateParams {
    * Pre-PegIn. Validated to `[1, 255]` on read, so it is never zero here.
    */
   maxHtlcOutputCount: number;
+  /**
+   * Live-vault slots a registration can reserve, or `null` when no limit
+   * applies or the read has no result (see `useLiveVaultSlots`).
+   */
+  liveVaultSlots: bigint | null;
 }
 
 /**
  * Why a split is not on offer, or `null` when it is.
  *
- * A discriminated reason rather than a boolean because the two causes need
+ * A discriminated reason rather than a boolean because the causes need
  * different explanations: the per-position one can quote "N of M BTCVaults
- * used", and the protocol one cannot — the position may be empty and the cap
+ * used", and the protocol ones cannot — the position may be empty and the cap
  * may be unknown. Collapsing them showed a depositor at 0 of 10 vaults a hint
  * blaming a cap they were nowhere near.
  */
-export type SplitUnavailableReason = "per-position" | "htlc-output-cap";
+export type SplitUnavailableReason =
+  | "per-position"
+  | "htlc-output-cap"
+  | "live-vault-cap";
 
 export interface VaultCapState {
   /** Even a single new vault would exceed the cap — block the deposit. */
   isAtCap: boolean;
+  /** No live-vault slot is free — block the deposit. */
+  isLiveVaultCapReached: boolean;
   /** Why a 2-vault split is unavailable, or `null` when it is available. */
   splitUnavailableReason: SplitUnavailableReason | null;
 }
@@ -61,21 +75,30 @@ export function resolveVaultCapState({
   maxVaultsPerPosition,
   enabled,
   maxHtlcOutputCount,
+  liveVaultSlots,
 }: VaultCapStateParams): VaultCapState {
-  // Applies whatever the per-position cap says, and whether or not that cap is
-  // enforced — it is a different contract's limit, not switched by `enabled`.
-  const htlcReason: SplitUnavailableReason | null =
+  // The two protocol limits apply whatever the per-position cap says, and
+  // whether or not that cap is enforced — they are different contracts'
+  // limits, not switched by `enabled`.
+  const isLiveVaultCapReached = liveVaultSlots !== null && liveVaultSlots < 1n;
+  const protocolReason: SplitUnavailableReason | null =
     maxHtlcOutputCount < HTLC_OUTPUTS_PER_SPLIT_DEPOSIT
       ? "htlc-output-cap"
-      : null;
+      : liveVaultSlots !== null && liveVaultSlots < 2n
+        ? "live-vault-cap"
+        : null;
 
   if (!enabled || maxVaultsPerPosition == null) {
-    return { isAtCap: false, splitUnavailableReason: htlcReason };
+    return {
+      isAtCap: false,
+      isLiveVaultCapReached,
+      splitUnavailableReason: isLiveVaultCapReached ? null : protocolReason,
+    };
   }
   const isAtCap = existingVaultCount + 1 > maxVaultsPerPosition;
-  if (isAtCap) {
+  if (isAtCap || isLiveVaultCapReached) {
     // The deposit is blocked outright, so there is no split to explain.
-    return { isAtCap, splitUnavailableReason: null };
+    return { isAtCap, isLiveVaultCapReached, splitUnavailableReason: null };
   }
   // Per-position is reported first: it is the one that can quote usage, and the
   // depositor can act on it by withdrawing a vault.
@@ -83,7 +106,8 @@ export function resolveVaultCapState({
     existingVaultCount + 2 > maxVaultsPerPosition ? "per-position" : null;
   return {
     isAtCap,
-    splitUnavailableReason: perPositionReason ?? htlcReason,
+    isLiveVaultCapReached,
+    splitUnavailableReason: perPositionReason ?? protocolReason,
   };
 }
 
@@ -105,7 +129,7 @@ export interface DepositSplitUnavailableParams {
    * the liquidation banner, and a fresh position unless a flag forces it.
    */
   isSplitOffered: boolean;
-  /** The deposit is blocked outright by the per-position cap. */
+  /** The deposit is blocked outright by a BTCVault cap. */
   isVaultCapReached: boolean;
   /** The split parameters could not be read, so no split can be sized. */
   isSplitParamsUnavailable: boolean;

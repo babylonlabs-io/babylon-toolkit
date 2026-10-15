@@ -20,6 +20,7 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useBtcAction } from "@/hooks/useBtcAction";
+import { useLiveVaultSlots } from "@/hooks/useLiveVaultSlots";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
@@ -151,13 +152,20 @@ function SimpleDepositContent({
     currentCount: collateralizableVaultCount,
     capUnavailable: vaultCountCapUnavailable,
   } = useVaultCountCap(connectedEthAddress);
-  const { isAtCap: isVaultCapReached, splitUnavailableReason } =
-    resolveVaultCapState({
-      existingVaultCount: collateralizableVaultCount,
-      maxVaultsPerPosition: maxVaults,
-      enabled: true,
-      maxHtlcOutputCount: config.maxHtlcOutputCount,
-    });
+  // Protocol-wide live-vault cap (CapPolicy): block the deposit, or force a
+  // single vault, when the registration could not reserve a slot per vault.
+  const liveVaultSlots = useLiveVaultSlots();
+  const {
+    isAtCap: isVaultCapReached,
+    isLiveVaultCapReached,
+    splitUnavailableReason,
+  } = resolveVaultCapState({
+    existingVaultCount: collateralizableVaultCount,
+    maxVaultsPerPosition: maxVaults,
+    enabled: true,
+    maxHtlcOutputCount: config.maxHtlcOutputCount,
+    liveVaultSlots,
+  });
 
   const isSupplementalDeposit = !!initialAmountBtc;
   const suggestedAmountSats = initialAmountBtc
@@ -233,7 +241,7 @@ function SimpleDepositContent({
   const depositSplitUnavailableReason = resolveDepositSplitUnavailableReason({
     capReason: splitUnavailableReason,
     isSplitOffered,
-    isVaultCapReached,
+    isVaultCapReached: isVaultCapReached || isLiveVaultCapReached,
     isSplitParamsUnavailable,
     isSplitSizingRefused,
   });
@@ -384,8 +392,10 @@ function SimpleDepositContent({
 
     // Per-position BTC Vault cap: never start a deposit that would push the
     // position past the on-chain cap, or when the cap couldn't be read (fail
-    // closed) — defense-in-depth behind the disabled CTA.
-    if (isVaultCapReached || vaultCountCapUnavailable) return;
+    // closed) — defense-in-depth behind the disabled CTA. The same for a
+    // deposit the live-vault cap would revert.
+    if (isVaultCapReached || vaultCountCapUnavailable || isLiveVaultCapReached)
+      return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed OR the proactive lock poll has flagged a silently-locked
@@ -539,7 +549,7 @@ function SimpleDepositContent({
                   // A click-time liveness failure OR the proactive lock poll
                   // promotes the CTA to the reconnect/unlock action. A lock
                   // relabels the CTA to "Unlock Wallet to Deposit" (see
-                  // DepositForm) instead of showing a red inline string; a
+                  // getDepositCtaState) instead of showing a red inline string; a
                   // liveness failure keeps its detail message.
                   hasWalletConnectionError:
                     Boolean(walletConnectionError) ||
@@ -562,6 +572,7 @@ function SimpleDepositContent({
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,
+                  isLiveVaultCapReached,
                   splitUnavailableReason: depositSplitUnavailableReason,
                   // Usage figures only make sense for the per-position cap; the
                   // protocol cap can bite with an empty position and an unknown

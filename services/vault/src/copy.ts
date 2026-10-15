@@ -424,6 +424,14 @@ export const COPY = {
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
+    // The protocol-wide cap on live BTCVaults, a third limit separate from
+    // both above. A slot frees up only when another BTCVault is redeemed or
+    // expires, so the depositor can only wait.
+    liveVaultCapReached: {
+      cta: "Protocol BTCVault limit reached, try again later",
+      splitUnavailable:
+        "The protocol is near its BTCVault limit. BTCVault split unavailable.",
+    },
     // Split sizing and the deposit flow's pre-sign vault-amount checks: the
     // form hint when the SDK's `findSplitSizingViolation` refuses a split,
     // and the errors when submitted vault amounts are out of order or do not
