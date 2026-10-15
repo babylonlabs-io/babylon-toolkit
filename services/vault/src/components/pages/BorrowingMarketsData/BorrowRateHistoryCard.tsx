@@ -33,7 +33,8 @@ const Y_TICK_COUNT = 3;
 
 const ACTIVE_RANGE_CLASS =
   "rounded-lg bg-background-contrast px-2 py-0.5 text-accent-primary max-md:px-3 max-md:py-2";
-const INACTIVE_RANGE_CLASS = "px-2 py-0.5 text-accent-secondary max-md:px-3 max-md:py-2";
+const INACTIVE_RANGE_CLASS =
+  "px-2 py-0.5 text-accent-secondary max-md:px-3 max-md:py-2";
 
 const DEFAULT_RANGE: HistoryRange = "1w";
 const RANGE_OPTIONS: HistoryRange[] = ["1d", "1w", "1m", "6m", "1y", "all"];

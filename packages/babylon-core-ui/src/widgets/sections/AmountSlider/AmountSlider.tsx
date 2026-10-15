@@ -232,10 +232,10 @@ export function AmountSlider({
                 >
                   Max
                 </span>
-                <span className="min-w-0 break-all">{leftField.value}</span>
+                <span className="min-w-0 break-words">{leftField.value}</span>
               </button>
             ) : (
-              <span className="min-w-0 break-all text-accent-secondary">
+              <span className="min-w-0 break-words text-accent-secondary">
                 {leftField.label && `${leftField.label}: `}
                 {leftField.value}
               </span>
@@ -246,8 +246,8 @@ export function AmountSlider({
 
         {/* Right: USD value (or balance + Max button when maxPosition="right") */}
         {rightField && (
-          <div className="flex min-w-0 items-center gap-2 text-accent-secondary">
-            <span className="min-w-0 break-all">
+          <div className="ml-auto flex min-w-0 items-center gap-2 text-accent-secondary">
+            <span className="min-w-0 break-words">
               {rightField.label && `${rightField.label}: `}
               {rightField.value}
             </span>
