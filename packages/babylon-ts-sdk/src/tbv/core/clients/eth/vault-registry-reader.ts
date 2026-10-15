@@ -65,6 +65,9 @@ type RawVaultProtocolInfo = {
   vaultCoreVersion: number;
 };
 
+/** Raw `getBtcVaultProtocolInfo` tuple as decoded by the key-epochs ABI. */
+type RawVaultKeyEpochsInfo = RawVaultProtocolInfo & KeyEpochs;
+
 function mapVaultBasicInfo(result: RawVaultBasicInfo): VaultBasicInfo {
   return {
     depositor: result.depositor,
@@ -224,7 +227,19 @@ function assertEpochInRange(
   return value;
 }
 
-function mapKeyEpochs(result: KeyEpochs, vaultId: Hex): KeyEpochs {
+function mapKeyEpochs(result: RawVaultKeyEpochsInfo, vaultId: Hex): KeyEpochs {
+  // An upgraded registry decodes an unknown or not-yet-indexed vault to a zero
+  // struct whose epochs read as {0,0,0} (genesis keys), so check the record
+  // exists first. The vault app matches this message to render "still
+  // confirming".
+  if (
+    !result.depositorSignedPeginTx ||
+    result.depositorSignedPeginTx === "0x"
+  ) {
+    throw new Error(
+      `Vault ${vaultId} not found on-chain or has no pegin transaction`,
+    );
+  }
   return {
     vpKeyEpoch: assertEpochInRange(result.vpKeyEpoch, "vpKeyEpoch", vaultId),
     appKeeperKeyEpoch: assertEpochInRange(
@@ -383,7 +398,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       abi: BTCVaultRegistryKeyEpochsABI,
       functionName: "getBtcVaultProtocolInfo",
       args: [vaultId],
-    })) as unknown as KeyEpochs;
+    })) as RawVaultKeyEpochsInfo;
 
     return mapKeyEpochs(result, vaultId);
   }
@@ -402,7 +417,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     });
 
     return results.map((info, i) =>
-      mapKeyEpochs(info as unknown as KeyEpochs, vaultIds[i]),
+      mapKeyEpochs(info as RawVaultKeyEpochsInfo, vaultIds[i]),
     );
   }
 
