@@ -1,11 +1,13 @@
 /**
- * Shared BIP-86 derivation-path validation and rendering.
+ * Shared derivation-path validation and rendering.
  *
- * Both key-path builders send a path to the device: `policyPsbt` writes it into
- * TAP_BIP32_DERIVATION, `popPsbt` into the PoP input's. A path the device
- * cannot match against the policy key expression `@0/<0;1>/*` dies mid-ceremony,
- * after the user has already reached an approval screen — so both validate
- * here, identically, before any device I/O.
+ * Encoders that take caller-supplied path levels validate them here, before any
+ * device I/O. `assertU32Levels` rejects a level that would otherwise wrap when
+ * encoded; `deriveContextHash` and `getExtendedPublicKey` use it directly.
+ * `assertBip86Path` adds the BIP-86 shape for the intent encoder and the PSBT
+ * builders: a path the device cannot match against the policy key expression
+ * `@0/<0;1>/*` dies mid-ceremony, after the user has already reached an
+ * approval screen.
  *
  * @module ledger-vault-signer/bip86Path
  */
@@ -20,6 +22,15 @@ export const PATH_ACCOUNT_LEVELS = 3;
 export const PATH_BRANCH_INDEX = 3;
 export const PATH_ADDRESS_INDEX = 4;
 
+/** Reject any level that is not an integer in 0..0xffffffff, before it can wrap when encoded. */
+export function assertU32Levels(name: string, levels: readonly number[]): void {
+  for (const level of levels) {
+    if (!Number.isInteger(level) || level < 0 || level > U32_MAX) {
+      throw new Error(`${name} levels must be integers in 0..0xffffffff`);
+    }
+  }
+}
+
 /**
  * A 5-level BIP-86 path with hardened purpose'/coin'/account' and an
  * unhardened address index. `>>> 0` and `& HARDENED` coerce silently, so the
@@ -29,11 +40,7 @@ export function assertBip86Path(name: string, levels: readonly number[]): void {
   if (levels.length !== BIP86_PATH_LEVELS) {
     throw new Error(`${name} must have exactly ${BIP86_PATH_LEVELS} levels, got ${levels.length}`);
   }
-  for (const level of levels) {
-    if (!Number.isInteger(level) || level < 0 || level > U32_MAX) {
-      throw new Error(`${name} levels must be integers in 0..0xffffffff`);
-    }
-  }
+  assertU32Levels(name, levels);
   // Any other hardening shape is unmatchable against the policy expression
   // `@0/<0;1>/*`, so the device could never mark the input/output internal.
   const accountHardened = levels.slice(0, PATH_ACCOUNT_LEVELS).every((level) => (level & HARDENED) !== 0);
