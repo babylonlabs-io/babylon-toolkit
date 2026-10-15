@@ -105,6 +105,7 @@ const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
 const DISMISS_ICON_SIZE = 20;
 
 const PHONE_FULL_CLASS = "max-md:w-full";
+const PHONE_FULL_HINT_CLASS = `${PHONE_FULL_CLASS} max-md:[&>span]:w-full`;
 const PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS = `${PRIMARY_ROW_BUTTON_CLASS} ${PHONE_FULL_CLASS}`;
 const PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS = `${NEUTRAL_ROW_BUTTON_CLASS} ${PHONE_FULL_CLASS}`;
 
@@ -371,7 +372,7 @@ function PendingRow({
         ) : actionStatus.type === "disabled" ? (
           <Hint
             tooltip={actionStatus.tooltip}
-            className={PHONE_FULL_CLASS}
+            className={PHONE_FULL_HINT_CLASS}
             attachToChildren
             touchFallback="text"
           >
@@ -612,7 +613,7 @@ function InactiveRow({
         {blockedTooltip && (
           <Hint
             tooltip={blockedTooltip}
-            className={PHONE_FULL_CLASS}
+            className={PHONE_FULL_HINT_CLASS}
             attachToChildren
             touchFallback="text"
           >
@@ -672,7 +673,7 @@ function InactiveRow({
         {reclaimBlockedTooltip && (
           <Hint
             tooltip={reclaimBlockedTooltip}
-            className={PHONE_FULL_CLASS}
+            className={PHONE_FULL_HINT_CLASS}
             attachToChildren
             touchFallback="text"
           >

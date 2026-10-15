@@ -179,7 +179,7 @@ function ActiveVaultRow({
       <div
         className={twMerge(
           LIST_ROW_ACTION_SLOT_CLASS,
-          "max-md:basis-full",
+          "max-md:basis-full max-md:flex-col max-md:items-stretch",
           showDownloadParams && "basis-auto gap-2",
         )}
       >
