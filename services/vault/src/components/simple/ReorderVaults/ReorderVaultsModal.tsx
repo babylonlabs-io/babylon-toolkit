@@ -3,7 +3,8 @@ import {
   closestCenter,
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -28,6 +29,9 @@ import { ReorderVaultItem } from "./ReorderVaultItem";
 import { useReorderGasEstimate } from "./useReorderGasEstimate";
 import { useReorderModal } from "./useReorderModal";
 
+const REORDER_TOUCH_DRAG_DELAY_MS = 250;
+const REORDER_TOUCH_DRAG_TOLERANCE_PX = 5;
+
 interface ReorderVaultsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -45,6 +49,7 @@ export function ReorderVaultsModal({
     orderedVaults,
     hasOrderChanged,
     handleDragEnd,
+    moveVault,
     handleConfirm,
     isProcessing,
     pendingWrite,
@@ -63,7 +68,13 @@ export function ReorderVaultsModal({
   const { applyReorderedOrder } = useReorderOverride();
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(MouseSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: REORDER_TOUCH_DRAG_DELAY_MS,
+        tolerance: REORDER_TOUCH_DRAG_TOLERANCE_PX,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
@@ -123,6 +134,9 @@ export function ReorderVaultsModal({
                     id={vault.id}
                     amountBtc={vault.amountBtc}
                     position={index + 1}
+                    isFirst={index === 0}
+                    isLast={index === orderedVaults.length - 1}
+                    onMove={moveVault}
                   />
                 ))}
               </div>

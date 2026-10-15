@@ -1,9 +1,14 @@
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, IconButton } from "@babylonlabs-io/core-ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { IoReorderThree } from "react-icons/io5";
+import {
+  IoChevronDown,
+  IoChevronUp,
+  IoReorderThree,
+} from "react-icons/io5";
 
 import { getNetworkConfigBTC } from "@/config";
+import { COPY } from "@/copy";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -12,12 +17,18 @@ interface ReorderVaultItemProps {
   id: string;
   amountBtc: number;
   position: number;
+  isFirst: boolean;
+  isLast: boolean;
+  onMove: (id: string, direction: "up" | "down") => void;
 }
 
 export function ReorderVaultItem({
   id,
   amountBtc,
   position,
+  isFirst,
+  isLast,
+  onMove,
 }: ReorderVaultItemProps) {
   const {
     attributes,
@@ -52,15 +63,37 @@ export function ReorderVaultItem({
           </span>
         </span>
       </div>
-      <button
-        type="button"
-        className="cursor-grab touch-none text-accent-secondary active:cursor-grabbing"
-        aria-label="Drag to reorder"
-        {...attributes}
-        {...listeners}
-      >
-        <IoReorderThree size={24} />
-      </button>
+      <div className="flex items-center gap-2">
+        <IconButton
+          type="button"
+          size="small"
+          className="[@media(pointer:coarse)]:size-11"
+          aria-label={COPY.reorder.moveUp}
+          disabled={isFirst}
+          onClick={() => onMove(id, "up")}
+        >
+          <IoChevronUp size={16} />
+        </IconButton>
+        <IconButton
+          type="button"
+          size="small"
+          className="[@media(pointer:coarse)]:size-11"
+          aria-label={COPY.reorder.moveDown}
+          disabled={isLast}
+          onClick={() => onMove(id, "down")}
+        >
+          <IoChevronDown size={16} />
+        </IconButton>
+        <button
+          type="button"
+          className="cursor-grab touch-manipulation text-accent-secondary active:cursor-grabbing"
+          aria-label={COPY.reorder.dragHandle}
+          {...attributes}
+          {...listeners}
+        >
+          <IoReorderThree size={24} />
+        </button>
+      </div>
     </div>
   );
 }
