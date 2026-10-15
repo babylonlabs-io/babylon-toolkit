@@ -23,7 +23,8 @@ export const DEVICE_MIN_VAULT_CORE_VERSION = 1;
 export const DEVICE_MAX_VAULT_CORE_VERSION = 1;
 
 /**
- * Keeper and universal-challenger counts, each `[1, 32]`. Far below the
+ * Keeper and universal-challenger counts, each `[1, 32]` (`VAULT_MAX_KEEPERS`,
+ * `VAULT_MAX_CHALLENGERS`). Far below the
  * protocol: the contract allows
  * 1500 universal challengers and sets no keeper cap at all.
  */
@@ -37,8 +38,8 @@ export const DEVICE_MAX_PARTICIPANTS_PER_ROLE = 32;
 export const DEVICE_MAX_VAULTS_PER_INTENT = 10;
 
 /**
- * Fee-rate bounds (sat/vB): the intent parser rejects rate == 0 AND
- * rate > 10000. The ceiling is vaultd's critical-tx config default, not a
+ * Fee-rate bounds (sat/vB): `vault_tlv_parse` rejects rate == 0 AND
+ * rate > 10000, a bare literal with no named constant. The ceiling is vaultd's critical-tx config default, not a
  * protocol constant; the contract caps `feeRate` at 1000 (`ProtocolParams`),
  * so a contract-sourced rate can never reach it.
  */
@@ -51,18 +52,18 @@ export const DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB = 10_000n;
  */
 export const DEVICE_MAX_PREPEGIN_FEE_SATS = 100_000_000n;
 
-/** Shared lower bound for the CSV/refund timelocks. */
+/** Shared lower bound for the CSV/refund timelocks (`VAULT_TIMELOCK_MIN`). */
 export const DEVICE_TIMELOCK_MIN_BLOCKS = 72;
 
-/** Inclusive upper bound for `pegin_csv_timelock`. */
+/** Inclusive upper bound for `pegin_csv_timelock` (`VAULT_TIMELOCK_MAX`). */
 export const DEVICE_PEGIN_CSV_TIMELOCK_MAX_BLOCKS = 1008;
 
-/** Inclusive upper bound for `htlc_refund_timelock`. */
+/** Inclusive upper bound for `htlc_refund_timelock` (`VAULT_HTLC_REFUND_TIMELOCK_MAX`). */
 export const DEVICE_REFUND_TIMELOCK_MAX_BLOCKS = 4320;
 
 /**
- * Inclusive bounds for `payout_timelock`. The intent parser is EXCLUSIVE
- * `(90, 4032)`, so the accepted range is `[91, 4031]`; the
+ * Inclusive bounds for `payout_timelock`. `vault_tlv_parse` is EXCLUSIVE over
+ * `(VAULT_PAYOUT_TIMELOCK_MIN, VAULT_PAYOUT_TIMELOCK_MAX)` = `(90, 4032)`, so the accepted range is `[91, 4031]`; the
  * exclusive form gates deposits, so it wins over Screen 8's inclusive form.
  */
 export const DEVICE_PAYOUT_TIMELOCK_MIN_BLOCKS = 91;
@@ -76,14 +77,16 @@ export const DEVICE_PAYOUT_TIMELOCK_MAX_BLOCKS = 4031;
 export const DEVICE_VAULT_DUST_LIMIT_SATS = 546n;
 
 /**
- * Device-only floor on `depositorClaimValue` — btc-vault's own floor is 330,
+ * Device-only floor on `depositorClaimValue` (`vault_tlv_parse_group`,
+ * `VAULT_DUST_LIMIT`) — btc-vault's own floor is 330,
  * so `[330, 545]` is allowed by the protocol but not the device. Firmware
  * asymmetry; must not be "fixed" on the protocol side.
  */
 export const DEVICE_MIN_DEPOSITOR_CLAIM_VALUE_SATS = DEVICE_VAULT_DUST_LIMIT_SATS;
 
 /**
- * The device's `peginAmount > commissionFee + 2 * dust` check. No btc-vault
+ * The device's `peginAmount > commissionFee + 2 * dust` check
+ * (`vault_tlv_parse_group`, `VAULT_DUST_LIMIT`). No btc-vault
  * counterpart — firmware-only; mirrored to fail early, never to be ported
  * into the protocol.
  */

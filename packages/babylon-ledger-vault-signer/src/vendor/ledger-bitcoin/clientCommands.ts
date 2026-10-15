@@ -37,14 +37,14 @@ import { createVarint, sanitizeBigintToNumber } from "./varint";
 /**
  * Every client-command response rides one CONTINUE APDU whose Lc is a single
  * byte — 255 bytes max (base app dispatcher; device-side parsers
- * `get_preimage.c` / `get_merkle_leaf_hash.c` chunk against the same cap).
+ * `get_preimage` / `get_merkle_leaf_hash` chunk against the same cap).
  */
 const MAX_CLIENT_RESPONSE_BYTES = 255;
 
 /**
  * A GET_MORE_ELEMENTS response spends 2 bytes on its own header,
- * `n_elements(1) ‖ el_len(1)` (parsed by the base app's `get_preimage.c` and
- * `get_merkle_leaf_hash.c`), leaving 253 for the elements.
+ * `n_elements(1) ‖ el_len(1)` (parsed by the base app's `get_preimage` and
+ * `get_merkle_leaf_hash`), leaving 253 for the elements.
  */
 const GET_MORE_ELEMENTS_HEADER_BYTES = 2;
 

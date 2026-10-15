@@ -365,7 +365,8 @@ describe("buildPayoutPsbt", () => {
       expect(firstInput.witnessUtxo).toBeDefined();
 
       // Second input carries the Assert:0 payout leaf: the depositor does not
-      // sign it, but the Ledger vault app reads it to display the terms.
+      // sign it, but the Ledger vault app reads it to identify the claimer and
+      // check it against the approved intent.
       const secondInput = psbt.data.inputs[1];
       expect(secondInput.witnessUtxo).toBeDefined();
       expect(secondInput.tapLeafScript).toHaveLength(1);

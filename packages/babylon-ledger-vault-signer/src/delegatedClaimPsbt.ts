@@ -265,13 +265,18 @@ function leafKeyHexOf(script: Uint8Array): string {
  *   no leaf and no derivation entry for D, the shape btc-vault's claimer
  *   builder emits (taproot metadata on the Assert:0 input only). The
  *   depositor Payout is the same unsigned transaction with a leaf on input 0
- *   and the caller asking for index 0; the device separates the two by
- *   session state alone, so without both host conditions the
- *   DEPOSITOR-shaped Payout could be waived here, and under a loaded intent
- *   the device would then sign it at input 0 as the intent-bound Payout
- *   whatever index the caller asked for: a valid signature nobody requested.
- *   (The claimer-shaped one is never signed under an intent: the device
- *   refuses it and wipes the intent.) A future builder that adds input-0
+ *   and the caller asking for index 0; the device does not route on those two
+ *   host-side marks: under a loaded intent it takes a 2-in/2-out PSBT as the
+ *   intent-bound Payout whenever input 0's txid is the PegIn of one of the
+ *   intent's vaults (`vault_compute_pegin_txid`), and as a PayoutFinalize
+ *   otherwise. So without both host conditions the DEPOSITOR-shaped Payout
+ *   could be waived here, and under a loaded intent the device would then
+ *   sign it at input 0 as the intent-bound Payout whatever index the caller
+ *   asked for: a valid signature nobody requested. (A claimer-shaped Payout
+ *   for one of the intent's vaults is never signed under that intent: the
+ *   device refuses it, wiping the intent when the depositor Payout's slot is
+ *   already consumed and keeping it otherwise. One for any other vault goes
+ *   to `_validate_display_payout_finalize` as usual.) A future builder that adds input-0
  *   metadata makes this return `undefined`: fail-closed, but the standalone
  *   claimer Payout is then unavailable on Ledger, a red run to fix, not a
  *   compatible state.

@@ -84,8 +84,9 @@ export const VAULT_APP_NAME = "babylon-btc-vault";
 const HARDENED = 0x80000000;
 /**
  * m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py). Levels
- * use `+` (unsigned, provider.ts:246-248): `|` yields negative int32s that
- * `assertBip86Path` rejects; the wire bytes are identical (`>>> 0` serializers).
+ * use `+` (unsigned, as the provider's `depositorPath` getter does): `|` yields
+ * negative int32s that `assertBip86Path` rejects; the wire bytes are identical
+ * (`>>> 0` serializers).
  */
 export const DEPOSITOR_PATH: readonly number[] = [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0];
 const TESTNET_COIN_TYPE = 1;
@@ -98,7 +99,9 @@ const NUMS_XONLY = hexToBuffer(NUMS_XONLY_HEX);
 
 // ---------------------------------------------------------------------------
 // Script builders — TS replicas of the fw test's Python replicas of
-// vault_script.c (test_sign_psbt_validate.py).
+// the firmware leaf builders `vault_build_htlc_leaf0`, `vault_build_htlc_leaf1`,
+// `vault_build_vault_utxo_leaf` and `vault_build_depositor_claim_leaf`, and of
+// their `encode_multisig_group` helper (test_sign_psbt_validate.py).
 // ---------------------------------------------------------------------------
 
 const OP_NUMEQUAL = 0x9c;
@@ -231,7 +234,7 @@ function p2trFromSingleLeaf(leaf: Buffer): Buffer {
 
 // ---------------------------------------------------------------------------
 // Hashlock from the device-returned root — host-side mirror of fw
-// derive_vault_secrets_core.h (vault_client.py):
+// `vault_derive_hashlock_commitment` (vault_client.py):
 // h = SHA256(HKDF-Expand-SHA256(root, "babylonbtcvault" ‖ len ‖ label ‖
 //     u16be(len(ctx)) ‖ ctx, 32)), single block.
 // ---------------------------------------------------------------------------
@@ -309,8 +312,8 @@ export interface IntentFixture {
 
 /**
  * DepositTerms → APPROVE_VAULT_INTENT inputs, mirroring wallet-connector's
- * `LedgerVaultProvider.buildIntentFromTerms` mapping (provider.ts:568-596),
- * including the display→internal txid flip (provider.ts:574).
+ * `LedgerVaultProvider.buildIntentFromTerms` mapping, including the
+ * display→internal txid flip.
  */
 export function termsToIntent(terms: DepositTerms): IntentFixture {
   return {

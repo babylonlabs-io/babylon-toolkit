@@ -85,7 +85,7 @@ export class MerkelizedPsbt extends PsbtV2 {
   private static createMerkleMap(map: ReadonlyMap<string, Buffer>): MerkleMap {
     // Default code-unit sort == byte-lexicographic order for the lowercase-hex
     // keys — the single order serializeMap, MerkleMap, and the device enforce
-    // (base app check_merkle_tree_sorted.c).
+    // (base app `call_check_merkle_tree_sorted_with_callback`).
     const sortedKeysStrings = [...map.keys()].sort();
     const values = sortedKeysStrings.map((k) => {
       const v = map.get(k);

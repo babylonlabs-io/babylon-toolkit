@@ -10,7 +10,7 @@
  * Building the table also asserts each tapscript input's control block really
  * commits to its leaf, so a leaf the spent output never paid to is never armed.
  *
- * YIELD wire shape (base app `sign_input.c`, protocol v1 / P2=1):
+ * YIELD wire shape (base app `yield_signature`, protocol v1 / P2=1):
  * `varint(input_index) ‖ augm_len(1) ‖ pubkey_augm(augm_len) ‖ signature` —
  * tapscript: augm = untweaked x-only key(32) ‖ tapleaf_hash(32), keypath:
  * augm = tweaked output key(32); Schnorr sig is exactly 64 bytes at

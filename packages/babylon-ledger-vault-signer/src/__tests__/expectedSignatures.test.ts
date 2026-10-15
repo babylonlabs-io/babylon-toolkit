@@ -450,7 +450,8 @@ describe("tapscript control block must commit to its leaf, driven by PegIn fixtu
 
 describe("caller-requested input set narrows the expectation, never the classification gates", () => {
   // Post-#2281 Payout shape: input 1 (Assert:0) carries a tapLeafScript so the
-  // device can read the payout leaf to display terms, but it is never signed.
+  // device can identify the claimer and check the leaf against the approved
+  // intent, but it is never signed.
   const RANDOM_P2TR_OUTPUT = Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0x2b)]);
   const INPUT_0_LEAF = Buffer.from([0x51]);
   const INPUT_1_LEAF = Buffer.from([0x52]);

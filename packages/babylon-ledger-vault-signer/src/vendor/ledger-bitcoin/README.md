@@ -79,8 +79,8 @@ with the exceptions recorded per file header; the substantive ones:
   (`LedgerHQ/ledger-secure-sdk` `lib_standard_app/varint.c`, `varint_size` and
   `varint_write`, byte-identical across the API levels in use). Both call sites live in the
   base app pinned in the package's `FIRMWARE.md`: the GET_MERKLE_LEAF_PROOF
-  `tree_size`/`leaf_index` (`get_merkle_leaf_hash.c`, parsed in
-  `clientCommands.ts`) and the YIELD input index (`sign_input.c`, parsed by
+  `tree_size`/`leaf_index` (`get_merkle_leaf_hash`, parsed in
+  `clientCommands.ts`) and the YIELD input index (`yield_signature`, parsed by
   `parseVarint(payload, 0)` in `expectedSignatures.ts`'s
   `createYieldCollector`). A device that emitted
   an overlong form would now fail closed. Same rule Bitcoin Core enforces in
@@ -91,7 +91,7 @@ with the exceptions recorded per file header; the substantive ones:
   exactly our case; the map-level `normalizeToV2` is the path we use.
 - `psbtv2.ts`: the `serializeMap` key comparator is unified from
   `localeCompare` to the byte-lexicographic code-unit order that `MerkleMap`
-  and the device enforce (base app `check_merkle_tree_sorted.c`) — serialize
+  and the device enforce (base app `call_check_merkle_tree_sorted_with_callback`) — serialize
   order, merkleization order, and the vectors' `sorted_key_order` are one
   order.
 - `clientCommands.ts`: local addition — an optional `onYield(payload)`

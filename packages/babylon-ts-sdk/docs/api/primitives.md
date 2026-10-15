@@ -2363,7 +2363,8 @@ Payout transactions have the following structure:
 - Input 1: from Assert output0 (NOT signed by depositor)
 
 Both inputs carry their taproot script-path leaf. Input 1's is not signed
-here — it is what a hardware signer reads to display the payout terms.
+here — the Ledger vault app reads it to identify the claimer and refuses to
+sign when it differs from the leaf it rebuilds from the approved intent.
 
 #### Parameters
 

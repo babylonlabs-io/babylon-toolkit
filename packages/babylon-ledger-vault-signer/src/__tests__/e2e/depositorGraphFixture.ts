@@ -100,7 +100,7 @@ const NOPAYOUT_FEE_SATS = 400;
 const GRAPH_TX_VERSION = 2;
 const GRAPH_TX_LOCKTIME = 0;
 
-/** NoPayout Assert-input sequence (nopayout.rs:153 `Sequence::MAX`). */
+/** NoPayout Assert-input sequence (`Sequence::MAX` in btc-vault's `nopayout.rs`). */
 const SEQUENCE_MAX = 0xffffffff;
 
 /** SDK fee-floor shape inputs: out0 is the 34-byte BIP-86 P2TR, out1 absent (2-output layout). */
@@ -121,7 +121,7 @@ export const DEPOSITOR_GRAPH_CHALLENGERS: readonly string[] = [KEEPER_KEY_HEX, C
 
 interface NoPayoutChallengerFixture {
   readonly challengerXOnlyHex: string;
-  /** btc-vault shape — input 0 spends Assert:0 (nopayout.rs:146-155). */
+  /** btc-vault shape — input 0 spends Assert:0 (`nopayout.rs`). */
   readonly productionPsbtHex: string;
   /** TapLeaf hash of the 68-byte `<D> OP_CHECKSIGVERIFY <Cj> OP_CHECKSIG` leaf. */
   readonly noPayoutLeafHashHex: string;
@@ -240,7 +240,7 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
     network: "signet",
     claimerBtcPubkey: DEPOSITOR_XONLY_HEX,
     registeredPayoutScriptPubKey: depositorBip86Spk.toString("hex"),
-    commissionBps: 1, // inert for the depositor-as-claimer role (signDepositorGraph.ts:67-70)
+    commissionBps: 1, // inert for the depositor-as-claimer role (`signDepositorGraph.ts`)
     protocolFeeRate: PROTOCOL_FEE_RATE,
     councilMembers: COUNCIL_MEMBERS,
     councilQuorum: COUNCIL_QUORUM,
@@ -273,7 +273,7 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
     const totalInSats =
       ASSERT0_VALUE_SATS + CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS + CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS;
 
-    // Input 0 spends Assert:0 (nopayout.rs:146-155).
+    // Input 0 spends Assert:0 (btc-vault `nopayout.rs`).
     const noPayoutTx = new Transaction();
     noPayoutTx.version = GRAPH_TX_VERSION;
     noPayoutTx.locktime = GRAPH_TX_LOCKTIME;

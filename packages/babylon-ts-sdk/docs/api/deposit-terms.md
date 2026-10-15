@@ -142,7 +142,7 @@ sats; the MAXIMUM commission the depositor accepts —
 floor(peginAmount * maxAcceptableCommissionBps / 10_000), the same
 ceiling the registration calldata carries. An approving wallet MUST
 enforce the VP payout commission output `<= commissionFee` (e.g. the
-Ledger vault app does, firmware >= c8db53e), and every commission the
+Ledger vault app does), and every commission the
 contract admits stays under this ceiling (floor is monotonic in bps),
 so no contract-admitted deposit can be refused at payout. The actual
 stamped commission may be lower. Display the quoted value in UI, not this.
@@ -408,7 +408,8 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts]
 
 Where Pre-PegIn change must pay. An approval (policy) wallet's device
 dictates the change address it accepts; the Ledger vault app takes change
-only at the depositor's own `/0/0` address.
+only at the depositor's own `/0/0` address (the firmware pinned in
+`packages/babylon-ledger-vault-signer/FIRMWARE.md`).
 
 Separate from [DepositTermsApprover](#deposittermsapprover) because only the Pre-PegIn build
 needs it: the presign/payout ceremonies approve terms without ever creating
@@ -1256,8 +1257,8 @@ Run the derive → approve ceremony (or a no-op) before a Pre-PegIn signature.
 
 Skip fast-path: when `holdsApprovedDepositTerms` reports the byte-equal
 intent still live, the ceremony is skipped — it survives everything the
-flow does in between (PoP/PegIn signing spend separate device state;
-app-babylon-vault `sign_psbt_validate.c` @ 73a57c50). A stale true fails
+flow does in between (PoP and PegIn signing spend separate device state
+in the Ledger vault app). A stale true fails
 closed at the signature; the retry then re-runs the full ceremony.
 
 Otherwise always derives first, so this path never approves-only: whether
