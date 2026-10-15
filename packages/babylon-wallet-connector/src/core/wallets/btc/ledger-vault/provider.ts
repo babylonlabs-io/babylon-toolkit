@@ -97,8 +97,9 @@ export const APP_NAME_BY_NETWORK: Record<Network, string> = {
   [Network.SIGNET]: "Babylon Vault Testnet",
 };
 
-// Floor = the app pinned in the signer package's `FIRMWARE.md`. Pre-PegIn change goes to
-// the depositor's `/0/0` address, which 0.10.1 rejects, so older apps cannot fund a deposit.
+// Floor: 0.11.0 is the first app that takes Pre-PegIn change at the depositor's `/0/0`
+// address, which this host sends; older apps reject it, so they cannot fund a deposit. A
+// product decision released with Ledger's deployment, not the pin in the signer's FIRMWARE.md.
 const MIN_APP_VERSION = "0.11.0";
 // Exclusive ceiling. Raise only after the host intent encoding and device caps are checked
 // against the new firmware; a minor bump has changed device semantics before (0.10 → 0.11).
@@ -131,7 +132,7 @@ const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
 const HARDENED = 0x80000000;
 
-/** BIP-322 simple P2TR witness: one item — `varint(1) ‖ varint(64) ‖ sig` (`message.rs:105-144`, `BTCProofOfPossession.sol` accepts exactly this 66-byte shape). */
+/** BIP-322 simple P2TR witness: one item — `varint(1) ‖ varint(64) ‖ sig` (btc-vault `message.rs`; `BTCProofOfPossession.sol` accepts exactly this 66-byte shape). */
 const BIP322_P2TR_WITNESS_PREFIX_HEX = "0140";
 const SCHNORR_SIG_BYTES = 64;
 
@@ -1209,8 +1210,9 @@ export class LedgerVaultProvider implements IBTCProvider {
    * PSBT whose input 0 spends a loaded vault's PegIn to the intent-bound
    * Payout validator, whose per-slot dedup (the depositor Payout was already
    * signed under that intent, in ceremony order) WIPES the intent with
-   * SW_CAP_EXCEEDED, or SW_INCORRECT_DATA at the input-0 leaf check. Refusing
-   * here costs no device I/O and keeps the intent.
+   * SW_CAP_EXCEEDED; otherwise it rejects with SW_INCORRECT_DATA at the input-0
+   * leaf check and keeps the intent. Refusing here costs no device I/O and
+   * keeps the intent either way.
    *
    * Nothing else is validated here: every term of these transactions is the
    * device's to check, and a rejection on these paths costs no loaded intent.
@@ -1678,7 +1680,8 @@ export class LedgerVaultProvider implements IBTCProvider {
         // Standalone signs keep the mirror: NOTHING on the device's refund
         // or delegated-claim paths invalidates the vault context — not the
         // validators' rejects (every `vault_context_invalidate` site sits on
-        // the PegIn/Payout/NoPayout paths), not the standalone sign section,
+        // the Pre-PegIn/PegIn/Payout/NoPayout paths or in the intent handlers),
+        // not the standalone sign section,
         // not the review screen's SW_DENY, and not the base app's PSBT-phase
         // failures (zero vault references in the base app's `sign_psbt`).
         // INTENT_LOADED is terminal until an explicit invalidate. The abort

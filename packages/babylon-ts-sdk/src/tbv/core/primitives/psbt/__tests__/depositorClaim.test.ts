@@ -6,7 +6,7 @@
  * with — btc-vault's `SingleKeyConnector` is not exposed through WASM. So the
  * differential oracle here is a second, independent JS implementation: the
  * hand-rolled BIP-341 construction below, which mirrors the Ledger firmware
- * test's `p2trFromSingleLeaf` (`test_sign_psbt_validate.py`) and shares no
+ * test's `_p2tr_from_single_leaf` (`test_sign_psbt_validate.py`) and shares no
  * code with `payments.p2tr`.
  *
  * The differential runs over pinned golden vectors *and* randomised keys — a
@@ -25,7 +25,7 @@ import {
   deriveDepositorClaimScriptPubKey,
 } from "../depositorClaim";
 
-/** NUMS point from btc-vault `crates/vault/src/lib.rs:157-177`. */
+/** NUMS point from btc-vault `crates/vault/src/lib.rs`. */
 const NUMS_XONLY = Buffer.from(
   "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0",
   "hex",

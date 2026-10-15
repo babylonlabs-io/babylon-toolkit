@@ -11,10 +11,10 @@
  * tests' fixture), the two challenger keys (this file uses the
  * refundPsbt.wasmGrammar roster, not the suite's `TEST_VALID_KEYS`), and the
  * `wasm` derivation shape, which follows btc-vault's builder
- * (`crates/vault/src/psbt.rs:65-75` @ `ac4954e7`) rather than the suite's —
+ * (`crates/vault/src/psbt.rs`) rather than the suite's —
  * that is the shape the host actually receives. A fourth: every leaf input
  * carries `tapInternalKey: NUMS`, as btc-vault's builder writes it
- * (`psbt.rs:54`); the suite sets it only in two places, and the device reads
+ * (`psbt.rs`); the suite sets it only in two places, and the device reads
  * the control block instead.
  */
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
@@ -170,7 +170,7 @@ const SEQUENCE_FINAL = 0xffffffff;
 /**
  * What the Python PayoutFinalize builder puts on the unsigned input 0
  * (`test_sign_psbt_validate.py`). btc-vault's builder writes the
- * PegIn CSV timelock there instead (`payout.rs:103-112` @ ac4954e7); neither
+ * PegIn CSV timelock there instead (`payout.rs`); neither
  * the device nor the host reads input 0's sequence.
  */
 const VAULT_INPUT_SEQUENCE = 0xfffffffe;
@@ -203,7 +203,7 @@ export type DerivationShape = "wasm" | "none";
 
 /**
  * One zero-fingerprint entry per signing key, each carrying the leaf hash
- * (`btc-vault crates/vault/src/psbt.rs:65-75` @ `ac4954e7` — D alone on
+ * (btc-vault `crates/vault/src/psbt.rs`: D alone on
  * Claim/WC, D plus every challenger on the claimer Payout).
  */
 function derivationEntries(keysHex: readonly string[], shape: DerivationShape, leaf: Buffer) {
@@ -391,7 +391,7 @@ export function buildPayoutShapedPsbt(o: PayoutShapeOverrides = {}): string {
     witnessUtxo: { script: output, value: VAULT_DUST_LIMIT_SATS },
     ...leafEntries(leaf, o),
     tapInternalKey: Buffer.from(NUMS_XONLY, "hex"),
-    // The claimer Payout's signing set is D plus every challenger (payout.rs:461-462 @ ac4954e7).
+    // The claimer Payout's signing set is D plus every challenger (btc-vault `payout.rs`).
     ...derivationEntries([keyHex, KEEPER_XONLY, CHALLENGER_XONLY], o.derivation ?? "wasm", leaf),
   });
   for (const out of o.outputs ?? [

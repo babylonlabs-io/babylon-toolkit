@@ -15,7 +15,7 @@ export interface DepositTermsVaultGroup {
    * floor(peginAmount * maxAcceptableCommissionBps / 10_000), the same
    * ceiling the registration calldata carries. An approving wallet MUST
    * enforce the VP payout commission output `<= commissionFee` (e.g. the
-   * Ledger vault app does, firmware >= c8db53e), and every commission the
+   * Ledger vault app does), and every commission the
    * contract admits stays under this ceiling (floor is monotonic in bps),
    * so no contract-admitted deposit can be refused at payout. The actual
    * stamped commission may be lower. Display the quoted value in UI, not this.
@@ -140,7 +140,8 @@ export interface DepositTermsApprover {
 /**
  * Where Pre-PegIn change must pay. An approval (policy) wallet's device
  * dictates the change address it accepts; the Ledger vault app takes change
- * only at the depositor's own `/0/0` address.
+ * only at the depositor's own `/0/0` address (the firmware pinned in
+ * `packages/babylon-ledger-vault-signer/FIRMWARE.md`).
  *
  * Separate from {@link DepositTermsApprover} because only the Pre-PegIn build
  * needs it: the presign/payout ceremonies approve terms without ever creating

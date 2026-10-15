@@ -1,7 +1,8 @@
 /**
  * TLV encoder for APPROVE_VAULT_INTENT: `TAG (2B BE) ‖ LENGTH (1B) ‖ VALUE`,
  * packed, ending exactly at Lc. Matched byte-for-byte against Ledger's own
- * reference encoder (`tests/vault_client.py`), not inferred from firmware C.
+ * reference encoder (`build_intent_tlv` and `build_group_tlv` in
+ * `tests/vault_client.py`), not inferred from firmware C.
  *
  * @module ledger-vault-signer/intentTlv
  */
@@ -180,9 +181,10 @@ export function encodeIntentGroup(group: IntentVaultGroup): Uint8Array {
  * Encode the key phase into APDU-sized batches: every keeper, then every
  * challenger, each set in strictly ascending byte order.
  *
- * The device's intent handler enforces both the role ordering and the
- * ascending sort positionally, so we sort here rather than
- * trusting the caller — an unsorted roster is rejected mid-ceremony.
+ * The device enforces both the role ordering (`handle_key_batch`) and the
+ * ascending sort (`vault_validate_and_store_key`) positionally, so we sort
+ * here rather than trusting the caller — an unsorted roster is rejected
+ * mid-ceremony.
  */
 export function encodeKeyBatches(
   keeperPubkeys: readonly Uint8Array[],

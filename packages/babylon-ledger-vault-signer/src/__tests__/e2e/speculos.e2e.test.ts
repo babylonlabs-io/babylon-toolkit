@@ -30,7 +30,7 @@
  *
  * Requires a running container with the vault app (nanosp, testnet build,
  * firmware-test mnemonic) built from the ELF pinned in `FIRMWARE.md`. Skipped unless
- * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure — CI):
+ * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure; no CI job sets either today):
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
  *
@@ -136,7 +136,7 @@ const DEPOSITOR_GRAPH_CHALLENGER_COUNT = 2;
  */
 const PAYOUT_VAULT_UTXO_INPUT = 0;
 const PAYOUT_ASSERT_INPUT = 1;
-/** NoPayout input 0 spends Assert:0 (btc-vault nopayout.rs:146-155) — the depositor-signed input. */
+/** NoPayout input 0 spends Assert:0 (btc-vault `nopayout.rs`) — the depositor-signed input. */
 const NOPAYOUT_ASSERT_INPUT = 0;
 /** Stage 12 aborts after the FIRST yield — validation (and the Pre-PegIn cap bump) is over, signing is not. */
 const ABORT_AFTER_YIELD_COUNT = 1;
@@ -334,7 +334,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         (error: unknown) => error,
       );
       // A terminal status word from the loop is classified into LedgerDeviceError
-      // (`rawApdu.ts classifyStatusWord`, `signPsbtLoop.ts:140-157`).
+      // (`rawApdu.ts classifyStatusWord`, called from `runSignPsbtLoop`).
       if (!isLedgerDeviceError(failure)) throw new Error("expected a LedgerDeviceError");
       expect(failure.statusWord).toBe(SW_INCORRECT_DATA);
       // Session and intent survive a validation failure: the next stage signs

@@ -34,7 +34,9 @@ const MAX_BIP32_PATH_STEPS = 10;
 
 /**
  * `GET_MASTER_FINGERPRINT`: no payload, answers the 4-byte fingerprint. P2 =
- * protocol version 1, as both reference clients send.
+ * `CURRENT_PROTOCOL_VERSION` (1), as Python
+ * `BitcoinCommandBuilder.get_master_fingerprint` and Rust
+ * `command::get_master_fingerprint` send.
  */
 const INS_GET_MASTER_FINGERPRINT = 0x05;
 const MASTER_FINGERPRINT_BYTES = 4;

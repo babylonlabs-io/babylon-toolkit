@@ -764,7 +764,7 @@ describe("protocol failures stop the loop (T13, T14)", () => {
     const script: ScriptedExchange[] = [
       { expectApduHex: initialApduHexOf(prepared), respondSw: 0xe000, respondDataHex: validYieldHex },
       // Unknown command code 0x99: the interpreter throws a plain Error
-      // (`vendor/ledger-bitcoin/clientCommands.ts:373-375`) — generic-wrap branch.
+      // (`vendor/ledger-bitcoin/clientCommands.ts`) — generic-wrap branch.
       { expectApduHex: CONTINUE_HEADER_HEX, respondSw: 0xe000, respondDataHex: "99" },
     ];
     const { send, sent } = createScriptedSender(script);

@@ -134,7 +134,7 @@ function getDmk(): Promise<DmkBuild> {
      * TransportService — so `close()` would CONSTRUCT this orphan's transport
      * (registering a WebHID listener pair) and then release nothing, since
      * `CloseSessionsUseCase` only iterates existing sessions and never calls
-     * `destroy()`. Same fact as wallet-connector `provider.ts:305-309`.
+     * `destroy()`. Same fact as the wallet-connector provider's disconnect path.
      */
     function publish(built: DmkBuild): DmkBuild {
       if (dmkPromise !== build) {

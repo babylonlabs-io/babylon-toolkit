@@ -58,8 +58,8 @@ export function buildDepositTerms(
       peginAmount,
       // Ceiling, not quote: floor(peginAmount * maxAcceptableBps / 10_000) —
       // the same bound the registration calldata enforces on-chain, so any
-      // stamped commission the contract admits stays under it (firmware
-      // >= c8db53e checks the payout commission output <= this value).
+      // stamped commission the contract admits stays under it (the Ledger
+      // vault app's `_validate_payout` rejects a commission output above it).
       commissionFee:
         (peginAmount * BigInt(inputs.maxAcceptableCommissionBps)) /
         bpsDenominator,

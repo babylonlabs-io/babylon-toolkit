@@ -2,7 +2,9 @@
  * The three APDU instructions the vault app adds over the Bitcoin base app,
  * and the ceremony that sequences them. Everything else — notably SIGN_PSBT —
  * falls through to the base app. Framing verified against Ledger's reference
- * client (`tests/vault_client.py`) and `docs/apdu.md`.
+ * client (`derive_context_hash`, `approve_vault_intent` and `get_vault_state`
+ * in `tests/vault_client.py`; the TLV payloads come from `build_intent_tlv`
+ * and `build_group_tlv`) and `docs/apdu.md`.
  *
  * @module ledger-vault-signer/vaultCommands
  */

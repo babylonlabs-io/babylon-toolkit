@@ -271,7 +271,8 @@ function leafKeyHexOf(script: Uint8Array): string {
  *   the device would then sign it at input 0 as the intent-bound Payout
  *   whatever index the caller asked for: a valid signature nobody requested.
  *   (The claimer-shaped one is never signed under an intent: the device
- *   refuses it and wipes the intent.) A future builder that adds input-0
+ *   refuses it, wiping the intent when the depositor Payout's slot is already
+ *   consumed and keeping it otherwise.) A future builder that adds input-0
  *   metadata makes this return `undefined`: fail-closed, but the standalone
  *   claimer Payout is then unavailable on Ledger, a red run to fix, not a
  *   compatible state.

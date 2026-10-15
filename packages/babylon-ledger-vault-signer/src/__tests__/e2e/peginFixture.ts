@@ -84,8 +84,9 @@ export const VAULT_APP_NAME = "babylon-btc-vault";
 const HARDENED = 0x80000000;
 /**
  * m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py). Levels
- * use `+` (unsigned, provider.ts:246-248): `|` yields negative int32s that
- * `assertBip86Path` rejects; the wire bytes are identical (`>>> 0` serializers).
+ * use `+` (unsigned, as the provider's `depositorPath` getter does): `|` yields
+ * negative int32s that `assertBip86Path` rejects; the wire bytes are identical
+ * (`>>> 0` serializers).
  */
 export const DEPOSITOR_PATH: readonly number[] = [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0];
 const TESTNET_COIN_TYPE = 1;
@@ -309,8 +310,8 @@ export interface IntentFixture {
 
 /**
  * DepositTerms → APPROVE_VAULT_INTENT inputs, mirroring wallet-connector's
- * `LedgerVaultProvider.buildIntentFromTerms` mapping (provider.ts:568-596),
- * including the display→internal txid flip (provider.ts:574).
+ * `LedgerVaultProvider.buildIntentFromTerms` mapping, including the
+ * display→internal txid flip.
  */
 export function termsToIntent(terms: DepositTerms): IntentFixture {
   return {

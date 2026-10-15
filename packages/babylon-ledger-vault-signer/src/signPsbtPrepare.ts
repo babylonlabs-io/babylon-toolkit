@@ -84,12 +84,13 @@ export interface SignPsbtInterpreter {
 /**
  * SIGN_PSBT client data, parsed by the device in this exact order:
  * `globalCommitment ‖ varint(nIn) ‖ inputsRoot(32) ‖ varint(nOut) ‖
- * outputsRoot(32) ‖ walletId(32) ‖ walletHmac(32)`.
+ * outputsRoot(32) ‖ walletId(32) ‖ walletHmac(32)`, as built by the JS
+ * `AppClient.signPsbt` and Python `BitcoinCommandBuilder.sign_psbt`.
  * Built from parts — never assert a fixed length (varints grow past 252).
  */
 function buildSignPsbtCdata(merkelized: SignPsbtCommitments, walletId: Uint8Array): Uint8Array {
-  // Outer trees hash each per-map COMMITMENT as a 0x00-prefixed leaf, as the
-  // reference client does.
+  // Outer trees hash each per-map COMMITMENT as a 0x00-prefixed leaf, as
+  // `AppClient.signPsbt` does (`hashLeaf`).
   const inputsRoot = new Merkle(merkelized.inputMapCommitments.map((commitment) => hashLeaf(commitment))).getRoot();
   const outputsRoot = new Merkle(merkelized.outputMapCommitments.map((commitment) => hashLeaf(commitment))).getRoot();
   return Uint8Array.from(
@@ -107,7 +108,11 @@ function buildSignPsbtCdata(merkelized: SignPsbtCommitments, walletId: Uint8Arra
   );
 }
 
-/** The initial SIGN_PSBT APDU: `E1 04 00 01 ‖ cdata`. */
+/**
+ * The initial SIGN_PSBT APDU: header `E1 04 00 01` plus `cdata` (the transport
+ * adds `Lc`), as `AppClient.makeRequest` sends it (P1 0, P2
+ * `CURRENT_PROTOCOL_VERSION`).
+ */
 export function buildSignPsbtApdu(cdata: Uint8Array): Apdu {
   return { cla: CLA_APP, ins: INS_SIGN_PSBT, p1: P1_SIGN_PSBT, p2: P2_PROTOCOL_V1, data: cdata };
 }
@@ -145,8 +150,8 @@ function assertNoConflictingSignatures(mergeTarget: BitcoinjsPsbt, table: Expect
     // A finalized input is silently signable: bip174 has no finalized guard, so
     // the merge writes the partial sig ALONGSIDE the final witness instead of
     // throwing — and nothing downstream notices: extraction reads the merged
-    // tapScriptSig fine (`peginInput.ts:233-240`) and `finalizePeginInputPsbt`'s
-    // allFinalized fallback (`peginInput.ts:272-292`) then ships the STALE
+    // tapScriptSig fine (`peginInput.ts`) and `finalizePeginInputPsbt`'s
+    // allFinalized fallback then ships the STALE
     // witness. Reject here, where a throw still costs zero device I/O.
     if (input.finalScriptWitness || input.finalScriptSig) {
       throw new LedgerSignPsbtProtocolError(

@@ -667,7 +667,7 @@ describe("LedgerVaultProvider", () => {
     });
 
     it("signs a change-less Max sweep — every depositor input marked, no change output", async () => {
-      // computeMaxDeposit emits no change (`peginFeeMath.ts:162-165`), and
+      // computeMaxDeposit emits no change (`peginFeeMath.ts`), and
       // dust-revert drops it too; the firmware accepts zero change.
       const { prepareSignPsbt: realPrepare } = await actualSigner();
       signMock.prepareSignPsbt.mockImplementation(realPrepare);
@@ -1786,8 +1786,8 @@ describe("LedgerVaultProvider", () => {
     }
 
     /**
-     * The Payout as the WASM builders emit it (`payout.rs:100-135` @
-     * ac4954e7): input 0's sequence is the PegIn CSV timelock, which neither
+     * The Payout as the WASM builders emit it (btc-vault `payout.rs`): input
+     * 0's sequence is the PegIn CSV timelock, which neither
      * device nor host reads. `claimer`: input 0 bare (the claimer signs
      * input 1). `depositor`: input 0 carries the Vault-UTXO leaf and D's
      * entry, input 1 carries the payout leaf (no entry) — the deposit-time shape.
