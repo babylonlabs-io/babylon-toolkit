@@ -80,19 +80,16 @@ export function useReorderModal({
     });
   }, []);
 
-  const moveVault = useCallback(
-    (vaultId: string, direction: "up" | "down") => {
-      setOrderedVaults((current) => {
-        const index = current.findIndex((v) => v.id === vaultId);
-        const target = direction === "up" ? index - 1 : index + 1;
-        if (index === -1 || target < 0 || target >= current.length) {
-          return current;
-        }
-        return arrayMove(current, index, target);
-      });
-    },
-    [],
-  );
+  const moveVault = useCallback((vaultId: string, direction: "up" | "down") => {
+    setOrderedVaults((current) => {
+      const index = current.findIndex((v) => v.id === vaultId);
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (index === -1 || target < 0 || target >= current.length) {
+        return current;
+      }
+      return arrayMove(current, index, target);
+    });
+  }, []);
 
   const handleConfirm = useCallback(async () => {
     const permutedVaultIds = orderedVaults.map((v) => v.vaultId as Hex);

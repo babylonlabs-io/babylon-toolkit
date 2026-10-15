@@ -2941,7 +2941,7 @@ export const COPY = {
   reorder: {
     modalTitle: "Reorder Vaults",
     modalSubtitle:
-      "This is the liquidation order of your BTCVaults. Drag to change the order.",
+      "This is the liquidation order of your BTCVaults. Drag or use the arrows to change the order.",
     dragHandle: "Drag to reorder",
     moveUp: "Move up",
     moveDown: "Move down",

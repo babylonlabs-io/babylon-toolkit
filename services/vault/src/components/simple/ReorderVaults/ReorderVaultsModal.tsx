@@ -136,6 +136,7 @@ export function ReorderVaultsModal({
                     position={index + 1}
                     isFirst={index === 0}
                     isLast={index === orderedVaults.length - 1}
+                    disabled={isProcessing || pendingWrite !== null}
                     onMove={moveVault}
                   />
                 ))}

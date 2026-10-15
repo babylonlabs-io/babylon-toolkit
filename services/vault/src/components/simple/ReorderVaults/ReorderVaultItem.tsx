@@ -1,11 +1,8 @@
 import { Avatar, IconButton } from "@babylonlabs-io/core-ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  IoChevronDown,
-  IoChevronUp,
-  IoReorderThree,
-} from "react-icons/io5";
+import { useEffect, useRef } from "react";
+import { IoChevronDown, IoChevronUp, IoReorderThree } from "react-icons/io5";
 
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -13,13 +10,16 @@ import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
 
+type MoveDirection = "up" | "down";
+
 interface ReorderVaultItemProps {
   id: string;
   amountBtc: number;
   position: number;
   isFirst: boolean;
   isLast: boolean;
-  onMove: (id: string, direction: "up" | "down") => void;
+  disabled: boolean;
+  onMove: (id: string, direction: MoveDirection) => void;
 }
 
 export function ReorderVaultItem({
@@ -28,6 +28,7 @@ export function ReorderVaultItem({
   position,
   isFirst,
   isLast,
+  disabled,
   onMove,
 }: ReorderVaultItemProps) {
   const {
@@ -37,7 +38,25 @@ export function ReorderVaultItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
+
+  const moveUpRef = useRef<HTMLButtonElement>(null);
+  const moveDownRef = useRef<HTMLButtonElement>(null);
+  const focusAfterMove = useRef<MoveDirection | null>(null);
+
+  useEffect(() => {
+    const direction = focusAfterMove.current;
+    if (direction === null) return;
+    focusAfterMove.current = null;
+    const pressed = direction === "up" ? moveUpRef : moveDownRef;
+    const other = direction === "up" ? moveDownRef : moveUpRef;
+    (pressed.current?.disabled ? other : pressed).current?.focus();
+  }, [position]);
+
+  const handleMove = (direction: MoveDirection) => {
+    focusAfterMove.current = direction;
+    onMove(id, direction);
+  };
 
   // Movement is constrained to vertical-only by DndContext modifiers
   // (restrictToVerticalAxis + restrictToParentElement)
@@ -65,22 +84,24 @@ export function ReorderVaultItem({
       </div>
       <div className="flex items-center gap-2">
         <IconButton
+          ref={moveUpRef}
           type="button"
           size="small"
           className="[@media(pointer:coarse)]:size-11"
           aria-label={COPY.reorder.moveUp}
-          disabled={isFirst}
-          onClick={() => onMove(id, "up")}
+          disabled={disabled || isFirst}
+          onClick={() => handleMove("up")}
         >
           <IoChevronUp size={16} />
         </IconButton>
         <IconButton
+          ref={moveDownRef}
           type="button"
           size="small"
           className="[@media(pointer:coarse)]:size-11"
           aria-label={COPY.reorder.moveDown}
-          disabled={isLast}
-          onClick={() => onMove(id, "down")}
+          disabled={disabled || isLast}
+          onClick={() => handleMove("down")}
         >
           <IoChevronDown size={16} />
         </IconButton>
