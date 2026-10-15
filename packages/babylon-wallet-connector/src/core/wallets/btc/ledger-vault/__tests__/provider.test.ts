@@ -2706,11 +2706,30 @@ describe("LedgerVaultProvider", () => {
     await expect(call).rejects.not.toThrow(/0\.11\.0-rc1/);
   });
 
-  it("connects when the app preflight yielded nothing, leaving the first APDU to report", async () => {
+  it("connects when the app preflight yielded nothing, but refuses the account key until an app read confirms the vault app", async () => {
     dmkSessionMock.connectDmkSession.mockResolvedValue({ dmk: {}, sessionId: "s1" });
+    const provider = new LedgerVaultProvider(Network.SIGNET);
 
-    await expect(new LedgerVaultProvider(Network.SIGNET).connectWallet()).resolves.toBeUndefined();
+    await expect(provider.connectWallet()).resolves.toBeUndefined();
     expect(dmkSessionMock.disconnectDmkSession).not.toHaveBeenCalled();
+
+    // Locked device: the key read's own app read learns nothing.
+    dmkSessionMock.refreshSessionApp.mockImplementation(async (session: object) => session);
+    await expect(provider.getAddress()).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
+    await expect(provider.getPublicKeyHex()).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
+    expect(derivationMock.getXOnlyPublicKeyHex).not.toHaveBeenCalled();
+    expect(h.sent).toHaveLength(0);
+
+    // Unplugged: the key read reports the lost session and tears it down, so the UI offers Reconnect.
+    dmkSessionMock.isSessionAlive.mockResolvedValueOnce(false);
+    await expect(provider.getAddress()).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_DISCONNECTED });
+    expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledTimes(1);
+    await provider.connectWallet();
+
+    // The user unlocks and opens the app: the retried key read recovers.
+    dmkSessionMock.refreshSessionApp.mockImplementation(vaultAppOpen);
+    await expect(provider.getAddress()).resolves.toEqual(expect.any(String));
+    expect(derivationMock.getXOnlyPublicKeyHex).toHaveBeenCalledTimes(1);
   });
 
   it("re-gates a session whose preflight failed when connect is retried", async () => {
