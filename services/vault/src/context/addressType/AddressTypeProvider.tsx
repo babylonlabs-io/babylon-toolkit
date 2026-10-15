@@ -10,6 +10,9 @@ import { btcAddressToScriptPubKeyHex } from "@/utils/btc";
 
 import type { AddressTypeContextType } from "./types";
 
+/** `OP_1 OP_PUSHBYTES_32` as returned by `btcAddressToScriptPubKeyHex`: the P2TR scriptPubKey prefix. */
+const P2TR_SCRIPT_PREFIX = "0x5120";
+
 const AddressTypeContext = createContext<AddressTypeContextType>({
   isSupportedAddress: true,
   isCheckingAddress: false,
@@ -21,7 +24,7 @@ const AddressTypeContext = createContext<AddressTypeContextType>({
  */
 function isTaprootAddress(address: string): boolean {
   try {
-    return btcAddressToScriptPubKeyHex(address).startsWith("0x5120");
+    return btcAddressToScriptPubKeyHex(address).startsWith(P2TR_SCRIPT_PREFIX);
   } catch {
     return false;
   }
