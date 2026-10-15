@@ -179,6 +179,7 @@ function ActiveVaultRow({
       <div
         className={twMerge(
           LIST_ROW_ACTION_SLOT_CLASS,
+          "max-md:basis-full",
           showDownloadParams && "basis-auto gap-2",
         )}
       >
@@ -186,7 +187,7 @@ function ActiveVaultRow({
           <button
             type="button"
             onClick={() => onDownloadArtifacts(showDownloadParams)}
-            className={PRIMARY_ROW_BUTTON_CLASS}
+            className={`${PRIMARY_ROW_BUTTON_CLASS} max-md:w-full`}
           >
             {COPY.vaults.actions.downloadArtifacts}
           </button>
@@ -204,7 +205,7 @@ function ActiveVaultRow({
             vault.displayOnly ||
             vault.lifecycle !== "active"
           }
-          className={NEUTRAL_ROW_BUTTON_CLASS}
+          className={`${NEUTRAL_ROW_BUTTON_CLASS} max-md:w-full`}
         >
           {COPY.vaults.actions.withdraw}
         </button>
