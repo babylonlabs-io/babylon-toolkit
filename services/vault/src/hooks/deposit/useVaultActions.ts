@@ -439,7 +439,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       // PENDING. The batch is sized from the hash-checked transaction's HTLC
       // outputs, so an under-listed batch cannot pass. Fails closed when the
       // check cannot be read or the batch is incomplete.
-      await assertResumePositionCapacity({
+      const fundedVaultIds = await assertResumePositionCapacity({
         vaultId,
         target: {
           depositor: finalBasicInfo.depositor,
@@ -451,6 +451,19 @@ export function useVaultActions(): UseVaultActionsReturn {
         unsignedTxHex,
         batchVaultIds,
       });
+      if (signal.aborted) return;
+
+      // BTKT-015: payout presigning refuses a non-standard operator payout
+      // script only after the broadcast, so refuse here. Unconditional: a
+      // resume with no local stamp is covered. Checks every vault the broadcast
+      // funds, each at its own frozen epochs, because siblings registered in
+      // separate requests can freeze different epochs. Uses the batch the
+      // capacity check proved, not the indexer listing. Ahead of the
+      // wallet-liveness probe like the gates above: these reads need no
+      // wallet, so a refused resume raises no popup and reads no UTXOs.
+      for (const fundedVaultId of fundedVaultIds) {
+        await verifyResumePayoutScripts({ vaultId: fundedVaultId });
+      }
       if (signal.aborted) return;
 
       // Get BTC wallet provider
@@ -581,14 +594,6 @@ export function useVaultActions(): UseVaultActionsReturn {
           expected: pendingPegin.buildParticipantOperationKeys,
         });
       }
-
-      // BTKT-015: payout presigning rejects a non-standard operator payout
-      // script, but only after broadcast; refuse here instead. Unconditional:
-      // it needs no local stamp, so a cross-device resume is covered. Checks
-      // vaultId only: batch siblings are registered together and share its
-      // frozen epochs and rosters.
-      await verifyResumePayoutScripts({ vaultId });
-      if (signal.aborted) return;
 
       let expectedUtxos;
       let depositTerms: DepositTerms | undefined;

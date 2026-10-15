@@ -234,6 +234,8 @@ export async function assertPositionAcceptsBatch({
  * transaction already reached Bitcoin from elsewhere, where over-counting can
  * only refuse a redundant rebroadcast.
  *
+ * @returns The ids of every vault this Pre-PegIn funds (the selected vault
+ *   first), as proven against the chain, the same set the broadcast funds.
  * @throws {PositionCapacityExceededError} the application says the position
  *   would exceed its BTCVault count or BTC limit.
  * @throws {PositionCapacityUnavailableError} a chain read failed; the
@@ -246,7 +248,7 @@ export async function assertPositionAcceptsBatch({
  */
 export async function assertResumePositionCapacity(
   params: AssertResumePositionCapacityParams,
-): Promise<void> {
+): Promise<readonly Hex[]> {
   const { vaultId, target, unsignedTxHex, batchVaultIds } = params;
 
   // Keyed by lowercase id so a listing that repeats a vault in another case
@@ -318,4 +320,5 @@ export async function assertResumePositionCapacity(
     vaultCount: htlcCount,
     amount,
   });
+  return members.map((member) => member.vaultId);
 }
