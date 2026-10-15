@@ -18,6 +18,8 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
+import { COPY } from "@/copy";
+
 import { ethClient } from "../../../clients/eth-contract/client";
 import {
   throwRevertError,
@@ -27,7 +29,6 @@ import {
   assertReceiptIsForSentCall,
   readBroadcastPosition,
 } from "../../../clients/eth-contract/transactionReplacement";
-import { ensureWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
 import {
   sendWithStaleNonceRetry,
   waitForWalletToCountTransaction,
@@ -141,24 +142,17 @@ async function simulateTx(
  *   too low" without proof that it was never broadcast. It may still be mined.
  */
 async function executeTx(
-  connectedWalletClient: WalletClient,
+  walletClient: WalletClient,
   chain: Chain,
   to: Address,
   data: Hex,
   errorContext: string,
 ): Promise<TransactionResult> {
-  const account = connectedWalletClient.account?.address;
+  const account = walletClient.account?.address;
 
   if (!account) {
-    throw new Error("Wallet account not available");
+    throw new Error(COPY.wallet.connectToContinue);
   }
-
-  // Callers pass getETHChain() as `chain`, but the wallet itself may still be
-  // on a different network, so ask it to switch before signing.
-  const walletClient = await ensureWalletClientOnExpectedChain(
-    connectedWalletClient,
-    account,
-  );
 
   const publicClient = ethClient.getPublicClient();
 

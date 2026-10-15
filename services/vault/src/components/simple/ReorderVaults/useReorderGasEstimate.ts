@@ -8,11 +8,11 @@
 import { buildReorderVaultsTx } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import type { Hex } from "viem";
-import { useAccount } from "wagmi";
+import type { Address, Hex } from "viem";
 
 import { getAaveAdapterAddress } from "@/applications/aave/config";
 import { ethClient } from "@/clients/eth-contract/client";
+import { useETHWallet } from "@/context/wallet";
 import { usePrice } from "@/hooks/usePrices";
 
 const WEI_PER_ETH = 10n ** 18n;
@@ -38,7 +38,7 @@ export function useReorderGasEstimate(
   vaultIds: Hex[],
   enabled: boolean,
 ): ReorderGasEstimate {
-  const { address } = useAccount();
+  const address = useETHWallet().address as Address | undefined;
   const ethPrice = usePrice("ETH");
 
   // Stable query key from vault ID order

@@ -15,9 +15,14 @@ vi.mock("../../context", () => ({
   }),
 }));
 
-vi.mock("wagmi", () => ({
-  useWalletClient: () => ({ data: { account: { address: "0xuser" } } }),
-  useAccount: () => ({ address: "0xuser" }),
+vi.mock("@/context/wallet", () => ({
+  useETHWallet: () => ({ address: "0xuser" }),
+}));
+
+vi.mock("@/clients/eth-contract/walletChain", () => ({
+  getWalletClientOnExpectedChain: vi
+    .fn()
+    .mockResolvedValue({ account: { address: "0xuser" } }),
 }));
 
 const mockAssertNoTransactionInFlight = vi.hoisted(() => vi.fn());
@@ -44,6 +49,7 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), event: vi.fn() },
 }));
 
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { COPY } from "@/copy";
 import {
   ContractError,
@@ -93,6 +99,7 @@ describe("useWithdrawCollateralTransaction", () => {
     });
 
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
   });
 
   it("marks the withdrawn vault pending so the list can show it withdrawing", async () => {
@@ -106,6 +113,7 @@ describe("useWithdrawCollateralTransaction", () => {
       [VAULT_ID],
       "withdraw",
     );
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
   });
 
   it("leaves the position query untouched when the transaction reverts", async () => {
@@ -139,6 +147,7 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
     expect(result.current.notice).toBe(COPY.common.transactionInFlight);
     expect(result.current.error).toBeNull();
     expect(mockWithdraw).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 
   it('reports a "nonce too low" for a withdrawal the wallet may have broadcast as an unknown outcome, not a failure, and refreshes the position', async () => {

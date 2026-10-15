@@ -50,9 +50,14 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
-vi.mock("wagmi", () => ({
-  useWalletClient: () => ({ data: { account: { address: "0xuser" } } }),
-  useAccount: () => ({ address: "0xuser" }),
+vi.mock("@/context/wallet", () => ({
+  useETHWallet: () => ({ address: "0xuser" }),
+}));
+
+vi.mock("@/clients/eth-contract/walletChain", () => ({
+  getWalletClientOnExpectedChain: vi
+    .fn()
+    .mockResolvedValue({ account: { address: "0xuser" } }),
 }));
 
 // Local override of the global gate mock so we can drive a paused aave scope.
@@ -63,6 +68,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { COPY } from "@/copy";
 import {
   ContractError,
@@ -122,6 +128,7 @@ describe("useBorrowTransaction — pause gating", () => {
     expect(resolved).toBe("failed");
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockBorrow).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 });
 
@@ -138,6 +145,7 @@ describe("useBorrowTransaction — cache invalidation", () => {
     });
 
     expect(resolved).toBe("succeeded");
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
     expect(
       mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
     ).toEqual([
@@ -201,6 +209,7 @@ describe("useBorrowTransaction — unreadable borrow cap", () => {
       COPY.loans.borrowLimit.capUnavailableError,
     );
     expect(mockBorrow).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 });
 
@@ -221,6 +230,7 @@ describe("useBorrowTransaction — a transaction already in flight", () => {
     expect(result.current.error).toBeNull();
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockBorrow).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 });
 
@@ -252,6 +262,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       mine({ status: "success", transactionHash: HASH, from: "0xuser" });
       await expect(borrowing).resolves.toBe("succeeded");
     });
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
     expect(result.current.pendingWrite).toBeNull();
     expect(mockInvalidateQueries).toHaveBeenCalled();
   });
@@ -282,6 +293,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       COPY.common.unconfirmedTransaction.inProgress,
     );
     expect(mockBorrow).toHaveBeenCalledTimes(1);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       mine({ status: "success", transactionHash: HASH, from: "0xuser" });
