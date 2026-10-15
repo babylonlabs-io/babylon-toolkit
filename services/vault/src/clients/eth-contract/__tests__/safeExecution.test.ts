@@ -1,7 +1,11 @@
 import { toEventSelector, type TransactionReceipt } from "viem";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { isProposalExecution, readSafeExecution } from "../safeExecution";
+import {
+  isProposalExecution,
+  judgeSafeExecution,
+  readSafeExecution,
+} from "../safeExecution";
 
 const SAFE = "0xAbCdEf0000000000000000000000000000000002";
 const OTHER_CONTRACT = "0x3000000000000000000000000000000000000003";
@@ -108,5 +112,42 @@ describe("isProposalExecution", () => {
     const receipt: TransactionReceipt = { ...receiptWith([]), from: SAFE };
 
     expect(isProposalExecution(receipt, SAFE, PROPOSAL)).toBe(false);
+  });
+});
+
+describe("judgeSafeExecution", () => {
+  it("holds a proposal's execution with no log from the Safe as unknown when the Safe is past v1.0.0", async () => {
+    const publicClient = { readContract: vi.fn().mockResolvedValue("1.3.0") };
+
+    await expect(
+      judgeSafeExecution(publicClient, receiptWith([]), SAFE, PROPOSAL),
+    ).resolves.toBe("unknown");
+  });
+
+  it("leaves a v1.0.0 Safe's proposal execution with no log to its status, as that release logs nothing on success", async () => {
+    const publicClient = { readContract: vi.fn().mockResolvedValue("1.0.0") };
+
+    await expect(
+      judgeSafeExecution(publicClient, receiptWith([]), SAFE, PROPOSAL),
+    ).resolves.toBe("none");
+  });
+
+  it("holds a proposal's execution with no log from the Safe as unknown when the Safe's version cannot be read", async () => {
+    const publicClient = {
+      readContract: vi.fn().mockRejectedValue(new Error("call failed")),
+    };
+
+    await expect(
+      judgeSafeExecution(publicClient, receiptWith([]), SAFE, PROPOSAL),
+    ).resolves.toBe("unknown");
+  });
+
+  it("leaves the wallet's own transaction with no log from the Safe to its status, without reading the version", async () => {
+    const publicClient = { readContract: vi.fn() };
+
+    await expect(
+      judgeSafeExecution(publicClient, receiptWith([]), SAFE, EXECUTION_TX),
+    ).resolves.toBe("none");
+    expect(publicClient.readContract).not.toHaveBeenCalled();
   });
 });

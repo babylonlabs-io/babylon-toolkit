@@ -25,6 +25,7 @@ const {
   mockGetTransactionReceipt,
   mockGetBlockNumber,
   mockGetBlock,
+  mockReadContract,
   mockWaitForCanonicalReceipt,
 } = vi.hoisted(() => ({
   mockWaitReceipt: vi.fn(),
@@ -33,6 +34,7 @@ const {
   mockGetTransactionReceipt: vi.fn(),
   mockGetBlockNumber: vi.fn(),
   mockGetBlock: vi.fn(),
+  mockReadContract: vi.fn(),
   mockWaitForCanonicalReceipt: vi.fn(),
 }));
 
@@ -53,6 +55,7 @@ vi.mock("@/clients/eth-contract/client", () => ({
       getTransactionReceipt: mockGetTransactionReceipt,
       getBlockNumber: mockGetBlockNumber,
       getBlock: mockGetBlock,
+      readContract: mockReadContract,
     }),
   },
 }));
@@ -737,6 +740,30 @@ describe("runAaveWrite", () => {
         ...receipt("success", EXECUTION_HASH),
         from: EXECUTOR,
         logs: [safeExecutionLog(EXECUTION_SUCCESS_TOPIC, otherProposal)],
+      })
+      .mockResolvedValue({
+        ...receipt("success", EXECUTION_HASH),
+        from: EXECUTOR,
+        logs: [safeExecutionLog(EXECUTION_SUCCESS_TOPIC, HASH)],
+      });
+
+    const result = runAaveWrite(ACCOUNT, () => Promise.reject(unconfirmed()));
+    await flush();
+
+    expect(getPendingAaveWrite(ACCOUNT)).toMatchObject({
+      phase: "unconfirmed",
+    });
+    await vi.advanceTimersByTimeAsync(RECEIPT_RETRY_DELAY_MS);
+    await expect(result).resolves.toBe("mined");
+    expect(mockWaitReceipt).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the lock when a late proposal execution holds no log from the Safe, and resolves mined once a later round's logs the proposal's success", async () => {
+    mockReadContract.mockResolvedValue("1.4.1");
+    mockWaitReceipt
+      .mockResolvedValueOnce({
+        ...receipt("success", EXECUTION_HASH),
+        from: EXECUTOR,
       })
       .mockResolvedValue({
         ...receipt("success", EXECUTION_HASH),

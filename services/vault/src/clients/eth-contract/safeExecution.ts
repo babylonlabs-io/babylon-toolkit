@@ -15,6 +15,11 @@
  *     and the first data word in the others;
  *   - v1.0.0: `ExecutionFailed(bytes32)` on failure, the proposal hash in the
  *     data, and nothing on success.
+ *
+ * Every release since v1.1.1 logs the outcome of an execution that did not
+ * revert, so a proposal's execution with no log from the Safe does not show
+ * this Safe running the proposal (a wrong execution hash from the service, or
+ * a wrapper that swallowed the Safe's revert) unless the Safe is v1.0.0.
  */
 
 import {
@@ -25,6 +30,7 @@ import {
   type Hash,
   type Hex,
   type Log,
+  type PublicClient,
   type TransactionReceipt,
 } from "viem";
 
@@ -40,11 +46,26 @@ const EXECUTION_FAILURE_TOPICS = new Set<string>([
 /** Bytes in the proposal hash, the event's first argument. */
 const PROPOSAL_HASH_BYTES = 32;
 
+/** The Safe's `VERSION` constant, served by its singleton through the proxy. */
+const SAFE_VERSION_ABI = [
+  {
+    type: "function",
+    name: "VERSION",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }],
+  },
+] as const;
+
+/** The only Safe release that logs nothing for a successful execution. */
+const SILENT_SUCCESS_SAFE_VERSION = "1.0.0";
+
 /**
  * The Safe's verdict on one write in a receipt. `none`: the receipt holds no
  * execution log from that Safe, so its own status decides (an ordinary
  * wallet's transaction, or a v1.0.0 Safe's successful execution). `unknown`:
- * it is a proposal's execution and holds one, but not for this proposal.
+ * it is a proposal's execution and holds one, but not for this proposal, or
+ * (from `judgeSafeExecution`) holds none and the Safe is not v1.0.0.
  */
 export type SafeExecution = "succeeded" | "failed" | "unknown" | "none";
 
@@ -107,4 +128,32 @@ export function readSafeExecution(
     }
   }
   return sawExecution ? "unknown" : "none";
+}
+
+/**
+ * The Safe's verdict on the write, as `readSafeExecution` reads it, except
+ * that a proposal's execution with no execution log from the Safe is
+ * `unknown` unless the Safe reports v1.0.0 (see the module doc). Only that
+ * case reads the chain.
+ */
+export async function judgeSafeExecution(
+  publicClient: Pick<PublicClient, "readContract">,
+  receipt: TransactionReceipt,
+  safe: Address,
+  sentHash: Hash,
+): Promise<SafeExecution> {
+  const verdict = readSafeExecution(receipt, safe, sentHash);
+  if (verdict !== "none" || !isProposalExecution(receipt, safe, sentHash)) {
+    return verdict;
+  }
+  const version = await publicClient
+    .readContract({
+      address: safe,
+      abi: SAFE_VERSION_ABI,
+      functionName: "VERSION",
+    })
+    // A version the RPC cannot serve proves nothing, so the outcome stays
+    // unknown.
+    .catch(() => null);
+  return version === SILENT_SUCCESS_SAFE_VERSION ? "none" : "unknown";
 }

@@ -61,8 +61,6 @@ export class UnconfirmedTransactionError extends ContractError {
  * the mapped error keeps a generic code.
  */
 export class ReceiptNotCanonicalError extends Error {
-  readonly hash: Hash;
-
   constructor({
     hash,
     confirmations,
@@ -80,7 +78,6 @@ export class ReceiptNotCanonicalError extends Error {
       { cause },
     );
     this.name = "ReceiptNotCanonicalError";
-    this.hash = hash;
   }
 }
 

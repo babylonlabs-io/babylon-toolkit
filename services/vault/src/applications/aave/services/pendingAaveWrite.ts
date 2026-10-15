@@ -42,7 +42,7 @@ import { waitForCanonicalReceipt } from "@/clients/eth-contract/canonicalReceipt
 import { ethClient } from "@/clients/eth-contract/client";
 import {
   isProposalExecution,
-  readSafeExecution,
+  judgeSafeExecution,
 } from "@/clients/eth-contract/safeExecution";
 import {
   REPLACEMENT_LOOKUP_TIMEOUT_MS,
@@ -412,7 +412,8 @@ async function readOwnReceipt(
  * Judge a late receipt, once it is AAVE_WRITE_CONFIRMATIONS deep, from the
  * receipt as re-read then (see `executeTx` for why). Null when it does not get
  * that deep within one round, or when it is a Safe proposal's execution that
- * reverted or names another proposal, so the wait goes on.
+ * reverted, names another proposal or logs nothing for it, so the wait goes
+ * on.
  *
  * @throws the signal's reason when the user stopped waiting meanwhile.
  * @throws TransactionReplacedError when the transaction mined was a
@@ -463,7 +464,12 @@ async function settle(
   // verdict is read from the receipt at depth (see safeExecution.ts).
   const safeExecution =
     receipt.status === "success"
-      ? readSafeExecution(receipt, broadcast.from, broadcast.hash)
+      ? await judgeSafeExecution(
+          publicClient,
+          receipt,
+          broadcast.from,
+          broadcast.hash,
+        )
       : "none";
   if (receipt.status === "reverted" || safeExecution === "failed") {
     throw new ContractError(
@@ -474,7 +480,7 @@ async function settle(
   }
   if (safeExecution === "unknown") {
     logger.warn(
-      "A late Aave transaction's Safe execution names another proposal",
+      "A late Aave transaction's Safe execution holds no verdict for the proposal",
       { data: { hash: receipt.transactionHash } },
     );
     return null;

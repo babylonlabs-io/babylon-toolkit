@@ -275,7 +275,6 @@ describe("waitForCanonicalReceipt", () => {
 
     const thrown = await wait;
     expect(thrown).toBeInstanceOf(ReceiptNotCanonicalError);
-    expect((thrown as ReceiptNotCanonicalError).hash).toBe(TX_HASH);
     expect((thrown as Error).cause).toBe(failure);
   });
 

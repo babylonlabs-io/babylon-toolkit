@@ -32,6 +32,7 @@ const {
     getBlockNumber: vi.fn(),
     getTransactionReceipt: vi.fn(),
     getBlock: vi.fn(),
+    readContract: vi.fn(),
   },
   mockWaitReceipt: vi.fn(),
   mockSendWithStaleNonceRetry: vi.fn(),
@@ -344,7 +345,17 @@ describe("executeTx after broadcast (via repayToCorePosition)", () => {
   it("does not look for a replacement behind a Safe's receipt, which another account sent", async () => {
     mockWaitReceipt.mockResolvedValue({
       status: "success",
-      logs: [],
+      // The Safe's own log that it executed the proposal.
+      logs: [
+        {
+          address: ACCOUNT,
+          topics: [
+            toEventSelector("ExecutionSuccess(bytes32,uint256)"),
+            "0xsent",
+          ],
+          data: `0x${"00".repeat(32)}`,
+        },
+      ],
       transactionHash: "0xexecuted",
       from: "0x4000000000000000000000000000000000000004",
     });
@@ -734,6 +745,39 @@ describe("executeTx for a Safe wallet (via repayToCorePosition)", () => {
     expect((thrown as UnconfirmedTransactionError).broadcast.hash).toBe(
       "0xsent",
     );
+  });
+
+  it("keeps the outcome unconfirmed, not successful, when the proposal's execution holds no log from the Safe", async () => {
+    // A receipt the Safe Transaction Service named that does not show the
+    // Safe running the proposal: every release since v1.1.1 logs an outcome.
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+    mockPublicClient.readContract.mockResolvedValue("1.4.1");
+
+    const thrown = await repayCall().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(UnconfirmedTransactionError);
+    expect((thrown as UnconfirmedTransactionError).broadcast.hash).toBe(
+      "0xsent",
+    );
+  });
+
+  it("reports success for a v1.0.0 Safe's proposal execution, which logs nothing on success", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      logs: [],
+      transactionHash: "0xexecuted",
+      from: EXECUTOR,
+    });
+    mockPublicClient.readContract.mockResolvedValue("1.0.0");
+
+    await expect(repayCall()).resolves.toMatchObject({
+      transactionHash: "0xexecuted",
+    });
   });
 });
 

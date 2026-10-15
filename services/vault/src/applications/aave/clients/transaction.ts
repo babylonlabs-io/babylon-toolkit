@@ -24,7 +24,7 @@ import { waitForCanonicalReceipt } from "../../../clients/eth-contract/canonical
 import { ethClient } from "../../../clients/eth-contract/client";
 import {
   isProposalExecution,
-  readSafeExecution,
+  judgeSafeExecution,
 } from "../../../clients/eth-contract/safeExecution";
 import {
   throwRevertError,
@@ -149,8 +149,8 @@ async function simulateTx(
  *   lag, or a Safe Transaction Service error), or its receipt did not reach
  *   that depth within RECEIPT_WAIT_ROUND_MS (its block was reorganized out, or
  *   the RPC lagged). It may still be mined. Also when a Safe proposal's
- *   execution reverted, or names another proposal: the proposal may still
- *   take effect.
+ *   execution reverted, names another proposal, or logs nothing for it: the
+ *   proposal may still take effect.
  * @throws TransactionReplacedError when the wallet replaced the transaction
  *   with a cancel or a different call.
  * @throws ContractError when the transaction reverted (not a Safe proposal's
@@ -311,8 +311,14 @@ async function executeTx(
 
   // A Safe's own call can fail inside a successful outer execution, and its
   // verdict is read from the receipt at depth (see safeExecution.ts). An
-  // execution that names another proposal leaves this one's outcome unknown.
-  const safeExecution = readSafeExecution(receipt, account, hash);
+  // execution that names another proposal, or logs nothing for it, leaves
+  // this one's outcome unknown.
+  const safeExecution = await judgeSafeExecution(
+    publicClient,
+    receipt,
+    account,
+    hash,
+  );
   if (safeExecution === "failed") {
     throw new ContractError(
       COPY.common.unconfirmedTransaction.reverted,
