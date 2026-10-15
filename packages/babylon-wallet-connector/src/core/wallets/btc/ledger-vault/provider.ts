@@ -274,8 +274,8 @@ export class LedgerVaultProvider implements IBTCProvider {
    */
   private dispatchRecordComplete = false;
   /**
-   * ONE in-flight device ceremony (derive/approve/sign, plus the connect
-   * re-gate's app read) at a time — a
+   * ONE in-flight device ceremony (derive/approve/sign, plus the app read of
+   * a connect re-gate or of the account key read) at a time — a
    * concurrent APDU would be eaten with 0x6A80 and desync the interrupt loop.
    * Token-scoped: teardown clears it SYNCHRONOUSLY so a new connection can
    * operate while a stale call is still settling; that call's finally
@@ -300,8 +300,9 @@ export class LedgerVaultProvider implements IBTCProvider {
    * See {@link activeOperation}. The busy throw costs zero device I/O. Two
    * overlapping ceremonies are a caller bug; {@link gateUngatedSession} also
    * holds the lock for one GET_APP_AND_VERSION when a connect is retried on a
-   * live session, so a ceremony started in that window hits this
-   * legitimately. The window is one instant exchange: the SDK answers a
+   * live session, and {@link readDevicePubkeyHex} does the same on a session
+   * whose preflight learned no app, so a ceremony started in that window hits
+   * this legitimately. The window is one instant exchange: the SDK answers a
    * locked device with 0x5515 before the app's dispatcher sees it
    * (`sdk:io_legacy/src/os_io_legacy.c:414-423` @ v26.6.1), and DMK 1.7.1
    * never holds the read for an unlock (IntentQueueService has no lock gating).
@@ -622,8 +623,8 @@ export class LedgerVaultProvider implements IBTCProvider {
   /**
    * Refuse, before the first vault APDU, an app the connect preflight shows is
    * wrong, too old, or newer than the host encoding supports. A failed
-   * preflight (no name) is let through: the first APDU then reports its own
-   * typed error.
+   * preflight (no name) is let through: a connect retry or the account key
+   * read re-reads the app before the key is read.
    */
   private refuseUnexpectedApp(session: DmkSessionHandle): WalletError | undefined {
     const expected = APP_NAME_BY_NETWORK[this.network];
@@ -711,15 +712,44 @@ export class LedgerVaultProvider implements IBTCProvider {
    */
   private getDevicePubkeyHex(): Promise<string> {
     if (!this.pubkeyHexPromise) {
-      const read = getXOnlyPublicKeyHex(this.requireSender(), this.depositorPath, toNetwork(this.network).bip32).catch(
-        (error) => {
-          if (this.pubkeyHexPromise === read) this.pubkeyHexPromise = undefined;
-          throw error;
-        },
-      );
+      const read = this.readDevicePubkeyHex().catch((error) => {
+        if (this.pubkeyHexPromise === read) this.pubkeyHexPromise = undefined;
+        throw error;
+      });
       this.pubkeyHexPromise = read;
     }
     return this.pubkeyHexPromise;
+  }
+
+  /**
+   * Reads the key only once the vault app is confirmed on this session. A
+   * session whose connect preflight learned nothing (locked device, failed
+   * read) gets one app read here, with no wait, so a flow retried after a
+   * reconnect recovers once the user unlocks and opens the app. When that app
+   * read runs, a dead session reports as disconnected, not as a wrong app.
+   */
+  private async readDevicePubkeyHex(): Promise<string> {
+    const session = this.requireSession();
+    const generation = this.connectionGeneration;
+    const expected = APP_NAME_BY_NETWORK[this.network];
+    if (session.appName === undefined && !this.activeOperation && this.deviceState.phase === "idle") {
+      const refreshed = await this.withDeviceOperation("getPublicKeyHex", async () => {
+        if (!(await this.probeSessionAlive(session))) throw disconnectedError();
+        return refreshSessionApp(session);
+      });
+      this.assertSameConnection(generation);
+      const refusal = this.refuseUnexpectedApp(refreshed);
+      if (refusal) throw refusal;
+      if (refreshed.appName === expected) this.installSessionApp(refreshed);
+    }
+    if (this.session?.appName !== expected) {
+      throw new WalletError({
+        code: ERROR_CODES.DEVICE_WRONG_APP,
+        message: `Unlock your Ledger, open the ${expected} app, and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    return getXOnlyPublicKeyHex(this.requireSender(), this.depositorPath, toNetwork(this.network).bip32);
   }
 
   /**
