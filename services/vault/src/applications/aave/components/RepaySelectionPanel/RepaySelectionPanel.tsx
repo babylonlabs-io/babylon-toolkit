@@ -89,7 +89,7 @@ export function RepaySelectionPanel({
                     {COPY.loans.hub.tokenOnHub(asset.symbol, asset.hub.label)}
                   </HubLabel>
                 </span>
-                <span className="text-base text-accent-primary">
+                <span className="min-w-0 break-all text-right text-base text-accent-primary">
                   {`${asset.amount} ${asset.symbol}`}
                 </span>
               </button>
