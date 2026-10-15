@@ -213,29 +213,29 @@ export function AmountSlider({
       </div>
 
       {/* Row 3: Max button + Balance | USD Value */}
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
         {/* Left: Max button + available amount (+ optional tooltip) */}
         {leftField && (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {onMaxClick && maxPosition === "left" && leftField.label?.toLowerCase() === "max" ? (
               <button
                 type="button"
                 onClick={onMaxClick}
                 disabled={disabled}
-                className="flex items-center gap-2 text-accent-secondary transition-colors hover:text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-w-0 items-center gap-2 text-left text-accent-secondary transition-colors hover:text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span
                   className={twMerge(
-                    "cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast",
+                    "cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:px-3",
                     maxButtonClassName,
                   )}
                 >
                   Max
                 </span>
-                <span>{leftField.value}</span>
+                <span className="min-w-0 break-all">{leftField.value}</span>
               </button>
             ) : (
-              <span className="text-accent-secondary">
+              <span className="min-w-0 break-all text-accent-secondary">
                 {leftField.label && `${leftField.label}: `}
                 {leftField.value}
               </span>
@@ -246,8 +246,8 @@ export function AmountSlider({
 
         {/* Right: USD value (or balance + Max button when maxPosition="right") */}
         {rightField && (
-          <div className="flex items-center gap-2 text-accent-secondary">
-            <span>
+          <div className="flex min-w-0 items-center gap-2 text-accent-secondary">
+            <span className="min-w-0 break-all">
               {rightField.label && `${rightField.label}: `}
               {rightField.value}
             </span>
@@ -261,7 +261,7 @@ export function AmountSlider({
               >
                 <span
                   className={twMerge(
-                    "cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast",
+                    "cursor-pointer rounded-[8px] bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:bg-primary-contrast [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:px-3",
                     maxButtonClassName,
                   )}
                 >

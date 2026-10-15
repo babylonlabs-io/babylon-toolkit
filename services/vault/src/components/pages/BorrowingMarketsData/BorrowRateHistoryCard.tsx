@@ -26,12 +26,14 @@ const CARD_CLASS =
   "flex w-full flex-col gap-6 rounded-2xl bg-background-secondary pt-6 px-6 pb-10";
 /** Frame's plot box is 1070x156 (see the C3 LineChart mapping table). */
 const CHART_ASPECT_RATIO = 1070 / 156;
+/** Keeps the plot readable on phones, where the aspect ratio alone leaves it squat. */
+const MIN_PLOT_HEIGHT_PX = 120;
 /** The frame shows 3 horizontal gridlines. */
 const Y_TICK_COUNT = 3;
 
 const ACTIVE_RANGE_CLASS =
-  "rounded-lg bg-background-contrast px-2 py-0.5 text-accent-primary";
-const INACTIVE_RANGE_CLASS = "px-2 py-0.5 text-accent-secondary";
+  "rounded-lg bg-background-contrast px-2 py-0.5 text-accent-primary max-md:px-3 max-md:py-2";
+const INACTIVE_RANGE_CLASS = "px-2 py-0.5 text-accent-secondary max-md:px-3 max-md:py-2";
 
 const DEFAULT_RANGE: HistoryRange = "1w";
 const RANGE_OPTIONS: HistoryRange[] = ["1d", "1w", "1m", "6m", "1y", "all"];
@@ -81,7 +83,7 @@ function CardShell({
 }) {
   return (
     <div className={CARD_CLASS} data-testid="borrow-rate-history-card">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1">
             <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
@@ -94,7 +96,7 @@ function CardShell({
           </div>
           {value}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {RANGE_OPTIONS.map((option) => (
             <button
               key={option}
@@ -208,6 +210,7 @@ export function BorrowRateHistoryCard({
         yDomain={domain}
         yTicks={yTicks}
         aspectRatio={CHART_ASPECT_RATIO}
+        minPlotHeight={MIN_PLOT_HEIGHT_PX}
         grid={{ lines: "horizontal", style: "solid" }}
         hoverMode="nearest"
         renderTooltip={(hover) => (
