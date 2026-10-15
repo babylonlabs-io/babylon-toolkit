@@ -149,7 +149,7 @@ export function WithdrawSelectContent({
       <Button
         variant="contained"
         color="secondary"
-        className="w-full"
+        className="w-full disabled:cursor-not-allowed"
         disabled={
           selectedVaultIds.length === 0 ||
           wouldBreachHF ||
