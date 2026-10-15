@@ -408,8 +408,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts]
 
 Where Pre-PegIn change must pay. An approval (policy) wallet's device
 dictates the change address it accepts; the Ledger vault app takes change
-only at the depositor's own `/0/0` address
-(`sign_psbt_validate.c:571-661` @ b89dd580).
+only at the depositor's own `/0/0` address.
 
 Separate from [DepositTermsApprover](#deposittermsapprover) because only the Pre-PegIn build
 needs it: the presign/payout ceremonies approve terms without ever creating

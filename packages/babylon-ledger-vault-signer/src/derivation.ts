@@ -26,26 +26,23 @@ const COMPRESSED_PUBKEY_BYTES = 33;
 
 /**
  * Base-app bound: `get_extended_pubkey.c` rejects longer paths with
- * SW_INCORRECT_DATA (MAX_BIP388_XPUB_DERIVATION_STEPS + 2 at the pinned
- * `bitcoin_app_base` rev). Bounding pre-I/O also keeps the single-byte
+ * SW_INCORRECT_DATA (MAX_BIP388_XPUB_DERIVATION_STEPS + 2). Bounding pre-I/O
+ * also keeps the single-byte
  * length field below from ever truncating.
  */
 const MAX_BIP32_PATH_STEPS = 10;
 
 /**
- * `GET_MASTER_FINGERPRINT` (base `commands.h:11`): no payload, answers the 4-byte
- * fingerprint (`get_master_fingerprint.c:38`). P2 = protocol version 1, as both
- * reference clients send (`bitcoin_client/ledger_bitcoin/command_builder.py:57`
- * default `p2 = CURRENT_PROTOCOL_VERSION`; `bitcoin_client_rs/src/apdu.rs:131`).
+ * `GET_MASTER_FINGERPRINT`: no payload, answers the 4-byte fingerprint. P2 =
+ * protocol version 1, as both reference clients send.
  */
 const INS_GET_MASTER_FINGERPRINT = 0x05;
 const MASTER_FINGERPRINT_BYTES = 4;
 
 /**
  * Read the device's BIP-32 master key fingerprint. Both the default wallet
- * policy's key origin and the PoP input's TAP_BIP32_DERIVATION must carry it —
- * the device compares against `crypto_get_master_key_fingerprint()`
- * (`sign_psbt_validate.c:3039` @ b0c0ac4d).
+ * policy's key origin and the PoP input's TAP_BIP32_DERIVATION must carry it;
+ * the device compares against `crypto_get_master_key_fingerprint()`.
  */
 export async function getMasterFingerprintHex(send: ApduSender): Promise<string> {
   const response = await send({
@@ -64,8 +61,8 @@ export async function getMasterFingerprintHex(send: ApduSender): Promise<string>
 /**
  * Read the extended public key at `path` and return the device's serialized
  * string VERBATIM. A wallet policy's key info embeds this string and the device
- * byte-compares it against its own re-derivation (base `policy.c:1447-1511`),
- * so the host must never re-serialize it. The decode is only a sanity check
+ * byte-compares it against its own re-derivation, so the host must never
+ * re-serialize it. The decode is only a sanity check
  * that the key parses under the expected network's version bytes.
  */
 export async function getExtendedPublicKey(

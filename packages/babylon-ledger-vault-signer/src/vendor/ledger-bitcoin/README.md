@@ -76,16 +76,13 @@ with the exceptions recorded per file header; the substantive ones:
   normalizes. The device-fed parse sites are unaffected too — the firmware
   writes both varints we parse through the SDK's `varint_write`, which sizes
   via `varint_size` and so always picks the minimal width
-  (`LedgerHQ/ledger-secure-sdk` `lib_standard_app/varint.c` — `varint_size`
-  `:25-40`, `varint_write` `:79-104`; blob `fb199f91`, byte-identical on
-  `master@6862436` and on `API_LEVEL_25`/`26`/`27`). Both call sites live in the
-  base app pinned as `app-babylon-vault@b0c0ac4d`'s `bitcoin_app_base` submodule
-  (`LedgerHQ/app-bitcoin@baseapp`, commit `e400d8d8`): the
-  GET_MERKLE_LEAF_PROOF `tree_size`/`leaf_index` at
-  `src/handler/lib/get_merkle_leaf_hash.c:33-37` (parsed at
-  `clientCommands.ts:177-178`) and the YIELD input index at
-  `src/handler/sign_psbt/sign_input.c:62` (parsed by `parseVarint(payload, 0)`
-  in `expectedSignatures.ts`'s `createYieldCollector`). A device that emitted
+  (`LedgerHQ/ledger-secure-sdk` `lib_standard_app/varint.c`, `varint_size` and
+  `varint_write`, byte-identical across the API levels in use). Both call sites live in the
+  base app pinned in the package's `FIRMWARE.md`: the GET_MERKLE_LEAF_PROOF
+  `tree_size`/`leaf_index` (`get_merkle_leaf_hash.c`, parsed in
+  `clientCommands.ts`) and the YIELD input index (`sign_input.c`, parsed by
+  `parseVarint(payload, 0)` in `expectedSignatures.ts`'s
+  `createYieldCollector`). A device that emitted
   an overlong form would now fail closed. Same rule Bitcoin Core enforces in
   `ReadCompactSize`
   (`bitcoin/bitcoin src/serialize.h:333-358`, blob `a1395c47` —
@@ -107,7 +104,7 @@ with the exceptions recorded per file header; the substantive ones:
   stays raw (`subarray(1)`, no shape assumption).
 - `psbtv2.ts`: local addition — two `psbtIn` enum members the upstream enum
   lacks (`TAP_LEAF_SCRIPT = 0x15`, `TAP_INTERNAL_KEY = 0x17` — BIP-371, byte
-  values verified against base app `psbt.h:37-42`) plus a public
+  values verified against the base app's `psbt.h`) plus a public
   `getInputEntriesOfType(inputIndex, keyType)` reader returning Buffer copies
   of every `{ keyData, value }` entry of one key type. `PsbtV2`'s maps are
   `protected` with no generic public getter; the SIGN_PSBT expected-signature
