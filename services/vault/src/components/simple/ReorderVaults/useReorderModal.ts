@@ -4,12 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
 import { useReorderVaults } from "@/applications/aave/hooks";
+import type { CollateralAmountPair } from "@/applications/aave/services";
 import type { PendingAaveWrite } from "@/applications/aave/services/pendingAaveWrite";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 interface UseReorderModalParams {
   vaults: CollateralVaultEntry[];
   isOpen: boolean;
+}
+
+/** The vault IDs and the amounts the modal shows, in the order it shows them. */
+function toCollateralAmountPairs(
+  vaults: CollateralVaultEntry[],
+): CollateralAmountPair[] {
+  return vaults.map((vault) => ({
+    vaultId: vault.vaultId as Hex,
+    amountSats: vault.amountSats,
+  }));
 }
 
 export interface UseReorderModalResult {
@@ -32,13 +43,13 @@ export function useReorderModal({
 }: UseReorderModalParams): UseReorderModalResult {
   const [orderedVaults, setOrderedVaults] =
     useState<CollateralVaultEntry[]>(vaults);
-  // The vault ordering the user reviewed at modal open. Drag mutations
-  // only touch `orderedVaults`; this baseline stays put so the signing
-  // guard can detect concurrent live-state changes during the user's
-  // think-time.
-  const [baselineVaultIds, setBaselineVaultIds] = useState<readonly Hex[]>(() =>
-    vaults.map((v) => v.vaultId as Hex),
-  );
+  // The vault ordering and amounts the user reviewed at modal open. Drag
+  // mutations only touch `orderedVaults`; this baseline stays put so the
+  // signing guards can detect concurrent live-state changes during the
+  // user's think-time and bind the reviewed amounts to the registry.
+  const [baselineVaults, setBaselineVaults] = useState<
+    readonly CollateralAmountPair[]
+  >(() => toCollateralAmountPairs(vaults));
   const { executeReorder, isProcessing, pendingWrite, error, notice } =
     useReorderVaults();
 
@@ -47,7 +58,7 @@ export function useReorderModal({
   useEffect(() => {
     if (isOpen) {
       setOrderedVaults(vaults);
-      setBaselineVaultIds(vaults.map((v) => v.vaultId as Hex));
+      setBaselineVaults(toCollateralAmountPairs(vaults));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -71,9 +82,10 @@ export function useReorderModal({
   const handleConfirm = useCallback(async () => {
     const permutedVaultIds = orderedVaults.map((v) => v.vaultId as Hex);
     return executeReorder(permutedVaultIds, {
-      expectedCurrentVaultIds: baselineVaultIds,
+      kind: "manual",
+      expectedCurrentVaults: baselineVaults,
     });
-  }, [orderedVaults, baselineVaultIds, executeReorder]);
+  }, [orderedVaults, baselineVaults, executeReorder]);
 
   return {
     orderedVaults,

@@ -8,6 +8,7 @@ import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { parseBtcToSatoshis } from "@/utils/btcConversion";
 
 const mockUseDashboardState = vi.fn();
 vi.mock("@/hooks/useDashboardState", () => ({
@@ -52,6 +53,7 @@ function makeVault(
     lifecycle: "active",
     vaultId,
     amountBtc,
+    amountSats: parseBtcToSatoshis(String(amountBtc)),
     addedAt: 0,
     inUse: true,
     providerAddress: "0xprovider",
@@ -372,7 +374,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     { collateralVaults: [] },
     { collateralVaults: [makeVault(VAULT_A, 0.5, 0)] },
   ])(
-    "keeps the live warning without calculations when indexed rows are incomplete: %j",
+    "keeps the live warning without calculations when indexed rows are incomplete: $collateralVaults.length indexed rows",
     ({ collateralVaults }) => {
       setDashboardState({
         collateralVaults,

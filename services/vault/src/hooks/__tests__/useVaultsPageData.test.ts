@@ -3,14 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { parseBtcToSatoshis } from "@/utils/btcConversion";
 
 function makeVault(
   overrides: Partial<CollateralVaultEntry> & { id: string },
 ): CollateralVaultEntry {
+  const amountBtc = overrides.amountBtc ?? 0.5;
   return {
     lifecycle: "active",
     vaultId: `vault-${overrides.id}`,
-    amountBtc: 0.5,
+    amountBtc,
+    amountSats: parseBtcToSatoshis(String(amountBtc)),
     addedAt: 0,
     inUse: true,
     providerAddress: "0xprovider",

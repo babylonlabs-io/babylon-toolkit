@@ -151,6 +151,7 @@ describe("SplitVaultOrderWarning", () => {
 
     await waitFor(() => {
       expect(mocks.executeReorder).toHaveBeenCalledWith(expected, {
+        kind: "baseline",
         expectedCurrentVaultIds: current,
       });
       expect(mocks.applyReorderedOrder).toHaveBeenCalledWith(expected);

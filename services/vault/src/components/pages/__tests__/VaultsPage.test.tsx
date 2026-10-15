@@ -333,6 +333,7 @@ describe("VaultsPage", () => {
       lifecycle: "withdrawing",
       vaultId,
       amountBtc: 0.1,
+      amountSats: 10_000_000n,
       addedAt: 0,
       inUse: false,
       providerAddress: "0xprovider",

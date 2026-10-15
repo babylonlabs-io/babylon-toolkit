@@ -32,6 +32,12 @@ export {
 
 // On-chain integrity guards
 export {
+  CollateralAmountMismatchError,
+  CollateralRegistryReadError,
+  assertCollateralAmountsMatchOnChain,
+  type CollateralAmountPair,
+} from "./assertCollateralAmountsMatchOnChain";
+export {
   ProxyMismatchError,
   assertProxyMatchesOnChain,
 } from "./assertProxyMatchesOnChain";

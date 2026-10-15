@@ -20,7 +20,7 @@ const VAULT_C = ("0x" + "c".repeat(64)) as `0x${string}`;
 type ActivatingEntry = {
   vaultId: `0x${string}`;
   depositorEthAddress?: string;
-  amountBtc: number;
+  amountSats: bigint;
   providerAddress?: string;
 };
 
@@ -338,7 +338,11 @@ describe("useDashboardState", () => {
     mockActivatingVaults = new Map([
       [
         VAULT_A.toLowerCase(),
-        { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
+        {
+          vaultId: VAULT_A,
+          depositorEthAddress: "0xabc",
+          amountSats: 100_000_000n,
+        },
       ],
     ]);
 
@@ -370,7 +374,11 @@ describe("useDashboardState", () => {
       mockActivatingVaults = new Map([
         [
           VAULT_A.toLowerCase(),
-          { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
+          {
+            vaultId: VAULT_A,
+            depositorEthAddress: "0xabc",
+            amountSats: 100_000_000n,
+          },
         ],
       ]);
 
@@ -398,7 +406,11 @@ describe("useDashboardState", () => {
     mockActivatingVaults = new Map([
       [
         VAULT_A.toLowerCase(),
-        { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
+        {
+          vaultId: VAULT_A,
+          depositorEthAddress: "0xabc",
+          amountSats: 100_000_000n,
+        },
       ],
     ]);
 
@@ -419,7 +431,11 @@ describe("useDashboardState", () => {
     mockActivatingVaults = new Map([
       [
         VAULT_A.toLowerCase(),
-        { vaultId: VAULT_A, depositorEthAddress: "0xother", amountBtc: 1 },
+        {
+          vaultId: VAULT_A,
+          depositorEthAddress: "0xother",
+          amountSats: 100_000_000n,
+        },
       ],
     ]);
 

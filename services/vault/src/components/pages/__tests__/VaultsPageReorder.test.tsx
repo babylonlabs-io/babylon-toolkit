@@ -171,6 +171,7 @@ const collateralVaults: CollateralVaultEntry[] = [
     vaultId:
       "0x1111111111111111111111111111111111111111111111111111111111111111",
     amountBtc: 0.6,
+    amountSats: 60_000_000n,
     addedAt: 1_750_000_000,
     inUse: true,
     lifecycle: "active",
@@ -183,6 +184,7 @@ const collateralVaults: CollateralVaultEntry[] = [
     vaultId:
       "0x2222222222222222222222222222222222222222222222222222222222222222",
     amountBtc: 0.2,
+    amountSats: 20_000_000n,
     addedAt: 1_750_000_100,
     inUse: true,
     lifecycle: "active",
@@ -197,6 +199,7 @@ const collateralVaults: CollateralVaultEntry[] = [
     vaultId:
       "0x3333333333333333333333333333333333333333333333333333333333333333",
     amountBtc: 0.1,
+    amountSats: 10_000_000n,
     addedAt: 0,
     inUse: false,
     lifecycle: "activating",

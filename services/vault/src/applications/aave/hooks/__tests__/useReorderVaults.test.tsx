@@ -74,22 +74,41 @@ vi.mock("../../config", () => ({
 const mockAssertMembership = vi.fn();
 const mockAssertBaseline = vi.fn();
 const mockAssertOptimalOrder = vi.fn();
+const mockAssertCollateralAmounts = vi.fn();
 const mockReorderVaultOrder = vi.fn();
 
-const { FakePositionChangedError } = vi.hoisted(() => {
+const {
+  FakePositionChangedError,
+  FakeCollateralAmountMismatchError,
+  FakeCollateralRegistryReadError,
+} = vi.hoisted(() => {
   class FakePositionChangedError extends Error {
     readonly code = "POSITION_CHANGED_REFRESH_REQUIRED";
   }
-  return { FakePositionChangedError };
+  class FakeCollateralAmountMismatchError extends Error {
+    readonly code = "COLLATERAL_AMOUNT_MISMATCH";
+  }
+  class FakeCollateralRegistryReadError extends Error {
+    readonly code = "COLLATERAL_REGISTRY_READ_FAILED";
+  }
+  return {
+    FakePositionChangedError,
+    FakeCollateralAmountMismatchError,
+    FakeCollateralRegistryReadError,
+  };
 });
 
 vi.mock("../../services", () => ({
   PositionChangedError: FakePositionChangedError,
+  CollateralAmountMismatchError: FakeCollateralAmountMismatchError,
+  CollateralRegistryReadError: FakeCollateralRegistryReadError,
   assertReorderMembership: (...args: unknown[]) =>
     mockAssertMembership(...args),
   assertReorderBaseline: (...args: unknown[]) => mockAssertBaseline(...args),
   assertOptimalOrderMatchesOnChain: (...args: unknown[]) =>
     mockAssertOptimalOrder(...args),
+  assertCollateralAmountsMatchOnChain: (...args: unknown[]) =>
+    mockAssertCollateralAmounts(...args),
   reorderVaultOrder: (...args: unknown[]) => mockReorderVaultOrder(...args),
 }));
 
@@ -102,7 +121,10 @@ import {
 } from "@/utils/errors";
 
 import type { ReorderVerificationContext } from "../../services";
-import { useReorderVaults } from "../useReorderVaults";
+import {
+  useReorderVaults,
+  type ExecuteReorderOptions,
+} from "../useReorderVaults";
 
 const USER = "0x000000000000000000000000000000000000beef" as const;
 const VAULT_A =
@@ -120,6 +142,12 @@ const CTX: ReorderVerificationContext = {
   totalDebtUsd: 10_000,
 };
 
+/** The vaults and amounts the modal showed, in the on-chain order at open. */
+const REVIEWED_VAULTS = [
+  { vaultId: VAULT_A, amountSats: 60_000_000n },
+  { vaultId: VAULT_B, amountSats: 20_000_000n },
+];
+
 function setupConnectedWallet() {
   mockUseETHWallet.mockReturnValue({ address: USER });
 }
@@ -135,6 +163,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     mockAssertMembership.mockResolvedValue([VAULT_A, VAULT_B]);
     mockAssertBaseline.mockReturnValue(undefined);
     mockAssertOptimalOrder.mockResolvedValue(undefined);
+    mockAssertCollateralAmounts.mockResolvedValue(undefined);
     mockReorderVaultOrder.mockResolvedValue({
       transactionHash: "0xtx",
     });
@@ -149,7 +178,10 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     let resolved: boolean | undefined;
     await act(async () => {
-      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
     });
 
     expect(resolved).toBe(false);
@@ -171,7 +203,10 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     let resolved: boolean | undefined;
     await act(async () => {
-      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
     });
 
     expect(resolved).toBe(false);
@@ -193,7 +228,10 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     let resolved: boolean | undefined;
     await act(async () => {
-      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
     });
 
     expect(resolved).toBe(false);
@@ -209,7 +247,10 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     const { result } = renderHook(() => useReorderVaults());
 
     await act(async () => {
-      await result.current.executeReorder([VAULT_A, VAULT_B]);
+      await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
     });
 
     expect(mockAssertMembership).toHaveBeenCalledTimes(1);
@@ -229,7 +270,10 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     let resolved: boolean | undefined;
     await act(async () => {
-      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
     });
 
     expect(resolved).toBe(false);
@@ -245,7 +289,10 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     let resolved: boolean | undefined;
     await act(async () => {
-      resolved = await result.current.executeReorder([VAULT_A, VAULT_B]);
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
     });
 
     expect(resolved).toBe(false);
@@ -255,11 +302,14 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("runs the optimal-order recompute only when optimalOrderContext is provided", async () => {
+  it("runs the optimal-order recompute only on the optimal variant", async () => {
     const { result } = renderHook(() => useReorderVaults());
 
     await act(async () => {
-      await result.current.executeReorder([VAULT_A, VAULT_B]);
+      await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
     });
 
     expect(mockAssertOptimalOrder).not.toHaveBeenCalled();
@@ -267,7 +317,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
 
-  it("forwards the on-chain ordering and env-pinned adapter into the recompute when context is provided", async () => {
+  it("forwards the on-chain ordering and env-pinned adapter into the recompute on the optimal variant", async () => {
     // Guard A returns the current on-chain order. Submitted order is
     // [B, A] (a permutation). Guard B receives both.
     mockAssertMembership.mockResolvedValue([VAULT_A, VAULT_B]);
@@ -276,6 +326,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     await act(async () => {
       await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "optimal",
         optimalOrderContext: CTX,
       });
     });
@@ -298,6 +349,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     let resolved: boolean | undefined;
     await act(async () => {
       resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "optimal",
         optimalOrderContext: CTX,
       });
     });
@@ -315,7 +367,10 @@ describe("useReorderVaults — on-chain integrity guards", () => {
 
     let resolved: boolean | undefined;
     await act(async () => {
-      resolved = await result.current.executeReorder([VAULT_A]);
+      resolved = await result.current.executeReorder([VAULT_A], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A],
+      });
     });
 
     expect(resolved).toBe(false);
@@ -324,13 +379,14 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
 
-  it("forwards Guard A's live ordering into the baseline check when expectedCurrentVaultIds is provided", async () => {
+  it("forwards Guard A's live ordering into the baseline check on the baseline variant", async () => {
     mockAssertMembership.mockResolvedValue([VAULT_A, VAULT_B]);
 
     const { result } = renderHook(() => useReorderVaults());
 
     await act(async () => {
       await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "baseline",
         expectedCurrentVaultIds: [VAULT_A, VAULT_B],
       });
     });
@@ -344,14 +400,18 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
 
-  it("does not call the baseline check on the banner CTA path (no expectedCurrentVaultIds)", async () => {
+  it("does not call the baseline or amount checks on the banner CTA path (optimal variant)", async () => {
     const { result } = renderHook(() => useReorderVaults());
 
     await act(async () => {
-      await result.current.executeReorder([VAULT_A, VAULT_B]);
+      await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "optimal",
+        optimalOrderContext: CTX,
+      });
     });
 
     expect(mockAssertBaseline).not.toHaveBeenCalled();
+    expect(mockAssertCollateralAmounts).not.toHaveBeenCalled();
     expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith(USER);
   });
@@ -369,6 +429,7 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     let resolved: boolean | undefined;
     await act(async () => {
       resolved = await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "baseline",
         expectedCurrentVaultIds: [VAULT_A, VAULT_B],
       });
     });
@@ -377,5 +438,114 @@ describe("useReorderVaults — on-chain integrity guards", () => {
     expect(mockReorderVaultOrder).not.toHaveBeenCalled();
     expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
     expect(result.current.error).toBe(positionChangedError.message);
+  });
+
+  it("manual variant: runs the baseline check with the reviewed vault IDs and the amount guard with the reviewed pairs and the env-pinned adapter", async () => {
+    mockAssertMembership.mockResolvedValue([VAULT_A, VAULT_B]);
+
+    const { result } = renderHook(() => useReorderVaults());
+
+    await act(async () => {
+      await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "manual",
+        expectedCurrentVaults: REVIEWED_VAULTS,
+      });
+    });
+
+    expect(mockAssertBaseline).toHaveBeenCalledWith(
+      [VAULT_A, VAULT_B],
+      [VAULT_A, VAULT_B],
+    );
+    expect(mockAssertCollateralAmounts).toHaveBeenCalledWith(
+      REVIEWED_VAULTS,
+      "0xaaaa000000000000000000000000000000000ada",
+    );
+    expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("manual variant: checks the baseline before reading the registry amounts", async () => {
+    const { result } = renderHook(() => useReorderVaults());
+
+    await act(async () => {
+      await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "manual",
+        expectedCurrentVaults: REVIEWED_VAULTS,
+      });
+    });
+
+    expect(mockAssertBaseline.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAssertCollateralAmounts.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("manual variant: blocks the reorder tx and surfaces the amount-mismatch copy when a reviewed amount differs from the registry", async () => {
+    mockAssertCollateralAmounts.mockRejectedValue(
+      new FakeCollateralAmountMismatchError("amount mismatch"),
+    );
+
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "manual",
+        expectedCurrentVaults: REVIEWED_VAULTS,
+      });
+    });
+
+    expect(resolved).toBe(false);
+    expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(result.current.error).toBe(COPY.reorder.collateralAmountsChanged);
+  });
+
+  it("manual variant: blocks the reorder tx and surfaces the could-not-verify copy, not the mismatch copy, when the registry read fails", async () => {
+    mockAssertCollateralAmounts.mockRejectedValue(
+      new FakeCollateralRegistryReadError("rpc timeout"),
+    );
+
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "manual",
+        expectedCurrentVaults: REVIEWED_VAULTS,
+      });
+    });
+
+    expect(resolved).toBe(false);
+    expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(result.current.error).toBe(
+      COPY.reorder.collateralVerificationFailed,
+    );
+  });
+
+  it("refuses to sign when the options carry a kind with no guards", async () => {
+    const { result } = renderHook(() => useReorderVaults());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeReorder([VAULT_A, VAULT_B], {
+        kind: "unknown",
+      } as unknown as ExecuteReorderOptions);
+    });
+
+    expect(resolved).toBe(false);
+    expect(mockReorderVaultOrder).not.toHaveBeenCalled();
+    expect(result.current.error).not.toBeNull();
+  });
+
+  it("baseline variant: never runs the amount guard", async () => {
+    const { result } = renderHook(() => useReorderVaults());
+
+    await act(async () => {
+      await result.current.executeReorder([VAULT_B, VAULT_A], {
+        kind: "baseline",
+        expectedCurrentVaultIds: [VAULT_A, VAULT_B],
+      });
+    });
+
+    expect(mockAssertCollateralAmounts).not.toHaveBeenCalled();
+    expect(mockReorderVaultOrder).toHaveBeenCalledTimes(1);
   });
 });

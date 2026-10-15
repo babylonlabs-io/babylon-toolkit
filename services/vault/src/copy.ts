@@ -2929,6 +2929,17 @@ export const COPY = {
     successTitle: "BTCVault order updated",
     successText: "The liquidation order of your BTCVaults has been updated.",
     unexpectedError: "An unexpected error occurred while reordering vaults",
+    // Live on-chain order differs from the order the modal opened on.
+    positionChanged:
+      "Your collateral order changed since you opened this dialog. Close it, review the refreshed order, and try again.",
+    // A BTCVault amount, status or application shown in the modal differs
+    // from the registry. "details", because a non-ACTIVE status or a foreign
+    // application maps here too.
+    collateralAmountsChanged:
+      "The BTCVault details shown do not match on-chain data. Close this dialog, refresh, and try again.",
+    // The registry read failed, so the BTCVaults could not be verified.
+    collateralVerificationFailed:
+      "Could not verify your BTCVaults on-chain. Try again in a moment.",
   },
   protocolFees: {
     sectionTitle: "Protocol Parameters",
