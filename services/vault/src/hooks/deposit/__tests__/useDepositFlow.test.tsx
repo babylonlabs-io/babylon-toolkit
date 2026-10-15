@@ -24,6 +24,7 @@ import {
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import { BtcWalletLivenessError } from "@/utils/btc";
+import type { CancellableSigningProvider } from "@/utils/cancelSigning";
 import { VaultLifecycleStateError } from "@/utils/errors";
 
 import { DepositFlowStep } from "../depositFlowSteps";
@@ -3141,10 +3142,12 @@ describe("useDepositFlow", () => {
         .mockResolvedValue(["signedGraph0", "signedGraph1"]);
       const signPsbt = vi.fn().mockResolvedValue("signedGraph");
       const submitPresignatures = vi.fn();
-      const wallet = {
+      const wallet: BitcoinWallet & CancellableSigningProvider = {
         ...MOCK_BTC_WALLET,
         signPsbt,
         signPsbts,
+        signMessage: vi.fn(),
+        deriveContextHash: vi.fn(),
         cancelSigning: vi.fn(),
       };
       vi.mocked(signAndSubmitPayouts).mockImplementation(
@@ -3158,7 +3161,7 @@ describe("useDepositFlow", () => {
       );
 
       const { result } = renderHook(() =>
-        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet }),
       );
 
       let flowPromise!: Promise<unknown>;
@@ -3200,9 +3203,12 @@ describe("useDepositFlow", () => {
         )
         .mockResolvedValue("signedGraph");
       const submitPresignatures = vi.fn();
-      const wallet = {
+      const wallet: BitcoinWallet & CancellableSigningProvider = {
         ...MOCK_BTC_WALLET,
         signPsbt,
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        deriveContextHash: vi.fn(),
         cancelSigning: vi.fn(),
       };
       vi.mocked(signAndSubmitPayouts).mockImplementation(
@@ -3215,7 +3221,7 @@ describe("useDepositFlow", () => {
       );
 
       const { result } = renderHook(() =>
-        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet }),
       );
 
       let flowPromise!: Promise<unknown>;
