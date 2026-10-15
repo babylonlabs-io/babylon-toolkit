@@ -102,7 +102,8 @@ function hasReachedActive(status: ContractStatus): boolean {
     status === ContractStatus.ACTIVE ||
     status === ContractStatus.REDEEMED ||
     status === ContractStatus.LIQUIDATED ||
-    status === ContractStatus.DEPOSITOR_WITHDRAWN
+    status === ContractStatus.DEPOSITOR_WITHDRAWN ||
+    status === ContractStatus.NON_DEPOSITOR_SPEND
   );
 }
 

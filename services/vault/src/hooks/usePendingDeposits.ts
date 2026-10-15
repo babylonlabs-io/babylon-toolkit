@@ -6,7 +6,7 @@
  *  - expiredActivities: refundable expired deposits (contractStatus 7=EXPIRED with
  *    unsignedPrePeginTx — the only indexer-sourced field required to build the
  *    refund PSBT; hashlock and htlcVout come from the on-chain contract).
- *  - reclaimableCandidates: settled deposits (contractStatus 6=DEPOSITOR_WITHDRAWN)
+ *  - reclaimableCandidates: settled deposits (contractStatus 6=DEPOSITOR_WITHDRAWN or 8=NON_DEPOSITOR_SPEND)
  *    whose depositor-claim reserve may still be unspent. Candidates only —
  *    eligibility is decided on Bitcoin, not from this status.
  * Provides wallet state and modal handlers for broadcast/refund actions on
@@ -31,6 +31,17 @@ import { useRefundModal } from "@/hooks/deposit/useRefundModal";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
 import { useDepositOverride } from "@/overrides/deposits";
+
+/**
+ * Indexer statuses at which the vault output is spent, so the depositor's
+ * claim graph is moot and the PegIn vout 1 reserve is theirs to sweep: paid
+ * out by the vault provider (DEPOSITOR_WITHDRAWN) or claimed by a vault keeper
+ * (NON_DEPOSITOR_SPEND). Candidates only; `getReclaimEligibility` decides.
+ */
+const RECLAIM_CANDIDATE_STATUSES: ReadonlySet<ContractStatus> = new Set([
+  ContractStatus.DEPOSITOR_WITHDRAWN,
+  ContractStatus.NON_DEPOSITOR_SPEND,
+]);
 
 export function usePendingDeposits() {
   const { connected: btcConnected, address: btcAddress } = useBTCWallet();
@@ -87,7 +98,8 @@ export function usePendingDeposits() {
     () =>
       activities.filter(
         (a) =>
-          a.contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN &&
+          a.contractStatus !== undefined &&
+          RECLAIM_CANDIDATE_STATUSES.has(a.contractStatus) &&
           !!a.depositorSignedPeginTx,
       ),
     [activities],

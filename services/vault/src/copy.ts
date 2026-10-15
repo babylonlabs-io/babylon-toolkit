@@ -176,6 +176,7 @@ export const COPY = {
       IN_USE: "In use",
       REDEEM_IN_PROGRESS: "Redeem in progress",
       REDEEMED: "Redeemed",
+      CLAIMED_BY_KEEPER: "Claimed by vault keeper",
       LIQUIDATED: "Liquidated",
       EXPIRED: "Expired",
       REFUNDING: "Refunding",
@@ -349,6 +350,11 @@ export const COPY = {
         "This BTCVault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
         "Redemption complete. Your BTC payout has been sent to your nominated address.",
+      // A redeemed BTCVault whose BTC a vault keeper claimed on Bitcoin, which
+      // only an unanswered challenge allows (#2717). The vault provider never
+      // pays; the reserve reclaim, when any, is the row's own action.
+      claimedByKeeper:
+        "This BTCVault was redeemed, but a vault keeper claimed its BTC on Bitcoin instead of the vault provider paying it to your payout address. Please contact support.",
     },
     statusErrors: {
       expired:

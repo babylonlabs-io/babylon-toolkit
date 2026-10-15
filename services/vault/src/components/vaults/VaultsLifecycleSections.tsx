@@ -434,8 +434,8 @@ function InactiveRow({
   const isClaimExpiredAvailable = useClaimExpiredRowAction(activity.id);
   // Refund and reclaim are mutually exclusive by contract status — refund
   // applies to EXPIRED vaults (no PegIn was ever broadcast), reclaim to
-  // DEPOSITOR_WITHDRAWN ones (the PegIn confirmed and the peg-out settled). A
-  // row therefore never carries both actions.
+  // DEPOSITOR_WITHDRAWN and NON_DEPOSITOR_SPEND ones (the PegIn confirmed and
+  // its vault output was spent). A row therefore never carries both actions.
   const {
     available: isReclaimAvailable,
     reclaiming: isReclaiming,

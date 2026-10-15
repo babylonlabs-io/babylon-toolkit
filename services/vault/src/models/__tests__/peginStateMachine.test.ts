@@ -368,6 +368,14 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REDEEMED);
       expect(state.displayVariant).toBe("inactive");
     });
+
+    it("shows a keeper claim (non-depositor spend) as danger with no action", () => {
+      const state = getPeginState(ContractStatus.NON_DEPOSITOR_SPEND);
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.CLAIMED_BY_KEEPER);
+      expect(state.displayVariant).toBe("danger");
+      expect(state.message).toBe(COPY.pegin.messages.claimedByKeeper);
+      expect(getPrimaryActionButton(state)).toBeNull();
+    });
   });
 
   // ==========================================================================
@@ -792,6 +800,7 @@ describe("peginStateMachine", () => {
       ContractStatus.LIQUIDATED,
       ContractStatus.INVALID,
       ContractStatus.DEPOSITOR_WITHDRAWN,
+      ContractStatus.NON_DEPOSITOR_SPEND,
       ContractStatus.EXPIRED,
     ])("removes for terminal status %s", (status) => {
       expect(
@@ -1184,6 +1193,16 @@ describe("peginStateMachine", () => {
       expect(
         isVaultActivationReturned(
           getPeginState(ContractStatus.DEPOSITOR_WITHDRAWN, {
+            activationReturned: true,
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("stays true once a vault keeper claimed the returned vault's BTC", () => {
+      expect(
+        isVaultActivationReturned(
+          getPeginState(ContractStatus.NON_DEPOSITOR_SPEND, {
             activationReturned: true,
           }),
         ),

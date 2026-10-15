@@ -172,6 +172,26 @@ describe("collectTerminalMilestones", () => {
     ]);
   });
 
+  it("emits both milestones once when a seen vault jumps straight to NON_DEPOSITOR_SPEND", () => {
+    const tracking = createTerminalMilestoneTracking();
+    collectTerminalMilestones(
+      [activity("0xk", ContractStatus.PENDING)],
+      tracking,
+    );
+
+    // A keeper-claimed vault was redeemed first, so it activated: both
+    // milestones still owe an emission, same as LIQUIDATED.
+    expect(
+      collectTerminalMilestones(
+        [activity("0xk", ContractStatus.NON_DEPOSITOR_SPEND)],
+        tracking,
+      ),
+    ).toEqual([
+      { event: "activation.verified", category: "activation", vaultId: "0xk" },
+      { event: "deposit.completed", category: "deposit", vaultId: "0xk" },
+    ]);
+  });
+
   it("emits nothing for a vault that expires without activating", () => {
     const tracking = createTerminalMilestoneTracking();
     collectTerminalMilestones(

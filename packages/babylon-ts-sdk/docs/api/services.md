@@ -8069,7 +8069,7 @@ Finalizes one WronglyChallenged tx — the answer to a ChallengeAssert.
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Vault status — combines on-chain contract status (0-4) with indexer-derived
-statuses (5-7). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
+statuses (5-8). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
 has: Pending(0), Verified(1), Active(2), Redeemed(3), Expired(4).
 The indexer maps these and adds extra statuses for UI display.
 
@@ -8159,6 +8159,19 @@ EXPIRED: 7;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 7 (indexer-only): Vault expired due to AckTimeout or ActivationTimeout
+
+##### NON\_DEPOSITOR\_SPEND
+
+```ts
+NON_DEPOSITOR_SPEND: 8;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
+
+Status 8 (indexer-only): a redeemed vault's BTC was spent on Bitcoin to a
+script other than the depositor's payout script, in practice a vault
+keeper's claim that no challenger blocked. The vault's BTC is gone; only
+the depositor's PegIn output 1 reserve may remain.
 
 ***
 
