@@ -350,9 +350,9 @@ export const COPY = {
         "This BTCVault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
         "Redemption complete. Your BTC payout has been sent to your nominated address.",
-      // A redeemed BTCVault whose BTC a vault keeper claimed on Bitcoin, which
-      // only an unanswered challenge allows (#2717). The vault provider never
-      // pays; the reserve reclaim, when any, is the row's own action.
+      // A redeemed BTCVault whose BTC a vault keeper claimed on Bitcoin, a
+      // claim no challenger blocked (#2717). The vault provider never pays;
+      // the reserve reclaim, when any, is the row's own action.
       claimedByKeeper:
         "This BTCVault was redeemed, but a vault keeper claimed its BTC on Bitcoin instead of the vault provider paying it to your payout address. Please contact support.",
     },
@@ -2042,12 +2042,13 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // The indexer already reports the BTCVault withdrawn, but the payout is
-      // not yet buried deeply enough on Bitcoin for the reserve to be safe to
-      // sweep (models/reclaimEligibility.ts). The count is the gate's own
-      // constant, passed in so the two cannot drift.
+      // The indexer already reports the BTCVault's BTC spent (paid out to the
+      // depositor, or claimed by a vault keeper), but that spend is not yet
+      // buried deeply enough on Bitcoin for the reserve to be safe to sweep
+      // (models/reclaimEligibility.ts). The count is the gate's own constant,
+      // passed in so the two cannot drift.
       payoutSettling: (confirmations: number) =>
-        `Reclaim becomes available once the withdrawal has ${confirmations} confirmations on Bitcoin. Your reserve is safe where it is.`,
+        `Reclaim becomes available once the transaction that spent this BTCVault's BTC has ${confirmations} confirmations on Bitcoin. Your reserve is safe where it is.`,
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is
@@ -2056,11 +2057,12 @@ export const COPY = {
       walletNotConnected: "BTC wallet not connected",
       missingVaultId: "Missing BTCVault ID",
       invalidFeeRate: "Fee rate must be a positive number",
-      // The pre-signing re-check found the withdrawal no longer settled deeply
-      // enough on Bitcoin. Rare, and it clears on its own as blocks arrive, so
-      // the copy says plainly that nothing is at risk and retrying later works.
+      // The pre-signing re-check found the spend of the BTCVault's BTC no longer
+      // settled deeply enough on Bitcoin. Rare, and it clears on its own as
+      // blocks arrive, so the copy says plainly that nothing is at risk and
+      // retrying later works.
       payoutNotConfirmed:
-        "The withdrawal that made this reserve reclaimable is no longer confirmed on Bitcoin. Your reserve is safe where it is — try again once it settles.",
+        "The Bitcoin transaction that made this reserve reclaimable is no longer confirmed. Your reserve is safe where it is — try again once it settles.",
       // Fallback when the failure carries no message of its own.
       generic: "Reclaim transaction failed",
     },

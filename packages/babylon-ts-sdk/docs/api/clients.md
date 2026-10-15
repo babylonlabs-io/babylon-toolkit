@@ -8299,7 +8299,7 @@ Use this when consuming `status` from `getVaultBasicInfo` /
 
 Do NOT confuse with the app-side `ContractStatus` enum
 (`services/deposit/peginState.ts`) — that one is for the indexer and
-extends this with values 5-7, reassigning 4 to LIQUIDATED. Reading an
+extends this with values 5-8, reassigning 4 to LIQUIDATED. Reading an
 on-chain status through `ContractStatus[n]` for labels will mislabel
 Expired(4) as LIQUIDATED.
 

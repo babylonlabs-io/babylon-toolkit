@@ -62,7 +62,7 @@ export interface Vault {
   /** Timestamp when pegin signatures were posted on-chain (milliseconds) */
   peginSigsPostedAt?: number;
 
-  /** Vault status (0=Pending, 1=Verified, 2=Active, 3=Redeemed; 4-7 are indexer-derived) */
+  /** Vault status (0=Pending, 1=Verified, 2=Active, 3=Redeemed; 4-8 are indexer-derived) */
   status: ContractStatus;
 
   /** Application entry point address (immutable, set at creation) */
