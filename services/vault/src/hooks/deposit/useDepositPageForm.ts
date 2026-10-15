@@ -80,7 +80,7 @@ export interface DepositPageFormData {
 export interface UseDepositPageFormParams {
   /**
    * Whether the protocol and position allow a two-vault split: it is offered
-   * and no output-cap or per-position reason forbids it.
+   * and no output-cap, per-position or live-vault-cap reason forbids it.
    */
   isSplitPermitted: boolean;
 }

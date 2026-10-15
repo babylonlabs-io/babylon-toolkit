@@ -1,3 +1,9 @@
+import {
+  getContractError,
+  HttpRequestError,
+  RawContractError,
+  RpcRequestError,
+} from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockReadContract = vi.fn();
@@ -183,5 +189,124 @@ describe("getApplicationUsage", () => {
     await expect(query.getApplicationUsage(APP, USER)).rejects.toThrow(
       multicallError,
     );
+  });
+});
+
+describe("getAvailableLiveVaultSlots", () => {
+  it("mirrors a two-BTCVault registration: release one matured slot, read, twice, in one multicall", async () => {
+    // Each reservation processes one matured release before it checks the
+    // cap, and all four calls share one eth_call, so each read sees the
+    // releases before it.
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    mockMulticall.mockResolvedValueOnce([
+      { status: "success", result: undefined },
+      { status: "success", result: 1n },
+      { status: "success", result: undefined },
+      { status: "success", result: 2n },
+    ]);
+
+    await query.getAvailableLiveVaultSlots();
+
+    const release = expect.objectContaining({
+      address: REGISTRY_CAP_POLICY,
+      functionName: "releaseSettledVaults",
+      args: [1n],
+    });
+    const read = expect.objectContaining({
+      address: REGISTRY_CAP_POLICY,
+      functionName: "getAvailableLiveVaultCapacity",
+    });
+    expect(mockMulticall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowFailure: true,
+        contracts: [release, read, release, read],
+      }),
+    );
+  });
+
+  it("returns the second read when one BTCVault fits", async () => {
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    mockMulticall.mockResolvedValueOnce([
+      { status: "success", result: undefined },
+      { status: "success", result: 1n },
+      { status: "success", result: undefined },
+      { status: "success", result: 2n },
+    ]);
+
+    await expect(query.getAvailableLiveVaultSlots()).resolves.toBe(2n);
+  });
+
+  it("returns zero when not even one BTCVault fits, though the second release would free a slot", async () => {
+    // A single-vault registration processes only one release, so the slot
+    // the second release frees is not one it can take.
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    mockMulticall.mockResolvedValueOnce([
+      { status: "success", result: undefined },
+      { status: "success", result: 0n },
+      { status: "success", result: undefined },
+      { status: "success", result: 1n },
+    ]);
+
+    await expect(query.getAvailableLiveVaultSlots()).resolves.toBe(0n);
+  });
+
+  it("returns null instead of throwing when CapPolicy predates the live-vault cap and every call reverts", async () => {
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    // How viem reports a call that reverts inside the multicall.
+    const reverted = getContractError(new RawContractError({ data: "0x" }), {
+      abi: [],
+      args: [],
+      functionName: "getAvailableLiveVaultCapacity",
+    });
+    mockMulticall.mockResolvedValueOnce([
+      { status: "failure", error: reverted, result: undefined },
+      { status: "failure", error: reverted, result: undefined },
+      { status: "failure", error: reverted, result: undefined },
+      { status: "failure", error: reverted, result: undefined },
+    ]);
+
+    await expect(query.getAvailableLiveVaultSlots()).resolves.toBeNull();
+  });
+
+  it("throws a transport failure instead of returning null", async () => {
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    // With allowFailure, viem reports a failed eth_call as a failure on every
+    // call, carrying the transport error.
+    const transportError = getContractError(
+      new HttpRequestError({ url: "https://rpc.example", status: 503 }),
+      { abi: [], args: [], functionName: "aggregate3" },
+    );
+    mockMulticall.mockResolvedValueOnce([
+      { status: "failure", error: transportError, result: undefined },
+      { status: "failure", error: transportError, result: undefined },
+      { status: "failure", error: transportError, result: undefined },
+      { status: "failure", error: transportError, result: undefined },
+    ]);
+
+    await expect(query.getAvailableLiveVaultSlots()).rejects.toBe(
+      transportError,
+    );
+  });
+
+  it("throws an RPC internal error on the multicall instead of returning null", async () => {
+    mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
+    // viem maps a JSON-RPC -32603 reply to the multicall's eth_call to a
+    // revert, under the multicall's own name.
+    const rpcError = getContractError(
+      new RpcRequestError({
+        body: {},
+        error: { code: -32603, message: "Internal error" },
+        url: "https://rpc.example",
+      }),
+      { abi: [], args: [], functionName: "aggregate3" },
+    );
+    mockMulticall.mockResolvedValueOnce([
+      { status: "failure", error: rpcError, result: undefined },
+      { status: "failure", error: rpcError, result: undefined },
+      { status: "failure", error: rpcError, result: undefined },
+      { status: "failure", error: rpcError, result: undefined },
+    ]);
+
+    await expect(query.getAvailableLiveVaultSlots()).rejects.toBe(rpcError);
   });
 });
