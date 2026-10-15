@@ -59,12 +59,12 @@ describe("BorrowMarketsTable", () => {
     render(<BorrowMarketsTable rows={[baseRow]} />);
 
     expect(screen.getByText("Asset")).toBeInTheDocument();
-    expect(screen.getAllByText("Hub")).not.toHaveLength(0);
-    expect(screen.getAllByText("Borrow APR")).not.toHaveLength(0);
-    expect(screen.getAllByText("Available Liquidity")).not.toHaveLength(0);
-    expect(screen.getAllByText("Utilization")).not.toHaveLength(0);
-    expect(screen.getAllByText("Borrowed")).not.toHaveLength(0);
-    expect(screen.getAllByText("Supplied")).not.toHaveLength(0);
+    expect(screen.getAllByText("Hub")).toHaveLength(2);
+    expect(screen.getAllByText("Borrow APR")).toHaveLength(2);
+    expect(screen.getAllByText("Available Liquidity")).toHaveLength(2);
+    expect(screen.getAllByText("Utilization")).toHaveLength(2);
+    expect(screen.getAllByText("Borrowed")).toHaveLength(2);
+    expect(screen.getAllByText("Supplied")).toHaveLength(2);
   });
 
   it("flags a market on an unregistered hub with the unknown-hub warning", () => {
