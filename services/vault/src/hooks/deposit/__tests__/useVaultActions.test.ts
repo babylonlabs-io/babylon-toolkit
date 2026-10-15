@@ -90,8 +90,12 @@ vi.mock("@/config/network", () => ({
 const mockVerifyResumeParticipantKeys = vi.hoisted(() =>
   vi.fn().mockResolvedValue(undefined),
 );
+const mockVerifyResumePayoutScripts = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
 vi.mock("@/services/vault/verifyResumeParticipantKeys", () => ({
   verifyResumeParticipantKeys: mockVerifyResumeParticipantKeys,
+  verifyResumePayoutScripts: mockVerifyResumePayoutScripts,
 }));
 
 // Position-capacity gate. Default: the position has room, so the pre-existing
@@ -1082,6 +1086,35 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
 
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toBeTruthy();
+  });
+
+  it("does not broadcast when the vault's payout scripts are refused, even without a key stamp", async () => {
+    // This guard runs on every resume, including cross-device ones with no
+    // local stamp, so the BTC is never funded into a vault whose payout
+    // presign would refuse.
+    const refused = new Error(
+      "Aborting Pre-PegIn broadcast: an operator payout script registered for this vault is not a standard output type this app can verify",
+    );
+    refused.name = "UnsupportedPayoutScriptError";
+    mockVerifyResumePayoutScripts.mockRejectedValueOnce(refused);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const removePendingPegin = vi.fn();
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin,
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(removePendingPegin).not.toHaveBeenCalled();
     expect(result.current.broadcastError).toBeTruthy();
   });
 });

@@ -8,11 +8,13 @@
  * rotation that landed in between would be broadcast over.
  *
  * Reads the vault's frozen epochs and frozen membership rosters and re-resolves
- * from them, exactly as the payout and refund paths do.
+ * from them, exactly as the payout and refund paths do. The same frozen read
+ * also backs the payout-script check, which runs on every resume.
  */
 
 import {
   ParticipantKeyDriftError,
+  assertStandardPayoutScriptsAtEpochs,
   canonicalizeBtcPubkey,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -90,21 +92,7 @@ function assertSameSet(
   }
 }
 
-/**
- * Throw when the vault's frozen epochs no longer resolve to the keys the
- * Pre-PegIn was built with.
- *
- * Callers gate on the stamp being present: records written before this shipped
- * carry no `buildParticipantOperationKeys` and simply skip the check.
- *
- * Throws `ParticipantKeyDriftError`, which callers must NOT treat as a reason
- * to drop the pending record — see the class docs in the SDK.
- */
-export async function verifyResumeParticipantKeys(params: {
-  vaultId: Hex;
-  expected: ExpectedParticipantOperationKeys;
-}): Promise<void> {
-  const { vaultId, expected } = params;
+async function readFrozenParticipantQuery(vaultId: Hex) {
   const vault = await getVaultFromChain(vaultId);
 
   const [keeperReader, challengerReader, operationKeyReader] =
@@ -127,7 +115,7 @@ export async function verifyResumeParticipantKeys(params: {
       getVaultKeyEpochsFromChain(vaultId),
     ]);
 
-  const resolved = await resolveParticipantKeysAtEpochs({
+  return {
     operationKeyReader,
     query: {
       vaultProviderEthAddress: vault.vaultProvider as Address,
@@ -136,6 +124,31 @@ export async function verifyResumeParticipantKeys(params: {
       vaultKeepers,
       universalChallengers,
     },
+    epochs,
+  };
+}
+
+/**
+ * Throw when the vault's frozen epochs no longer resolve to the keys the
+ * Pre-PegIn was built with.
+ *
+ * Callers gate on the stamp being present: records written before this shipped
+ * carry no `buildParticipantOperationKeys` and simply skip the check.
+ *
+ * Throws `ParticipantKeyDriftError`, which callers must NOT treat as a reason
+ * to drop the pending record — see the class docs in the SDK.
+ */
+export async function verifyResumeParticipantKeys(params: {
+  vaultId: Hex;
+  expected: ExpectedParticipantOperationKeys;
+}): Promise<void> {
+  const { vaultId, expected } = params;
+  const { operationKeyReader, query, epochs } =
+    await readFrozenParticipantQuery(vaultId);
+
+  const resolved = await resolveParticipantKeysAtEpochs({
+    operationKeyReader,
+    query,
     epochs,
   });
 
@@ -162,4 +175,27 @@ export async function verifyResumeParticipantKeys(params: {
     expected.universalChallengers,
     resolved.universalChallengerOperationKeysSorted,
   );
+}
+
+/**
+ * Throw when an operator payout script at the vault's frozen epochs is not a
+ * standard output type. Runs on every resume — it needs no local stamp, so a
+ * cross-device resume is covered too.
+ *
+ * Throws `UnsupportedPayoutScriptError`, which callers must NOT treat as a
+ * reason to drop the pending record.
+ */
+export async function verifyResumePayoutScripts(params: {
+  vaultId: Hex;
+}): Promise<void> {
+  const { vaultId } = params;
+  const { operationKeyReader, query, epochs } =
+    await readFrozenParticipantQuery(vaultId);
+
+  await assertStandardPayoutScriptsAtEpochs({
+    operationKeyReader,
+    query,
+    epochs,
+    vaultId,
+  });
 }

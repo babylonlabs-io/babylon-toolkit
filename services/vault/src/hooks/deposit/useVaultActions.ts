@@ -97,7 +97,10 @@ import {
   activationRedeemedForDepositor,
 } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
-import { verifyResumeParticipantKeys } from "../../services/vault/verifyResumeParticipantKeys";
+import {
+  verifyResumeParticipantKeys,
+  verifyResumePayoutScripts,
+} from "../../services/vault/verifyResumeParticipantKeys";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import {
   shouldProbeWalletLiveness,
@@ -578,6 +581,14 @@ export function useVaultActions(): UseVaultActionsReturn {
           expected: pendingPegin.buildParticipantOperationKeys,
         });
       }
+
+      // BTKT-015: payout presigning rejects a non-standard operator payout
+      // script, but only after broadcast; refuse here instead. Unconditional:
+      // it needs no local stamp, so a cross-device resume is covered. Checks
+      // vaultId only: batch siblings are registered together and share its
+      // frozen epochs and rosters.
+      await verifyResumePayoutScripts({ vaultId });
+      if (signal.aborted) return;
 
       let expectedUtxos;
       let depositTerms: DepositTerms | undefined;

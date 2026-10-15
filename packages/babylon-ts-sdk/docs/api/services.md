@@ -756,6 +756,49 @@ Error.constructor
 
 ***
 
+### UnsupportedPayoutScriptError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+An operator payout script registered for the vault is not a standard output
+type this app can verify.
+
+Raised before any Pre-PegIn broadcast. The script is frozen at the vault's
+key epochs, so a retry would refuse again. Callers must keep the pending
+record when they catch this, as they do for key drift.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new UnsupportedPayoutScriptError(message): UnsupportedPayoutScriptError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`UnsupportedPayoutScriptError`](#unsupportedpayoutscripterror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### RegisteredVaultVersionMismatchError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
@@ -7317,6 +7360,65 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 #### Returns
 
 `err is ParticipantKeyDriftError`
+
+***
+
+### isUnsupportedPayoutScriptError()
+
+```ts
+function isUnsupportedPayoutScriptError(err): err is UnsupportedPayoutScriptError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is UnsupportedPayoutScriptError`
+
+***
+
+### assertStandardPayoutScriptsAtEpochs()
+
+```ts
+function assertStandardPayoutScriptsAtEpochs(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+Mirror the check payout presigning runs on registry payout scripts, at the
+same frozen epochs, so a script the presign step would refuse is refused
+before the BTC is funded (BTKT-015). Read failures propagate unchanged.
+Keeper scripts pair with `query.vaultKeepers` by roster index.
+
+#### Parameters
+
+##### params
+
+###### operationKeyReader
+
+[`OperationKeyReader`](clients.md#operationkeyreader)
+
+###### query
+
+[`OperationKeyQuery`](clients.md#operationkeyquery)
+
+###### epochs
+
+[`KeyEpochs`](clients.md#keyepochs)
+
+###### vaultId
+
+`` `0x${string}` ``
+
+#### Returns
+
+`Promise`\<`void`\>
 
 ***
 
