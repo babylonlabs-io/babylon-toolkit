@@ -11,6 +11,7 @@
 
 import { HDKey } from "@scure/bip32";
 
+import { assertU32Levels } from "./bip86Path";
 import { CLA_APP, type ApduSender } from "./vaultCommands";
 
 /** `GET_EXTENDED_PUBKEY` header (`commands.h`; P2 is the protocol version). */
@@ -75,6 +76,7 @@ export async function getExtendedPublicKey(
   if (path.length < 1 || path.length > MAX_BIP32_PATH_STEPS) {
     throw new Error(`BIP-32 path must have 1..${MAX_BIP32_PATH_STEPS} levels, got ${path.length}`);
   }
+  assertU32Levels("BIP-32 path", path);
   const response = await send({
     cla: CLA_APP,
     ins: INS_GET_EXTENDED_PUBKEY,
