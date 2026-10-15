@@ -1449,6 +1449,8 @@ export const COPY = {
         "Transaction integrity check failed: the Pre-Pegin transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
       prePeginSigningCanceled:
         "Signing canceled - the signed Pre-Pegin was not broadcast",
+      payoutSigningCanceled:
+        "Signing canceled - the payout signatures were not sent to the vault provider",
       // Stage labels broadcastPrePeginTransaction wraps failures under;
       // depositErrors.ts matches each one to pick the callout.
       prePeginStageFailed: {
