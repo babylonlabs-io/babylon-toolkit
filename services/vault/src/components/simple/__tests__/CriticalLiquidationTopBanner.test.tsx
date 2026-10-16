@@ -72,7 +72,7 @@ describe("CriticalLiquidationTopBanner", () => {
     );
 
     expect(
-      screen.getByText("Critical — liquidation in 4.3%"),
+      screen.getByText("Critical: liquidation in 4.3%"),
     ).toBeInTheDocument();
   });
 
@@ -94,7 +94,7 @@ describe("CriticalLiquidationTopBanner", () => {
     );
 
     expect(
-      screen.getByText("Critical — liquidation can trigger now"),
+      screen.getByText("Critical: liquidation can trigger now"),
     ).toBeInTheDocument();
   });
 
@@ -105,7 +105,7 @@ describe("CriticalLiquidationTopBanner", () => {
       />,
     );
 
-    expect(screen.queryByText(/Critical —/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Critical:/)).not.toBeInTheDocument();
   });
 
   it("shows live health-factor risk without a calculated liquidation distance", () => {
