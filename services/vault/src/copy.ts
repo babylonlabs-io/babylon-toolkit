@@ -2943,8 +2943,8 @@ export const COPY = {
     modalSubtitle:
       "This is the liquidation order of your BTCVaults. Drag or use the arrows to change the order.",
     dragHandle: "Drag to reorder",
-    moveUp: (ordinal: string) => `Move ${ordinal} vault up`,
-    moveDown: (ordinal: string) => `Move ${ordinal} vault down`,
+    moveUp: (ordinal: string) => `Move ${ordinal} BTCVault up`,
+    moveDown: (ordinal: string) => `Move ${ordinal} BTCVault down`,
     infoText:
       "BTCVaults are liquidated in order from first to last. A liquidation event seizes BTCVaults from the front until it covers that event's target seizure amount, so the order decides how much of your BTC survives.",
     networkFeeLabel: "Ethereum network fee",
