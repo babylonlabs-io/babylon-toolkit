@@ -8,8 +8,8 @@
  * rotation that landed in between would be broadcast over.
  *
  * Reads the vault's frozen epochs and frozen membership rosters and re-resolves
- * from them, exactly as the payout and refund paths do. The same frozen read
- * also backs the payout-script check, which runs on every resume.
+ * from them, exactly as the payout and refund paths do. The payout-script
+ * check runs on every resume and covers every vault the broadcast funds.
  */
 
 import {
@@ -18,6 +18,7 @@ import {
   canonicalizeBtcPubkey,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type { KeyEpochs } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import {
@@ -29,6 +30,7 @@ import {
   getOperationKeyReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
+  getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 
 /** The build-time keys persisted on the pending-pegin record. */
@@ -92,7 +94,21 @@ function assertSameSet(
   }
 }
 
-async function readFrozenParticipantQuery(vaultId: Hex) {
+/**
+ * Throw when the vault's frozen epochs no longer resolve to the keys the
+ * Pre-PegIn was built with.
+ *
+ * Callers gate on the stamp being present: records written before this shipped
+ * carry no `buildParticipantOperationKeys` and simply skip the check.
+ *
+ * Throws `ParticipantKeyDriftError`, which callers must NOT treat as a reason
+ * to drop the pending record — see the class docs in the SDK.
+ */
+export async function verifyResumeParticipantKeys(params: {
+  vaultId: Hex;
+  expected: ExpectedParticipantOperationKeys;
+}): Promise<void> {
+  const { vaultId, expected } = params;
   const vault = await getVaultFromChain(vaultId);
 
   const [keeperReader, challengerReader, operationKeyReader] =
@@ -115,7 +131,7 @@ async function readFrozenParticipantQuery(vaultId: Hex) {
       getVaultKeyEpochsFromChain(vaultId),
     ]);
 
-  return {
+  const resolved = await resolveParticipantKeysAtEpochs({
     operationKeyReader,
     query: {
       vaultProviderEthAddress: vault.vaultProvider as Address,
@@ -124,31 +140,6 @@ async function readFrozenParticipantQuery(vaultId: Hex) {
       vaultKeepers,
       universalChallengers,
     },
-    epochs,
-  };
-}
-
-/**
- * Throw when the vault's frozen epochs no longer resolve to the keys the
- * Pre-PegIn was built with.
- *
- * Callers gate on the stamp being present: records written before this shipped
- * carry no `buildParticipantOperationKeys` and simply skip the check.
- *
- * Throws `ParticipantKeyDriftError`, which callers must NOT treat as a reason
- * to drop the pending record — see the class docs in the SDK.
- */
-export async function verifyResumeParticipantKeys(params: {
-  vaultId: Hex;
-  expected: ExpectedParticipantOperationKeys;
-}): Promise<void> {
-  const { vaultId, expected } = params;
-  const { operationKeyReader, query, epochs } =
-    await readFrozenParticipantQuery(vaultId);
-
-  const resolved = await resolveParticipantKeysAtEpochs({
-    operationKeyReader,
-    query,
     epochs,
   });
 
@@ -178,24 +169,81 @@ export async function verifyResumeParticipantKeys(params: {
 }
 
 /**
- * Throw when an operator payout script at the vault's frozen epochs is not a
- * standard output type. Runs on every resume — it needs no local stamp, so a
- * cross-device resume is covered too.
- *
- * Throws `UnsupportedPayoutScriptError`, which callers must NOT treat as a
- * reason to drop the pending record.
+ * Throw when an operator payout script of any funded vault, at that vault's own
+ * frozen epochs, is not a standard output type. Vaults that share frozen
+ * operator state cost one script read. Runs on every resume with no local
+ * stamp. Callers must NOT drop the pending record on `UnsupportedPayoutScriptError`.
  */
 export async function verifyResumePayoutScripts(params: {
-  vaultId: Hex;
+  vaultIds: readonly Hex[];
 }): Promise<void> {
-  const { vaultId } = params;
-  const { operationKeyReader, query, epochs } =
-    await readFrozenParticipantQuery(vaultId);
+  const { vaultIds } = params;
+  if (vaultIds.length === 0) {
+    throw new Error("verifyResumePayoutScripts called with no vault ids");
+  }
 
-  await assertStandardPayoutScriptsAtEpochs({
+  const [
+    vaults,
+    epochsPerVault,
+    keeperReader,
+    challengerReader,
     operationKeyReader,
-    query,
-    epochs,
-    vaultId,
-  });
+  ] = await Promise.all([
+    Promise.all(vaultIds.map((id) => getVaultFromChain(id))),
+    getVaultRegistryReader().getVaultKeyEpochsBatch(vaultIds),
+    getVaultKeeperReader(),
+    getUniversalChallengerReader(),
+    getOperationKeyReader(),
+  ]);
+
+  const groups = new Map<
+    string,
+    { vault: (typeof vaults)[number]; epochs: KeyEpochs; vaultIds: Hex[] }
+  >();
+  for (const [i, vault] of vaults.entries()) {
+    const epochs = epochsPerVault[i];
+    const key = [
+      vault.vaultProvider.toLowerCase(),
+      vault.applicationEntryPoint.toLowerCase(),
+      vault.appVaultKeepersVersion,
+      vault.universalChallengersVersion,
+      epochs.vpKeyEpoch,
+      epochs.appKeeperKeyEpoch,
+      epochs.ucKeyEpoch,
+    ].join(":");
+    const group = groups.get(key);
+    if (group) group.vaultIds.push(vaultIds[i]);
+    else groups.set(key, { vault, epochs, vaultIds: [vaultIds[i]] });
+  }
+
+  await Promise.all(
+    [...groups.values()].map(async ({ vault, epochs, vaultIds: groupIds }) => {
+      const [vaultKeepers, universalChallengers, registrationVpBtcPubkey] =
+        await Promise.all([
+          keeperReader.getVaultKeepersByVersion(
+            vault.applicationEntryPoint,
+            vault.appVaultKeepersVersion,
+          ),
+          challengerReader.getUniversalChallengersByVersion(
+            vault.universalChallengersVersion,
+          ),
+          getVaultProviderGenesisBtcPubkeyFromChain(
+            vault.vaultProvider as Address,
+          ),
+        ]);
+
+      await assertStandardPayoutScriptsAtEpochs({
+        operationKeyReader,
+        query: {
+          vaultProviderEthAddress: vault.vaultProvider as Address,
+          vaultProviderGenesisBtcPubkey: registrationVpBtcPubkey,
+          applicationEntryPoint: vault.applicationEntryPoint,
+          vaultKeepers,
+          universalChallengers,
+        },
+        epochs,
+        vaultIds: groupIds,
+      });
+    }),
+  );
 }

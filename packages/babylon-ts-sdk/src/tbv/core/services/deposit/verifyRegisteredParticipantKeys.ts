@@ -124,16 +124,18 @@ function diffKeys(
 /**
  * Mirror the check payout presigning runs on registry payout scripts, at the
  * same frozen epochs, so a script the presign step would refuse is refused
- * before the BTC is funded (BTKT-015). Read failures propagate unchanged.
+ * before the BTC is funded. Read failures propagate unchanged.
  * Keeper scripts pair with `query.vaultKeepers` by roster index.
+ * Vaults that share the same query and frozen epochs share one read, so pass
+ * them together.
  */
 export async function assertStandardPayoutScriptsAtEpochs(params: {
   operationKeyReader: OperationKeyReader;
   query: OperationKeyQuery;
   epochs: KeyEpochs;
-  vaultId: Hex;
+  vaultIds: readonly Hex[];
 }): Promise<void> {
-  const { operationKeyReader, query, epochs, vaultId } = params;
+  const { operationKeyReader, query, epochs, vaultIds } = params;
   const scripts = await operationKeyReader.getPayoutScriptsAtEpochs(
     query,
     epochs,
@@ -141,7 +143,7 @@ export async function assertStandardPayoutScriptsAtEpochs(params: {
 
   if (scripts.vaultKeepers.length !== query.vaultKeepers.length) {
     throw new Error(
-      `vault ${vaultId}: expected ${query.vaultKeepers.length} vault keeper ` +
+      `vaults ${vaultIds.join(", ")}: expected ${query.vaultKeepers.length} vault keeper ` +
         `payout scripts, got ${scripts.vaultKeepers.length}`,
     );
   }
@@ -151,7 +153,9 @@ export async function assertStandardPayoutScriptsAtEpochs(params: {
     try {
       assertStandardPayoutScript(script, label);
     } catch (error) {
-      failures.push(`vault ${vaultId}: ${(error as Error).message}`);
+      failures.push(
+        `vaults ${vaultIds.join(", ")}: ${(error as Error).message}`,
+      );
     }
   };
 
@@ -250,12 +254,25 @@ export async function verifyRegisteredParticipantKeys(
 
   // After the drift check so key drift always wins. Payout presigning refuses
   // a non-standard script only after broadcast; refuse it here instead.
+  // Vaults with the same frozen epochs share one script read.
+  const vaultIdsByEpochs = new Map<
+    string,
+    { epochs: KeyEpochs; vaultIds: Hex[] }
+  >();
   for (const [i, epochs] of epochsPerVault.entries()) {
-    await assertStandardPayoutScriptsAtEpochs({
-      operationKeyReader,
-      query,
-      epochs,
-      vaultId: vaultIds[i],
-    });
+    const key = `${epochs.vpKeyEpoch}:${epochs.appKeeperKeyEpoch}:${epochs.ucKeyEpoch}`;
+    const group = vaultIdsByEpochs.get(key);
+    if (group) group.vaultIds.push(vaultIds[i]);
+    else vaultIdsByEpochs.set(key, { epochs, vaultIds: [vaultIds[i]] });
   }
+  await Promise.all(
+    [...vaultIdsByEpochs.values()].map(({ epochs, vaultIds: groupVaultIds }) =>
+      assertStandardPayoutScriptsAtEpochs({
+        operationKeyReader,
+        query,
+        epochs,
+        vaultIds: groupVaultIds,
+      }),
+    ),
+  );
 }

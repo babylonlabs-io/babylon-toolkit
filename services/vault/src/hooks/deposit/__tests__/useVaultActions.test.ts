@@ -1104,8 +1104,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       SIBLING_VAULT_ID,
     ]);
     mockVerifyResumePayoutScripts.mockImplementation(
-      async ({ vaultId }: { vaultId: Hex }) => {
-        if (vaultId === baseBroadcastParams.vaultId) throw refused;
+      async ({ vaultIds }: { vaultIds: readonly Hex[] }) => {
+        if (vaultIds.includes(baseBroadcastParams.vaultId)) throw refused;
       },
     );
     mockGetVaultRegistryReader.mockReturnValue({
@@ -1143,8 +1143,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       SIBLING_VAULT_ID,
     ]);
     mockVerifyResumePayoutScripts.mockImplementation(
-      async ({ vaultId }: { vaultId: Hex }) => {
-        if (vaultId === SIBLING_VAULT_ID) throw refused;
+      async ({ vaultIds }: { vaultIds: readonly Hex[] }) => {
+        if (vaultIds.includes(SIBLING_VAULT_ID)) throw refused;
       },
     );
     mockGetVaultRegistryReader.mockReturnValue({

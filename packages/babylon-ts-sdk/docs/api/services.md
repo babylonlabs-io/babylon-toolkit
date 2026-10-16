@@ -7393,8 +7393,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 
 Mirror the check payout presigning runs on registry payout scripts, at the
 same frozen epochs, so a script the presign step would refuse is refused
-before the BTC is funded (BTKT-015). Read failures propagate unchanged.
+before the BTC is funded. Read failures propagate unchanged.
 Keeper scripts pair with `query.vaultKeepers` by roster index.
+Vaults that share the same query and frozen epochs share one read, so pass
+them together.
 
 #### Parameters
 
@@ -7412,9 +7414,9 @@ Keeper scripts pair with `query.vaultKeepers` by roster index.
 
 [`KeyEpochs`](clients.md#keyepochs)
 
-###### vaultId
+###### vaultIds
 
-`` `0x${string}` ``
+readonly `` `0x${string}` ``[]
 
 #### Returns
 

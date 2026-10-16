@@ -453,17 +453,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       });
       if (signal.aborted) return;
 
-      // BTKT-015: payout presigning refuses a non-standard operator payout
-      // script only after the broadcast, so refuse here. Unconditional: a
-      // resume with no local stamp is covered. Checks every vault the broadcast
-      // funds, each at its own frozen epochs, because siblings registered in
-      // separate requests can freeze different epochs. Uses the batch the
-      // capacity check proved, not the indexer listing. Ahead of the
-      // wallet-liveness probe like the gates above: these reads need no
-      // wallet, so a refused resume raises no popup and reads no UTXOs.
-      for (const fundedVaultId of fundedVaultIds) {
-        await verifyResumePayoutScripts({ vaultId: fundedVaultId });
-      }
+      // Presign refuses a non-standard payout script only after broadcast, so
+      // check every funded vault here, in one batch.
+      await verifyResumePayoutScripts({ vaultIds: fundedVaultIds });
       if (signal.aborted) return;
 
       // Get BTC wallet provider

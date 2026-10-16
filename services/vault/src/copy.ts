@@ -1507,8 +1507,8 @@ export const COPY = {
         title: "Vault operator keys changed",
         body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered BTCVault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own — please start a new deposit.",
       },
-      // BTKT-015: refused before broadcast, and terminal: the payout script is
-      // frozen at the vault's key epochs, so a retry would refuse again.
+      // Refused before broadcast, and terminal: the payout script is frozen at
+      // the vault's key epochs, so a retry would refuse again.
       unsupportedPayoutScript: {
         title: "Vault operator payout not supported",
         body: "A vault operator registered a payout destination this app cannot verify, so your deposit cannot be completed. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own.",
