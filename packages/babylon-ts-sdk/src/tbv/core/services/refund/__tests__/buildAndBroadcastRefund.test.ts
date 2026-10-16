@@ -9,6 +9,7 @@ import {
   REFUND_MAX_FEE_FRACTION_NUMERATOR,
   REFUND_MAX_FEE_RATE_SATS_VB,
   REFUND_VSIZE,
+  RefundBroadcastRejectedError,
   type BtcBroadcaster,
   type RefundPrePeginContext,
   type VaultRefundData,
@@ -999,8 +1000,54 @@ describe("buildAndBroadcastRefund", () => {
       expect(err.cause).toBe(cause);
     });
 
-    it("propagates non-BIP68 broadcastTx errors unchanged", async () => {
-      const cause = new Error("network timeout");
+    it("wraps a relayed -25 broadcastTx error in RefundBroadcastRejectedError", async () => {
+      const cause = new Error(
+        'sendrawtransaction RPC error: {"code":-25,"message":"bad-txns-inputs-missingorspent"}',
+      );
+      broadcastTx.mockRejectedValue(cause);
+
+      const err = await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      }).catch((e) => e);
+
+      expect(err).toBeInstanceOf(RefundBroadcastRejectedError);
+      expect(err.code).toBe(-25);
+      expect(err.vaultId).toBe(VAULT_ID);
+      expect(err.cause).toBe(cause);
+      expect(err.signedTxHex).toBe(broadcastTx.mock.calls[0][0]);
+    });
+
+    it("wraps a relayed -27 broadcastTx error in RefundBroadcastRejectedError", async () => {
+      const cause = new Error(
+        'sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+      );
+      broadcastTx.mockRejectedValue(cause);
+
+      const err = await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      }).catch((e) => e);
+
+      expect(err).toBeInstanceOf(RefundBroadcastRejectedError);
+      expect(err.code).toBe(-27);
+      expect(err.vaultId).toBe(VAULT_ID);
+      expect(err.cause).toBe(cause);
+      expect(err.signedTxHex).toBe(broadcastTx.mock.calls[0][0]);
+    });
+
+    it("propagates other broadcastTx errors unchanged", async () => {
+      const cause = new Error(
+        'sendrawtransaction RPC error: {"code":-26,"message":"min relay fee not met"}',
+      );
       broadcastTx.mockRejectedValue(cause);
 
       const err = await buildAndBroadcastRefund({
@@ -1014,6 +1061,7 @@ describe("buildAndBroadcastRefund", () => {
 
       expect(err).toBe(cause);
       expect(err).not.toBeInstanceOf(BIP68NotMatureError);
+      expect(err).not.toBeInstanceOf(RefundBroadcastRejectedError);
     });
 
     it("propagates readVault errors unchanged", async () => {

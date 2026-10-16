@@ -28,7 +28,7 @@ import {
 } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 
-import { BIP68NotMatureError } from "./errors";
+import { BIP68NotMatureError, RefundBroadcastRejectedError } from "./errors";
 
 const BYTES32_HEX_RE = /^0x[0-9a-fA-F]{64}$/;
 // BTC raw-hex convention: 0x prefix optional, even number of hex chars, must
@@ -92,6 +92,10 @@ export function estimateRefundFeeSats(feeRateSatsVb: number): bigint {
 // WASM PSBT builder based on the refund script path.)
 const REFUND_INPUT_COUNT = 1;
 const BIP68_ERROR_RE = /non-BIP68-final/i;
+// bitcoind sendrawtransaction codes relayed verbatim by mempool.space:
+// -27 already in the UTXO set; -25 general error, usually missing or spent inputs.
+const ALREADY_IN_CHAIN_CODE_RE = /"code"\s*:\s*-27\b/;
+const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
 
 function assertBytes32(value: string, label: string): void {
   if (value.length !== 66) {
@@ -410,13 +414,17 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
  *
  * The broadcast transport is expected to surface Bitcoin's `non-BIP68-final`
  * policy rejection as an `Error` whose message contains that string; when
- * it does, the SDK wraps it in {@link BIP68NotMatureError}. All other
- * transport errors propagate unchanged.
+ * it does, the SDK wraps it in {@link BIP68NotMatureError}. Relayed bitcoind
+ * `-25` / `-27` rejections are wrapped in {@link RefundBroadcastRejectedError}.
+ * All other transport errors propagate unchanged.
  *
  * @returns whatever the injected `broadcastTx` returns (generic pass-through)
  * @throws `Error` if any validation fails
  * @throws {@link BIP68NotMatureError} if the broadcast is rejected because
  *         the refund CSV timelock has not yet matured
+ * @throws {@link RefundBroadcastRejectedError} if the broadcast is rejected
+ *         with bitcoind `-25` (a general transaction error, usually missing
+ *         or spent inputs) or `-27` (already in the chain)
  * @throws anything `readVault`, `readPrePeginContext`,
  *         `signPsbt`, or `broadcastTx` throws
  */
@@ -598,8 +606,16 @@ export async function buildAndBroadcastRefund<
   try {
     return await broadcastTx(signedTxHex);
   } catch (error) {
-    if (error instanceof Error && BIP68_ERROR_RE.test(error.message)) {
-      throw new BIP68NotMatureError(vaultId, error);
+    if (error instanceof Error) {
+      if (BIP68_ERROR_RE.test(error.message)) {
+        throw new BIP68NotMatureError(vaultId, error);
+      }
+      if (ALREADY_IN_CHAIN_CODE_RE.test(error.message)) {
+        throw new RefundBroadcastRejectedError(-27, vaultId, signedTxHex, error);
+      }
+      if (MISSING_OR_SPENT_INPUTS_CODE_RE.test(error.message)) {
+        throw new RefundBroadcastRejectedError(-25, vaultId, signedTxHex, error);
+      }
     }
     throw error;
   }
