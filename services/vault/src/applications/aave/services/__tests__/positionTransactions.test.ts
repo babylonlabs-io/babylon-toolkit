@@ -53,7 +53,9 @@ vi.mock("../../config", () => ({
 }));
 
 vi.mock("../../../../clients/eth-contract/walletChain", () => ({
-  ensureWalletClientOnExpectedChain: (walletClient: unknown) => walletClient,
+  getWalletClientOnExpectedChain: async (account: string) => ({
+    account: { address: account },
+  }),
 }));
 
 // The proxy-integrity guard is unit-tested in assertProxyMatchesOnChain.test.ts.
@@ -71,6 +73,7 @@ vi.mock("@/infrastructure", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), event: vi.fn() },
 }));
 
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
 import {
@@ -97,6 +100,9 @@ describe("positionTransactions", () => {
   const mockChain = { id: 1 } as any;
 
   const mockToken = { symbol: "USDC", decimals: 6 };
+
+  // The hook's "Confirming" flag; only the Aave call reports its inclusion.
+  const onIncluded = vi.fn();
 
   // `logs: []` routes ensureAllowance's verification to the fallback
   // allowance re-read (no Approval event to parse); event-path behavior is
@@ -164,6 +170,7 @@ describe("positionTransactions", () => {
         mockChain,
         debtReserveId,
         amount,
+        onIncluded,
       );
 
       expect(mockBorrowFromCorePosition).toHaveBeenCalledWith(
@@ -173,6 +180,7 @@ describe("positionTransactions", () => {
         debtReserveId,
         amount,
         "0xuser",
+        onIncluded,
       );
       expect(result.transactionHash).toBe("0xhash");
     });
@@ -181,8 +189,8 @@ describe("positionTransactions", () => {
       const noAccountWallet = { account: undefined } as any;
 
       await expect(
-        borrow(noAccountWallet, mockChain, 1n, 1000n),
-      ).rejects.toThrow("Wallet address not available");
+        borrow(noAccountWallet, mockChain, 1n, 1000n, onIncluded),
+      ).rejects.toThrow(COPY.wallet.connectToContinue);
     });
   });
 
@@ -201,6 +209,7 @@ describe("positionTransactions", () => {
         borrower,
         debtReserveId,
         amount,
+        onIncluded,
       );
 
       expect(mockRepayToCorePosition).toHaveBeenCalledWith(
@@ -210,19 +219,27 @@ describe("positionTransactions", () => {
         borrower,
         debtReserveId,
         amount,
+        onIncluded,
       );
       expect(result.transactionHash).toBe("0xhash");
     });
 
     it("should throw error when amount is 0", async () => {
       await expect(
-        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, 0n),
+        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, 0n, onIncluded),
       ).rejects.toThrow("Repay amount must be greater than 0");
     });
 
     it("should throw error when amount is negative", async () => {
       await expect(
-        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, -100n),
+        repay(
+          mockWalletClient,
+          mockChain,
+          "0xuser" as any,
+          1n,
+          -100n,
+          onIncluded,
+        ),
       ).rejects.toThrow("Repay amount must be greater than 0");
     });
   });
@@ -241,12 +258,13 @@ describe("positionTransactions", () => {
       const amount = 1000000n;
 
       await repayPartial(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         amount,
         mockToken,
+        onIncluded,
       );
 
       // Should check allowance against the pinned adapter address
@@ -268,8 +286,17 @@ describe("positionTransactions", () => {
         { safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS },
       );
 
-      // Should repay with borrower = user address
-      expect(mockRepayToCorePosition).toHaveBeenCalled();
+      // Should repay with borrower = user address, and only the repay, not
+      // the approve, reports its inclusion
+      expect(mockRepayToCorePosition).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xadapter",
+        "0xuser",
+        1n,
+        amount,
+        onIncluded,
+      );
     });
 
     it("should skip approval when allowance sufficient", async () => {
@@ -277,31 +304,17 @@ describe("positionTransactions", () => {
       setSimulatedAllowance(amount + 1000n);
 
       await repayPartial(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         amount,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).not.toHaveBeenCalled();
       expect(mockRepayToCorePosition).toHaveBeenCalled();
-    });
-
-    it("should throw error when wallet has no account", async () => {
-      const noAccountWallet = { account: undefined } as any;
-
-      await expect(
-        repayPartial(
-          noAccountWallet,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          1000n,
-          mockToken,
-        ),
-      ).rejects.toThrow("Wallet address not available");
     });
 
     it("names the wallet balance when it is below the requested amount", async () => {
@@ -309,12 +322,13 @@ describe("positionTransactions", () => {
 
       await expect(
         repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(
         "Repaying 1 USDC needs more than your balance of 0.999999 USDC. Lower the amount or acquire more and try again.",
@@ -337,13 +351,14 @@ describe("positionTransactions", () => {
       const balance = 2000000n;
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         PROXY,
         balance,
         mockToken,
+        onIncluded,
       );
 
       expect(mockGetPositionReserveTotalDebt).toHaveBeenCalledWith(PROXY, 1n);
@@ -354,18 +369,20 @@ describe("positionTransactions", () => {
         "0xuser",
         1n,
         maxUint256,
+        onIncluded,
       );
     });
 
     it("verifies the proxy on-chain before quoting debt (F8)", async () => {
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       expect(mockAssertProxy).toHaveBeenCalledWith(
@@ -382,13 +399,14 @@ describe("positionTransactions", () => {
 
       await expect(
         repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           PROXY,
           2000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(/proxy mismatch/);
 
@@ -402,13 +420,14 @@ describe("positionTransactions", () => {
       mockAssertProxy.mockResolvedValue(VERIFIED);
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       // Debt quote (which sizes the approval cap) keys off the verified proxy.
@@ -421,13 +440,14 @@ describe("positionTransactions", () => {
     it("caps the approval at quote + buffer when the balance has headroom", async () => {
       // quote 1000000n → ceil(1000000/200) = 5000n buffer.
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).toHaveBeenCalledWith(
@@ -444,13 +464,14 @@ describe("positionTransactions", () => {
       const balance = 1002000n; // quote ≤ balance < quote + buffer
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         PROXY,
         balance,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).toHaveBeenCalledWith(
@@ -466,13 +487,14 @@ describe("positionTransactions", () => {
     it("never approves the sentinel value itself", async () => {
       // The wire amount is maxUint256; the APPROVAL must stay finite.
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       const approvedAmount = mockApproveERC20.mock.calls[0][4] as bigint;
@@ -484,13 +506,14 @@ describe("positionTransactions", () => {
       setSimulatedAllowance(2000000n);
 
       await repayAll(
-        mockWalletClient,
+        "0xuser",
         mockChain,
         1n,
         "0xtoken" as any,
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).not.toHaveBeenCalled();
@@ -502,13 +525,14 @@ describe("positionTransactions", () => {
 
       await expect(
         repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           PROXY,
           2000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow("No debt to repay");
 
@@ -521,13 +545,14 @@ describe("positionTransactions", () => {
       // the stale-simulation retry's trigger — and burn the retry budget.
       await expect(
         repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           PROXY,
           999999n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(/repaying in full needs/i);
 
@@ -535,34 +560,19 @@ describe("positionTransactions", () => {
       expect(mockRepayToCorePosition).not.toHaveBeenCalled();
     });
 
-    it("throws error when wallet has no account", async () => {
-      const noAccountWallet = { account: undefined } as any;
-
-      await expect(
-        repayAll(
-          noAccountWallet,
-          mockChain,
-          1n,
-          "0xtoken" as any,
-          PROXY,
-          2000000n,
-          mockToken,
-        ),
-      ).rejects.toThrow("Wallet address not available");
-    });
-
     describe("ceiling-division buffer for dust-scale quotes", () => {
       const capFor = async (quote: bigint) => {
         mockGetPositionReserveTotalDebt.mockResolvedValue(quote);
         mockApproveERC20.mockClear();
         await repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           PROXY,
           10_000_000n,
           mockToken,
+          onIncluded,
         );
         return mockApproveERC20.mock.calls[0][4] as bigint;
       };
@@ -597,6 +607,7 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         vaultIds,
+        onIncluded,
       );
 
       expect(mockWithdrawCollaterals).toHaveBeenCalledWith(
@@ -604,6 +615,7 @@ describe("positionTransactions", () => {
         mockChain,
         "0xadapter",
         vaultIds,
+        onIncluded,
       );
       expect(result.transactionHash).toBe("0xhash");
     });
@@ -639,8 +651,6 @@ describe("positionTransactions", () => {
       data: numberToHex(value, { size: 32 }),
     });
 
-    const ownerWallet = { account: { address: OWNER } } as any;
-
     beforeEach(() => {
       (getAaveAdapterAddress as Mock).mockReturnValue(ADAPTER);
       mockGetERC20Balance.mockResolvedValue(2000000n);
@@ -654,12 +664,13 @@ describe("positionTransactions", () => {
       });
 
       await repayPartial(
-        ownerWallet,
+        OWNER,
         mockChain,
         1n,
         TOKEN as any,
         amount,
         mockToken,
+        onIncluded,
       );
 
       // Exactly one allowance read: the pre-approve short-circuit check.
@@ -678,12 +689,13 @@ describe("positionTransactions", () => {
 
       await expect(
         repayPartial(
-          ownerWallet,
+          OWNER,
           mockChain,
           1n,
           TOKEN as any,
           amount,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(/approved a lower amount than required/i);
 
@@ -755,12 +767,13 @@ describe("positionTransactions", () => {
 
       await expect(
         repayPartial(
-          ownerWallet,
+          OWNER,
           mockChain,
           1n,
           TOKEN as any,
           amount,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(/approved a lower amount than required/i);
 
@@ -787,12 +800,13 @@ describe("positionTransactions", () => {
           .mockResolvedValue(amount); // verification attempt 2
 
         const result = repayPartial(
-          ownerWallet,
+          OWNER,
           mockChain,
           1n,
           TOKEN as any,
           amount,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -821,13 +835,14 @@ describe("positionTransactions", () => {
         });
 
         const result = repayAll(
-          ownerWallet,
+          OWNER,
           mockChain,
           1n,
           TOKEN as any,
           "0xproxy" as any,
           2000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).rejects.toThrow(
           /approval could not be confirmed/i,
@@ -871,12 +886,13 @@ describe("positionTransactions", () => {
           .mockResolvedValue(mockTxResult);
 
         const result = repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -905,12 +921,13 @@ describe("positionTransactions", () => {
           .mockResolvedValue(mockTxResult);
 
         const result = repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -940,12 +957,13 @@ describe("positionTransactions", () => {
 
       await expect(
         repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow("execution reverted");
 
@@ -969,12 +987,13 @@ describe("positionTransactions", () => {
 
       await expect(
         repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken",
           1000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toBe(unconfirmed);
 
@@ -990,12 +1009,13 @@ describe("positionTransactions", () => {
         mockRepayToCorePosition.mockRejectedValue(staleSimulationError());
 
         const result = repayPartial(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).rejects.toThrow("execution reverted");
         await vi.runAllTimersAsync();
@@ -1021,13 +1041,14 @@ describe("positionTransactions", () => {
           .mockResolvedValue(mockTxResult);
 
         const result = repayAll(
-          mockWalletClient,
+          "0xuser",
           mockChain,
           1n,
           "0xtoken" as any,
           "0xproxy" as any,
           balance,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -1054,6 +1075,7 @@ describe("positionTransactions", () => {
           "0xuser",
           1n,
           maxUint256,
+          onIncluded,
         );
       } finally {
         vi.useRealTimers();

@@ -7,14 +7,14 @@ import { COPY } from "@/copy";
 import { getWalletClientOnExpectedChain } from "../walletChain";
 
 const actions = vi.hoisted(() => {
-  const connectorA = { uid: "connector-A" };
-  const connectorB = { uid: "connector-B" };
-  let connector: { uid: string } | undefined = connectorA;
+  const connectorA = { uid: "connector-A", getChainId: vi.fn() };
+  const connectorB = { uid: "connector-B", getChainId: vi.fn() };
+  let connector: typeof connectorA | undefined = connectorA;
   return {
     connectorA,
     connectorB,
-    getAccount: () => ({ connector }),
-    setConnector: (value: { uid: string } | undefined) => {
+    getAccount: () => ({ connector, status: "connected" }),
+    setConnector: (value: typeof connectorA | undefined) => {
       connector = value;
     },
     switchChain: vi.fn(),
@@ -45,38 +45,44 @@ const clientB = createWalletClient({
 
 beforeEach(() => {
   actions.setConnector(actions.connectorA);
+  actions.connectorA.getChainId.mockResolvedValue(0);
   actions.switchChain.mockReset().mockResolvedValue(undefined);
   actions.getWalletClient.mockReset().mockResolvedValue(clientA);
 });
 
 describe("getWalletClientOnExpectedChain", () => {
-  it("keeps the original connector through an A-to-B-to-A switch", async () => {
-    let finishSwitch!: () => void;
+  it("keeps the original connector through a retry and an A-to-B-to-A switch", async () => {
     let finishClient!: () => void;
-    actions.switchChain.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishSwitch = resolve;
+    actions.connectorB.getChainId.mockResolvedValue(0);
+    actions.getWalletClient
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Connection lost"), {
+          name: "ConnectorNotConnectedError",
         }),
-    );
-    actions.getWalletClient.mockImplementationOnce(
-      (_config, parameters: { connector?: { uid: string } }) => {
-        const selected = parameters.connector ?? actions.getAccount().connector;
-        return new Promise<typeof clientA>((resolve) => {
-          finishClient = () =>
-            resolve(selected === actions.connectorA ? clientA : clientB);
-        });
-      },
-    );
+      )
+      .mockImplementationOnce(
+        (_config, parameters: { connector?: { uid: string } }) => {
+          const selected =
+            parameters.connector ?? actions.getAccount().connector;
+          return new Promise<typeof clientA>((resolve) => {
+            finishClient = () =>
+              resolve(selected === actions.connectorA ? clientA : clientB);
+          });
+        },
+      );
 
     const pending = getWalletClientOnExpectedChain(account);
     actions.setConnector(actions.connectorB);
-    finishSwitch();
-    await vi.waitFor(() => expect(actions.getWalletClient).toHaveBeenCalled());
+    await vi.waitFor(() =>
+      expect(actions.getWalletClient).toHaveBeenCalledTimes(2),
+    );
     actions.setConnector(actions.connectorA);
     finishClient();
 
     expect(await pending).toBe(clientA);
+    expect(
+      actions.getWalletClient.mock.calls.map(([, params]) => params.connector),
+    ).toEqual([actions.connectorA, actions.connectorA]);
     expect(actions.switchChain).toHaveBeenCalledWith(
       {},
       {
@@ -107,7 +113,7 @@ describe("getWalletClientOnExpectedChain", () => {
   it("refuses to select a wallet without an existing connector", async () => {
     actions.setConnector(undefined);
     await expect(getWalletClientOnExpectedChain(account)).rejects.toThrow(
-      "Failed to get wallet client",
+      COPY.wallet.connectToContinue,
     );
     expect(actions.switchChain).not.toHaveBeenCalled();
     expect(actions.getWalletClient).not.toHaveBeenCalled();

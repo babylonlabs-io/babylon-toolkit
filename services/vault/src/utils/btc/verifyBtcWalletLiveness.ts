@@ -1,7 +1,11 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 
 import { COPY } from "@/copy";
-import { isDeviceDisconnectedError } from "@/utils/errors/deviceErrors";
+import {
+  isDeviceDisconnectedError,
+  isDeviceWrongAppError,
+} from "@/utils/errors/deviceErrors";
+import { isWalletIncompatibleVersion } from "@/utils/errors/walletIncompatibleVersion";
 
 export class BtcWalletLivenessError extends Error {
   constructor(message: string) {
@@ -105,11 +109,21 @@ export async function verifyBtcWalletLiveness(
 }
 
 /**
- * A lost hardware-device session passes through with its typed code: its
- * recovery is a reconnect from a click, which the caller can only offer if it
- * can still see the code. Every other failure reads as an unresponsive wallet.
+ * A lost hardware-device session and a device showing the wrong app (or still
+ * locked on a session whose app is not yet confirmed, which the Ledger
+ * provider reports the same way) pass through with their typed code, because
+ * the caller's copy for each names the real recovery (reconnect, or open the
+ * vault app). An unsupported wallet or app version also keeps its own message
+ * (update the app). Every other failure reads as an unresponsive wallet.
  */
 function toLivenessError(error: unknown): Error {
-  if (isDeviceDisconnectedError(error) && error instanceof Error) return error;
+  if (
+    (isDeviceDisconnectedError(error) ||
+      isDeviceWrongAppError(error) ||
+      isWalletIncompatibleVersion(error)) &&
+    error instanceof Error
+  ) {
+    return error;
+  }
   return new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive);
 }

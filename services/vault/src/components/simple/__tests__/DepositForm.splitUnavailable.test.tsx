@@ -91,6 +91,7 @@ const feeState: DepositFeeState = {
   appVersionUnsupported: false,
   p2aAnchorValueSats: 0n,
   depositorClaimValueError: null,
+  protocolFeeWei: 0n,
   protocolFeeAmount: "--",
   protocolFeePrice: "",
   protocolFeeIsError: false,
@@ -224,6 +225,14 @@ describe("DepositForm split-unavailable hint", () => {
     renderForm({ splitUnavailableReason: "split-sizing" });
     expect(
       screen.getByText(COPY.deposit.splitSizing.unavailable),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(PROTOCOL_HINT)).not.toBeInTheDocument();
+  });
+
+  it("explains a split lost to the protocol's live-vault limit", () => {
+    renderForm({ splitUnavailableReason: "live-vault-cap" });
+    expect(
+      screen.getByText(COPY.deposit.liveVaultCapReached.splitUnavailable),
     ).toBeInTheDocument();
     expect(screen.queryByText(PROTOCOL_HINT)).not.toBeInTheDocument();
   });

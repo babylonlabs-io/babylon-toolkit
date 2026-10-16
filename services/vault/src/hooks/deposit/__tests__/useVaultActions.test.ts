@@ -90,15 +90,19 @@ vi.mock("@/config/network", () => ({
 const mockVerifyResumeParticipantKeys = vi.hoisted(() =>
   vi.fn().mockResolvedValue(undefined),
 );
+const mockVerifyResumePayoutScripts = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
 vi.mock("@/services/vault/verifyResumeParticipantKeys", () => ({
   verifyResumeParticipantKeys: mockVerifyResumeParticipantKeys,
+  verifyResumePayoutScripts: mockVerifyResumePayoutScripts,
 }));
 
-// Position-capacity gate. Default: the position has room, so the pre-existing
-// broadcast tests are unaffected. The gate's own reads are covered by
-// assertResumePositionCapacity.test.ts.
+// Position-capacity gate. Default: the position has room and funds just the
+// selected vault, so the pre-existing broadcast tests are unaffected. The
+// gate's own reads are covered by assertResumePositionCapacity.test.ts.
 const mockAssertResumePositionCapacity = vi.hoisted(() =>
-  vi.fn().mockResolvedValue(undefined),
+  vi.fn(async ({ vaultId }: { vaultId: Hex }) => [vaultId]),
 );
 vi.mock("@/services/vault/assertResumePositionCapacity", () => ({
   assertResumePositionCapacity: mockAssertResumePositionCapacity,
@@ -422,7 +426,10 @@ beforeEach(() => {
   mockHeadAgeSeconds.value = 0n;
   mockGetTBVProtocolParams.mockResolvedValue(WIDE_PROTOCOL_PARAMS);
   mockGetOffchainParamsByVersion.mockResolvedValue({ minPrepeginDepth: 6 });
-  mockAssertResumePositionCapacity.mockResolvedValue(undefined);
+  mockAssertResumePositionCapacity.mockImplementation(
+    async ({ vaultId }: { vaultId: Hex }) => [vaultId],
+  );
+  mockVerifyResumePayoutScripts.mockResolvedValue(undefined);
 });
 
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
@@ -1082,6 +1089,81 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
 
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toBeTruthy();
+  });
+
+  it("does not broadcast when the selected vault's payout scripts are refused, even without a key stamp", async () => {
+    // The guard must also check the vault being resumed, not only its siblings.
+    const SIBLING_VAULT_ID = `0x${"22".repeat(32)}` as Hex;
+    const refused = new Error(
+      "Aborting Pre-PegIn broadcast: an operator payout script registered for this vault is not a standard output type this app can verify",
+    );
+    refused.name = "UnsupportedPayoutScriptError";
+    mockAssertResumePositionCapacity.mockResolvedValueOnce([
+      baseBroadcastParams.vaultId,
+      SIBLING_VAULT_ID,
+    ]);
+    mockVerifyResumePayoutScripts.mockImplementation(
+      async ({ vaultIds }: { vaultIds: readonly Hex[] }) => {
+        if (vaultIds.includes(baseBroadcastParams.vaultId)) throw refused;
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const removePendingPegin = vi.fn();
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin,
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(removePendingPegin).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toBeTruthy();
+  });
+
+  it("does not broadcast when a funded sibling's payout scripts are refused, even without a key stamp", async () => {
+    // The guard checks every vault the broadcast funds, not only the selected
+    // one, and runs on every resume, including cross-device ones with no local
+    // stamp, so the BTC is never funded into a vault whose payout presign
+    // would refuse.
+    const SIBLING_VAULT_ID = `0x${"22".repeat(32)}` as Hex;
+    const refused = new Error(
+      "Aborting Pre-PegIn broadcast: an operator payout script registered for this vault is not a standard output type this app can verify",
+    );
+    refused.name = "UnsupportedPayoutScriptError";
+    mockAssertResumePositionCapacity.mockResolvedValueOnce([
+      baseBroadcastParams.vaultId,
+      SIBLING_VAULT_ID,
+    ]);
+    mockVerifyResumePayoutScripts.mockImplementation(
+      async ({ vaultIds }: { vaultIds: readonly Hex[] }) => {
+        if (vaultIds.includes(SIBLING_VAULT_ID)) throw refused;
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+
+    const removePendingPegin = vi.fn();
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+        removePendingPegin,
+      });
+    });
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(removePendingPegin).not.toHaveBeenCalled();
     expect(result.current.broadcastError).toBeTruthy();
   });
 });
@@ -3430,8 +3512,8 @@ describe("useVaultActions — handleBroadcast position capacity", () => {
     const capacityCheckReached = new Promise<void>((reached) => {
       mockAssertResumePositionCapacity.mockImplementation(() => {
         reached();
-        return new Promise<void>((resolve) => {
-          releaseCapacityCheck = resolve;
+        return new Promise<Hex[]>((resolve) => {
+          releaseCapacityCheck = () => resolve([baseBroadcastParams.vaultId]);
         });
       });
     });

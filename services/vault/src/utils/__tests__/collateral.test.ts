@@ -47,6 +47,7 @@ describe("Collateral Utilities", () => {
           vaultId: "vault1",
           peginTxHash: "0xpeginTxHash1",
           amountBtc: 1,
+          amountSats: 100000000n,
           addedAt: 1700000000,
           inUse: true,
           providerAddress: "0xprovider1",
@@ -103,6 +104,27 @@ describe("Collateral Utilities", () => {
             peginTxHash: "0xpeginTxHash1",
             amount: 100000000n,
             status: "depositor_withdrawn",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+            depositorBtcPubKey: "0xbtcpubkey1",
+            depositorPayoutBtcAddress: "0xpayout1",
+            offchainParamsVersion: 1,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result).toHaveLength(0);
+    });
+
+    it("should filter out non_depositor_spend vaults", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            peginTxHash: "0xpeginTxHash1",
+            amount: 100000000n,
+            status: "non_depositor_spend",
             vaultProvider: "0xprovider1",
             inUse: false,
             depositorBtcPubKey: "0xbtcpubkey1",
@@ -219,6 +241,16 @@ describe("Collateral Utilities", () => {
       const collaterals = [makeCollateral({ amount: 50000000n })]; // 0.5 BTC
       const result = toCollateralVaultEntries(collaterals);
 
+      expect(result[0].amountBtc).toBe(0.5);
+    });
+
+    it("keeps the raw indexer satoshi amount on the entry", () => {
+      // The row `amount` is the field the chain-sum check covers. The nested
+      // `vault.amount` (1 BTC here) must not reach the entry.
+      const collaterals = [makeCollateral({ amount: 50000000n })];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].amountSats).toBe(50000000n);
       expect(result[0].amountBtc).toBe(0.5);
     });
   });

@@ -5,10 +5,10 @@
  * the depositor can reclaim their BTC from the Pre-PegIn HTLC output after
  * timelockRefund Bitcoin blocks have passed, using the refund script (leaf 1).
  *
- * Protocol logic (fee math, PSBT build, sign options, finalize, BIP68 error
- * mapping) lives in the SDK. This adapter pre-fetches the mempool fee rate
- * and provides the transport-specific callbacks for reads (on-chain +
- * indexer), signing, and broadcast.
+ * Protocol logic (fee math, PSBT build, sign options, finalize, BIP68 and
+ * bitcoind -25/-27 error typing) lives in the SDK. This adapter pre-fetches
+ * the mempool fee rate and provides the transport-specific callbacks for
+ * reads (on-chain + indexer), signing, and broadcast.
  */
 
 import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
@@ -21,6 +21,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildAndBroadcastRefund,
+  RefundBroadcastRejectedError,
   type RefundPrePeginContext,
   type VaultBatchEntry,
   type VaultRefundData,
@@ -556,15 +557,6 @@ function throwIfHtlcSpent(
   throw new RefundAlreadySettledError(spend.spendingTxid, spend.confirmed);
 }
 
-// bitcoind sendrawtransaction rejection codes after which the HTLC outpoint is
-// re-probed, relayed verbatim by mempool.space as `...RPC error: {"code":-N,...}`.
-// -27 = RPC_VERIFY_ALREADY_IN_UTXO_SET (this signed refund is itself already
-// confirmed); -25 = missing/already-spent inputs (something spent the HTLC — a
-// refund, the PegIn, or a spender the probe does not name). Verified against
-// bitcoin/bitcoin src/rpc/protocol.h + src/node/transaction.cpp.
-const ALREADY_IN_CHAIN_CODE_RE = /"code"\s*:\s*-27\b/;
-const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
-
 /**
  * Build, sign, and broadcast a refund transaction for an expired vault.
  *
@@ -576,6 +568,7 @@ const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
  * @throws {@link HtlcSweptByPeginError} if the vault's PegIn spent the HTLC output
  * @throws {@link RefundAlreadySettledError} if anything else already spent it
  * @throws A retryable error if it is reported spent without the spending tx
+ * @throws The original transport error if a -25/-27 rejection finds no spender
  * @throws If vault data is missing or the broadcast fails
  */
 export async function buildAndBroadcastRefundTransaction(
@@ -627,47 +620,43 @@ export async function buildAndBroadcastRefundTransaction(
 
   // Override indexer-provided depositor pubkey with the caller's wallet key —
   // the wallet is the authoritative source for the depositor's signing key.
-  const { txId } = await buildAndBroadcastRefund({
-    vaultId,
-    readVault: async () => {
-      const data = await readVaultForRefund(vaultId, depositorAddress);
-      return { ...data, depositorBtcPubkey };
-    },
-    readPrePeginContext: (vault) => readPrePeginContext(vault, vaultId as Hex),
-    feeRate,
-    signPsbt: (psbtHex, options) =>
-      btcWalletProvider.signPsbt(psbtHex, options),
-    broadcastTx: async (signedTxHex) => {
-      try {
-        return { txId: await pushTx(signedTxHex, mempoolApiUrl) };
-      } catch (err) {
-        // Race: the HTLC was spent between the guard above and this broadcast.
-        // On bitcoind -27/-25, re-probe the outpoint and attribute the spender
-        // as the guard does.
-        const message = err instanceof Error ? err.message : String(err);
-        const alreadyInChain = ALREADY_IN_CHAIN_CODE_RE.test(message);
-        if (alreadyInChain || MISSING_OR_SPENT_INPUTS_CODE_RE.test(message)) {
-          const probed = await fetchHtlcSpend(
-            target.onChainVault.prePeginTxHash,
-            target.onChainVault.htlcVout,
-            mempoolApiUrl,
-          ).catch(() => undefined);
-          // -27 says this signed refund is itself confirmed, so a spend the
-          // probe reports without its transaction is this refund.
-          const spend =
-            alreadyInChain && probed?.spent && !probed.spendingTxid
-              ? {
-                  ...probed,
-                  spendingTxid: stripHexPrefix(calculateBtcTxHash(signedTxHex)),
-                }
-              : probed;
-          throwIfHtlcSpent(spend, peginTxid, "afterSigning");
-        }
-        throw err;
-      }
-    },
-    signal,
-  });
-
-  return txId;
+  try {
+    const { txId } = await buildAndBroadcastRefund({
+      vaultId,
+      readVault: async () => {
+        const data = await readVaultForRefund(vaultId, depositorAddress);
+        return { ...data, depositorBtcPubkey };
+      },
+      readPrePeginContext: (vault) =>
+        readPrePeginContext(vault, vaultId as Hex),
+      feeRate,
+      signPsbt: (psbtHex, options) =>
+        btcWalletProvider.signPsbt(psbtHex, options),
+      broadcastTx: async (signedTxHex) => ({
+        txId: await pushTx(signedTxHex, mempoolApiUrl),
+      }),
+      signal,
+    });
+    return txId;
+  } catch (err) {
+    if (!(err instanceof RefundBroadcastRejectedError)) throw err;
+    // Race: the HTLC was spent between the guard above and this broadcast.
+    // Re-probe the outpoint and attribute the spender as the guard does.
+    const probed = await fetchHtlcSpend(
+      target.onChainVault.prePeginTxHash,
+      target.onChainVault.htlcVout,
+      mempoolApiUrl,
+    ).catch(() => undefined);
+    // -27 says this signed refund is itself confirmed, so a spend the
+    // probe reports without its transaction is this refund.
+    const spend =
+      err.code === -27 && probed?.spent && !probed.spendingTxid
+        ? {
+            ...probed,
+            spendingTxid: stripHexPrefix(calculateBtcTxHash(err.signedTxHex)),
+          }
+        : probed;
+    throwIfHtlcSpent(spend, peginTxid, "afterSigning");
+    throw err.cause;
+  }
 }

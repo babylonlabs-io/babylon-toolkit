@@ -176,6 +176,7 @@ export const COPY = {
       IN_USE: "In use",
       REDEEM_IN_PROGRESS: "Redeem in progress",
       REDEEMED: "Redeemed",
+      CLAIMED_BY_KEEPER: "Claimed by vault keeper",
       LIQUIDATED: "Liquidated",
       EXPIRED: "Expired",
       REFUNDING: "Refunding",
@@ -349,6 +350,11 @@ export const COPY = {
         "This BTCVault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:
         "Redemption complete. Your BTC payout has been sent to your nominated address.",
+      // A redeemed BTCVault whose BTC a vault keeper claimed on Bitcoin, a
+      // claim no challenger blocked (#2717). The vault provider never pays;
+      // the reserve reclaim, when any, is the row's own action.
+      claimedByKeeper:
+        "This BTCVault was redeemed, but a vault keeper claimed its BTC on Bitcoin instead of the vault provider paying it to your payout address. Please contact support.",
     },
     statusErrors: {
       expired:
@@ -423,6 +429,14 @@ export const COPY = {
       // would name a cause that is not the reason.
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
+    },
+    // The protocol-wide cap on live BTCVaults, a third limit separate from
+    // both above. A slot frees up only when another BTCVault is redeemed or
+    // expires, so the depositor can only wait.
+    liveVaultCapReached: {
+      cta: "Protocol BTCVault limit reached, try again later",
+      splitUnavailable:
+        "The protocol is near its BTCVault limit. BTCVault split unavailable.",
     },
     // Split sizing and the deposit flow's pre-sign vault-amount checks: the
     // form hint when the SDK's `findSplitSizingViolation` refuses a split,
@@ -1122,7 +1136,7 @@ export const COPY = {
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
           : TWO_VAULT_SPLIT_NAME,
       splitOptionRecommended: "(Recommended)",
-      splitSliderStepLabel: "2 UTXO Split",
+      splitSliderStepLabel: "Minimum for 2 BTCVaults",
       // Shown inside the expanded split selector, under the two-vault option,
       // when the deposit is below the minimum needed to split across two
       // vaults; that option stays visible but disabled. `minBtc` already
@@ -1230,9 +1244,13 @@ export const COPY = {
         "Invalid secret: SHA256(secret) does not match the BTCVault's hashlock. Please check your secret and try again.",
       // The pre-send check found the registry would redeem this BTCVault
       // instead of adding it to the position, at the gas search ceiling or at
-      // the planned limit. Nothing is sent.
+      // the planned limit. Nothing is sent. The registry redeems when a cap
+      // (total or per-address) is exceeded or the application's activateVault
+      // reverts, and the planned-limit re-check can also trip on gas, so the
+      // cause is hedged. The retry is bounded by the activation window, which
+      // closes 25 blocks before the deadline, not by "later".
       activationWouldRedeem:
-        "Activation was checked before sending and this BTCVault would have been redeemed instead of added to your position, so nothing was submitted. Try again later.",
+        "Activation was checked before sending and this BTCVault would have been redeemed instead of added to your position, so nothing was submitted. This usually means the application is not accepting it right now, for example because it is paused or a deposit cap has been reached. You can retry while the activation window is open; if it keeps happening, please contact support.",
       // The configured RPC does not serve eth_simulateV1, so the pre-send
       // check cannot run and nothing is sent. Retrying cannot help.
       activationCheckUnsupported:
@@ -1420,16 +1438,18 @@ export const COPY = {
         title: "Couldn't check the deposit window",
         body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast — please try again in a moment. If this keeps happening, check that this device's date and time are correct.",
       },
-      // Resume broadcast refused because the application says the depositor's
-      // position cannot take this batch: activating would fail and redeem the
-      // BTCVaults instead. Refused before any wallet prompt, so this attempt
-      // broadcast nothing. It does not say the BTC has not moved: the check
-      // runs while the vault reads PENDING on chain, which includes a
-      // Pre-Pegin already broadcast from another device and not yet
-      // acknowledged, which has already sent the BTC to the HTLC. Not "has
-      // reached its limit": a lowered limit can be exceeded by this deposit
-      // alone. Recoverable by the depositor (free a slot or BTC headroom) or
-      // by a limit change, and the resume modal offers Retry.
+      // Pre-Pegin broadcast refused, new or resumed, because the application
+      // says the depositor's position cannot take this batch: activating would
+      // fail and redeem the BTCVaults instead. Refused before the Pre-Pegin is
+      // signed for broadcast, so this attempt broadcast nothing. It does not
+      // say the BTC has not moved: on resume the check runs while the vault
+      // reads PENDING on chain, which includes a Pre-Pegin already broadcast
+      // from another device and not yet acknowledged, which has already sent
+      // the BTC to the HTLC.
+      // Not "has reached its limit": a lowered limit can be exceeded by this
+      // deposit alone. Recoverable by the depositor (free a slot or BTC
+      // headroom) or by a limit change, and both the new-deposit and the
+      // resume modal offer Retry.
       positionCapacityExceeded: {
         title: "Not enough room in your position",
         body: "Your Aave position doesn't have room for this deposit under its BTCVault count or BTC limit. This attempt didn't broadcast anything. Free up room in your position, for example by withdrawing a BTCVault, or wait for the limit to change, then try again.",
@@ -1460,6 +1480,8 @@ export const COPY = {
         "Transaction integrity check failed: the Pre-Pegin transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
       prePeginSigningCanceled:
         "Signing canceled - the signed Pre-Pegin was not broadcast",
+      payoutSigningCanceled:
+        "Signing canceled - the payout signatures were not sent to the vault provider",
       // Stage labels broadcastPrePeginTransaction wraps failures under;
       // depositErrors.ts matches each one to pick the callout.
       prePeginStageFailed: {
@@ -1503,6 +1525,12 @@ export const COPY = {
       participantKeyDrift: {
         title: "Vault operator keys changed",
         body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered BTCVault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own — please start a new deposit.",
+      },
+      // Refused before broadcast, and terminal: the payout script is frozen at
+      // the vault's key epochs, so a retry would refuse again.
+      unsupportedPayoutScript: {
+        title: "Vault operator payout not supported",
+        body: "A vault operator registered a payout destination this app cannot verify, so your deposit cannot be completed. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own.",
       },
       // The contract's own fingerprint check. It sits between the two cases
       // around it: unlike the pre-signing aborts it cannot claim
@@ -1884,9 +1912,10 @@ export const COPY = {
       "Your wallet has a transaction that hasn't confirmed yet. Wait for it to confirm, or speed it up or cancel it in your wallet, then try again.",
   },
   wallet: {
-    // Thrown by the Aave transaction hooks when no ETH wallet is connected.
+    // Not-connected message thrown by the click-time wallet-client helper
+    // (clients/eth-contract/walletChain.ts), used by the Aave position hooks
+    // and the deposit flow.
     connectToContinue: "Please connect your wallet to continue",
-    addressUnavailable: "Wallet address not available",
     // Connect Wallets screen: the line under each wallet row that says why
     // the app needs that wallet.
     chainDescriptions: {
@@ -2036,12 +2065,13 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // The indexer already reports the BTCVault withdrawn, but the payout is
-      // not yet buried deeply enough on Bitcoin for the reserve to be safe to
-      // sweep (models/reclaimEligibility.ts). The count is the gate's own
-      // constant, passed in so the two cannot drift.
+      // The indexer already reports the BTCVault's BTC spent (paid out to the
+      // depositor, or claimed by a vault keeper), but that spend is not yet
+      // buried deeply enough on Bitcoin for the reserve to be safe to sweep
+      // (models/reclaimEligibility.ts). The count is the gate's own constant,
+      // passed in so the two cannot drift.
       payoutSettling: (confirmations: number) =>
-        `Reclaim becomes available once the withdrawal has ${confirmations} confirmations on Bitcoin. Your reserve is safe where it is.`,
+        `Reclaim becomes available once the transaction that spent this BTCVault's BTC has ${confirmations} confirmations on Bitcoin. Your reserve is safe where it is.`,
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is
@@ -2050,11 +2080,12 @@ export const COPY = {
       walletNotConnected: "BTC wallet not connected",
       missingVaultId: "Missing BTCVault ID",
       invalidFeeRate: "Fee rate must be a positive number",
-      // The pre-signing re-check found the withdrawal no longer settled deeply
-      // enough on Bitcoin. Rare, and it clears on its own as blocks arrive, so
-      // the copy says plainly that nothing is at risk and retrying later works.
+      // The pre-signing re-check found the spend of the BTCVault's BTC no longer
+      // settled deeply enough on Bitcoin. Rare, and it clears on its own as
+      // blocks arrive, so the copy says plainly that nothing is at risk and
+      // retrying later works.
       payoutNotConfirmed:
-        "The withdrawal that made this reserve reclaimable is no longer confirmed on Bitcoin. Your reserve is safe where it is — try again once it settles.",
+        "The Bitcoin transaction that made this reserve reclaimable is no longer confirmed. Your reserve is safe where it is — try again once it settles.",
       // Fallback when the failure carries no message of its own.
       generic: "Reclaim transaction failed",
     },
@@ -2099,6 +2130,9 @@ export const COPY = {
         "Could not read the vault provider commission for the selected BTCVaults. Close this window and try again.",
       confirmButton: "Confirm",
       processing: "Processing",
+      // The withdrawal is mined and waiting to be deep enough on the chain, or
+      // an Aave transaction from this wallet is unconfirmed.
+      confirming: "Confirming",
       hfBlockTitle: "Withdraw unavailable",
       hfBlockWarning: (threshold: string) =>
         `This withdrawal would drop your health factor below ${threshold} and be rejected on-chain. Reduce the selection or repay debt first.`,
@@ -2920,7 +2954,10 @@ export const COPY = {
   reorder: {
     modalTitle: "Reorder Vaults",
     modalSubtitle:
-      "This is the liquidation order of your BTCVaults. Drag to change the order.",
+      "This is the liquidation order of your BTCVaults. Drag or use the arrows to change the order.",
+    dragHandle: "Drag to reorder",
+    moveUp: (ordinal: string) => `Move ${ordinal} BTCVault up`,
+    moveDown: (ordinal: string) => `Move ${ordinal} BTCVault down`,
     infoText:
       "BTCVaults are liquidated in order from first to last. A liquidation event seizes BTCVaults from the front until it covers that event's target seizure amount, so the order decides how much of your BTC survives.",
     networkFeeLabel: "Ethereum network fee",
@@ -2929,6 +2966,17 @@ export const COPY = {
     successTitle: "BTCVault order updated",
     successText: "The liquidation order of your BTCVaults has been updated.",
     unexpectedError: "An unexpected error occurred while reordering vaults",
+    // Live on-chain order differs from the order the modal opened on.
+    positionChanged:
+      "Your collateral order changed since you opened this dialog. Close it, review the refreshed order, and try again.",
+    // A BTCVault amount, status or application shown in the modal differs
+    // from the registry. "details", because a non-ACTIVE status or a foreign
+    // application maps here too.
+    collateralAmountsChanged:
+      "The BTCVault details shown do not match on-chain data. Close this dialog, refresh, and try again.",
+    // The registry read failed, so the BTCVaults could not be verified.
+    collateralVerificationFailed:
+      "Could not verify your BTCVaults on-chain. Try again in a moment.",
   },
   protocolFees: {
     sectionTitle: "Protocol Parameters",

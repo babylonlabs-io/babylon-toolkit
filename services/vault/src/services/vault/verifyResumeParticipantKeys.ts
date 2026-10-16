@@ -8,14 +8,17 @@
  * rotation that landed in between would be broadcast over.
  *
  * Reads the vault's frozen epochs and frozen membership rosters and re-resolves
- * from them, exactly as the payout and refund paths do.
+ * from them, exactly as the payout and refund paths do. The payout-script
+ * check runs on every resume and covers every vault the broadcast funds.
  */
 
 import {
   ParticipantKeyDriftError,
+  assertStandardPayoutScriptsAtEpochs,
   canonicalizeBtcPubkey,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type { KeyEpochs } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import {
@@ -27,6 +30,7 @@ import {
   getOperationKeyReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
+  getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 
 /** The build-time keys persisted on the pending-pegin record. */
@@ -161,5 +165,85 @@ export async function verifyResumeParticipantKeys(params: {
     "the universal challenger set",
     expected.universalChallengers,
     resolved.universalChallengerOperationKeysSorted,
+  );
+}
+
+/**
+ * Throw when an operator payout script of any funded vault, at that vault's own
+ * frozen epochs, is not a standard output type. Vaults that share frozen
+ * operator state cost one script read. Runs on every resume with no local
+ * stamp. Callers must NOT drop the pending record on `UnsupportedPayoutScriptError`.
+ */
+export async function verifyResumePayoutScripts(params: {
+  vaultIds: readonly Hex[];
+}): Promise<void> {
+  const { vaultIds } = params;
+  if (vaultIds.length === 0) {
+    throw new Error("verifyResumePayoutScripts called with no vault ids");
+  }
+
+  const [
+    vaults,
+    epochsPerVault,
+    keeperReader,
+    challengerReader,
+    operationKeyReader,
+  ] = await Promise.all([
+    Promise.all(vaultIds.map((id) => getVaultFromChain(id))),
+    getVaultRegistryReader().getVaultKeyEpochsBatch(vaultIds),
+    getVaultKeeperReader(),
+    getUniversalChallengerReader(),
+    getOperationKeyReader(),
+  ]);
+
+  const groups = new Map<
+    string,
+    { vault: (typeof vaults)[number]; epochs: KeyEpochs; vaultIds: Hex[] }
+  >();
+  for (const [i, vault] of vaults.entries()) {
+    const epochs = epochsPerVault[i];
+    const key = [
+      vault.vaultProvider.toLowerCase(),
+      vault.applicationEntryPoint.toLowerCase(),
+      vault.appVaultKeepersVersion,
+      vault.universalChallengersVersion,
+      epochs.vpKeyEpoch,
+      epochs.appKeeperKeyEpoch,
+      epochs.ucKeyEpoch,
+    ].join(":");
+    const group = groups.get(key);
+    if (group) group.vaultIds.push(vaultIds[i]);
+    else groups.set(key, { vault, epochs, vaultIds: [vaultIds[i]] });
+  }
+
+  await Promise.all(
+    [...groups.values()].map(async ({ vault, epochs, vaultIds: groupIds }) => {
+      const [vaultKeepers, universalChallengers, registrationVpBtcPubkey] =
+        await Promise.all([
+          keeperReader.getVaultKeepersByVersion(
+            vault.applicationEntryPoint,
+            vault.appVaultKeepersVersion,
+          ),
+          challengerReader.getUniversalChallengersByVersion(
+            vault.universalChallengersVersion,
+          ),
+          getVaultProviderGenesisBtcPubkeyFromChain(
+            vault.vaultProvider as Address,
+          ),
+        ]);
+
+      await assertStandardPayoutScriptsAtEpochs({
+        operationKeyReader,
+        query: {
+          vaultProviderEthAddress: vault.vaultProvider as Address,
+          vaultProviderGenesisBtcPubkey: registrationVpBtcPubkey,
+          applicationEntryPoint: vault.applicationEntryPoint,
+          vaultKeepers,
+          universalChallengers,
+        },
+        epochs,
+        vaultIds: groupIds,
+      });
+    }),
   );
 }

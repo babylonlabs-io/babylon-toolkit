@@ -55,7 +55,7 @@ export interface VaultActivity {
    */
   prePeginTxHash?: Hex;
 
-  /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
+  /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired, 8=NonDepositorSpend) */
   contractStatus?: number;
 
   /** Application usage status - whether vault is in use by an application */

@@ -187,7 +187,7 @@ export async function fetchProviders(
  * Raw indexer vault statuses that occupy a per-position cap slot — the raw-string equivalent of the
  * app's `countCollateralizableVaults` (ContractStatus ACTIVE|PENDING|VERIFIED): "available" → ACTIVE,
  * "pending"/"signatures_collected" → PENDING, "verified" → VERIFIED. Terminal states (redeemed,
- * liquidated, expired, invalid, depositor_withdrawn) free the slot and are NOT counted. Kept as raw
+ * liquidated, expired, invalid, depositor_withdrawn, non_depositor_spend) free the slot and are NOT counted. Kept as raw
  * strings so we count off the indexer directly without importing the app's status enums.
  */
 const CAP_SLOT_STATUSES = new Set([

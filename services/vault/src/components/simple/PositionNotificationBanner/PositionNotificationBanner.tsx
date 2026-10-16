@@ -144,6 +144,7 @@ export function PositionNotificationBanner({
     if (!result?.optimalVaultOrder || !reorderVerificationContext) return;
     const vaultIds = result.optimalVaultOrder.map((v) => v.id as Hex);
     const success = await executeReorder(vaultIds, {
+      kind: "optimal",
       optimalOrderContext: reorderVerificationContext,
     });
     if (success) {

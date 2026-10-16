@@ -204,7 +204,9 @@
 
 .bbn-liq-candles__hit--interactive {
   cursor: crosshair;
-  touch-action: none;
+  /* `pan-y` keeps vertical page scrolling working when a finger lands on the
+   * chart; horizontal movement stays reserved for dragging the timeline. */
+  touch-action: pan-y;
 }
 .bbn-liq-candles__hit[data-dragging="true"] {
   cursor: grabbing;

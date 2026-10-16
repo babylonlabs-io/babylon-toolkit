@@ -131,7 +131,8 @@ type GraphQLVaultStatus =
   | "liquidated"
   | "expired"
   | "invalid"
-  | "depositor_withdrawn";
+  | "depositor_withdrawn"
+  | "non_depositor_spend";
 
 /**
  * Raw vault item from GraphQL
@@ -217,6 +218,8 @@ function mapGraphQLStatusToVaultStatus(
       return VaultStatus.INVALID;
     case "depositor_withdrawn":
       return VaultStatus.DEPOSITOR_WITHDRAWN;
+    case "non_depositor_spend":
+      return VaultStatus.NON_DEPOSITOR_SPEND;
     default:
       throw new Error(
         `Unknown GraphQL vault status "${status as string}" — refusing to map to an actionable state`,

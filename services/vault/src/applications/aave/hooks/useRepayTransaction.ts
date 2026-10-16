@@ -9,13 +9,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
 import { parseUnits } from "viem";
-import { useAccount, useWalletClient } from "wagmi";
 
 import { ERC20 } from "@/clients/eth-contract";
 import { ethClient } from "@/clients/eth-contract/client";
 import { assertNoTransactionInFlight } from "@/clients/eth-contract/transactionInFlight";
 import { isRepayBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
@@ -113,6 +113,11 @@ export interface UseRepayTransactionResult {
   /** Whether transaction is currently processing */
   isProcessing: boolean;
   /**
+   * This form's own repay is mined, and its outcome waits for it to be deep
+   * enough on the chain. Clears when the repay ends.
+   */
+  isConfirming: boolean;
+  /**
    * The account's Aave write in progress, from this form or any other. Every
    * Aave action stays disabled while it is set.
    */
@@ -140,14 +145,14 @@ export function useRepayTransaction({
   proxyContract,
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+  const account = useETHWallet().address as Address | undefined;
   const queryClient = useQueryClient();
   const chain = getETHChain();
   const gate = useProtocolGateState();
-  const pendingWrite = usePendingAaveWrite(address);
+  const pendingWrite = usePendingAaveWrite(account);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -171,18 +176,13 @@ export function useRepayTransaction({
     setError(null);
     setNotice(null);
     setIsProcessing(true);
+    // The button reads "Confirming" while the repay gets deep enough on
+    // the chain.
+    const markIncluded = () => setIsConfirming(true);
     try {
-      // Validate prerequisites
-      if (!walletClient) {
+      if (!account) {
         throw new WalletError(
-          "Please connect your wallet to continue",
-          ErrorCode.WALLET_NOT_CONNECTED,
-        );
-      }
-
-      if (!address) {
-        throw new WalletError(
-          "Wallet address not available",
+          COPY.wallet.connectToContinue,
           ErrorCode.WALLET_NOT_CONNECTED,
         );
       }
@@ -190,7 +190,7 @@ export function useRepayTransaction({
       // The account's Aave lock covers the pre-sign checks too, so a second
       // call made while they run is refused instead of sent after this one.
       // The approve, when one is needed, runs under it as well.
-      const outcome = await runAaveWrite(address, async () => {
+      const outcome = await runAaveWrite(account, async () => {
         // A transaction this page did not see (sent before a reload, or from
         // another tab) may still be pending. Checked once for the whole
         // action, before the pre-sign reads, and never between the approve
@@ -198,7 +198,7 @@ export function useRepayTransaction({
         // on a lagging RPC backend.
         await assertNoTransactionInFlight({
           publicClient: ethClient.getPublicClient(),
-          account: address,
+          account,
         });
 
         // Verify the indexer-supplied (reserveId, token.address) pair maps to
@@ -242,13 +242,14 @@ export function useRepayTransaction({
           }
 
           await repayAll(
-            walletClient,
+            account,
             chain,
             reserve.reserveId,
             reserve.token.address,
             proxyContract as Address,
             repayAmountRaw,
             reserve.token,
+            markIncluded,
           );
           return;
         }
@@ -272,14 +273,19 @@ export function useRepayTransaction({
         );
 
         await repayPartial(
-          walletClient,
+          account,
           chain,
           reserve.reserveId,
           reserve.token.address,
           amountBigInt,
           reserve.token,
+          markIncluded,
         );
       });
+      // "Confirming" holds through the refresh only for a mined repay: one
+      // the lock's watch found after the first wait gave up never reported
+      // its inclusion, and one the user stopped waiting on is not confirming.
+      setIsConfirming(outcome === "mined");
 
       // Invalidate position queries to refresh data, and the hub reads behind
       // the loan forms (liquidity, our spoke's borrow limit and hub state).
@@ -337,6 +343,7 @@ export function useRepayTransaction({
       return "failed";
     } finally {
       setIsProcessing(false);
+      setIsConfirming(false);
     }
   };
 
@@ -348,6 +355,7 @@ export function useRepayTransaction({
   return {
     executeRepay,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error,
     notice:

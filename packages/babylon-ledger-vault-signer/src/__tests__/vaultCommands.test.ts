@@ -131,6 +131,20 @@ describe("deriveContextHash", () => {
     ).rejects.toThrow(/context must be 1\.\.1024 bytes/);
   });
 
+  it("rejects derivation path levels that are not u32 integers before any device I/O", async () => {
+    for (const bad of [2 ** 32, -1, 1.5]) {
+      const { send, sent } = recorder();
+      await expect(
+        deriveContextHash(send, {
+          appName: "bv",
+          derivationPath: [86 + HARDENED, bad],
+          context: new Uint8Array([1]),
+        }),
+      ).rejects.toThrow(/integers in 0\.\.0xffffffff/);
+      expect(sent).toHaveLength(0);
+    }
+  });
+
   it("rejects a response that is not a 32-byte root", async () => {
     const { send } = recorder([new Uint8Array(16)]);
     await expect(

@@ -11,6 +11,7 @@
 import { crypto as bcrypto } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import { assertU32Levels } from "./bip86Path";
 import {
   MAX_APDU_DATA_BYTES,
   encodeIntentGroup,
@@ -69,8 +70,7 @@ function u16BE(value: number): Uint8Array {
 }
 
 function u32BE(value: number): Uint8Array {
-  const v = value >>> 0;
-  return new Uint8Array([(v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff]);
+  return new Uint8Array([(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]);
 }
 
 function concat(parts: Uint8Array[]): Uint8Array {
@@ -114,6 +114,7 @@ export async function deriveContextHash(
   if (derivationPath.length < 1 || derivationPath.length > DERIVATION_PATH_MAX_LEVELS) {
     throw new Error(`derivationPath must have 1..${DERIVATION_PATH_MAX_LEVELS} levels`);
   }
+  assertU32Levels("derivationPath", derivationPath);
   if (context.length < 1 || context.length > CONTEXT_MAX_BYTES) {
     throw new Error(`context must be 1..${CONTEXT_MAX_BYTES} bytes, got ${context.length}`);
   }

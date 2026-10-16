@@ -4,7 +4,7 @@
  * @module services/refund
  */
 
-export { BIP68NotMatureError } from "./errors";
+export { BIP68NotMatureError, RefundBroadcastRejectedError } from "./errors";
 export {
   buildAndBroadcastRefund,
   estimateRefundFeeSats,

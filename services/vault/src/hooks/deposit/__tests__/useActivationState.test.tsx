@@ -144,7 +144,7 @@ describe("useActivationState", () => {
     expect(mockAddActivatingVault).toHaveBeenCalledWith({
       vaultId: VAULT_ID,
       depositorEthAddress: "0xUser",
-      amountBtc: 1.5,
+      amountSats: 150_000_000n,
       providerAddress: "0xprovider",
     });
   });

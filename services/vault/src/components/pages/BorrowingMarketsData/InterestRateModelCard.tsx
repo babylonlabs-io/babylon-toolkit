@@ -35,6 +35,8 @@ const MARKER_DOT_CLASS = "bg-[color:var(--chart-irm-marker)]";
 const SERIES_DOT_CLASS = "bg-[color:var(--chart-irm-series)]";
 /** Frame plot box is 1070×228 (`10088:61091`). */
 const CHART_ASPECT_RATIO = 1070 / 228;
+/** Keeps the plot readable on phones, where the aspect ratio alone leaves it squat. */
+const MIN_PLOT_HEIGHT_PX = 120;
 /** Frame's x-axis labels row. */
 const X_TICK_VALUES = [0, 25, 50, 75, 100];
 const X_TICKS: ChartAxisTick[] = X_TICK_VALUES.map((value) => ({
@@ -262,6 +264,7 @@ export function InterestRateModelCard({
         markers={markers}
         color={SERIES_COLOR}
         aspectRatio={CHART_ASPECT_RATIO}
+        minPlotHeight={MIN_PLOT_HEIGHT_PX}
         grid={{ lines: "horizontal", style: "solid" }}
         hoverMode="interpolate"
         renderTooltip={(hover) => (

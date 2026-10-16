@@ -104,6 +104,11 @@ const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
 
 const DISMISS_ICON_SIZE = 20;
 
+const PHONE_FULL_CLASS = "max-md:w-full";
+const PHONE_FULL_HINT_CLASS = `${PHONE_FULL_CLASS} max-md:[&>span]:w-full`;
+const PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS = `${PRIMARY_ROW_BUTTON_CLASS} ${PHONE_FULL_CLASS}`;
+const PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS = `${NEUTRAL_ROW_BUTTON_CLASS} ${PHONE_FULL_CLASS}`;
+
 /**
  * Payout scriptPubKeys that failed to decode, keyed `${vaultId}:${hex}`, so a
  * malformed value is reported once rather than on every poll tick or render.
@@ -351,7 +356,7 @@ function PendingRow({
           produce ("Broadcast Pre-Pegin"), which is what the slot's fixed basis
           is sized to — routing them through it keeps this row's columns level
           with the Active and Inactive rows. */}
-      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+      <div className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full`}>
         {actionStatus.type === "available" ? (
           // This control's data-testid is a real-wallet E2E hook
           // (e2e/real/actions/resume.ts) — carry it over if you move or rename
@@ -359,7 +364,7 @@ function PendingRow({
           <button
             type="button"
             onClick={() => routeAction(actionStatus.action.action)}
-            className={PRIMARY_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
             data-testid="pending-deposit-resume-cta"
           >
             {actionStatus.action.label}
@@ -367,10 +372,15 @@ function PendingRow({
         ) : actionStatus.type === "disabled" ? (
           <Hint
             tooltip={actionStatus.tooltip}
+            className={PHONE_FULL_HINT_CLASS}
             attachToChildren
             touchFallback="text"
           >
-            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+            <button
+              type="button"
+              disabled
+              className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
+            >
               {actionStatus.action?.label ?? COPY.vaults.actions.viewDetails}
             </button>
           </Hint>
@@ -378,7 +388,7 @@ function PendingRow({
           <button
             type="button"
             onClick={() => onOpenDetails(activity.id, null)}
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.viewDetails}
           </button>
@@ -391,7 +401,7 @@ function PendingRow({
           onClick={() => onDismiss(activity.id)}
           aria-label={COPY.vaults.dismissPending.rowLabel}
           data-testid="pending-deposit-dismiss-button"
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125 max-md:ml-auto"
         >
           <IoClose size={DISMISS_ICON_SIZE} />
         </button>
@@ -434,8 +444,8 @@ function InactiveRow({
   const isClaimExpiredAvailable = useClaimExpiredRowAction(activity.id);
   // Refund and reclaim are mutually exclusive by contract status — refund
   // applies to EXPIRED vaults (no PegIn was ever broadcast), reclaim to
-  // DEPOSITOR_WITHDRAWN ones (the PegIn confirmed and the peg-out settled). A
-  // row therefore never carries both actions.
+  // DEPOSITOR_WITHDRAWN and NON_DEPOSITOR_SPEND ones (the PegIn confirmed and
+  // its vault output was spent). A row therefore never carries both actions.
   const {
     available: isReclaimAvailable,
     reclaiming: isReclaiming,
@@ -588,21 +598,33 @@ function InactiveRow({
         )}
       </div>
 
-      {/* Reserved even when neither action is available nor blocked, so an
-          actionless row still aligns with the rows that carry a button. */}
-      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+      {/* From md up, reserved even when neither action is available nor
+          blocked, so an actionless row still aligns with the rows that carry a
+          button. On a phone an empty slot is hidden. */}
+      <div
+        className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full max-md:empty:hidden`}
+      >
         {isRefundAvailable && (
           <button
             type="button"
             onClick={() => onRefund(activity.id)}
-            className={PRIMARY_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.withdraw}
           </button>
         )}
         {blockedTooltip && (
-          <Hint tooltip={blockedTooltip} attachToChildren touchFallback="text">
-            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+          <Hint
+            tooltip={blockedTooltip}
+            className={PHONE_FULL_HINT_CLASS}
+            attachToChildren
+            touchFallback="text"
+          >
+            <button
+              type="button"
+              disabled
+              className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
+            >
               {COPY.vaults.actions.withdraw}
             </button>
           </Hint>
@@ -611,7 +633,7 @@ function InactiveRow({
           <button
             type="button"
             onClick={() => onClaimExpired(activity.id)}
-            className={PRIMARY_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.redeem}
           </button>
@@ -623,7 +645,7 @@ function InactiveRow({
           <button
             type="button"
             onClick={() => onReclaim(activity.id)}
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
             data-testid={RECLAIM_BUTTON_TEST_ID}
           >
             {COPY.reclaim.rowButton}
@@ -633,7 +655,7 @@ function InactiveRow({
           <button
             type="button"
             onClick={requireBtcWallet}
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
           >
             {COPY.wallet.btcAction.connect}
           </button>
@@ -645,7 +667,7 @@ function InactiveRow({
           <button
             type="button"
             disabled
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
             data-testid={RECLAIM_BUTTON_TEST_ID}
           >
             {COPY.reclaim.rowButton}
@@ -654,10 +676,15 @@ function InactiveRow({
         {reclaimBlockedTooltip && (
           <Hint
             tooltip={reclaimBlockedTooltip}
+            className={PHONE_FULL_HINT_CLASS}
             attachToChildren
             touchFallback="text"
           >
-            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+            <button
+              type="button"
+              disabled
+              className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
+            >
               {COPY.reclaim.rowButton}
             </button>
           </Hint>

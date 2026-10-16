@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/infrastructure";
 
 import { graphqlClient } from "../../../clients/graphql/client";
+import { VaultStatus } from "../../../types/vault";
 import {
   fetchVaultById,
   fetchVaultIdsByDepositor,
@@ -365,6 +366,15 @@ describe("fetchVaults", () => {
 
       const result = await fetchVaultById(VALID_VAULT_ID as `0x${string}`);
       expect(result).toBeNull();
+    });
+
+    it("maps non_depositor_spend to NON_DEPOSITOR_SPEND", async () => {
+      mockedRequest.mockResolvedValueOnce({
+        vault: makeGraphQLVaultItem({ status: "non_depositor_spend" }),
+      });
+
+      const vault = await fetchVaultById(VALID_VAULT_ID as `0x${string}`);
+      expect(vault?.status).toBe(VaultStatus.NON_DEPOSITOR_SPEND);
     });
 
     it("throws when vault has unknown GraphQL status", async () => {

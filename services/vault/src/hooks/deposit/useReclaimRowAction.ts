@@ -18,8 +18,9 @@
  *
  * Refund and reclaim are mutually exclusive by contract status: refund applies
  * to EXPIRED vaults (no PegIn was ever broadcast), reclaim to
- * DEPOSITOR_WITHDRAWN ones (the PegIn confirmed and the peg-out settled). A row
- * never offers both.
+ * DEPOSITOR_WITHDRAWN and NON_DEPOSITOR_SPEND ones (the PegIn confirmed and its
+ * vault output was spent, by the vault provider's payout or a keeper's claim).
+ * A row never offers both.
  *
  * The decision itself lives in `models/reclaimEligibility` — read the warning
  * there before changing when this is offered.

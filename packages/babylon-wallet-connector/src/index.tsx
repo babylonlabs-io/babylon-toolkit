@@ -32,6 +32,7 @@ export {
 // Export AppKit connector IDs
 export { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 export { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
+export { ETH_EMPTY_ACCOUNT_GRACE_MS } from "@/core/wallets/eth/appkit/provider";
 
 // Export unified AppKit modal utilities (supports both ETH and BTC)
 export { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";

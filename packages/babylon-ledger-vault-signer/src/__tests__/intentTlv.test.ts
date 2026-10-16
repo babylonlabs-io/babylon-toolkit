@@ -64,6 +64,30 @@ describe("encodeIntentScalars", () => {
     ).toThrow(/exactly 5 levels/);
   });
 
+  it("rejects depositor path levels that are not u32 integers", () => {
+    // 2 ** 32 would otherwise wrap to address index 0.
+    for (const bad of [2 ** 32, -1, 1.5]) {
+      expect(() =>
+        encodeIntentScalars({
+          ...SCALARS,
+          depositorPath: [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, bad],
+        }),
+      ).toThrow(/integers in 0\.\.0xffffffff/);
+    }
+  });
+
+  it("rejects a depositor path that is not BIP-86 shaped", () => {
+    expect(() =>
+      encodeIntentScalars({ ...SCALARS, depositorPath: [84 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0] }),
+    ).toThrow(/BIP-86 purpose/);
+    expect(() => encodeIntentScalars({ ...SCALARS, depositorPath: [86 + HARDENED, 1, 0 + HARDENED, 0, 0] })).toThrow(
+      /must harden/,
+    );
+    expect(() =>
+      encodeIntentScalars({ ...SCALARS, depositorPath: [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0 + HARDENED] }),
+    ).toThrow(/must harden/);
+  });
+
   it("rejects a txid that is not 32 bytes", () => {
     expect(() => encodeIntentScalars({ ...SCALARS, prepeginTxidInternal: new Uint8Array(31) })).toThrow(
       /prepeginTxid must be 32 bytes/,

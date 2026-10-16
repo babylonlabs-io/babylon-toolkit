@@ -90,7 +90,7 @@ export class ReclaimNoLongerEligibleError extends Error {
 
 // bitcoind sendrawtransaction rejection codes meaning "this already happened",
 // relayed verbatim by mempool.space. -27 = already in the UTXO set; -25 =
-// missing or already-spent inputs. Same classifiers the refund path uses.
+// missing or already-spent inputs. The SDK refund path types the same codes.
 const ALREADY_IN_CHAIN_CODE_RE = /"code"\s*:\s*-27\b/;
 const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
 

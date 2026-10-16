@@ -756,6 +756,49 @@ Error.constructor
 
 ***
 
+### UnsupportedPayoutScriptError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+An operator payout script registered for the vault is not a standard output
+type this app can verify.
+
+Raised before any Pre-PegIn broadcast. The script is frozen at the vault's
+key epochs, so a retry would refuse again. Callers must keep the pending
+record when they catch this, as they do for key drift.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new UnsupportedPayoutScriptError(message): UnsupportedPayoutScriptError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`UnsupportedPayoutScriptError`](#unsupportedpayoutscripterror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### RegisteredVaultVersionMismatchError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
@@ -918,6 +961,105 @@ Error.constructor
 
 ```ts
 readonly vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+##### cause
+
+```ts
+readonly cause: Error;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+###### Overrides
+
+```ts
+Error.cause
+```
+
+***
+
+### RefundBroadcastRejectedError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+Thrown when the broadcast transport relays bitcoind `-25` (a general
+transaction error, usually missing or already spent inputs) or `-27` (this
+transaction is already in the chain). `signedTxHex` is the exact
+transaction that was broadcast, so callers can re-probe the HTLC outpoint
+and attribute the spender. The original transport error is available via
+[cause](#cause-1).
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new RefundBroadcastRejectedError(
+   code, 
+   vaultId, 
+   signedTxHex, 
+   cause): RefundBroadcastRejectedError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+###### Parameters
+
+###### code
+
+`-27` | `-25`
+
+###### vaultId
+
+`` `0x${string}` ``
+
+###### signedTxHex
+
+`string`
+
+###### cause
+
+`Error`
+
+###### Returns
+
+[`RefundBroadcastRejectedError`](#refundbroadcastrejectederror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### code
+
+```ts
+readonly code: -27 | -25;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+##### vaultId
+
+```ts
+readonly vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+##### signedTxHex
+
+```ts
+readonly signedTxHex: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
@@ -7320,6 +7462,67 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegiste
 
 ***
 
+### isUnsupportedPayoutScriptError()
+
+```ts
+function isUnsupportedPayoutScriptError(err): err is UnsupportedPayoutScriptError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is UnsupportedPayoutScriptError`
+
+***
+
+### assertStandardPayoutScriptsAtEpochs()
+
+```ts
+function assertStandardPayoutScriptsAtEpochs(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
+
+Mirror the check payout presigning runs on registry payout scripts, at the
+same frozen epochs, so a script the presign step would refuse is refused
+before the BTC is funded. Read failures propagate unchanged.
+Keeper scripts pair with `query.vaultKeepers` by roster index.
+Vaults that share the same query and frozen epochs share one read, so pass
+them together.
+
+#### Parameters
+
+##### params
+
+###### operationKeyReader
+
+[`OperationKeyReader`](clients.md#operationkeyreader)
+
+###### query
+
+[`OperationKeyQuery`](clients.md#operationkeyquery)
+
+###### epochs
+
+[`KeyEpochs`](clients.md#keyepochs)
+
+###### vaultIds
+
+readonly `` `0x${string}` ``[]
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
 ### verifyRegisteredParticipantKeys()
 
 ```ts
@@ -7844,8 +8047,9 @@ not enforce this; it is the caller's responsibility.
 
 The broadcast transport is expected to surface Bitcoin's `non-BIP68-final`
 policy rejection as an `Error` whose message contains that string; when
-it does, the SDK wraps it in [BIP68NotMatureError](#bip68notmatureerror). All other
-transport errors propagate unchanged.
+it does, the SDK wraps it in [BIP68NotMatureError](#bip68notmatureerror). Relayed bitcoind
+`-25` / `-27` rejections are wrapped in [RefundBroadcastRejectedError](#refundbroadcastrejectederror).
+All other transport errors propagate unchanged.
 
 #### Type Parameters
 
@@ -7873,6 +8077,12 @@ whatever the injected `broadcastTx` returns (generic pass-through)
 
 [BIP68NotMatureError](#bip68notmatureerror) if the broadcast is rejected because
         the refund CSV timelock has not yet matured
+
+#### Throws
+
+[RefundBroadcastRejectedError](#refundbroadcastrejectederror) if the broadcast is rejected
+        with bitcoind `-25` (a general transaction error, usually missing
+        or spent inputs) or `-27` (already in the chain)
 
 #### Throws
 
@@ -8069,7 +8279,7 @@ Finalizes one WronglyChallenged tx — the answer to a ChallengeAssert.
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Vault status — combines on-chain contract status (0-4) with indexer-derived
-statuses (5-7). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
+statuses (5-8). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
 has: Pending(0), Verified(1), Active(2), Redeemed(3), Expired(4).
 The indexer maps these and adds extra statuses for UI display.
 
@@ -8159,6 +8369,19 @@ EXPIRED: 7;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Status 7 (indexer-only): Vault expired due to AckTimeout or ActivationTimeout
+
+##### NON\_DEPOSITOR\_SPEND
+
+```ts
+NON_DEPOSITOR_SPEND: 8;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
+
+Status 8 (indexer-only): a redeemed vault's BTC was spent on Bitcoin to a
+script other than the depositor's payout script, in practice a vault
+keeper's claim that no challenger blocked. The vault's BTC is gone; only
+the depositor's PegIn output 1 reserve may remain.
 
 ***
 

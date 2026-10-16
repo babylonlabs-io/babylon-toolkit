@@ -95,6 +95,11 @@ export interface DepositFeeState {
    * state. Null while the query is healthy.
    */
   depositorClaimValueError: Error | null;
+  /**
+   * Total Ethereum registration (pegin) fee in wei for the selected provider.
+   * Null while the read is loading or after it failed; the CTA waits on it.
+   */
+  protocolFeeWei: bigint | null;
   protocolFeeAmount?: string;
   protocolFeePrice?: string;
   protocolFeeIsError?: boolean;
@@ -173,6 +178,11 @@ export interface DepositGatingState {
    */
   vaultCountCapUnavailable?: boolean;
   /**
+   * True when no protocol-wide live-vault slot is free, so the registration
+   * would revert — disables the deposit CTA.
+   */
+  isLiveVaultCapReached?: boolean;
+  /**
    * Set when a single vault still fits but a 2-vault split is not on offer:
    * it would exceed a cap, or the split sizing rules refuse it
    * (`"split-sizing"`). The deposit proceeds as a single vault and we surface
@@ -239,6 +249,7 @@ export function DepositForm({
     depositorClaimValue,
     commissionBaseValues,
     depositorClaimValueError,
+    protocolFeeWei,
     protocolFeeAmount = "--",
     protocolFeePrice = "",
     protocolFeeIsError = false,
@@ -266,6 +277,7 @@ export function DepositForm({
     ordinalsCheckPending = false,
     isVaultCapReached = false,
     vaultCountCapUnavailable = false,
+    isLiveVaultCapReached = false,
     splitUnavailableReason = null,
     vaultCapUsage,
   } = gatingState;
@@ -376,6 +388,7 @@ export function DepositForm({
   )?.commissionBps;
   const commissionUnavailable =
     !!selectedProvider && selectedProviderCommissionBps === undefined;
+  const pegInFeeUnavailable = !!selectedProvider && protocolFeeWei === null;
 
   const hasAmount = !!amount && amount !== "0";
   const isFeeError = hasAmount && !isLoadingFee && !!feeError;
@@ -393,6 +406,7 @@ export function DepositForm({
     maxDepositSats: maxDepositSats ?? null,
     effectiveRemaining,
     capUnavailable,
+    isLiveVaultCapReached,
     minPeginFee,
     minPeginFeeError,
     appVersionUnsupported,
@@ -409,25 +423,17 @@ export function DepositForm({
     canConnectBtcWallet,
     hasProvider: !!selectedProvider,
     commissionUnavailable,
+    pegInFeeUnavailable,
+    isPegInFeeError: protocolFeeIsError,
     isFeeError,
     feeError,
     feeDisabled,
     ordinalsCheckPending,
     hasWalletConnectionError,
     isReconnectingWallet,
+    isWalletLocked,
     fundingInputCapExceeded,
   });
-
-  // A locked wallet reuses the same recovery CTA as a liveness failure (both
-  // reconnect on click), but reads "Unlock Wallet to Deposit" so the action
-  // matches the cause. `getDepositCtaState` already handled `disabled`; only
-  // the label differs here.
-  const ctaLabel =
-    isWalletLocked && hasWalletConnectionError
-      ? isReconnectingWallet
-        ? COPY.wallet.locked.unlocking
-        : COPY.wallet.locked.unlockToDepositButton
-      : cta.label;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -505,10 +511,10 @@ export function DepositForm({
           />
         )}
         {/* A split is not on offer, so the deposit proceeds as a single
-            BTCVault. Two unrelated caps, an unreadable split-parameter read,
+            BTCVault. Three unrelated caps, an unreadable split-parameter read,
             or the split sizing rules can cause this, and they need different
             explanations — the per-position cap can quote usage, the protocol
-            cap applies even to an empty position. */}
+            caps apply even to an empty position. */}
         {splitUnavailableReason !== null && (
           <div
             role="status"
@@ -529,8 +535,10 @@ export function DepositForm({
                         vaultCapUsage.used,
                         vaultCapUsage.cap,
                       )
-                    : COPY.deposit.maxVaultsReached
-                        .splitUnavailableProtocolLimit}
+                    : splitUnavailableReason === "live-vault-cap"
+                      ? COPY.deposit.liveVaultCapReached.splitUnavailable
+                      : COPY.deposit.maxVaultsReached
+                          .splitUnavailableProtocolLimit}
             </span>
           </div>
         )}
@@ -594,7 +602,7 @@ export function DepositForm({
             ? COPY.deposit.maxVaultsReached.unavailableCta
             : isVerifyingWallet
               ? "Checking wallet..."
-              : ctaLabel}
+              : cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}

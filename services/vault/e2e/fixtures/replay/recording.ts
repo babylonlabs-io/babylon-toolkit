@@ -97,7 +97,7 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  * page). A regeneration made before the CLI records these queries drops them:
  * add them back the same way.
  *
- * The last three RPC lines are archive reads from rpc.sentio.xyz/sepolia at
+ * The last four RPC lines are archive reads from rpc.sentio.xyz/sepolia at
  * block 11313642 (2026-07-20T15:38:36Z), before the final deposit-form
  * response. The block hash is
  * 0x6bf92724bbb383ceccbac05cb26c352193ff48c27ea7ec9a948f8401a4977474.
@@ -108,8 +108,13 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  * recording was made. The third is MAX_USER_RESERVES_LIMIT() on the recorded
  * Core Spoke (0xb2884144a43b40cb3a89042b3e94f0f1e41cd022), which the config
  * load gained later still; that deployment answers 65535, the contract's
- * unlimited sentinel, at this block and at head alike. These are supplemental
- * historical reads, not the original latest responses.
+ * unlimited sentinel, at this block and at head alike. The fourth is the
+ * deposit form's live-vault slot read on the recorded CapPolicy
+ * (0x7edb14cb66a4948556ef5e1b8fcac7b845782369): releaseSettledVaults(1), then
+ * getAvailableLiveVaultCapacity(), twice. That deployment predates the
+ * live-vault cap, so every call reverts at this block and the form blocks
+ * nothing. These
+ * are supplemental historical reads, not the original latest responses.
  *
  * A single named constant rather than a glob: which run is replayed decides
  * what every captured screen contains, so it is a deliberate choice, not

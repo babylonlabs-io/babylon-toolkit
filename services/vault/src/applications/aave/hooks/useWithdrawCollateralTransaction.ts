@@ -7,13 +7,14 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import type { Hex } from "viem";
-import { useAccount, useWalletClient } from "wagmi";
+import type { Address, Hex } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
 import { assertNoTransactionInFlight } from "@/clients/eth-contract/transactionInFlight";
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
@@ -51,6 +52,11 @@ export interface UseWithdrawCollateralTransactionResult {
   /** Whether transaction is currently processing */
   isProcessing: boolean;
   /**
+   * This form's own withdrawal is mined, and its outcome waits for it to be deep
+   * enough on the chain. Clears when the withdrawal ends.
+   */
+  isConfirming: boolean;
+  /**
    * The account's Aave write in progress, from this form or any other. Every
    * Aave action stays disabled while it is set.
    */
@@ -80,14 +86,14 @@ export interface UseWithdrawCollateralTransactionResult {
  */
 export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+  const account = useETHWallet().address as Address | undefined;
   const queryClient = useQueryClient();
   const { markVaultsAsPending } = usePendingVaults();
   const gate = useProtocolGateState();
-  const pendingWrite = usePendingAaveWrite(address);
+  const pendingWrite = usePendingAaveWrite(account);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -105,38 +111,40 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
       setError(null);
       setNotice(null);
       setIsProcessing(true);
+      // The button reads "Confirming" while the withdrawal gets deep enough
+      // on the chain.
+      const markIncluded = () => setIsConfirming(true);
       try {
-        // Validate wallet connection
-        if (!walletClient) {
+        if (!account) {
           throw new WalletError(
             COPY.wallet.connectToContinue,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }
 
-        if (!address) {
-          throw new WalletError(
-            COPY.wallet.addressUnavailable,
-            ErrorCode.WALLET_NOT_CONNECTED,
-          );
-        }
-
         // The account's Aave lock covers the pre-send check too, so a second
         // call made while it runs is refused instead of sent after this one.
-        const outcome = await runAaveWrite(address, async () => {
+        const outcome = await runAaveWrite(account, async () => {
           // A withdrawal this page did not see (sent before a reload, or from
           // another tab) may still be pending.
           await assertNoTransactionInFlight({
             publicClient: ethClient.getPublicClient(),
-            account: address,
+            account,
           });
 
+          const walletClient = await getWalletClientOnExpectedChain(account);
           await withdrawSelectedCollateral(
             walletClient,
             getETHChain(),
             vaultIds as Hex[],
+            markIncluded,
           );
         });
+        // "Confirming" holds through the refresh only for a mined withdrawal:
+        // one the lock's watch found after the first wait gave up never
+        // reported its inclusion, and one the user stopped waiting on is not
+        // confirming.
+        setIsConfirming(outcome === "mined");
 
         // Mark vaults as pending withdrawal before indexer updates, only once
         // the withdrawal is known to be mined
@@ -184,9 +192,10 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         return "failed";
       } finally {
         setIsProcessing(false);
+        setIsConfirming(false);
       }
     },
-    [walletClient, address, queryClient, markVaultsAsPending, gate],
+    [account, queryClient, markVaultsAsPending, gate],
   );
 
   // Another Aave form's write holds the lock while it is signed or sent, so
@@ -197,6 +206,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   return {
     executeWithdraw,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error,
     notice:

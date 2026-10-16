@@ -107,6 +107,14 @@ export const DASHBOARD_VAULT_TIMEOUT_MS = 60_000;
 
 // ── borrow ────────────────────────────────────────────────────────────────────
 /**
+ * After an Aave write (borrow, repay, withdraw) is mined, the app waits for it to be three blocks deep
+ * before it shows the outcome: two more 12 s slots after its own block, plus a poll of up to 6 s, with
+ * the rest as margin for a missed slot. Keep in sync with AAVE_WRITE_CONFIRMATIONS in
+ * src/applications/aave/constants.ts. Added once to each write's budget below, since only the final
+ * Aave call waits (a repay's approve does not).
+ */
+const AAVE_WRITE_DEPTH_WAIT_MS = 36_000;
+/**
  * The /loans "Borrow" button to become enabled after landing on that page. It's gated on
  * `hasCollateral` (the position's on-chain collateral > 0); a JUST-activated vault (pegin-first) takes
  * a little time to propagate into that read, so the button can be briefly disabled right after the
@@ -134,10 +142,11 @@ export const FRESH_COLLATERAL_POLL_MS = 3_000;
 export const BORROW_CTA_ENABLE_TIMEOUT_MS = 150_000;
 /**
  * One borrow ETH transaction to confirm on Sepolia (approver confirms the MetaMask pop-up → the app
- * shows the "Borrow successful" screen). A single draw with no ERC-20 approval, so a minute is ample;
- * a stuck tx fails the run (trace captured) instead of hanging.
+ * shows the "Borrow successful" screen). A single draw with no ERC-20 approval, so a minute is ample,
+ * plus the app's wait for the borrow to be deep enough on the chain; a stuck tx fails the run (trace
+ * captured) instead of hanging.
  */
-export const BORROW_TX_TIMEOUT_MS = 90_000;
+export const BORROW_TX_TIMEOUT_MS = 90_000 + AAVE_WRITE_DEPTH_WAIT_MS;
 
 // ── nonce-too-low injection (`--inject-nonce-too-low`) ───────────────────────
 /**
@@ -159,6 +168,28 @@ export const NONCE_INJECTION_POLL_MS = 3_000;
  */
 export const NONCE_INJECTION_COUNT_SETTLE_TIMEOUT_MS = 45_000;
 
+// ── reorg injection (`--inject-reorg`) ──────────────────────────────────────────
+/**
+ * From the submit click to the "Waiting for confirmation" callout while the injection holds: the
+ * MetaMask prompt and a block (a repay's approve adds one more of each), then the app's whole wait for
+ * the write to be deep enough (RECEIPT_WAIT_ROUND_MS in src/applications/aave/constants.ts, 60 s) and
+ * its last re-read, with margin for a slow RPC.
+ */
+export const REORG_HOLD_TIMEOUT_MS = 180_000;
+/**
+ * How long the injection keeps holding after the callout shows: longer than the app's background watch
+ * spends waiting for the late receipt to be deep (RECEIPT_WAIT_ROUND_MS in
+ * src/applications/aave/constants.ts, 60 s) plus a re-read, so that wait runs out while the write's
+ * block is still off the chain and the watch's next check (the nonce search, or another receipt
+ * round) starts under the injection too. That check need not finish before the release.
+ */
+export const REORG_WATCH_HOLD_MS = 75_000;
+/**
+ * From the release to the success screen: the watch's next look can be a full receipt round (60 s), a
+ * replacement lookup (15 s) and a 12 s pause away, then one re-read at depth; margin for a slow RPC.
+ */
+export const REORG_RECOVERY_TIMEOUT_MS = 180_000;
+
 // ── repay ─────────────────────────────────────────────────────────────────────
 /**
  * The /loans "Repay" button to become visible + enabled. It only renders when `hasLoans` and is
@@ -177,10 +208,11 @@ export const REPAY_CTA_ENABLE_TIMEOUT_MS = 90_000;
 /**
  * The repay transaction(s) to confirm on Sepolia. Unlike borrow this can be TWO sequential txs — an
  * ERC-20 approve of the debt token to the adapter (only when the current allowance is insufficient),
- * then the repay — with the CTA reading "Processing…" across both. Longer than the borrow budget to
- * absorb two confirmations; a stuck tx fails the run (trace captured) instead of hanging.
+ * then the repay — with the CTA reading "Processing…" across both, and "Confirming…" while the app
+ * waits for the repay to be deep enough on the chain. Longer than the borrow budget to absorb two
+ * confirmations; a stuck tx fails the run (trace captured) instead of hanging.
  */
-export const REPAY_TX_TIMEOUT_MS = 120_000;
+export const REPAY_TX_TIMEOUT_MS = 120_000 + AAVE_WRITE_DEPTH_WAIT_MS;
 /** Poll cadence for the on-chain "debt fell" post-condition check after the success screen. */
 export const REPAY_VERIFY_POLL_MS = 3_000;
 
@@ -196,10 +228,11 @@ export const WITHDRAW_MODAL_TIMEOUT_MS = 15_000;
 export const WITHDRAW_CTA_ENABLE_TIMEOUT_MS = 90_000;
 /**
  * The single withdraw ETH transaction to confirm on Sepolia (the approver confirms the MetaMask pop-up →
- * the app shows "Withdrawal initiated"). One tx, so a minute-plus is ample; a stuck tx fails the run
- * (trace captured) instead of hanging. Reused as the on-chain collateral-fell verification budget.
+ * the app shows "Withdrawal initiated"). One tx, so a minute-plus is ample, plus the app's wait for the
+ * withdrawal to be deep enough on the chain; a stuck tx fails the run (trace captured) instead of
+ * hanging. Reused as the on-chain collateral-fell verification budget.
  */
-export const WITHDRAW_TX_TIMEOUT_MS = 90_000;
+export const WITHDRAW_TX_TIMEOUT_MS = 90_000 + AAVE_WRITE_DEPTH_WAIT_MS;
 /** Poll cadence for the post-withdraw on-chain collateral-fell check (a light `getPosition` read). */
 export const WITHDRAW_VERIFY_POLL_MS = 3_000;
 

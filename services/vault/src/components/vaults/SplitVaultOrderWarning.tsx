@@ -96,6 +96,7 @@ export function SplitVaultOrderWarning({
 
   const handleRepair = async () => {
     const success = await executeReorder(expectedVaultIds, {
+      kind: "baseline",
       expectedCurrentVaultIds: currentVaultIds as readonly Hex[],
     });
     if (!success) return;

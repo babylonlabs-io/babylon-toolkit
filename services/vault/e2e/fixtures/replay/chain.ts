@@ -22,10 +22,11 @@
  * That fallback is only offered for a getter the recording saw with ONE
  * argument - see {@link buildTables}. A getter recorded with several has no
  * single right answer for a fourth, and handing back the last recorded one
- * would be the only path in this fixture that puts an invented number on a
- * screenshot: a wrong answer rather than a missing one, which every gate in
- * `visual/capture.ts` is blind to because nothing was ever reported as
- * unanswered.
+ * would put an invented number on a screenshot that no walk asked for. (The
+ * one invented answer in this fixture is `walletUtxoCopies` in `index.ts`,
+ * and only a walk that names it gets it.) It is a wrong answer rather than a
+ * missing one, which every gate in `visual/capture.ts` is blind to because
+ * nothing was ever reported as unanswered.
  */
 
 import {

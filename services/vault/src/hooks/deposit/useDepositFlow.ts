@@ -79,6 +79,7 @@ import {
   resolveFundingInputCap,
 } from "@/services/deposit/fundingInputCap";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import { assertPositionAcceptsBatch } from "@/services/vault/assertResumePositionCapacity";
 import {
   assertBuildConfigMatchesForm,
   isBuildConfigDriftError,
@@ -389,8 +390,10 @@ export function useDepositFlow(
   // the start of the next executeDeposit run.
   const deviceCancelSettledRef = useRef(false);
   // Set when the LAST runCancellableSign settled successfully with a cancel
-  // request still pending (the late-cancel race). Only the broadcast wrapper
-  // consults it — everywhere else the successful sign deliberately proceeds.
+  // request still pending (the late-cancel race). The broadcast and payout
+  // wrappers consult it via throwIfLateCancel: a late cancel stops the signed
+  // Pre-PegIn from being broadcast and the payout signatures from reaching the
+  // vault provider or the next device prompt; other signs proceed.
   const lastSignSettledWithCancelPendingRef = useRef(false);
   // Provider that STARTED the in-flight sign. Cancellation binds to it so a
   // wallet swapped in mid-prompt cannot orphan the original ceremony.
@@ -404,14 +407,15 @@ export function useDepositFlow(
       lastSignSettledWithCancelPendingRef.current = false;
       try {
         const signed = await sign();
-        // Captured before the finally consumes the request — the broadcast
-        // wrapper reads it to withhold pushTx on a late cancel.
+        // Captured before the finally consumes the request — throwIfLateCancel
+        // reads it in the broadcast and payout wrappers.
         lastSignSettledWithCancelPendingRef.current =
           deviceCancelRequestedRef.current;
         return signed;
       } catch (error) {
         // The requested cancel took effect (a late cancel that still signed
-        // successfully deliberately does NOT stick — the flow proceeds).
+        // is handled by throwIfLateCancel at the broadcast and payout sites;
+        // elsewhere the flow proceeds).
         if (deviceCancelRequestedRef.current && isUserCancellation(error)) {
           deviceCancelSettledRef.current = true;
         }
@@ -428,6 +432,14 @@ export function useDepositFlow(
     },
     [],
   );
+
+  const throwIfLateCancel = useCallback((message: string) => {
+    if (!lastSignSettledWithCancelPendingRef.current) return;
+    deviceCancelSettledRef.current = true;
+    throw Object.assign(new Error(message), {
+      code: WALLET_CONNECTION_REJECTED_CODE,
+    });
+  }, []);
 
   // Abort controller for cancelling the flow
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1315,6 +1327,17 @@ export function useDepositFlow(
           offchainParamsVersion: buildConfig.offchainParamsVersion,
         });
 
+        // Position capacity, live. The submit gate read a cached cap; a cap
+        // lowered or a slot filled since then would let activation redeem the
+        // locked BTC instead (same check as the resume path).
+        await assertPositionAcceptsBatch({
+          vaultId: batchRegistration.vaults[0].vaultId as Hex,
+          applicationEntryPoint: selectedApplication as Address,
+          depositor: confirmedEthAddress,
+          vaultCount: vaultAmounts.length,
+          amount: vaultAmounts.reduce((sum, a) => sum + a, 0n),
+        });
+
         // A flow abandoned during the minutes-long gate must not raise an
         // unlock prompt or signing popup (same rule as the resume path).
         signal.throwIfAborted();
@@ -1356,17 +1379,10 @@ export function useDepositFlow(
                   return confirmedBtcWallet.signPsbt(psbtHex);
                 },
               );
-              // A late cancel that still signed successfully proceeds
-              // elsewhere — but here the next step is the irreversible
-              // pushTx, so honor the cancel: throw before the tx leaves,
-              // keeping the records PENDING and resumable (Broadcast CTA).
-              if (lastSignSettledWithCancelPendingRef.current) {
-                deviceCancelSettledRef.current = true;
-                throw Object.assign(
-                  new Error(COPY.deposit.errors.prePeginSigningCanceled),
-                  { code: WALLET_CONNECTION_REJECTED_CODE },
-                );
-              }
+              // The next step is the irreversible pushTx, so a late cancel
+              // throws before the tx leaves, keeping the records PENDING and
+              // resumable (Broadcast CTA).
+              throwIfLateCancel(COPY.deposit.errors.prePeginSigningCanceled);
               return signedPsbtHex;
             },
             deriveContextHash: async (appName: string, context: string) => {
@@ -1530,6 +1546,7 @@ export function useDepositFlow(
                   return confirmedBtcWallet.signPsbt(psbtHex, opts);
                 },
               );
+              throwIfLateCancel(COPY.deposit.errors.payoutSigningCanceled);
               if (isGraph) {
                 setPayoutSigningProgress({
                   phase: "graph",
@@ -1569,6 +1586,9 @@ export function useDepositFlow(
                         assertDepositIdentity();
                         return confirmedBtcWallet.signPsbts!(psbtHexes, opts);
                       },
+                    );
+                    throwIfLateCancel(
+                      COPY.deposit.errors.payoutSigningCanceled,
                     );
                     if (phase === "graph") {
                       setPayoutSigningProgress({
@@ -2003,6 +2023,7 @@ export function useDepositFlow(
     }, [
       advanceStep,
       runCancellableSign,
+      throwIfLateCancel,
       gate,
       vaultAmounts,
       depositAmountSats,

@@ -10,6 +10,7 @@ const activeVault: CollateralVaultEntry = {
   lifecycle: "active",
   vaultId: "0xvault1",
   amountBtc: 1,
+  amountSats: 100_000_000n,
   addedAt: 1_700_000_000,
   liquidationIndex: 0,
   inUse: true,

@@ -165,10 +165,6 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   usePositionNotifications: () => mockUsePositionNotifications(),
 }));
 
-vi.mock("wagmi", () => ({
-  useAccount: () => ({ address: "0xTestAddress" }),
-}));
-
 const gateMock = vi.hoisted(() => ({
   value: { protocol: null as string | null, aave: null as string | null },
 }));
@@ -520,6 +516,7 @@ describe("PositionNotificationBanner", () => {
 
     fireEvent.click(screen.getByText("Apply Optimal Order"));
     expect(mockExecuteReorder).toHaveBeenCalledWith(["0xabc", "0xdef"], {
+      kind: "optimal",
       optimalOrderContext: mockReorderVerificationContext,
     });
   });
