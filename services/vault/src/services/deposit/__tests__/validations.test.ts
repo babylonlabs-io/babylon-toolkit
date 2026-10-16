@@ -805,7 +805,7 @@ describe("Deposit Validations", () => {
         amountSats: 600_000n,
       });
       expect(result.label).toBe(
-        "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+        "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
       );
     });
 
@@ -821,7 +821,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Peg-in TVL cap reached — only 0.005 BTC remains",
+        label: "Peg-in TVL cap reached: only 0.005 BTC remains",
       });
     });
 
@@ -933,7 +933,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Unable to verify supply cap — please try again",
+        label: "Unable to verify supply cap. Please try again",
       });
     });
 
@@ -944,7 +944,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Supply cap reached — deposits temporarily paused",
+        label: "Supply cap reached. Deposits temporarily paused",
       });
     });
 
@@ -960,7 +960,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Peg-in TVL cap reached — only 0.005 BTC remains",
+        label: "Peg-in TVL cap reached: only 0.005 BTC remains",
       });
     });
 
@@ -986,7 +986,7 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label:
-          "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+          "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
       });
     });
 
@@ -1000,7 +1000,7 @@ describe("Deposit Validations", () => {
         amountSats: 0n,
       });
       expect(result.label).toBe(
-        "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+        "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
       );
     });
 
@@ -1045,7 +1045,7 @@ describe("Deposit Validations", () => {
         amountSats: 100_000n,
       });
       expect(result.label).toBe(
-        "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.01 BTC",
+        "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.01 BTC",
       );
     });
 
@@ -1059,7 +1059,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Supply cap reached — deposits temporarily paused",
+        label: "Supply cap reached. Deposits temporarily paused",
       });
     });
 
@@ -1163,14 +1163,14 @@ describe("Deposit Validations", () => {
       });
     });
 
-    it("passes through the SDK's 'Supply cap reached' result when the cap is fully used", () => {
+    it("shows the supply cap message when the cap is fully used", () => {
       const result = validateRemainingCapacity({
         amount: 100_000n,
         effectiveRemaining: 0n,
       });
       expect(result).toEqual({
         valid: false,
-        error: "Supply cap reached — deposits temporarily paused",
+        error: "Supply cap reached. Deposits temporarily paused",
       });
     });
   });

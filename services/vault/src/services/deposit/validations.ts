@@ -311,18 +311,15 @@ export function validateRemainingCapacity(
   params: RemainingCapacityParams,
 ): ValidationResult {
   const result = sdkValidateRemainingCapacity(params);
-  if (
-    result.valid ||
-    params.effectiveRemaining === null ||
-    params.effectiveRemaining === 0n
-  ) {
-    return result;
-  }
+  if (result.valid || params.effectiveRemaining === null) return result;
   return {
     valid: false,
-    error: COPY.deposit.errors.exceedsCap(
-      formatSatoshisToBtc(params.effectiveRemaining),
-    ),
+    error:
+      params.effectiveRemaining === 0n
+        ? COPY.deposit.errors.supplyCapReached
+        : COPY.deposit.errors.exceedsCap(
+            formatSatoshisToBtc(params.effectiveRemaining),
+          ),
   };
 }
 
@@ -419,7 +416,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   if (params.capUnavailable) {
     return {
       disabled: true,
-      label: "Unable to verify supply cap — please try again",
+      label: COPY.deposit.errors.supplyCapUnavailable,
     };
   }
 
@@ -432,7 +429,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   if (params.effectiveRemaining === 0n) {
     return {
       disabled: true,
-      label: "Supply cap reached — deposits temporarily paused",
+      label: COPY.deposit.errors.supplyCapReached,
     };
   }
   // No amount can clear both the remaining cap and the protocol minimum — a

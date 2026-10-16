@@ -355,7 +355,7 @@ async function discoverBatch(
         `Sibling vault discovery produced a non-contiguous HTLC vector ` +
           `for prePeginTxHash ${targetPrePeginTxHash}: expected vouts ` +
           `[0..${siblings.length - 1}], observed [${observed}]. ` +
-          `Refund refused — sibling set incomplete or indexer out of sync.`,
+          `Refund refused. Sibling set incomplete or indexer out of sync.`,
       );
     }
   }

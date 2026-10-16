@@ -9,6 +9,7 @@
 import { useCallback } from "react";
 
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
+import { COPY } from "../../copy";
 import type { ValidationResult } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
 
@@ -65,7 +66,7 @@ export function useDepositValidation(
       if (capUnavailable) {
         return {
           valid: false,
-          error: "Unable to verify supply cap — please try again",
+          error: COPY.deposit.errors.supplyCapUnavailable,
         };
       }
 

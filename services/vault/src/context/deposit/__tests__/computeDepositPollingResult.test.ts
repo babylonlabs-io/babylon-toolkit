@@ -751,7 +751,7 @@ describe("computeDepositPollingResult — expired-vault redeem", () => {
       PeginAction.CLAIM_EXPIRED_VAULT,
     ]);
     expect(result.peginState.inlineSubtext).toBe(
-      "Refund unavailable — redeem within ~1 day",
+      "Refund unavailable: redeem within ~1 day",
     );
     expect(getActionStatus(result)).toEqual({
       type: "available",

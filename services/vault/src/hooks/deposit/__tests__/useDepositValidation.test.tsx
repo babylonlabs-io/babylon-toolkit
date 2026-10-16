@@ -86,7 +86,7 @@ describe("useDepositValidation", () => {
 
       expect(validationResult.valid).toBe(false);
       expect(validationResult.error).toBe(
-        "Peg-in TVL cap reached — only 0.00005 BTC remains, below the minimum deposit of 0.0001 BTC",
+        "Peg-in TVL cap reached: only 0.00005 BTC remains, below the minimum deposit of 0.0001 BTC",
       );
     });
 
