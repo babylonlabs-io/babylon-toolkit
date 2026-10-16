@@ -383,11 +383,12 @@ function resultWith(opts: {
   message?: string;
   depositorBtcPubkey?: string;
   activationReturned?: boolean;
+  error?: Error;
 }) {
   return {
     depositId: "x",
     loading: false,
-    error: null,
+    error: opts.error ?? null,
     peginState: {
       contractStatus: opts.contractStatus ?? 0,
       localStatus: opts.localStatus,
@@ -973,6 +974,192 @@ describe("PostDepositContinuationView", () => {
       />,
     );
     expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault0");
+  });
+
+  it("keeps the signing vault on screen when its poll errors and a sibling becomes actionable", () => {
+    // User is mid-signing vault 1; one VP poll fails while vault 0 turns actionable.
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 0,
+          localStatus: "payout_signed",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+          contractStatus: 0,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const props = {
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    };
+    const { getByTestId, queryByTestId, rerender } = renderView(props);
+    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
+
+    states.set(
+      "0xvault1",
+      resultWith({
+        availableActions: [],
+        contractStatus: 0,
+        error: new Error("Provider unreachable"),
+      }),
+    );
+    states.set(
+      "0xvault0",
+      resultWith({
+        availableActions: [PeginAction.ACTIVATE_VAULT],
+        contractStatus: 1,
+      }),
+    );
+    rerender(
+      <PostDepositContinuationView
+        vaultIds={props.vaultIds}
+        activities={props.activities}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        autoStartAction={null}
+        onClose={vi.fn()}
+      />,
+    );
+
+    // The errored poll must neither release the hold nor drop the signing step.
+    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
+    expect(queryByTestId("activate")).toBeNull();
+  });
+
+  it("releases the hold once the held step succeeds while its poll still errors", () => {
+    // Vault 1 finished signing but its VP keeps failing, so the poll never
+    // resolves. The finished step must not keep vault 0's activation off screen.
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 0,
+          localStatus: "payout_signed",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+          contractStatus: 0,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const props = {
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    };
+    const { getByTestId, queryByTestId, rerender } = renderView(props);
+    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
+
+    states.set(
+      "0xvault1",
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: 0,
+        localStatus: "payout_signed",
+        error: new Error("Provider unreachable"),
+      }),
+    );
+    states.set(
+      "0xvault0",
+      resultWith({
+        availableActions: [PeginAction.ACTIVATE_VAULT],
+        contractStatus: 1,
+      }),
+    );
+    rerender(
+      <PostDepositContinuationView
+        vaultIds={props.vaultIds}
+        activities={props.activities}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        autoStartAction={null}
+        onClose={vi.fn()}
+      />,
+    );
+    // The errored poll alone keeps the signing step mounted.
+    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
+    expect(queryByTestId("activate")).toBeNull();
+
+    fireEvent.click(getByTestId("payout-success"));
+
+    // Success releases the hold: the sibling's activation is offered.
+    expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault0");
+    expect(queryByTestId("payout")).toBeNull();
+    expect(mockRefetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases the hold when the held vault leaves PENDING with a stale poll error and no action", () => {
+    // Vault 1 is held on payout. Its poll stops once it turns VERIFIED, so the
+    // last PENDING tick's error never clears; the hold must not outlive PENDING.
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: 0,
+          localStatus: "payout_signed",
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+          contractStatus: 0,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const props = {
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    };
+    const { getByTestId, queryByTestId, rerender } = renderView(props);
+    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
+
+    states.set(
+      "0xvault1",
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: 1,
+        error: new Error("Provider unreachable"),
+      }),
+    );
+    states.set(
+      "0xvault0",
+      resultWith({
+        availableActions: [PeginAction.ACTIVATE_VAULT],
+        contractStatus: 1,
+      }),
+    );
+    rerender(
+      <PostDepositContinuationView
+        vaultIds={props.vaultIds}
+        activities={props.activities}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        autoStartAction={null}
+        onClose={vi.fn()}
+      />,
+    );
+
+    // The stale error must not pin a VERIFIED vault with nothing to do.
+    expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault0");
+    expect(queryByTestId("payout")).toBeNull();
   });
 
   it("re-selects the first actionable vault after passing through a wait state", () => {
