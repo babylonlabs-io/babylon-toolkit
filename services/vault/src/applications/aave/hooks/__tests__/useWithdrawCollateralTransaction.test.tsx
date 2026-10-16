@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +43,12 @@ const mockWaitReceipt = vi.hoisted(() => vi.fn());
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   waitForTransactionReceiptSmartAware: (...a: unknown[]) =>
     mockWaitReceipt(...a),
+}));
+
+// A late receipt is taken as already deep enough on the chain; the depth
+// check itself is covered by canonicalReceipt.test.ts.
+vi.mock("@/clients/eth-contract/canonicalReceipt", () => ({
+  waitForCanonicalReceipt: async ({ receipt }: { receipt: unknown }) => receipt,
 }));
 
 vi.mock("@/infrastructure", () => ({
@@ -100,6 +106,85 @@ describe("useWithdrawCollateralTransaction", () => {
 
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
+  });
+
+  it("reads as confirming from the moment the withdrawal's transaction is included until the withdrawal ends", async () => {
+    let finish!: () => void;
+    mockWithdraw.mockImplementation(async (...args: unknown[]) => {
+      const onIncluded = args[args.length - 1] as () => void;
+      onIncluded();
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { transactionHash: "0xtx", receipt: {} };
+    });
+    const { result } = setup();
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = result.current.executeWithdraw([VAULT_ID]);
+    });
+    await waitFor(() => expect(result.current.isConfirming).toBe(true));
+
+    await act(async () => {
+      finish();
+      await pending;
+    });
+    expect(result.current.isConfirming).toBe(false);
+  });
+
+  it("reads as confirming while it refreshes after the lock's watch finds an unconfirmed withdrawal mined", async () => {
+    const hash =
+      "0x5555555555555555555555555555555555555555555555555555555555555555";
+    let mine!: (receipt: unknown) => void;
+    mockWaitReceipt.mockReturnValue(
+      new Promise((resolve) => {
+        mine = resolve;
+      }),
+    );
+    mockWithdraw.mockRejectedValue(
+      new UnconfirmedTransactionError(new ContractError("timed out"), {
+        hash,
+        from: "0xuser" as `0x${string}`,
+        to: "0xadapter" as `0x${string}`,
+        data: "0x",
+        nonce: null,
+        sentAtBlock: null,
+      }),
+    );
+    const { client, result } = setup();
+    let refreshed!: () => void;
+    const refresh = new Promise<void>((resolve) => {
+      refreshed = resolve;
+    });
+    vi.spyOn(client, "invalidateQueries").mockImplementation(() => refresh);
+    let withdrawing!: Promise<string>;
+    await act(async () => {
+      withdrawing = result.current.executeWithdraw([VAULT_ID]);
+    });
+
+    await act(async () => {
+      mine({
+        status: "success",
+        transactionHash: hash,
+        from: "0xuser",
+        logs: [],
+      });
+    });
+    try {
+      await waitFor(() => {
+        expect(result.current.pendingWrite).toBeNull();
+        expect(result.current.isConfirming).toBe(true);
+      });
+      expect(result.current.isProcessing).toBe(true);
+    } finally {
+      // Ends the write either way, so the account's lock does not outlive
+      // this test.
+      await act(async () => {
+        refreshed();
+        await withdrawing;
+      });
+    }
+    expect(result.current.isConfirming).toBe(false);
   });
 
   it("marks the withdrawn vault pending so the list can show it withdrawing", async () => {

@@ -2103,6 +2103,9 @@ export const COPY = {
         "Could not read the vault provider commission for the selected BTCVaults. Close this window and try again.",
       confirmButton: "Confirm",
       processing: "Processing",
+      // The withdrawal is mined and waiting to be deep enough on the chain, or
+      // an Aave transaction from this wallet is unconfirmed.
+      confirming: "Confirming",
       hfBlockTitle: "Withdraw unavailable",
       hfBlockWarning: (threshold: string) =>
         `This withdrawal would drop your health factor below ${threshold} and be rejected on-chain. Reduce the selection or repay debt first.`,

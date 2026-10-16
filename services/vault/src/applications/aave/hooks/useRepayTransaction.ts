@@ -113,6 +113,11 @@ export interface UseRepayTransactionResult {
   /** Whether transaction is currently processing */
   isProcessing: boolean;
   /**
+   * This form's own repay is mined, and its outcome waits for it to be deep
+   * enough on the chain. Clears when the repay ends.
+   */
+  isConfirming: boolean;
+  /**
    * The account's Aave write in progress, from this form or any other. Every
    * Aave action stays disabled while it is set.
    */
@@ -140,6 +145,7 @@ export function useRepayTransaction({
   proxyContract,
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const account = useETHWallet().address as Address | undefined;
@@ -170,6 +176,9 @@ export function useRepayTransaction({
     setError(null);
     setNotice(null);
     setIsProcessing(true);
+    // The button reads "Confirming" while the repay gets deep enough on
+    // the chain.
+    const markIncluded = () => setIsConfirming(true);
     try {
       if (!account) {
         throw new WalletError(
@@ -240,6 +249,7 @@ export function useRepayTransaction({
             proxyContract as Address,
             repayAmountRaw,
             reserve.token,
+            markIncluded,
           );
           return;
         }
@@ -269,8 +279,13 @@ export function useRepayTransaction({
           reserve.token.address,
           amountBigInt,
           reserve.token,
+          markIncluded,
         );
       });
+      // "Confirming" holds through the refresh only for a mined repay: one
+      // the lock's watch found after the first wait gave up never reported
+      // its inclusion, and one the user stopped waiting on is not confirming.
+      setIsConfirming(outcome === "mined");
 
       // Invalidate position queries to refresh data, and the hub reads behind
       // the loan forms (liquidity, our spoke's borrow limit and hub state).
@@ -328,6 +343,7 @@ export function useRepayTransaction({
       return "failed";
     } finally {
       setIsProcessing(false);
+      setIsConfirming(false);
     }
   };
 
@@ -339,6 +355,7 @@ export function useRepayTransaction({
   return {
     executeRepay,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error,
     notice:

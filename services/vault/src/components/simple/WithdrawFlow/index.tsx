@@ -49,8 +49,14 @@ function WithdrawFlowContent({
 }: WithdrawFlowProps) {
   const { step, goToSelect, goToReview, goToProgress, reset } =
     useWithdrawFlow();
-  const { executeWithdraw, isProcessing, pendingWrite, error, notice } =
-    useWithdrawCollateralTransaction();
+  const {
+    executeWithdraw,
+    isProcessing,
+    isConfirming,
+    pendingWrite,
+    error,
+    notice,
+  } = useWithdrawCollateralTransaction();
   const hubBlockMessage = useWithdrawHubBlockMessage();
   const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
 
@@ -258,6 +264,11 @@ function WithdrawFlowContent({
               // Another Aave transaction from this wallet locks the confirm
               // button too, not only this withdrawal.
               isProcessing={isProcessing || pendingWrite !== null}
+              // As on the loan forms: this withdrawal getting deep enough on
+              // the chain, or a broadcast write still waiting to confirm.
+              isConfirming={
+                isConfirming || pendingWrite?.phase === "unconfirmed"
+              }
               unconfirmedWrite={
                 pendingWrite?.phase === "unconfirmed" ? pendingWrite : null
               }

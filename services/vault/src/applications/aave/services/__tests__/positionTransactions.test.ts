@@ -101,6 +101,9 @@ describe("positionTransactions", () => {
 
   const mockToken = { symbol: "USDC", decimals: 6 };
 
+  // The hook's "Confirming" flag; only the Aave call reports its inclusion.
+  const onIncluded = vi.fn();
+
   // `logs: []` routes ensureAllowance's verification to the fallback
   // allowance re-read (no Approval event to parse); event-path behavior is
   // covered by the dedicated approval-verification tests below.
@@ -167,6 +170,7 @@ describe("positionTransactions", () => {
         mockChain,
         debtReserveId,
         amount,
+        onIncluded,
       );
 
       expect(mockBorrowFromCorePosition).toHaveBeenCalledWith(
@@ -176,6 +180,7 @@ describe("positionTransactions", () => {
         debtReserveId,
         amount,
         "0xuser",
+        onIncluded,
       );
       expect(result.transactionHash).toBe("0xhash");
     });
@@ -184,7 +189,7 @@ describe("positionTransactions", () => {
       const noAccountWallet = { account: undefined } as any;
 
       await expect(
-        borrow(noAccountWallet, mockChain, 1n, 1000n),
+        borrow(noAccountWallet, mockChain, 1n, 1000n, onIncluded),
       ).rejects.toThrow(COPY.wallet.connectToContinue);
     });
   });
@@ -204,6 +209,7 @@ describe("positionTransactions", () => {
         borrower,
         debtReserveId,
         amount,
+        onIncluded,
       );
 
       expect(mockRepayToCorePosition).toHaveBeenCalledWith(
@@ -213,19 +219,27 @@ describe("positionTransactions", () => {
         borrower,
         debtReserveId,
         amount,
+        onIncluded,
       );
       expect(result.transactionHash).toBe("0xhash");
     });
 
     it("should throw error when amount is 0", async () => {
       await expect(
-        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, 0n),
+        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, 0n, onIncluded),
       ).rejects.toThrow("Repay amount must be greater than 0");
     });
 
     it("should throw error when amount is negative", async () => {
       await expect(
-        repay(mockWalletClient, mockChain, "0xuser" as any, 1n, -100n),
+        repay(
+          mockWalletClient,
+          mockChain,
+          "0xuser" as any,
+          1n,
+          -100n,
+          onIncluded,
+        ),
       ).rejects.toThrow("Repay amount must be greater than 0");
     });
   });
@@ -250,6 +264,7 @@ describe("positionTransactions", () => {
         "0xtoken" as any,
         amount,
         mockToken,
+        onIncluded,
       );
 
       // Should check allowance against the pinned adapter address
@@ -271,8 +286,17 @@ describe("positionTransactions", () => {
         { safePollTimeoutMs: RECEIPT_WAIT_ROUND_MS },
       );
 
-      // Should repay with borrower = user address
-      expect(mockRepayToCorePosition).toHaveBeenCalled();
+      // Should repay with borrower = user address, and only the repay, not
+      // the approve, reports its inclusion
+      expect(mockRepayToCorePosition).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xadapter",
+        "0xuser",
+        1n,
+        amount,
+        onIncluded,
+      );
     });
 
     it("should skip approval when allowance sufficient", async () => {
@@ -286,6 +310,7 @@ describe("positionTransactions", () => {
         "0xtoken" as any,
         amount,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).not.toHaveBeenCalled();
@@ -303,6 +328,7 @@ describe("positionTransactions", () => {
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(
         "Repaying 1 USDC needs more than your balance of 0.999999 USDC. Lower the amount or acquire more and try again.",
@@ -332,6 +358,7 @@ describe("positionTransactions", () => {
         PROXY,
         balance,
         mockToken,
+        onIncluded,
       );
 
       expect(mockGetPositionReserveTotalDebt).toHaveBeenCalledWith(PROXY, 1n);
@@ -342,6 +369,7 @@ describe("positionTransactions", () => {
         "0xuser",
         1n,
         maxUint256,
+        onIncluded,
       );
     });
 
@@ -354,6 +382,7 @@ describe("positionTransactions", () => {
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       expect(mockAssertProxy).toHaveBeenCalledWith(
@@ -377,6 +406,7 @@ describe("positionTransactions", () => {
           PROXY,
           2000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(/proxy mismatch/);
 
@@ -397,6 +427,7 @@ describe("positionTransactions", () => {
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       // Debt quote (which sizes the approval cap) keys off the verified proxy.
@@ -416,6 +447,7 @@ describe("positionTransactions", () => {
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).toHaveBeenCalledWith(
@@ -439,6 +471,7 @@ describe("positionTransactions", () => {
         PROXY,
         balance,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).toHaveBeenCalledWith(
@@ -461,6 +494,7 @@ describe("positionTransactions", () => {
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       const approvedAmount = mockApproveERC20.mock.calls[0][4] as bigint;
@@ -479,6 +513,7 @@ describe("positionTransactions", () => {
         PROXY,
         2000000n,
         mockToken,
+        onIncluded,
       );
 
       expect(mockApproveERC20).not.toHaveBeenCalled();
@@ -497,6 +532,7 @@ describe("positionTransactions", () => {
           PROXY,
           2000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow("No debt to repay");
 
@@ -516,6 +552,7 @@ describe("positionTransactions", () => {
           PROXY,
           999999n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow(/repaying in full needs/i);
 
@@ -535,6 +572,7 @@ describe("positionTransactions", () => {
           PROXY,
           10_000_000n,
           mockToken,
+          onIncluded,
         );
         return mockApproveERC20.mock.calls[0][4] as bigint;
       };
@@ -569,6 +607,7 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         vaultIds,
+        onIncluded,
       );
 
       expect(mockWithdrawCollaterals).toHaveBeenCalledWith(
@@ -576,6 +615,7 @@ describe("positionTransactions", () => {
         mockChain,
         "0xadapter",
         vaultIds,
+        onIncluded,
       );
       expect(result.transactionHash).toBe("0xhash");
     });
@@ -623,7 +663,15 @@ describe("positionTransactions", () => {
         receipt: { status: "success", logs: [approvalLog(amount)] },
       });
 
-      await repayPartial(OWNER, mockChain, 1n, TOKEN as any, amount, mockToken);
+      await repayPartial(
+        OWNER,
+        mockChain,
+        1n,
+        TOKEN as any,
+        amount,
+        mockToken,
+        onIncluded,
+      );
 
       // Exactly one allowance read: the pre-approve short-circuit check.
       // The verification came from the receipt, immune to stale RPC reads.
@@ -640,7 +688,15 @@ describe("positionTransactions", () => {
       });
 
       await expect(
-        repayPartial(OWNER, mockChain, 1n, TOKEN as any, amount, mockToken),
+        repayPartial(
+          OWNER,
+          mockChain,
+          1n,
+          TOKEN as any,
+          amount,
+          mockToken,
+          onIncluded,
+        ),
       ).rejects.toThrow(/approved a lower amount than required/i);
 
       expect(mockGetERC20Allowance).toHaveBeenCalledTimes(1);
@@ -710,7 +766,15 @@ describe("positionTransactions", () => {
       });
 
       await expect(
-        repayPartial(OWNER, mockChain, 1n, TOKEN as any, amount, mockToken),
+        repayPartial(
+          OWNER,
+          mockChain,
+          1n,
+          TOKEN as any,
+          amount,
+          mockToken,
+          onIncluded,
+        ),
       ).rejects.toThrow(/approved a lower amount than required/i);
 
       // Verified from the last MATCHING log (amount - 1n), not the foreign,
@@ -742,6 +806,7 @@ describe("positionTransactions", () => {
           TOKEN as any,
           amount,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -777,6 +842,7 @@ describe("positionTransactions", () => {
           "0xproxy" as any,
           2000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).rejects.toThrow(
           /approval could not be confirmed/i,
@@ -826,6 +892,7 @@ describe("positionTransactions", () => {
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -860,6 +927,7 @@ describe("positionTransactions", () => {
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -895,6 +963,7 @@ describe("positionTransactions", () => {
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         ),
       ).rejects.toThrow("execution reverted");
 
@@ -917,7 +986,15 @@ describe("positionTransactions", () => {
       mockRepayToCorePosition.mockRejectedValue(unconfirmed);
 
       await expect(
-        repayPartial("0xuser", mockChain, 1n, "0xtoken", 1000000n, mockToken),
+        repayPartial(
+          "0xuser",
+          mockChain,
+          1n,
+          "0xtoken",
+          1000000n,
+          mockToken,
+          onIncluded,
+        ),
       ).rejects.toBe(unconfirmed);
 
       expect(mockRepayToCorePosition).toHaveBeenCalledTimes(1);
@@ -938,6 +1015,7 @@ describe("positionTransactions", () => {
           "0xtoken" as any,
           1000000n,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).rejects.toThrow("execution reverted");
         await vi.runAllTimersAsync();
@@ -970,6 +1048,7 @@ describe("positionTransactions", () => {
           "0xproxy" as any,
           balance,
           mockToken,
+          onIncluded,
         );
         const assertion = expect(result).resolves.toMatchObject({
           transactionHash: "0xhash",
@@ -996,6 +1075,7 @@ describe("positionTransactions", () => {
           "0xuser",
           1n,
           maxUint256,
+          onIncluded,
         );
       } finally {
         vi.useRealTimers();

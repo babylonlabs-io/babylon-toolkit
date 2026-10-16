@@ -20,7 +20,12 @@ import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
 import { COPY } from "@/copy";
 
+import { waitForCanonicalReceipt } from "../../../clients/eth-contract/canonicalReceipt";
 import { ethClient } from "../../../clients/eth-contract/client";
+import {
+  isProposalExecution,
+  judgeSafeExecution,
+} from "../../../clients/eth-contract/safeExecution";
 import {
   throwRevertError,
   type TransactionResult,
@@ -34,13 +39,15 @@ import {
   waitForWalletToCountTransaction,
 } from "../../../clients/eth-contract/walletNonce";
 import {
+  ContractError,
+  ErrorCode,
   UnconfirmedTransactionError,
   isDefinitiveReceiptWaitFailure,
   isSimulationPhaseError,
   mapViemErrorToContractError,
   tagSimulationPhase,
 } from "../../../utils/errors";
-import { RECEIPT_WAIT_ROUND_MS } from "../constants";
+import { AAVE_WRITE_CONFIRMATIONS, RECEIPT_WAIT_ROUND_MS } from "../constants";
 
 /**
  * ABIs consulted when decoding a revert on the Aave paths.
@@ -132,12 +139,22 @@ async function simulateTx(
  * Execute a transaction using encoded data from SDK
  *
  * Performs pre-flight simulation first to catch errors before user signs.
+ * The outcome is judged only once the transaction is AAVE_WRITE_CONFIRMATIONS
+ * deep on the chain, from its receipt as re-read then.
  *
+ * @param onIncluded - Called once the transaction is first seen mined, before
+ *   the wait for that depth (for a form that labels that wait).
  * @throws UnconfirmedTransactionError when the transaction was broadcast but
  *   the receipt wait ended without an answer (a timeout, an RPC failure or
- *   lag, or a Safe Transaction Service error). It may still be mined.
+ *   lag, or a Safe Transaction Service error), or its receipt did not reach
+ *   that depth within RECEIPT_WAIT_ROUND_MS (its block was reorganized out, or
+ *   the RPC lagged). It may still be mined. Also when a Safe proposal's
+ *   execution reverted, names another proposal, or logs nothing for it: the
+ *   proposal may still take effect.
  * @throws TransactionReplacedError when the wallet replaced the transaction
  *   with a cancel or a different call.
+ * @throws ContractError when the transaction reverted (not a Safe proposal's
+ *   execution), or a Safe's own call failed inside it.
  * @throws SendOutcomeUnknownError when the wallet refused the send as "nonce
  *   too low" without proof that it was never broadcast. It may still be mined.
  */
@@ -147,6 +164,7 @@ async function executeTx(
   to: Address,
   data: Hex,
   errorContext: string,
+  onIncluded?: () => void,
 ): Promise<TransactionResult> {
   const account = walletClient.account?.address;
 
@@ -211,7 +229,7 @@ async function executeTx(
   // by a single private key, e.g. MetaMask — resolve via the real tx hash
   // directly. Safe-style multisigs return a `safeTxHash` here that requires
   // polling the Safe Transaction Service before the on-chain receipt exists.
-  const receipt = await waitForTransactionReceiptSmartAware({
+  const firstReceipt = await waitForTransactionReceiptSmartAware({
     publicClient,
     walletAddress: account,
     hash,
@@ -223,6 +241,25 @@ async function executeTx(
     // Only a Safe transaction that executed and reverted is an answer; any
     // other failed wait leaves the outcome unknown.
     if (isDefinitiveReceiptWaitFailure(error)) throw mapError(error);
+    throw new UnconfirmedTransactionError(mapError(error), {
+      ...broadcast,
+      ...(await position),
+    });
+  });
+  onIncluded?.();
+
+  // The first receipt can be from a block that is then reorganized out, and a
+  // transaction mined again after that can end differently. Every check below
+  // reads the receipt as re-read at depth: a cancel reorganized out (with the
+  // original mined instead) is not reported as canceled, and a revert mined
+  // again as a success is not reported as failed, which would invite a second
+  // borrow. One that does not reach that depth in a round is still unknown.
+  const receipt = await waitForCanonicalReceipt({
+    publicClient,
+    receipt: firstReceipt,
+    confirmations: AAVE_WRITE_CONFIRMATIONS,
+    timeoutMs: RECEIPT_WAIT_ROUND_MS,
+  }).catch(async (error: unknown) => {
     throw new UnconfirmedTransactionError(mapError(error), {
       ...broadcast,
       ...(await position),
@@ -242,9 +279,24 @@ async function executeTx(
     receipt,
   });
 
-  // The receipt says reverted, so this is a definite failure even when
-  // diagnosing the revert fails too.
   if (receipt.status === "reverted") {
+    // A Safe proposal's execution that reverted did not take effect, but the
+    // proposal still can, and may already have: its hash commits to the
+    // Safe's nonce, so an execution mined after another executor's run of
+    // the same proposal reverts while the proposal succeeded. The watch asks
+    // the Safe Transaction Service again for the execution that took effect.
+    if (isProposalExecution(receipt, account, hash)) {
+      throw new UnconfirmedTransactionError(
+        mapError(
+          new Error(
+            `Safe execution ${receipt.transactionHash} of proposal ${hash} did not take effect`,
+          ),
+        ),
+        { ...broadcast, ...(await position) },
+      );
+    }
+    // The receipt says reverted, so this is a definite failure even when
+    // diagnosing the revert fails too.
     await throwRevertError(
       publicClient,
       receipt,
@@ -255,6 +307,34 @@ async function executeTx(
     ).catch((error: unknown) => {
       throw mapError(error);
     });
+  }
+
+  // A Safe's own call can fail inside a successful outer execution, and its
+  // verdict is read from the receipt at depth (see safeExecution.ts). An
+  // execution that names another proposal, or logs nothing for it, leaves
+  // this one's outcome unknown.
+  const safeExecution = await judgeSafeExecution(
+    publicClient,
+    receipt,
+    account,
+    hash,
+  );
+  if (safeExecution === "failed") {
+    throw new ContractError(
+      COPY.common.unconfirmedTransaction.reverted,
+      ErrorCode.CONTRACT_REVERT,
+      receipt.transactionHash,
+    );
+  }
+  if (safeExecution === "unknown") {
+    throw new UnconfirmedTransactionError(
+      mapError(
+        new Error(
+          `Safe execution ${receipt.transactionHash} holds no verdict for proposal ${hash}`,
+        ),
+      ),
+      { ...broadcast, ...(await position) },
+    );
   }
 
   return {
@@ -273,6 +353,7 @@ async function executeTx(
  * @param chain - Chain configuration
  * @param contractAddress - AaveIntegrationAdapter contract address
  * @param vaultIds - Array of vault IDs (bytes32 hex strings) to withdraw
+ * @param onIncluded - Called once the transaction is first seen mined
  * @returns Transaction result with hash and receipt
  */
 export async function withdrawCollaterals(
@@ -280,6 +361,7 @@ export async function withdrawCollaterals(
   chain: Chain,
   contractAddress: Address,
   vaultIds: Hex[],
+  onIncluded: () => void,
 ): Promise<TransactionResult> {
   const { to, data } = buildWithdrawCollateralsTx(contractAddress, vaultIds);
   return executeTx(
@@ -288,6 +370,7 @@ export async function withdrawCollaterals(
     to,
     data,
     "withdraw selected collateral from Aave position",
+    onIncluded,
   );
 }
 
@@ -302,6 +385,7 @@ export async function withdrawCollaterals(
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to borrow
  * @param receiver - Address to receive borrowed tokens
+ * @param onIncluded - Called once the transaction is first seen mined
  * @returns Transaction result with hash and receipt
  */
 export async function borrowFromCorePosition(
@@ -311,6 +395,7 @@ export async function borrowFromCorePosition(
   debtReserveId: bigint,
   amount: bigint,
   receiver: Address,
+  onIncluded: () => void,
 ): Promise<TransactionResult> {
   const { to, data } = buildBorrowTx(
     contractAddress,
@@ -324,6 +409,7 @@ export async function borrowFromCorePosition(
     to,
     data,
     "borrow from Aave Core position",
+    onIncluded,
   );
 }
 
@@ -339,6 +425,7 @@ export async function borrowFromCorePosition(
  * @param borrower - Borrower's address (for self-repay, use connected wallet address)
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to repay
+ * @param onIncluded - Called once the transaction is first seen mined
  * @returns Transaction result with hash and receipt
  */
 export async function repayToCorePosition(
@@ -348,6 +435,7 @@ export async function repayToCorePosition(
   borrower: Address,
   debtReserveId: bigint,
   amount: bigint,
+  onIncluded: () => void,
 ): Promise<TransactionResult> {
   const { to, data } = buildRepayTx(
     contractAddress,
@@ -361,6 +449,7 @@ export async function repayToCorePosition(
     to,
     data,
     "repay to Aave Core position",
+    onIncluded,
   );
 }
 

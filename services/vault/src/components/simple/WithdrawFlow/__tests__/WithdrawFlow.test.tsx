@@ -10,6 +10,7 @@ import { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
+import type { PendingAaveWrite } from "@/applications/aave/services/pendingAaveWrite";
 import { getBtcVaultBasicInfoFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
@@ -135,13 +136,17 @@ function renderFlow(
   hook: {
     result?: "succeeded" | "failed" | "unknown";
     notice?: string | null;
+    isProcessing?: boolean;
+    isConfirming?: boolean;
+    pendingWrite?: PendingAaveWrite | null;
   } = {},
 ) {
   const executeWithdraw = vi.fn(async () => hook.result ?? "succeeded");
   vi.mocked(useWithdrawCollateralTransaction).mockReturnValue({
     executeWithdraw,
-    isProcessing: false,
-    pendingWrite: null,
+    isProcessing: hook.isProcessing ?? false,
+    isConfirming: hook.isConfirming ?? false,
+    pendingWrite: hook.pendingWrite ?? null,
     error: null,
     notice: hook.notice ?? null,
   } as unknown as ReturnType<typeof useWithdrawCollateralTransaction>);
@@ -287,6 +292,60 @@ describe("WithdrawFlow selection step", () => {
     fireEvent.click(reviewAcknowledge);
 
     expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
+  });
+
+  it("labels Confirm as confirming while this withdrawal is mined and waiting to be deep enough on the chain", () => {
+    renderFlow(
+      {},
+      {
+        isProcessing: true,
+        isConfirming: true,
+        pendingWrite: { phase: "submitting" },
+      },
+    );
+
+    fireEvent.click(continueButton());
+
+    expect(screen.getByTestId("withdraw-confirm-button")).toHaveTextContent(
+      COPY.withdraw.review.confirming,
+    );
+  });
+
+  it("keeps the processing label on Confirm while another Aave write from this wallet is being sent", () => {
+    renderFlow(
+      {},
+      {
+        isProcessing: false,
+        isConfirming: false,
+        pendingWrite: { phase: "submitting" },
+      },
+    );
+
+    fireEvent.click(continueButton());
+
+    expect(screen.getByTestId("withdraw-confirm-button")).toHaveTextContent(
+      COPY.withdraw.review.processing,
+    );
+  });
+
+  it("labels Confirm as confirming while a broadcast write from this wallet waits to confirm", () => {
+    renderFlow(
+      {},
+      {
+        isProcessing: true,
+        pendingWrite: {
+          phase: "unconfirmed",
+          hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          stopWaiting: null,
+        },
+      },
+    );
+
+    fireEvent.click(continueButton());
+
+    expect(screen.getByTestId("withdraw-confirm-button")).toHaveTextContent(
+      COPY.withdraw.review.confirming,
+    );
   });
 
   it("returns to Select from Review with the selection intact", () => {

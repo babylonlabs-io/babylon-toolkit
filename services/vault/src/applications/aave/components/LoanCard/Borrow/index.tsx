@@ -100,6 +100,7 @@ export function Borrow() {
   const {
     executeBorrow,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error: txError,
     notice: txNotice,
@@ -304,7 +305,7 @@ export function Borrow() {
 
   const getBorrowButtonText = () => {
     if (isBorrowUnavailable) return COPY.loans.borrow.unavailable;
-    if (unconfirmedWrite) return COPY.common.confirming;
+    if (unconfirmedWrite || isConfirming) return COPY.common.confirming;
     if (isProcessing || pendingWrite) return COPY.loans.borrow.processing;
     return buttonText;
   };

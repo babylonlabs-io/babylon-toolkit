@@ -34,7 +34,7 @@ import {
   fetchMaxBorrow,
   matchReserve,
 } from "../borrowParams";
-import { type NonceTooLowInjection } from "../config";
+import { type NonceTooLowInjection, type ReorgInjection } from "../config";
 import { formatBtc } from "../preflight";
 import {
   BORROW_BUTTON_ENABLE_TIMEOUT_MS,
@@ -48,6 +48,13 @@ import {
 } from "../timing";
 import { formatTokenAmount } from "../tokenAmount";
 
+import {
+  type AaveWriteWatch,
+  assertReportedOnlyWhenBuried,
+  confirmReorgHeldThenReported,
+  readsConfirming,
+  watchAaveWriteRpc,
+} from "./aaveWriteRpc";
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { goToSection } from "./navigation";
 import {
@@ -399,13 +406,16 @@ async function waitForBorrowCta(
  * After submitting, actively approve the MetaMask pop-up (the borrow is one ETH tx — the reused OKX-style
  * window needs the active sweep; MetaMask fires its own event too) and wait for the "Borrow successful"
  * screen, then click Done. Fails fast, with the callout's text, if the form surfaces a "Transaction
- * failed" callout.
+ * failed" callout. On success, checks the app reported the borrow only once it was deep on the chain
+ * (`assertReportedOnlyWhenBuried`), from the submit button's label and the app's RPC reads.
  */
 async function confirmBorrowSuccess(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
   reserveLabel: string,
+  cta: Locator,
+  watch: AaveWriteWatch,
 ): Promise<void> {
   // Success is gated ONLY on markers specific to the borrow-success screen — the "Borrow successful"
   // title or the `loan-success-done-button` testid. NOT the generic "Done" role: deposit/withdraw/repay
@@ -419,14 +429,17 @@ async function confirmBorrowSuccess(
     page.getByRole("button", { name: DONE_BUTTON_RX }),
   );
   const txFailed = page.getByText(TX_FAILED_RX).first();
+  let sawConfirming = false;
   const deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sweepApprovals(context, page, log);
+    if (!sawConfirming) sawConfirming = await readsConfirming(page, cta);
 
     if (
       (await successTitle.isVisible().catch(() => false)) ||
       (await successDone.isVisible().catch(() => false))
     ) {
+      assertReportedOnlyWhenBuried(watch, sawConfirming, "Borrow", log);
       log(`✅ Borrow successful (${reserveLabel}) — clicking Done`);
       await doneButton.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
       return;
@@ -541,12 +554,14 @@ async function assertBorrowDebtIncreased(
  * Drive the borrow flow proper (assumes wallets connected + approver/recorder installed by the caller,
  * and collateral already present). Wrapped by `runBorrowWithOptionalPegin`, which adds the optional
  * pegin-first phase in front. Returns the reserve it borrowed from and the amount, as resolved before
- * filling the form.
+ * filling the form. With `reorg`, the app's RPC shows the borrow's block reorganized out once it is
+ * mined (see actions/aaveWriteRpc.ts).
  */
 async function runBorrowFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
   injection: BorrowNonceInjection | undefined,
+  reorg: ReorgInjection | undefined,
 ): Promise<BorrowLeg> {
   const { page, context, log } = ctx;
   // Resolved before the browser flow, so an unknown or ambiguous token fails before anything is clicked.
@@ -583,15 +598,45 @@ async function runBorrowFlow(
   const countBefore = injection
     ? await injection.probe.settledCount(ctx.eth.address)
     : undefined;
-  log(
-    "Borrow CTA enabled — submitting (the approver will confirm the MetaMask tx)",
+  // Installed right before the click, so the first receipt of the account's call to the adapter that
+  // the app reads is this borrow's.
+  const watch = await watchAaveWriteRpc(
+    page,
+    ctx.config.network,
+    ctx.eth.address,
+    reorg,
+    log,
   );
-  await cta.click();
+  try {
+    log(
+      "Borrow CTA enabled — submitting (the approver will confirm the MetaMask tx)",
+    );
+    await cta.click();
 
-  if (injection && injection.mode !== "stale") {
-    await confirmOutcomeUnknownNotice(page, context, log, injection.probe);
-  } else {
-    await confirmBorrowSuccess(page, context, log, describeReserve(reserve));
+    if (injection && injection.mode !== "stale") {
+      await confirmOutcomeUnknownNotice(page, context, log, injection.probe);
+    } else if (reorg) {
+      await confirmReorgHeldThenReported({
+        page,
+        context,
+        log,
+        cta,
+        watch,
+        flow: "Borrow",
+        successRx: BORROW_SUCCESS_RX,
+      });
+    } else {
+      await confirmBorrowSuccess(
+        page,
+        context,
+        log,
+        describeReserve(reserve),
+        cta,
+        watch,
+      );
+    }
+  } finally {
+    await watch.dispose();
   }
 
   onStep("borrow-verify");
@@ -657,6 +702,7 @@ export async function runBorrowWithOptionalPegin(
   ctx: ActionContext,
   onStep: (step: string) => void,
   injection?: BorrowNonceInjection,
+  reorg?: ReorgInjection,
 ): Promise<BorrowLeg> {
   if (ctx.config.peginFirst) {
     ctx.log("--pegin-first: pegging in fresh collateral before borrowing");
@@ -672,7 +718,7 @@ export async function runBorrowWithOptionalPegin(
     onStep("await-collateral");
     await waitForFreshCollateral(ctx, baselineSats);
   }
-  return runBorrowFlow(ctx, onStep, injection);
+  return runBorrowFlow(ctx, onStep, injection, reorg);
 }
 
 export const borrowAction: Action = {
@@ -715,6 +761,7 @@ export const borrowAction: Action = {
           currentStep = step;
         },
         injection,
+        ctx.config.injectReorg,
       );
 
       log("✅ Borrow complete.");

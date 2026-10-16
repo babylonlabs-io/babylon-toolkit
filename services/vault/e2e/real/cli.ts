@@ -51,6 +51,17 @@
  * Every mode checks on chain that the account sent exactly one transaction. Run it on
  * `--target=localhost` to test local app code (see actions/nonceTooLow.ts).
  *
+ * Every borrow and repay checks that the app reports the write only once it is three blocks deep: the
+ * app reads the chain at that depth before the success screen, and the button reads "Confirming..."
+ * whenever the app had to wait for it. Borrow and repay also accept `--inject-reorg=<mode>`, which makes the app's RPC show the
+ * write's block reorganized out once it is mined (MetaMask's own node is untouched):
+ *   - `dropped`: the write's receipt is gone;
+ *   - `orphaned`: the receipt is still served, but the chain above no longer descends from its block.
+ * The app must not show the success screen while that holds, and shows "Waiting for confirmation"
+ * instead; once the injection releases, it must reach the success screen. A repay `--borrow-first`
+ * applies it to the repay only. Run it on `--target=localhost` to test local app code (see
+ * actions/aaveWriteRpc.ts).
+ *
  * Repay accepts `--borrow-first` (borrow against existing collateral, then repay the new loan — then
  * also honors the borrow extras above), `--repay-token=<symbol>` (from the depositor's outstanding
  * loans; default = the sole loan, or the borrowed reserve under --borrow-first), `--repay-hub=<label|address>`
@@ -104,13 +115,16 @@ import {
   BTC_WALLETS,
   ETH_WALLETS,
   isNonceTooLowInjection,
+  isReorgInjection,
   NONCE_TOO_LOW_INJECTIONS,
+  REORG_INJECTIONS,
   type ActionId,
   type BtcWalletId,
   type DataMode,
   type EthWalletId,
   type NetworkName,
   type NonceTooLowInjection,
+  type ReorgInjection,
   type RunConfig,
   type Target,
 } from "./config";
@@ -163,6 +177,7 @@ const VALUE_FLAGS = [
   "repay-hub",
   "repay-amount",
   "inject-nonce-too-low",
+  "inject-reorg",
 ] as const;
 
 /**
@@ -680,6 +695,25 @@ async function resolveConfig(
         );
       injectNonceTooLow = injectFlag;
     }
+    // Borrow or repay extra: show the write's block reorganized out on the app's RPC once it is mined
+    // (see actions/aaveWriteRpc.ts).
+    const reorgFlag = flags["inject-reorg"];
+    let injectReorg: ReorgInjection | undefined;
+    if (typeof reorgFlag === "string") {
+      if (action !== "borrow" && action !== "repay")
+        throw new Error(
+          "--inject-reorg only applies to --action=borrow or --action=repay.",
+        );
+      if (!isReorgInjection(reorgFlag))
+        throw new Error(
+          `--inject-reorg must be one of ${REORG_INJECTIONS.join(", ")} (got "${reorgFlag}").`,
+        );
+      if (injectNonceTooLow !== undefined)
+        throw new Error(
+          "--inject-reorg cannot be combined with --inject-nonce-too-low: each checks a different outcome of the same send.",
+        );
+      injectReorg = reorgFlag;
+    }
     if (willBorrow) {
       // Fetch the live borrowable list up front so an explicit --borrow-token (+ --borrow-hub) is
       // VALIDATED before a (possibly funded, pegin-first) run — an unselectable token would otherwise
@@ -952,6 +986,7 @@ async function resolveConfig(
       interruptOnly,
       reclaimDryRun,
       injectNonceTooLow,
+      injectReorg,
     };
   } finally {
     rl.close();
