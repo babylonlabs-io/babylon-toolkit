@@ -32,6 +32,7 @@ import {
 } from "./capture";
 import {
   DEPOSIT_FLOW_STOPS,
+  DEPOSIT_SPLIT_MINIMUM_STOP,
   flowScreenshotFileName,
   VISUAL_VIEWPORTS,
 } from "./targets";
@@ -67,6 +68,20 @@ const AMOUNT_TO_SUBMIT_BTC = "0.02";
  */
 const SELECT_PROVIDER_LABEL = "Select vault provider";
 const SELECTABLE_PROVIDER_ROW = "button[aria-pressed]:not([disabled])";
+
+/**
+ * How many copies of the recorded UTXO the wallet holds at the split-minimum
+ * stop. The slider marks the ~0.0384 sBTC two-vault minimum only when the
+ * depositable maximum is above it. One copy holds ~0.025 sBTC; two hold
+ * ~0.05 sBTC.
+ */
+const UTXO_COPIES_ABOVE_SPLIT_MINIMUM = 2;
+
+/**
+ * The class core-ui's Slider puts on its input only when it draws at least
+ * one mark (`packages/babylon-core-ui/src/components/Slider/Slider.tsx`).
+ */
+const SLIDER_WITH_MARKS = ".bbn-slider-with-steps";
 
 for (const viewport of VISUAL_VIEWPORTS) {
   test(`capture the deposit flow at ${viewport.name}`, async ({ page }) => {
@@ -167,6 +182,56 @@ for (const viewport of VISUAL_VIEWPORTS) {
     // balance. A screen missing any of them still renders, just emptier, and
     // that is precisely the failure a screenshot cannot be trusted to show.
     assertRecordingCovered(backend, `deposit flow at ${viewport.name}`, [
+      "eth-rpc",
+      "graphql",
+      "vp-health",
+      "mempool",
+    ]);
+    await writeCaptures(shots);
+  });
+
+  test(`capture the two-vault minimum mark at ${viewport.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({
+      width: viewport.width,
+      height: viewport.height,
+    });
+
+    const backend = await preparePage(page, {
+      walletUtxoCopies: UTXO_COPIES_ABOVE_SPLIT_MINIMUM,
+    });
+    await injectPageWallets(page, recordedPageWallets());
+
+    await page.goto("/vaults", { waitUntil: "domcontentloaded" });
+    await connectInjectedWallets(page);
+    await page.getByTestId("deposit-button").first().click();
+
+    // By the slider's class, not by the mark's label. The label is copy, so
+    // a text match fails on one side of the comparison after a copy edit.
+    const dialog = page.locator(".portal-root");
+    const sliderWithMarks = dialog.locator(SLIDER_WITH_MARKS);
+    await expect(sliderWithMarks).toBeVisible();
+    const shots = [
+      await capture(
+        page,
+        flowScreenshotFileName(DEPOSIT_SPLIT_MINIMUM_STOP, viewport),
+      ),
+    ];
+    // Again on the settled frame. The maximum can shrink after the first
+    // render, when the reserves and the supply cap load, and a smaller
+    // maximum removes the mark. The photo is only staged, so a failure here
+    // writes no file.
+    await expect(
+      sliderWithMarks,
+      `${DEPOSIT_SPLIT_MINIMUM_STOP} at ${viewport.name} settled without the ` +
+        `two-vault minimum mark. Three causes can hide it: the wallet ` +
+        `balance is too low (raise UTXO_COPIES_ABOVE_SPLIT_MINIMUM), the ` +
+        `remaining supply cap is at or below the minimum, or the recording ` +
+        `does not offer a split. Re-record for the last two.`,
+    ).toBeVisible();
+
+    assertRecordingCovered(backend, `split minimum at ${viewport.name}`, [
       "eth-rpc",
       "graphql",
       "vp-health",

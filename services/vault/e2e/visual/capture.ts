@@ -36,6 +36,7 @@ import {
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
   DEPOSIT_PROGRESS_STOPS,
+  DEPOSIT_SPLIT_MINIMUM_STOP,
   depositProgressStepStop,
   flowScreenshotFileName,
   HAS_CONNECT_GUIDE,
@@ -437,6 +438,7 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ...Object.values(VAULT_REFUND_STOPS),
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
+      DEPOSIT_SPLIT_MINIMUM_STOP,
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
       LIQUIDATION_CHART_STOP,
       ...(HAS_LIQUIDATION_TOUR ? Object.values(LIQUIDATION_TOUR_STOPS) : []),

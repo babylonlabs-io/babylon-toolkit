@@ -136,6 +136,56 @@ export interface ReplayOptions {
    * shows a further-along world (a pending deposit, a spent balance).
    */
   readonly upToStep?: string;
+  /**
+   * How many copies of the recorded UTXO list the wallet holds. The default
+   * is 1, the recording as captured.
+   *
+   * This is the one answer here that the recording does not hold. Each copy
+   * keeps the recorded fields and gets a new output index, so the balance is
+   * the recorded balance times this count. Use it only for a screen that
+   * needs more funds than the recorded wallet held, and say so at that
+   * screen. It is not a supplement: a supplement recovers a value that the
+   * recording holds elsewhere, and this value is new.
+   */
+  readonly walletUtxoCopies?: number;
+}
+
+/** The mempool key of the wallet's UTXO list, after {@link mempoolKey}. */
+const UTXO_LIST_KEY = `/address/${ANY_ADDRESS}/utxo`;
+
+/** The fields of a recorded UTXO that a copy reads. */
+interface RecordedUtxo {
+  readonly vout: number;
+}
+
+/**
+ * Repeat the recorded UTXO list `copies` times. Each copy gets an output
+ * index above all recorded ones, so no two outpoints are equal.
+ */
+function repeatUtxoList(
+  recorded: RecordedExchange | undefined,
+  copies: number,
+): RecordedExchange {
+  const utxos = parseJson<RecordedUtxo[]>(recorded?.resBody);
+  if (!recorded || !utxos?.length || !Number.isInteger(copies) || copies < 1) {
+    throw new Error(
+      `walletUtxoCopies needs a whole number of at least 1 and a recorded ` +
+        `${UTXO_LIST_KEY} answer. Got ${copies} copies of ` +
+        `${recorded?.resBody ?? "no recorded answer"}.`,
+    );
+  }
+  const firstFreeVout = Math.max(...utxos.map((utxo) => utxo.vout)) + 1;
+  const copiesAfterFirst = Array.from(
+    { length: (copies - 1) * utxos.length },
+    (_, index) => ({
+      ...utxos[index % utxos.length],
+      vout: firstFreeVout + index,
+    }),
+  );
+  return {
+    ...recorded,
+    resBody: JSON.stringify([...utxos, ...copiesAfterFirst]),
+  };
 }
 
 export async function installRecordedBackend(
@@ -160,6 +210,12 @@ export async function installRecordedBackend(
   const mempool = indexBy(run.byBackend.get("mempool") ?? [], (entry) =>
     mempoolKey(new URL(entry.url).pathname),
   );
+  if (options.walletUtxoCopies !== undefined) {
+    mempool.set(
+      UTXO_LIST_KEY,
+      repeatUtxoList(mempool.get(UTXO_LIST_KEY), options.walletUtxoCopies),
+    );
+  }
 
   const miss = (label: string): void => {
     misses.push(label);

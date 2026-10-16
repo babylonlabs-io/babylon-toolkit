@@ -133,6 +133,15 @@ export const DEPOSIT_FLOW_STOPS = {
 } as const;
 
 /**
+ * The deposit form with the slider's mark at the two-vault minimum. The
+ * slider draws that mark only when the wallet can deposit more than the
+ * minimum, and the recorded wallet cannot. So this stop gives the wallet a
+ * second copy of the recorded UTXO: the one balance in the capture that no
+ * wallet held. See `depositFlow.visual.spec.ts`.
+ */
+export const DEPOSIT_SPLIT_MINIMUM_STOP = "deposit-split-minimum";
+
+/**
  * The deposit progress view's captured stops.
  *
  * Everything past the pre-sign entry sits behind a signature or a wait the
