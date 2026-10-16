@@ -3129,9 +3129,9 @@ export const COPY = {
     },
     // Groups exist, nothing warns and the order is already optimal.
     optimal: {
-      title: "Position optimally structured",
+      title: "Vault ordering is optimal",
       detail:
-        "BTC Vault ordering is correct and partial liquidation is enabled.",
+        "Your BTCVaults are in the optimal liquidation order. Your position can still be liquidated.",
     },
     // The Spoke risk-parameter read failed, so no cascade can be computed.
     // The live health-factor card is computed separately and still shows.
