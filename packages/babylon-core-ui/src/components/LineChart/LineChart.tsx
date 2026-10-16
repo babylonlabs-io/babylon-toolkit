@@ -56,6 +56,7 @@ export function LineChart({
   xTicks,
   markers,
   aspectRatio,
+  minPlotHeight,
   grid,
   hoverMode = "interpolate",
   renderTooltip,
@@ -76,6 +77,7 @@ export function LineChart({
     hasXAxis,
     aspectRatio,
     yAxisLabels,
+    minPlotHeight,
   });
 
   const resolvedXDomain = useMemo(() => xDomain ?? fitDomain(series.map((p) => p.x)), [xDomain, series]);

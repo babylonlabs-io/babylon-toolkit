@@ -84,6 +84,8 @@ export interface LineChartProps {
   markers?: LineChartMarker[];
   /** Plot width / plot height. Defaults to the shared chart aspect. */
   aspectRatio?: number;
+  /** Floor on the plot height in px; the plot grows past `aspectRatio` below it. Default 0. */
+  minPlotHeight?: number;
   grid?: ChartGridConfig;
   /** Default `"interpolate"`. */
   hoverMode?: LineChartHoverMode;
