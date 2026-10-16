@@ -1,8 +1,8 @@
-import { type DetailedHTMLProps, type HTMLAttributes, forwardRef } from "react";
+import { type ButtonHTMLAttributes, type DetailedHTMLProps, forwardRef } from "react";
 import { twJoin } from "tailwind-merge";
 import "./IconButton.css";
 
-type ButtonProps = Omit<DetailedHTMLProps<HTMLAttributes<HTMLButtonElement>, HTMLButtonElement>, "size">;
+type ButtonProps = Omit<DetailedHTMLProps<ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>, "size">;
 
 export interface IconButtonProps extends ButtonProps {
   className?: string;
