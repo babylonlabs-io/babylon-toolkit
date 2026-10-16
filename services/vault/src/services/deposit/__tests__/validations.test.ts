@@ -331,6 +331,8 @@ describe("Deposit Validations", () => {
       canConnectBtcWallet: false,
       hasProvider: true,
       commissionUnavailable: false,
+      pegInFeeUnavailable: false,
+      isPegInFeeError: false,
       isFeeError: false,
       feeError: null,
       feeDisabled: false,
@@ -540,6 +542,30 @@ describe("Deposit Validations", () => {
         commissionUnavailable: true,
       });
       expect(result.label).toContain("Minimum");
+    });
+
+    it("blocks with 'Calculating fees...' while the pegin fee is unavailable", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        pegInFeeUnavailable: true,
+        isPegInFeeError: false,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Calculating fees...",
+      });
+    });
+
+    it("blocks with 'Fee estimate unavailable' when the pegin fee read failed", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        pegInFeeUnavailable: true,
+        isPegInFeeError: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Fee estimate unavailable",
+      });
     });
 
     it("returns fee error message when fee estimation fails", () => {

@@ -153,6 +153,15 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * available rather than letting the flow bind to an unquoted fresh read.
    */
   commissionUnavailable: boolean;
+  /**
+   * True when a provider is selected but its Ethereum registration (pegin)
+   * fee hasn't been quoted (still fetching or the read failed). Registration
+   * charges this fee from the ETH wallet only after the Bitcoin signing
+   * steps, so block until the depositor has seen the quote.
+   */
+  pegInFeeUnavailable: boolean;
+  /** True when the pegin fee read failed; selects the error label over the loading one. */
+  isPegInFeeError: boolean;
   isFeeError: boolean;
   feeError: string | null;
   feeDisabled: boolean;
@@ -542,6 +551,15 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // "Minimum" isn't preempted by a transient commission load.
   if (params.commissionUnavailable) {
     return { disabled: true, label: "Loading commission..." };
+  }
+
+  if (params.pegInFeeUnavailable) {
+    return {
+      disabled: true,
+      label: params.isPegInFeeError
+        ? "Fee estimate unavailable"
+        : "Calculating fees...",
+    };
   }
 
   if (params.ordinalsCheckPending) {

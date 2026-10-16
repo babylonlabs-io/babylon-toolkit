@@ -83,6 +83,7 @@ const feeState: DepositFeeState = {
   appVersionUnsupported: false,
   p2aAnchorValueSats: 0n,
   depositorClaimValueError: null,
+  protocolFeeWei: 0n,
   protocolFeeAmount: "--",
   protocolFeePrice: "",
   protocolFeeIsError: false,

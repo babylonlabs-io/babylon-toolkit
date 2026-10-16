@@ -95,6 +95,11 @@ export interface DepositFeeState {
    * state. Null while the query is healthy.
    */
   depositorClaimValueError: Error | null;
+  /**
+   * Total Ethereum registration (pegin) fee in wei for the selected provider.
+   * Null while the read is loading or after it failed; the CTA waits on it.
+   */
+  protocolFeeWei: bigint | null;
   protocolFeeAmount?: string;
   protocolFeePrice?: string;
   protocolFeeIsError?: boolean;
@@ -241,6 +246,7 @@ export function DepositForm({
     depositorClaimValue,
     commissionBaseValues,
     depositorClaimValueError,
+    protocolFeeWei,
     protocolFeeAmount = "--",
     protocolFeePrice = "",
     protocolFeeIsError = false,
@@ -376,6 +382,7 @@ export function DepositForm({
   )?.commissionBps;
   const commissionUnavailable =
     !!selectedProvider && selectedProviderCommissionBps === undefined;
+  const pegInFeeUnavailable = !!selectedProvider && protocolFeeWei === null;
 
   const hasAmount = !!amount && amount !== "0";
   const isFeeError = hasAmount && !isLoadingFee && !!feeError;
@@ -410,6 +417,8 @@ export function DepositForm({
     canConnectBtcWallet,
     hasProvider: !!selectedProvider,
     commissionUnavailable,
+    pegInFeeUnavailable,
+    isPegInFeeError: protocolFeeIsError,
     isFeeError,
     feeError,
     feeDisabled,
