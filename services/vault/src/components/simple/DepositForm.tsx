@@ -105,6 +105,7 @@ export interface DepositFeeState {
   protocolFeeIsError?: boolean;
   ethBalanceBlocked?: boolean;
   ethBalanceMessage?: string | null;
+  onRefreshEthBalance?: () => void;
   feeRows?: FeeRow[];
 }
 
@@ -254,6 +255,7 @@ export function DepositForm({
     protocolFeeIsError = false,
     ethBalanceBlocked = false,
     ethBalanceMessage = null,
+    onRefreshEthBalance,
     feeRows,
   } = feeState;
   const { providers, isLoadingProviders, selectedProvider, onProviderSelect } =
@@ -566,6 +568,15 @@ export function DepositForm({
       {ethBalanceMessage && (
         <p className="text-sm text-accent-secondary" role="status">
           {ethBalanceMessage}
+          {ethBalanceBlocked && onRefreshEthBalance && (
+            <button
+              type="button"
+              className="ml-2 underline"
+              onClick={onRefreshEthBalance}
+            >
+              {COPY.deposit.form.refreshEthBalance}
+            </button>
+          )}
         </p>
       )}
       <DepositButton

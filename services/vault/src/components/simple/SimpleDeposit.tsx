@@ -1,6 +1,6 @@
 import { Heading } from "@babylonlabs-io/core-ui";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
@@ -104,6 +104,7 @@ function SimpleDepositContent({
   } = useAddressScreening();
   const { address: connectedEthAddress } = useETHWallet();
   const { chainId: walletChainId } = useAccount();
+  const queryClient = useQueryClient();
   const {
     address: connectedBtcAddress,
     reconnect: reconnectBtcWallet,
@@ -589,6 +590,12 @@ function SimpleDepositContent({
                   protocolFeeIsError,
                   ethBalanceBlocked,
                   ethBalanceMessage,
+                  onRefreshEthBalance: () => {
+                    void queryClient.invalidateQueries({
+                      queryKey: ["depositPeginFee"],
+                    });
+                    void ethBalance.refetch();
+                  },
                   feeRows,
                 }}
                 providerState={{

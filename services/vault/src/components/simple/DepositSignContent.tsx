@@ -60,6 +60,7 @@ export function DepositSignContent({
     currentVaultIndex,
     processing,
     error,
+    retryDeposit,
     resumableVaultIds,
     lastWarnings,
     isWaiting,
@@ -218,7 +219,7 @@ export function DepositSignContent({
     );
   }
 
-  // Offer Retry only when the continuation branch above can take the handoff.
+  // Registered vaults use the continuation. A top-up resumes this flow.
   const canResume =
     resumableVaultIds !== null &&
     resumableVaultIds.length > 0 &&
@@ -242,7 +243,7 @@ export function DepositSignContent({
         currentVaultIndex={currentVaultIndex}
         perVaultSteps={perVaultSteps}
         onClose={handleClose}
-        onRetry={canResume ? handleResume : undefined}
+        onRetry={retryDeposit ?? (canResume ? handleResume : undefined)}
         started={started}
         onSign={handleSign}
         btcConfirmationDetail={btcConfirmationDetail}

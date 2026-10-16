@@ -8,7 +8,7 @@
  * unavailable, which was simply untrue. These pin each reason to its own copy.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -140,6 +140,27 @@ function renderForm(
 describe("DepositForm split-unavailable hint", () => {
   const PROTOCOL_HINT =
     COPY.deposit.maxVaultsReached.splitUnavailableProtocolLimit;
+
+  it("lets the user refresh a blocked ETH balance check", () => {
+    let refreshCount = 0;
+    renderForm(
+      {},
+      {
+        ethBalanceBlocked: true,
+        ethBalanceMessage: COPY.deposit.errors.insufficientEthForGas.body,
+        onRefreshEthBalance: () => {
+          refreshCount += 1;
+        },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.deposit.form.refreshEthBalance,
+      }),
+    );
+    expect(refreshCount).toBe(1);
+    expect(screen.getByRole("button", { name: "Deposit" })).toBeDisabled();
+  });
 
   it("shows no hint when a split is available", () => {
     renderForm({ splitUnavailableReason: null });
