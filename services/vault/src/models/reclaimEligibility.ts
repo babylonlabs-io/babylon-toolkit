@@ -224,8 +224,9 @@ export function getReclaimEligibility(
     return { type: "blocked", tooltip: COPY.reclaim.blocked.protocolPaused };
   }
 
-  // The indexer reports the vault DEPOSITOR_WITHDRAWN a few blocks before the
-  // gate above holds: babylon-btc-monitor writes it once the Payout is
+  // The indexer reports the vault DEPOSITOR_WITHDRAWN (or NON_DEPOSITOR_SPEND,
+  // a vault keeper's claim) a few blocks before the gate above holds:
+  // babylon-btc-monitor writes either once the PegIn output 0 spend is
   // `spend-finality-depth` deep (default 2; `internal/service/service.go:292-295`
   // @ 1b3662c), and this app's own Bitcoin node can lag the monitor's, or
   // after a reorg never agree with it. `absent` here would drop the row from

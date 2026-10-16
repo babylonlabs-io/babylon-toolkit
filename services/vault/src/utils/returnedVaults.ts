@@ -7,8 +7,9 @@
  * indexer reports each of them REDEEMED, like an Aave withdrawal — but a
  * withdrawal keeps its collateral row and shows in Active Vaults as
  * `withdrawing` (`utils/collateral.ts`), while these have no row anywhere.
- * Inactive Vaults lists them until the payout lands and the indexer reports
- * them DEPOSITOR_WITHDRAWN, where the reclaim row takes over.
+ * Inactive Vaults lists them until the vault output is spent and the indexer
+ * reports them DEPOSITOR_WITHDRAWN, or NON_DEPOSITOR_SPEND when a vault keeper
+ * claimed the BTC instead, where the reclaim row takes over.
  *
  * Every indexer-REDEEMED vault was redeemed for the vault provider's key and
  * the depositor's own. The keeper-only redeems, the two Aave liquidation

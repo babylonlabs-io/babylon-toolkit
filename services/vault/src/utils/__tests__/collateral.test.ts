@@ -117,6 +117,27 @@ describe("Collateral Utilities", () => {
       expect(result).toHaveLength(0);
     });
 
+    it("should filter out non_depositor_spend vaults", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            peginTxHash: "0xpeginTxHash1",
+            amount: 100000000n,
+            status: "non_depositor_spend",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+            depositorBtcPubKey: "0xbtcpubkey1",
+            depositorPayoutBtcAddress: "0xpayout1",
+            offchainParamsVersion: 1,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result).toHaveLength(0);
+    });
+
     it("should keep a vault whose peg-out is in flight as a withdrawing row", () => {
       const collaterals = [
         makeCollateral({
