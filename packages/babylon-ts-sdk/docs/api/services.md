@@ -979,6 +979,105 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](htt
 Error.cause
 ```
 
+***
+
+### RefundBroadcastRejectedError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+Thrown when the broadcast transport relays bitcoind `-25` (a general
+transaction error, usually missing or already spent inputs) or `-27` (this
+transaction is already in the chain). `signedTxHex` is the exact
+transaction that was broadcast, so callers can re-probe the HTLC outpoint
+and attribute the spender. The original transport error is available via
+[cause](#cause-1).
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new RefundBroadcastRejectedError(
+   code, 
+   vaultId, 
+   signedTxHex, 
+   cause): RefundBroadcastRejectedError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+###### Parameters
+
+###### code
+
+`-27` | `-25`
+
+###### vaultId
+
+`` `0x${string}` ``
+
+###### signedTxHex
+
+`string`
+
+###### cause
+
+`Error`
+
+###### Returns
+
+[`RefundBroadcastRejectedError`](#refundbroadcastrejectederror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### code
+
+```ts
+readonly code: -27 | -25;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+##### vaultId
+
+```ts
+readonly vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+##### signedTxHex
+
+```ts
+readonly signedTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+##### cause
+
+```ts
+readonly cause: Error;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/refund/errors.ts)
+
+###### Overrides
+
+```ts
+Error.cause
+```
+
 ## Interfaces
 
 ### EthContractWriteCall
@@ -7948,8 +8047,9 @@ not enforce this; it is the caller's responsibility.
 
 The broadcast transport is expected to surface Bitcoin's `non-BIP68-final`
 policy rejection as an `Error` whose message contains that string; when
-it does, the SDK wraps it in [BIP68NotMatureError](#bip68notmatureerror). All other
-transport errors propagate unchanged.
+it does, the SDK wraps it in [BIP68NotMatureError](#bip68notmatureerror). Relayed bitcoind
+`-25` / `-27` rejections are wrapped in [RefundBroadcastRejectedError](#refundbroadcastrejectederror).
+All other transport errors propagate unchanged.
 
 #### Type Parameters
 
@@ -7977,6 +8077,12 @@ whatever the injected `broadcastTx` returns (generic pass-through)
 
 [BIP68NotMatureError](#bip68notmatureerror) if the broadcast is rejected because
         the refund CSV timelock has not yet matured
+
+#### Throws
+
+[RefundBroadcastRejectedError](#refundbroadcastrejectederror) if the broadcast is rejected
+        with bitcoind `-25` (a general transaction error, usually missing
+        or spent inputs) or `-27` (already in the chain)
 
 #### Throws
 
