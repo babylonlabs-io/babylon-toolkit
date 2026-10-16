@@ -690,6 +690,8 @@ export const COPY = {
       heading: "Review Refund",
       refundAmount: "Refund Amount",
       networkFeeRate: "Network Fee Rate",
+      recommendedFeeRate: (rate: number) => `Recommended: ${rate} sats/vB`,
+      recommendationUnavailable: "Recommendation unavailable",
       btcNetworkFee: "BTC Network Fee",
       youReceive: "You'll receive",
       fallbackFeeWarning:
