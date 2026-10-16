@@ -36,6 +36,7 @@ const deviceCancelState = vi.hoisted(() => ({
 const flowErrorState = vi.hoisted(() => ({
   error: null as DepositErrorContent | null,
   resumableVaultIds: null as Hex[] | null,
+  retryDeposit: null as (() => void) | null,
 }));
 // Captures the latest `onSign` handed to DepositProgressView so a test can
 // invoke it twice synchronously — the real double-click race that happens
@@ -60,6 +61,7 @@ vi.mock("@/hooks/deposit/useDepositFlow", () => ({
     processing: false,
     error: flowErrorState.error,
     resumableVaultIds: flowErrorState.resumableVaultIds,
+    retryDeposit: flowErrorState.retryDeposit,
     lastWarnings: [],
     isWaiting: false,
     payoutSigningProgress: null,
@@ -177,6 +179,7 @@ describe("DepositSignContent", () => {
     deviceCancelState.requested = false;
     flowErrorState.error = null;
     flowErrorState.resumableVaultIds = null;
+    flowErrorState.retryDeposit = null;
   });
 
   it("keeps a deposit unstarted until the user retries after connection", () => {
@@ -194,6 +197,21 @@ describe("DepositSignContent", () => {
     expect(view.queryByTestId("progress")).toBeNull();
     fireEvent.click(view.getByTestId("summary-sign"));
     expect(mockExecuteDeposit).toHaveBeenCalledOnce();
+  });
+
+  it("retries the paused registration without starting a new deposit", () => {
+    let retryCount = 0;
+    flowErrorState.error = COPY.deposit.errors.insufficientEthForGas;
+    flowErrorState.retryDeposit = () => {
+      retryCount += 1;
+    };
+    mockExecuteDeposit.mockResolvedValue(null);
+    const view = renderContent();
+    fireEvent.click(view.getByTestId("summary-sign"));
+    fireEvent.click(view.getByTestId("retry"));
+    expect(retryCount).toBe(1);
+    expect(mockExecuteDeposit).toHaveBeenCalledTimes(1);
+    expect(view.queryByTestId("continuation")).toBeNull();
   });
 
   it("renders Retry and switches to the continuation view after a post-registration device error", async () => {

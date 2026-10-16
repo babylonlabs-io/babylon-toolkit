@@ -205,6 +205,8 @@ export interface UseDepositFlowReturn {
   processing: boolean;
   /** Mapped error content (title + body) if any step failed */
   error: DepositErrorContent | null;
+  /** Continue after an ETH top-up. Prepared Bitcoin data stays in memory. */
+  retryDeposit: (() => void) | null;
   /**
    * Registered vault ids when `error` is a post-registration device failure or
    * self-cancel — the deposit is on-chain, so the modal can resume in place.
@@ -344,6 +346,7 @@ export function useDepositFlow(
   );
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<DepositErrorContent | null>(null);
+  const [retryDeposit, setRetryDeposit] = useState<(() => void) | null>(null);
   const [resumableVaultIds, setResumableVaultIds] = useState<Hex[] | null>(
     null,
   );
@@ -520,6 +523,7 @@ export function useDepositFlow(
       // Set once the ETH batch registration is mined: a later cancel gets the
       // after-registration copy, a later device failure gets the in-modal resume.
       let registeredVaultIds: Hex[] | null = null;
+      let registrationSendStarted = false;
       // Set when the post-gate UTXO re-check could not reach the mempool API:
       // nothing was signed, so the registered vaults can resume in the modal.
       let postGateUtxoFetchFailed = false;
@@ -555,6 +559,28 @@ export function useDepositFlow(
             }
             throw new Error(COPY.deposit.errors.depositChanged.body);
           }
+        };
+        const waitForEthTopUp = async (err: unknown) => {
+          signal.throwIfAborted();
+          setError(mapDepositError(err));
+          await new Promise<void>((resolve, reject) => {
+            let settled = false;
+            const onAbort = () => {
+              settled = true;
+              setRetryDeposit(null);
+              reject(signal.reason);
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            setRetryDeposit(() => () => {
+              if (settled) return;
+              settled = true;
+              signal.removeEventListener("abort", onAbort);
+              setRetryDeposit(null);
+              setError(null);
+              resolve();
+            });
+          });
+          assertDepositIdentity();
         };
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
         // gated and the on-chain register below is contract-enforced
@@ -670,6 +696,7 @@ export function useDepositFlow(
           ...connectedWalletClient,
           sendTransaction: (request) => {
             assertDepositIdentity();
+            registrationSendStarted = true;
             return connectedWalletClient.sendTransaction(request);
           },
         };
@@ -884,32 +911,38 @@ export function useDepositFlow(
           ? await requireChangeAddress(phaseTrackingBtcWallet)
           : confirmedBtcAddress;
 
-        assertDepositIdentity();
-        let protocolFee: bigint;
-        let ethBalance: bigint;
-        try {
-          [protocolFee, ethBalance] = await Promise.all([
-            getPegInFeeFromChain(primaryProvider),
-            ethClient
-              .getPublicClient()
-              .getBalance({ address: confirmedEthAddress }),
-          ]);
-        } catch (cause) {
-          throw new Error(COPY.deposit.errors.ethBalanceUnavailable.body, {
-            cause,
-          });
-        }
-        assertDepositIdentity();
-        if (
-          typeof protocolFee !== "bigint" ||
-          typeof ethBalance !== "bigint" ||
-          protocolFee < 0n ||
-          ethBalance < 0n
-        ) {
-          throw new Error(COPY.deposit.errors.ethBalanceUnavailable.body);
-        }
-        if (ethBalance <= protocolFee * BigInt(vaultAmounts.length)) {
-          throw new Error(COPY.deposit.errors.insufficientEthForGas.body);
+        for (;;) {
+          assertDepositIdentity();
+          let protocolFee: bigint;
+          let ethBalance: bigint;
+          try {
+            [protocolFee, ethBalance] = await Promise.all([
+              getPegInFeeFromChain(primaryProvider),
+              ethClient
+                .getPublicClient()
+                .getBalance({ address: confirmedEthAddress }),
+            ]);
+          } catch (cause) {
+            throw new Error(COPY.deposit.errors.ethBalanceUnavailable.body, {
+              cause,
+            });
+          }
+          assertDepositIdentity();
+          if (
+            typeof protocolFee !== "bigint" ||
+            typeof ethBalance !== "bigint" ||
+            protocolFee < 0n ||
+            ethBalance < 0n
+          ) {
+            throw new Error(COPY.deposit.errors.ethBalanceUnavailable.body);
+          }
+          if (ethBalance <= protocolFee * BigInt(vaultAmounts.length)) {
+            await waitForEthTopUp(
+              new Error(COPY.deposit.errors.insufficientEthForGas.body),
+            );
+            continue;
+          }
+          break;
         }
         advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
         const batchResult = await preparePeginTransaction(
@@ -1026,16 +1059,36 @@ export function useDepositFlow(
         // 3e. Single batch ETH transaction for all vaults.
         assertDepositIdentity();
         advanceStep(DepositFlowStep.SUBMIT_PEGIN);
-        const batchRegistration = await registerPeginBatchAndWait({
-          btcWalletProvider: confirmedBtcWallet,
-          walletClient,
-          vaultProviderAddress: primaryProvider,
-          unsignedPrePeginTx: batchResult.fundedPrePeginTxHex,
-          requests: batchRequests,
-          popSignature,
-          quotedCommissionBps,
-          expectedFingerprint,
-        });
+        let batchRegistration;
+        for (;;) {
+          assertDepositIdentity();
+          try {
+            batchRegistration = await registerPeginBatchAndWait({
+              btcWalletProvider: confirmedBtcWallet,
+              walletClient,
+              vaultProviderAddress: primaryProvider,
+              unsignedPrePeginTx: batchResult.fundedPrePeginTxHex,
+              requests: batchRequests,
+              popSignature,
+              quotedCommissionBps,
+              expectedFingerprint,
+            });
+            break;
+          } catch (err) {
+            // A send can have an unknown result. Retry only before it starts.
+            if (
+              registrationSendStarted ||
+              mapDepositError(err) !== COPY.deposit.errors.insufficientEthForGas
+            ) {
+              throw err;
+            }
+            await waitForEthTopUp(err);
+            await assertUtxosAvailable(
+              batchResult.fundedPrePeginTxHex,
+              confirmedBtcAddress,
+            );
+          }
+        }
         registeredVaultIds = batchRegistration.vaults.map(
           (vault) => vault.vaultId,
         );
@@ -1940,6 +1993,7 @@ export function useDepositFlow(
         }
         return null;
       } finally {
+        setRetryDeposit(null);
         setProcessing(false);
         if (!signal.aborted) {
           setCurrentVaultIndex(null);
@@ -2009,6 +2063,7 @@ export function useDepositFlow(
     currentVaultIndex,
     processing,
     error,
+    retryDeposit,
     resumableVaultIds,
     /** Soft warnings from the most recent flow (empty until completion). */
     lastWarnings,

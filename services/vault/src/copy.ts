@@ -1054,6 +1054,7 @@ export const COPY = {
       computingAllocation: "Computing allocation...",
       ethBalanceChecking:
         "Checking your ETH balance and registration payment...",
+      refreshEthBalance: "Refresh ETH balance",
       registrationGasCheckedLater:
         "Your ETH balance covers the registration payment. Network gas is checked before Ethereum registration. Activation gas is separate.",
       transactionReserveLabel: "Depositor claim output",
