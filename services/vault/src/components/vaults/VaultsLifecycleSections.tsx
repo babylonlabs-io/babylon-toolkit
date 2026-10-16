@@ -262,8 +262,9 @@ function PendingRow({
 
   return (
     // This row's data-testid is a real-wallet E2E hook
-    // (e2e/real/actions/resume.ts) — carry it over if you move or rename the
-    // element. The harness scopes a --txid resume to one row through it.
+    // (e2e/real/actions/resume.ts, e2e/real/actions/forgedStuck.ts) — carry it
+    // over if you move or rename the element. The harness scopes a --txid run
+    // to one deposit's rows through it.
     <div
       data-testid="pending-deposit-row"
       className={`${LIST_ROW_MIN_HEIGHT_CLASS} flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4 xl:flex-nowrap`}
@@ -359,8 +360,9 @@ function PendingRow({
       <div className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full`}>
         {actionStatus.type === "available" ? (
           // This control's data-testid is a real-wallet E2E hook
-          // (e2e/real/actions/resume.ts) — carry it over if you move or rename
-          // the element. It replaces the v2 pending-deposit card's resume CTA.
+          // (e2e/real/actions/resume.ts, e2e/real/actions/forgedStuck.ts) —
+          // carry it over if you move or rename the element. It replaces the
+          // v2 pending-deposit card's resume CTA.
           <button
             type="button"
             onClick={() => routeAction(actionStatus.action.action)}

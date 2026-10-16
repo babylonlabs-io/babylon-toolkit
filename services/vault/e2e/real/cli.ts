@@ -101,6 +101,16 @@
  * `--interrupt-only` pegs in + broadcasts a fresh deposit then STOPS (no resume), printing its Pre-PegIn
  * txid — for staged manual verification: let it reach "Submit WOTS Key" on-chain, then re-run with
  * `--txid=<that txid>` to resume it in steps.
+ *
+ * Forged-stuck plays a lying mempool API against a Verified, not yet activated deposit: the page's
+ * outspend for its HTLC names the PegIn as the spender, and its PegIn is served without the secret. The
+ * deposit's row must keep offering Activate and never offer Withdraw (activate-and-redeem). It takes
+ * either an existing deposit (`--txid=<prePeginTxid>`, which sends nothing) or `--pegin-first`, which
+ * pegs in a fresh single-vault deposit (honoring `--amount` / `--vp`) and stops at the Activate gate,
+ * once it is Verified. `--activate` then activates the deposit normally with the forgery still
+ * installed. `--pegin-first` spends signet BTC and Sepolia ETH, and `--activate` Sepolia gas, so NEVER
+ * run either without an explicit go-ahead. Run it on `--target=localhost` to test local app code (see
+ * actions/forgedStuck.ts).
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
@@ -545,6 +555,43 @@ async function resolveConfig(
       action === "recover" && typeof flags.txid === "string"
         ? flags.txid
         : undefined;
+    // `forged-stuck` forges one named deposit, never a guessed one: an existing Verified deposit
+    // (`--txid`), or a fresh one it pegs in and stops at the Activate gate (`--pegin-first`).
+    let forgedStuckTxid =
+      action === "forged-stuck" && typeof flags.txid === "string"
+        ? flags.txid
+        : undefined;
+    if (action === "forged-stuck") {
+      peginFirst = flagBool(flags["pegin-first"]);
+      // An interactive run that named neither asks which deposit to forge.
+      if (forgedStuckTxid === undefined && !peginFirst && interactive) {
+        const target = await select<"existing" | "pegin">(
+          rl,
+          "Deposit to forge",
+          [
+            {
+              value: "existing",
+              label: "An existing Verified, not yet activated deposit",
+            },
+            {
+              value: "pegin",
+              label: "Peg in a fresh deposit and stop before activation",
+            },
+          ],
+        );
+        if (target === "pegin") peginFirst = true;
+        else
+          forgedStuckTxid = (
+            await rl.question("\nPre-PegIn txid of the deposit: ")
+          ).trim();
+      }
+      if ((forgedStuckTxid === undefined) === !peginFirst)
+        throw new Error(
+          "forged-stuck needs exactly one of --txid=<Pre-PegIn txid> (an existing Verified, not yet activated deposit) or --pegin-first (peg in a fresh one and stop before activation).",
+        );
+    }
+    const forgedStuckActivate =
+      action === "forged-stuck" && flagBool(flags.activate);
 
     // Pegin extras. A flag always wins; otherwise fetch the network's real values (like the balance
     // pre-flight) and offer them as defaults — amount ⇒ minimum, provider ⇒ first available. Collected
@@ -553,7 +600,8 @@ async function resolveConfig(
     const needsPeginParams =
       action === "pegin" ||
       (willBorrow && peginFirst) ||
-      (action === "resume" && (interruptFresh || interruptOnly));
+      (action === "resume" && (interruptFresh || interruptOnly)) ||
+      (action === "forged-stuck" && peginFirst);
 
     // Split: `--split` wins; else prompt (default = single vault). Resolved first because the deposit
     // minimum depends on it — a two-vault split needs a larger deposit than a single vault.
@@ -561,7 +609,8 @@ async function resolveConfig(
     if (needsPeginParams) {
       if (flags.split !== undefined) {
         split = flagBool(flags.split);
-      } else if (interactive) {
+      } else if (interactive && action !== "forged-stuck") {
+        // forged-stuck pegs in a single vault (refused below), so it never asks.
         split =
           (await select<"single" | "split">(rl, "Deposit type", [
             { value: "single", label: "Single-vault deposit" },
@@ -569,6 +618,11 @@ async function resolveConfig(
           ])) === "split";
       }
     }
+    // `forged-stuck --pegin-first` stops at the first Activate gate, before a split sibling is Verified.
+    if (action === "forged-stuck" && split)
+      throw new Error(
+        "forged-stuck --pegin-first pegs in a single vault; drop --split.",
+      );
     // A plain resume (no --interrupt-fresh) of a batched/split deposit still needs --split so the step
     // machine and the dashboard cross-check expect the right vault count — the block above only resolves
     // it for pegin-bearing runs (a plain resume fetches no pegin params), yet real dashboards are batched.
@@ -985,6 +1039,8 @@ async function resolveConfig(
       interruptFresh,
       interruptOnly,
       reclaimDryRun,
+      forgedStuckTxid,
+      forgedStuckActivate,
       injectNonceTooLow,
       injectReorg,
     };

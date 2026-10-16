@@ -399,11 +399,13 @@ export function PeginPollingProvider({
     refetch: refreshHtlcSpends,
   } = useBtcHtlcRefundStatus(htlcRefundOutpoints, HTLC_REFUND_QUERY_KEY);
 
-  // Tier-1 stuck suspects: VERIFIED (per the indexer) with the HTLC proven
+  // Tier-1 stuck suspects: VERIFIED (per the indexer) with the HTLC reported
   // swept by the pegin tx. Cheap — it reuses the probe above and adds no
   // request. Tier 2 confirms each against the chain, because that BTC evidence
   // is equally consistent with a healthy deposit whose activation the indexer
-  // has not caught up to yet.
+  // has not caught up to yet. Tier 3 requires the PegIn's own witness to be a
+  // valid spend of the HTLC, because the report names a public txid any API
+  // can repeat.
   const stuckSuspectIds = useMemo(() => {
     const ids: Hex[] = [];
     for (const a of activities) {

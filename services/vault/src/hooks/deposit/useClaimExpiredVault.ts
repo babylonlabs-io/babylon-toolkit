@@ -10,12 +10,13 @@
  * 2. the chain head against the vault's frozen `claimExpiredUntil`;
  * 3. a fresh Bitcoin probe that the PegIn — identified from the on-chain
  *    signed PegIn, not the indexer — is what spent the HTLC, then the PegIn
- *    itself fetched from Bitcoin, whose witness must carry the preimage of the
- *    on-chain hashlock. This is the one check that protects value: revealing
- *    the secret while the HTLC is unspent lets anyone broadcast the PegIn
- *    ahead of the depositor's own refund. The mempool API's word is not
- *    trusted for it — a preimage in the PegIn's witness proves the secret is
- *    already public. It fails closed;
+ *    itself fetched from Bitcoin, whose witness must be one Bitcoin accepts:
+ *    the preimage of the on-chain hashlock and every participant's signature.
+ *    This is the one check that protects value: revealing the secret while
+ *    the HTLC is unspent lets anyone broadcast the PegIn ahead of the
+ *    depositor's own refund. The mempool API's word is not trusted for it — a
+ *    valid PegIn witness shows whoever served it already holds the secret,
+ *    so revealing it here cannot start that race. It fails closed;
  * 4. `sha256(secret) === hashlock` against the on-chain hashlock, which the
  *    SDK checks once more before calldata exists.
  *
@@ -29,14 +30,8 @@
  * a failed read never hides the exit; this click-time check decides.
  */
 
-import {
-  ensureHexPrefix,
-  stripHexPrefix,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import {
-  getTxHex,
-  OnChainBtcVaultStatus,
-} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
@@ -49,7 +44,7 @@ import { getMempoolApiUrl } from "@/clients/btc/config";
 import {
   fetchHtlcSpend,
   isHtlcSpentByPegin,
-  peginWitnessRevealsSecret,
+  provePeginSpendsHtlc,
 } from "@/clients/btc/outspend";
 import { ethClient } from "@/clients/eth-contract/client";
 import { getOnChainPauseState } from "@/clients/eth-contract/pause-state/query";
@@ -241,25 +236,19 @@ export function useClaimExpiredVault({
           throw new ClaimExpiredNotPossibleError(errors.spentByOther);
         }
         // The API's attribution is only its word. Fetch the PegIn itself and
-        // require its witness to carry the preimage of the on-chain hashlock:
-        // then the secret is already public on Bitcoin, and revealing it here
-        // cannot start the race above. Retryable either way — an unreadable or
+        // require a witness Bitcoin would accept — the preimage of the
+        // on-chain hashlock and every participant's signature: then whoever
+        // served it already holds the secret, so revealing it here cannot
+        // start the race above. Retryable either way — an unreadable or
         // unproven PegIn may be a lagging or wrong API, not a final state.
-        const peginTxHex = await getTxHex(
-          stripHexPrefix(peginTxid),
-          getMempoolApiUrl(),
-        ).catch((cause: unknown) => {
-          throw new Error(errors.peginProofUnavailable, { cause });
-        });
-        if (
-          !peginWitnessRevealsSecret(peginTxHex, {
-            peginTxid,
-            prePeginTxHash: protocol.prePeginTxHash,
-            htlcVout: protocol.htlcVout,
-            hashlock: protocol.hashlock,
-          })
-        ) {
-          throw new Error(errors.peginProofFailed);
+        const proof = await provePeginSpendsHtlc(protocol, getMempoolApiUrl());
+        if (proof.status === "unavailable") {
+          throw new Error(errors.peginProofUnavailable, { cause: proof.cause });
+        }
+        if (proof.status !== "proven") {
+          throw new Error(errors.peginProofFailed, {
+            cause: new Error(proof.reason),
+          });
         }
 
         if (

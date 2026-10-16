@@ -253,6 +253,21 @@ export const RESUME_ACTIONABLE_TIMEOUT_MS = PEGIN_STEP_MACHINE_BUDGET_MS;
 /** Poll cadence while waiting for the pending row to appear / become actionable (sweeps pop-ups too). */
 export const RESUME_POLL_INTERVAL_MS = 5_000;
 
+// ── forged-stuck (a forged mempool spend report against a Verified vault) ─────
+/**
+ * How long the deposit's row is watched under the forgery. The app's HTLC spend probe and the stuck
+ * state's on-chain and Bitcoin confirmation each run on mount and then every 60s, so this spans two of
+ * their cycles plus slack for the first load.
+ */
+export const FORGED_STUCK_OBSERVE_MS = 150_000;
+/** How often the watched row is read; the run fails at the first read that offers Withdraw. */
+export const FORGED_STUCK_POLL_MS = 5_000;
+/**
+ * How much longer the row is watched when it offers no Activate yet: a freshly verified deposit
+ * (`--pegin-first`) waits for its on-chain activation window before Activate appears.
+ */
+export const FORGED_STUCK_ACTIVATE_WAIT_MS = 30 * 60 * 1_000;
+
 // ── sign-conformance (per-wallet signing replay) ─────────────────────────────
 /**
  * Budget for one signing call to resolve (popup open → approver confirms → signature returned). A

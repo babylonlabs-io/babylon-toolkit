@@ -5,18 +5,20 @@
  * them apart with `isHtlcSpentByPegin` below. A pure BTC refund emits no
  * Ethereum event, so neither the indexer nor the BTC monitor sees it today —
  * the frontend reads the spend status directly from the esplora-compatible
- * `outspend` endpoint. Before a secret is revealed, `peginWitnessRevealsSecret`
- * proves the PegIn's spend from the transaction itself instead.
+ * `outspend` endpoint. That endpoint's word is never enough to reveal a secret
+ * on: `provePeginSpendsHtlc` proves from the PegIn transaction itself that it
+ * is a valid spend of the HTLC, and every path that reveals the secret after a
+ * reported PegIn sweep runs it first.
  */
 
+import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  ensureHexPrefix,
-  stripHexPrefix,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import { getOutspend } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { Transaction } from "bitcoinjs-lib";
-import type { Hex } from "viem";
+  getOutspend,
+  getTxHex,
+  type VaultProtocolInfo,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { verifyPeginHashlockSpend } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 
 import { normalizeChainHeight } from "@/models/reclaimEligibility";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -84,61 +86,66 @@ export function isHtlcSpentByPegin(
   );
 }
 
-/** Byte length of the HTLC secret: the hashlock leaf enforces `OP_SIZE <32>`. */
-const HTLC_PREIMAGE_BYTES = 32;
+/** The fields of a vault's on-chain registry record the PegIn proof reads. */
+export type PeginProofSource = Pick<
+  VaultProtocolInfo,
+  "depositorSignedPeginTx" | "prePeginTxHash" | "htlcVout" | "hashlock"
+>;
 
-/** The on-chain facts a PegIn transaction is checked against. */
-export interface PeginSpendExpectation {
-  /** Txid of the on-chain signed PegIn (no `0x` required). */
-  peginTxid: string;
-  /** The vault's HTLC outpoint, as registered on chain. */
-  prePeginTxHash: string;
-  htlcVout: number;
-  /** The vault's on-chain hashlock, `sha256(secret)`. */
-  hashlock: string;
-}
+export type PeginSpendProof =
+  | { status: "proven" }
+  /** The PegIn or its Pre-PegIn could not be fetched from Bitcoin. */
+  | { status: "unavailable"; cause: unknown }
+  /** What was served is not the vault's PegIn validly spending its HTLC. */
+  | { status: "unproven"; reason: string };
 
 /**
- * Whether `txHex` is the vault's PegIn spending its HTLC through the hashlock
- * leaf: its txid is the on-chain PegIn's, an input spends the HTLC outpoint,
- * and that input's witness carries the 32-byte preimage of the hashlock.
+ * Whether Bitcoin data proves the vault's PegIn is a valid spend of its HTLC:
+ * the PegIn, fetched by the txid of the on-chain signed PegIn, spends the
+ * registered HTLC outpoint with a witness Bitcoin would accept — the preimage
+ * of the registered hashlock and every participant's signature
+ * (`verifyPeginHashlockSpend`). Whoever can serve that transaction holds the
+ * secret, and can broadcast it while the HTLC is unspent.
  *
- * This is proof from the transaction itself, not from the mempool API's word.
- * A txid does not commit to the witness, so the preimage is what carries the
- * weight: only someone who already knows the secret can produce one, so a
- * match shows the secret is public before the redeem reveals it on Ethereum —
- * whatever the API reports about where the transaction is. The hashlock leaf
- * witness is `[UC…, VK…, VP, depositor, preimage, script, control block]`; any
- * 32-byte item is checked rather than a fixed position, since every other item
- * is longer and any item that hashes to the hashlock is the secret.
+ * Takes the registry record itself, so the txids, the outpoint and the hashlock
+ * all come from one on-chain read and no indexer value can be mixed in. The
+ * signed PegIn stored on Ethereum (the PegIn's txid, no preimage) does not
+ * pass, nor does a witness with a leaked secret and signatures that do not
+ * verify. The participants' signatures are public, so once the secret is too,
+ * anyone can build a passing PegIn: the proof shows a valid spend of the HTLC,
+ * broadcastable while the HTLC is unspent, not that it was broadcast. A
+ * malformed signed PegIn in the registry throws rather than reading as
+ * unproven; the registered Pre-PegIn txid is a `bytes32`, so it is always a
+ * well-formed txid, and a fetch that fails for either transaction reads as
+ * unavailable.
  */
-export function peginWitnessRevealsSecret(
-  txHex: string,
-  expected: PeginSpendExpectation,
-): boolean {
-  let tx: Transaction;
+export async function provePeginSpendsHtlc(
+  vault: PeginProofSource,
+  apiUrl: string,
+): Promise<PeginSpendProof> {
+  const peginTxid = stripHexPrefix(
+    calculateBtcTxHash(vault.depositorSignedPeginTx),
+  );
+  const prePeginTxid = stripHexPrefix(vault.prePeginTxHash);
+  let peginTxHex: string;
+  let prePeginTxHex: string;
   try {
-    tx = Transaction.fromHex(stripHexPrefix(txHex));
-  } catch {
-    return false;
+    [peginTxHex, prePeginTxHex] = await Promise.all([
+      getTxHex(peginTxid, apiUrl),
+      getTxHex(prePeginTxid, apiUrl),
+    ]);
+  } catch (cause) {
+    return { status: "unavailable", cause };
   }
-  if (canonicalizeTxid(tx.getId()) !== canonicalizeTxid(expected.peginTxid)) {
-    return false;
-  }
-  const htlcTxid = canonicalizeTxid(expected.prePeginTxHash);
-  const htlcInput = tx.ins.find(
-    (input) =>
-      input.index === expected.htlcVout &&
-      Buffer.from(input.hash).reverse().toString("hex") === htlcTxid,
-  );
-  if (!htlcInput) return false;
-  const hashlock = ensureHexPrefix(expected.hashlock) as Hex;
-  return htlcInput.witness.some(
-    (item) =>
-      item.length === HTLC_PREIMAGE_BYTES &&
-      validateSecretAgainstHashlock(
-        ensureHexPrefix(item.toString("hex")) as Hex,
-        hashlock,
-      ),
-  );
+  const verdict = verifyPeginHashlockSpend({
+    peginTxHex,
+    prePeginTxHex,
+    peginTxid,
+    prePeginTxid,
+    htlcVout: vault.htlcVout,
+    hashlock: vault.hashlock,
+  });
+  return verdict.valid
+    ? { status: "proven" }
+    : { status: "unproven", reason: verdict.reason };
 }

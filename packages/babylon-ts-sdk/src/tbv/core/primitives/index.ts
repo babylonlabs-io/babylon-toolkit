@@ -46,6 +46,9 @@
  * - {@link buildNoPayoutPsbt} - Create NoPayout PSBT per challenger (depositor-as-claimer path)
  * - {@link buildChallengeAssertPsbt} - Create ChallengeAssert PSBT (tooling only; not claimer-signed)
  *
+ * ### Transaction Verification
+ * - {@link verifyPeginHashlockSpend} - Check a served PegIn spends its vault's HTLC with a witness Bitcoin would accept
+ *
  * ### Script Generators
  * - {@link createPayoutScript} - Generate taproot payout script
  *
@@ -162,6 +165,12 @@ export type { AssertPsbtUnsignedTxMatchesParams } from "./psbt/assertPsbtUnsigne
 
 export { assertScriptPathSchnorrSignature } from "./psbt/verifyScriptPathSchnorrSignature";
 export type { VerifyScriptPathSchnorrSignatureParams } from "./psbt/verifyScriptPathSchnorrSignature";
+
+export { verifyPeginHashlockSpend } from "./psbt/verifyPeginHashlockSpend";
+export type {
+  PeginHashlockSpendVerdict,
+  VerifyPeginHashlockSpendParams,
+} from "./psbt/verifyPeginHashlockSpend";
 
 export { finalizeScriptPathWithSignatures } from "./psbt/finalizeScriptPathWithSignatures";
 export type { FinalizeScriptPathWithSignaturesParams } from "./psbt/finalizeScriptPathWithSignatures";

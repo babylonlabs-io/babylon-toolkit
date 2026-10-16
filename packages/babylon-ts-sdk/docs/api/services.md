@@ -3472,7 +3472,15 @@ The caller MUST prove the spender by comparing the outspend's
 bare "spent" observation is not sufficient: the spend may be the
 depositor's own CSV refund, and offering the secret-revealing hatch
 against a refund burns the secret for a vault whose funds already
-returned.
+returned. Nor is that match alone, when the outspend comes from an API
+the caller does not control: the PegIn txid is public, so an API can name
+it for a healthy vault and hide the normal activation. Fetch the PegIn by
+the txid of the on-chain signed PegIn and require its HTLC input's
+witness to pass `verifyPeginHashlockSpend`. Then the PegIn is a valid
+spend of the HTLC — broadcast, or broadcastable by anyone while the HTLC
+is unspent: the participants' signatures are public, so a witness Bitcoin
+would accept needs only the secret, which an API cannot produce before it
+is public.
 
 ##### canClaimExpired?
 
@@ -3486,10 +3494,13 @@ EXPIRED only: the vault expired after reaching Verified, the PegIn
 transaction has spent the Pre-PegIn HTLC, and the claim window has not
 elapsed. The CSV refund is gone, so the claim is the remaining exit.
 
-The same spender proof as `htlcSpentByPeginTx` applies: offering the claim
-while the HTLC is unspent reveals the secret and lets anyone broadcast the
-PegIn ahead of the depositor's refund. When set, it takes precedence over
-`canRefund`, which a proven PegIn spend makes impossible.
+Set it from the same spender attribution as `htlcSpentByPeginTx` — the
+outspend's `spendingTxid` equal to the vault's PegIn txid — never from a
+bare "spent". Before the claim reveals the secret, the PegIn must also
+pass `verifyPeginHashlockSpend`, as for `htlcSpentByPeginTx`: revealing
+the secret while the HTLC is unspent lets anyone broadcast the PegIn ahead
+of the depositor's refund. When set, it takes precedence over
+`canRefund`: once the PegIn has spent the HTLC, the refund cannot.
 
 ***
 
