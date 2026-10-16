@@ -352,10 +352,11 @@ async function discoverBatch(
     if (siblings[i].htlcVout !== i) {
       const observed = siblings.map((s) => s.htlcVout).join(", ");
       throw new Error(
-        `Sibling vault discovery produced a non-contiguous HTLC vector ` +
-          `for prePeginTxHash ${targetPrePeginTxHash}: expected vouts ` +
-          `[0..${siblings.length - 1}], observed [${observed}]. ` +
-          `Refund refused — sibling set incomplete or indexer out of sync.`,
+        COPY.deposit.errors.refundSiblingVectorNonContiguous(
+          targetPrePeginTxHash,
+          siblings.length - 1,
+          observed,
+        ),
       );
     }
   }

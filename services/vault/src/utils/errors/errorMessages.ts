@@ -40,7 +40,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // produces the same hashlock and reverts here. Kept in sync with the
   // SDK signature-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
   DuplicateHashlock:
-    "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
+    "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs. Use different UTXOs to create a unique deposit.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
   PeginTransactionExpired: "The peg-in transaction has expired.",
