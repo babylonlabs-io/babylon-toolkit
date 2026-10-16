@@ -42,8 +42,7 @@ Resolve participant keys **before** this call. The arrays must be sorted RFC-006
 
 ```ts
 const { vault, context } = toRefundInputs(result, {
-  htlcVout, depositorBtcPubkey, applicationEntryPoint,
-  fundedPrePeginTxHex, hashlocks, network,
+  htlcVout, depositorBtcPubkey, applicationEntryPoint, hashlocks, network,
 });
 
 await buildAndBroadcastRefund({
@@ -54,7 +53,7 @@ await buildAndBroadcastRefund({
 });
 ```
 
-There is deliberately no separate refund implementation for recovery: the fee cap, the abort checks, the `htlcVout` contiguity invariant and the bitcoind error classification stay in one place for both paths. `applicationEntryPoint` is the one field not carried by the reconstruction — take it from the vault-provider registry row, which is address-keyed and survives.
+There is deliberately no separate refund implementation for recovery: the fee cap, the abort checks, the `htlcVout` contiguity invariant and the bitcoind error classification stay in one place for both paths. `applicationEntryPoint` is the one field not carried by the reconstruction — take it from the vault-provider registry row, which is address-keyed and survives. The Pre-PegIn transaction comes from the reconstruction result, not from the caller, so the refund always spends the transaction that was verified.
 
 A test asserts that a refund PSBT built from recovered parameters is **byte-identical** to one built from the parameters the deposit was actually made with. `broadcastTx` is an injected callback, so the whole path can be rehearsed with a capturing broadcaster that never touches the network — which is what the `recover` action does (`services/vault/e2e/real/actions/recover.ts`, via `pnpm --filter vault run e2e:cli --action=recover`). Run it before you need it.
 

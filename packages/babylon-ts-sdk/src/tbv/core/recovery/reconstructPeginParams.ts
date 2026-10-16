@@ -112,6 +112,12 @@ export interface ReconstructPeginParamsResult {
   peginAmounts: readonly bigint[];
   /** The transaction's `SHA256(authAnchor)` commitment, for the refund rebuild. */
   authAnchorHash: string;
+  /**
+   * The funded Pre-PegIn transaction this result was verified against,
+   * without `0x`. These are the bytes hashed into `terms.prepeginTxid`, so
+   * the refund spends the transaction that was actually checked.
+   */
+  fundedPrePeginTxHex: string;
   /** Size of the space actually trialled, for the recovery record. */
   candidatesTried: number;
   /**
@@ -450,6 +456,7 @@ export async function reconstructPeginParams(
     terms: survivors[0].terms,
     peginAmounts: survivors[0].peginAmounts,
     authAnchorHash: anchor.hash,
+    fundedPrePeginTxHex: cleanTxHex,
     candidatesTried: candidates.length,
     matchedCandidates: survivors.map((s) => s.candidate),
   };
