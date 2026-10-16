@@ -20,6 +20,7 @@ import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmation
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositErrorContent } from "@/utils/errors";
+import { sameHex } from "@/utils/hex";
 
 import { useVaultActions } from "./useVaultActions";
 
@@ -29,13 +30,14 @@ const EMPTY_CONFIRMED: VaultActivity[] = [];
 export interface UseBroadcastStateProps {
   activity: VaultActivity;
   /**
-   * Every vault ID sharing this Pre-PegIn transaction (batched pegin).
-   * Includes `activity.id`. A single broadcast confirms all of them, so
-   * all are marked CONFIRMING on success.
+   * Every vault ID believed to share this Pre-PegIn transaction (batched
+   * pegin). Includes `activity.id`. Hex-inferred, so only the ids the
+   * broadcast proves on chain are marked CONFIRMING on success.
    */
   batchVaultIds: string[];
   depositorEthAddress: string;
-  onSuccess: () => void;
+  /** Receives the `batchVaultIds` entries the broadcast proved on chain. */
+  onSuccess: (confirmedVaultIds: readonly string[]) => void;
 }
 
 export interface UseBroadcastStateResult {
@@ -94,25 +96,25 @@ export function useBroadcastState({
           // The polling context handles periodic refetching, and the optimistic
           // status update below provides immediate UI feedback.
         },
-        onShowSuccessModal: () => {
-          // A batched pegin shares one Pre-PegIn tx — this single broadcast
-          // confirms every sibling. Mark them all CONFIRMING (localStorage +
-          // optimistic) so no sibling keeps showing a stale broadcast action.
-          for (const id of batchVaultIds) {
+        onShowSuccessModal: ({ confirmedVaultIds }) => {
+          // Walk the prop, not the verified set: the prop strings are the
+          // storage keys, and a listed stranger must keep its Broadcast button.
+          const confirmedIds = batchVaultIds.filter((id) =>
+            confirmedVaultIds.some((confirmed) => sameHex(id, confirmed)),
+          );
+          for (const id of confirmedIds) {
             updatePendingPeginStatus(id, LocalStorageStatus.CONFIRMING);
             setOptimisticStatus(id, LocalStorageStatus.CONFIRMING);
-            // One broadcast confirms every sibling, so emit the milestone per
-            // vault (scalar vaultId) — matching the inline path — rather than
-            // only for the vault whose Broadcast button was clicked.
+            // Per vault (scalar vaultId), matching the inline path.
             logger.event(TELEMETRY_EVENT.DEPOSIT_BROADCAST_SUCCEEDED, {
               level: "info",
               category: "deposit",
               tags: { vaultId: shortId(id) },
-              vaultCount: batchVaultIds.length,
+              vaultCount: confirmedIds.length,
             });
           }
           setLocalBroadcasting(false);
-          onSuccess();
+          onSuccess(confirmedIds);
         },
       });
     } catch (err) {

@@ -1292,7 +1292,11 @@ describe("useVaultActions — handleBroadcast depositor wallet binding", () => {
 
     expect(result.current.broadcastError).toBeNull();
     expect(mockSignPsbt).toHaveBeenCalledWith(TRUSTED_TX_HEX);
-    expect(baseBroadcastParams.onShowSuccessModal).toHaveBeenCalledTimes(1);
+    expect(
+      baseBroadcastParams.onShowSuccessModal,
+    ).toHaveBeenCalledExactlyOnceWith({
+      confirmedVaultIds: ["0xvaultId"],
+    });
   });
 
   it("refuses to sign when the ETH account switches after the broadcast starts", async () => {

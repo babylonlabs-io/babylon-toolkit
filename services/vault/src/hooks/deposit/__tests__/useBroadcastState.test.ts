@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
@@ -53,13 +54,16 @@ describe("useBroadcastState — batched broadcast", () => {
     vi.clearAllMocks();
   });
 
-  it("marks every batch sibling CONFIRMING after a successful broadcast", async () => {
-    // A batched broadcast confirms every sibling at once — the success
-    // callback must propagate CONFIRMING to all of them, not just the
-    // clicked vault.
+  it("marks only the chain-verified batch siblings CONFIRMING after a successful broadcast", async () => {
+    // "0xc" is a listed stranger; "0xB" proves membership is by sameHex
+    // while the storage keys stay the prop's raw strings.
     mockVaultHandleBroadcast.mockImplementation(
-      async (params: { onShowSuccessModal: () => void }) => {
-        params.onShowSuccessModal();
+      async (params: {
+        onShowSuccessModal: (outcome: {
+          confirmedVaultIds: readonly Hex[];
+        }) => void;
+      }) => {
+        params.onShowSuccessModal({ confirmedVaultIds: ["0xa", "0xB"] });
       },
     );
     const onSuccess = vi.fn();
@@ -67,7 +71,7 @@ describe("useBroadcastState — batched broadcast", () => {
     const { result } = renderHook(() =>
       useBroadcastState({
         activity: activity("0xa"),
-        batchVaultIds: ["0xa", "0xb"],
+        batchVaultIds: ["0xa", "0xb", "0xc"],
         depositorEthAddress: "0xdepositor",
         onSuccess,
       }),
@@ -87,23 +91,35 @@ describe("useBroadcastState — batched broadcast", () => {
         LocalStorageStatus.CONFIRMING,
       );
     }
-    expect(onSuccess).toHaveBeenCalledOnce();
+    expect(mockUpdatePendingPeginStatus).toHaveBeenCalledTimes(2);
+    expect(mockSetOptimisticStatus).toHaveBeenCalledTimes(2);
+    expect(mockUpdatePendingPeginStatus).not.toHaveBeenCalledWith(
+      "0xc",
+      expect.anything(),
+    );
+    expect(mockSetOptimisticStatus).not.toHaveBeenCalledWith(
+      "0xc",
+      expect.anything(),
+    );
+    expect(onSuccess).toHaveBeenCalledExactlyOnceWith(["0xa", "0xb"]);
   });
 
-  it("emits a broadcast.succeeded milestone per batch sibling, not just the clicked vault", async () => {
-    // One Pre-PegIn tx confirms every sibling, so the funnel must record a
-    // broadcast milestone for each vaultId — otherwise a resumed multi-vault
-    // batch undercounts and its siblings reach activation with no broadcast.
+  it("emits a broadcast.succeeded milestone per verified sibling, not per listed id", async () => {
+    // One milestone per verified sibling; none for the listed stranger.
     mockVaultHandleBroadcast.mockImplementation(
-      async (params: { onShowSuccessModal: () => void }) => {
-        params.onShowSuccessModal();
+      async (params: {
+        onShowSuccessModal: (outcome: {
+          confirmedVaultIds: readonly Hex[];
+        }) => void;
+      }) => {
+        params.onShowSuccessModal({ confirmedVaultIds: ["0xa", "0xb"] });
       },
     );
 
     const { result } = renderHook(() =>
       useBroadcastState({
         activity: activity("0xa"),
-        batchVaultIds: ["0xa", "0xb"],
+        batchVaultIds: ["0xa", "0xb", "0xc"],
         depositorEthAddress: "0xdepositor",
         onSuccess: vi.fn(),
       }),
@@ -121,6 +137,7 @@ describe("useBroadcastState — batched broadcast", () => {
       "0xa",
       "0xb",
     ]);
+    expect(broadcastEmits.map(([, ctx]) => ctx.vaultCount)).toEqual([2, 2]);
   });
 
   it("broadcasts the shared transaction once for the whole batch", () => {

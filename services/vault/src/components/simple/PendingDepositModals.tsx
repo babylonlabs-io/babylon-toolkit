@@ -25,7 +25,7 @@ interface BroadcastModalState {
   /** All vault IDs sharing the Pre-PegIn being broadcast (batched pegin). */
   broadcastingBatchIds: string[];
   handleClose: () => void;
-  handleSuccess: () => void;
+  handleSuccess: (confirmedVaultIds: readonly string[]) => void;
   successOpen: boolean;
   successAmount: string;
   handleSuccessClose: () => void;
