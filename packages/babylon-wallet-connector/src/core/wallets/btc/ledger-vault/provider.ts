@@ -1,12 +1,8 @@
 /**
  * Ledger Vault adapter over `@babylonlabs-io/ledger-vault-signer`.
  *
- * Citation legend — `base:` = LedgerHQ/app-bitcoin `baseapp` @ `e400d8d8` (the
- * vault app's submodule pin, paths under `src/`); `sdk:` = LedgerHQ/ledger-secure-sdk
- * @ tag `v26.6.1` of https://github.com/LedgerHQ/ledger-secure-sdk — the SDK the app
- * builds against (all five 0.10.1 release tags record `SDK version: v26.6.1`);
- * unprefixed `.c` paths are
- * LedgerHQ/app-babylon-vault @ `b0c0ac4d` (app 0.10.1).
+ * Device behaviour described here is the firmware pinned in the signer
+ * package's `FIRMWARE.md`; comments name its functions, never file lines.
  */
 
 import {
@@ -101,8 +97,9 @@ export const APP_NAME_BY_NETWORK: Record<Network, string> = {
   [Network.SIGNET]: "Babylon Vault Testnet",
 };
 
-// Floor = app-babylon-vault-dev develop @ b89dd580 (APPVERSION 0.11.0). Pre-PegIn change goes to
-// the depositor's `/0/0` address, which 0.10.1 rejects, so older apps cannot fund a deposit.
+// Floor: 0.11.0 is the first app that takes Pre-PegIn change at the depositor's `/0/0`
+// address, which this host sends; older apps reject it, so they cannot fund a deposit. A
+// product decision released with Ledger's deployment, not the pin in the signer's FIRMWARE.md.
 const MIN_APP_VERSION = "0.11.0";
 // Exclusive ceiling. Raise only after the host intent encoding and device caps are checked
 // against the new firmware; a minor bump has changed device semantics before (0.10 → 0.11).
@@ -135,7 +132,7 @@ const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
 const HARDENED = 0x80000000;
 
-/** BIP-322 simple P2TR witness: one item — `varint(1) ‖ varint(64) ‖ sig` (`message.rs:105-144`, `BTCProofOfPossession.sol` accepts exactly this 66-byte shape). */
+/** BIP-322 simple P2TR witness: one item — `varint(1) ‖ varint(64) ‖ sig` (btc-vault `message.rs`; `BTCProofOfPossession.sol` accepts exactly this 66-byte shape). */
 const BIP322_P2TR_WITNESS_PREFIX_HEX = "0140";
 const SCHNORR_SIG_BYTES = 64;
 
@@ -152,9 +149,9 @@ type DeviceIntentState =
       phase: "intent-loaded";
       termsKey: string;
       /** Internal-order hex of the intent's Pre-PegIn txid — under INTENT_LOADED the
-       * device pins a refund's input 0 prevout to it (`sign_psbt_validate.c:1092-1097`). */
+       * device pins a refund's input 0 prevout to it. */
       prepeginTxidInternalHex: string;
-      /** The approved `htlc_refund_timelock` — the device pins a refund leaf's CSV to it (`:902-916`). */
+      /** The approved `htlc_refund_timelock` — the device pins a refund leaf's CSV to it. */
       htlcRefundTimelock: number;
     };
 
@@ -261,8 +258,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * Unlike {@link signedFingerprints} it survives the pessimistic resets and a
    * teardown, because the device's counters do while its session lives, and it
    * counts a failed attempt too: the firmware reserves the Pre-PegIn slot
-   * before signing, "a failed attempt counts as used"
-   * (`fw:sign_psbt_validate.c:755-758` @ b89dd580). {@link resumeIntentFromDevice}
+   * before signing ("a failed attempt counts as used"). {@link resumeIntentFromDevice}
    * restores it as the replay guard of a re-adopted intent.
    */
   private dispatchedSinceCounterReset = new Set<string>();
@@ -303,8 +299,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * live session, and {@link readDevicePubkeyHex} does the same on a session
    * whose preflight learned no app, so a ceremony started in that window hits
    * this legitimately. The window is one instant exchange: the SDK answers a
-   * locked device with 0x5515 before the app's dispatcher sees it
-   * (`sdk:io_legacy/src/os_io_legacy.c:414-423` @ v26.6.1), and DMK 1.7.1
+   * locked device with 0x5515 before the app's dispatcher sees it, and DMK 1.7.1
    * never holds the read for an unlock (IntentQueueService has no lock gating).
    * An operation held in {@link awaitExpectedApp} keeps the lock for the
    * whole wait; {@link cancelSigning} ends it.
@@ -351,7 +346,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     ];
   }
 
-  /** `m/86'/coin'/0'` — the key-info origin of the default policy (`test_screen7_pop.py:135-142`). */
+  /** `m/86'/coin'/0'` — the key-info origin of the default policy. */
   private get accountPath(): number[] {
     return [BIP86_PURPOSE + HARDENED, COIN_TYPE_BY_NETWORK[this.network] + HARDENED, ACCOUNT_INDEX + HARDENED];
   }
@@ -495,8 +490,8 @@ export class LedgerVaultProvider implements IBTCProvider {
    * GET_APP_AND_VERSION leaves a loaded intent in place. It is answered below
    * the app (it returns a name, which the app's own dispatcher never does for
    * a non-`CLA_APP` class), and the vault context is reset only by the vault
-   * handlers and the signing paths (`fw:` `vault_context_invalidate` call
-   * sites @ b89dd580). The Speculos e2e pins it on the 0.11.0 ELF (stage 4c).
+   * handlers and the signing paths (the `vault_context_invalidate` call
+   * sites). The Speculos e2e pins it (stage 4c).
    * So the read may run under a loaded intent — between the phases of one
    * ceremony it still must not.
    *
@@ -771,9 +766,8 @@ export class LedgerVaultProvider implements IBTCProvider {
         // not a key mismatch.
         this.assertSameConnection(generation);
         // Our two read paths must agree on the depositor key. The device does
-        // byte-compare the policy xpub against its own derivation
-        // (`base:policy.c:1483-1495` @ e400d8d8, via `base:init_global_state.c:230-236`),
-        // but only at SIGN_PSBT — by then approveDepositTerms has already spent
+        // byte-compare the policy xpub against its own derivation, but only at
+        // SIGN_PSBT — by then approveDepositTerms has already spent
         // the intent ceremony. This guards a host-side desync (depositorPath vs
         // accountPath, coin type, a refactor of either getter), not a device fault.
         const derivedXOnlyHex = deriveReceiveXOnlyHex(accountXpub, toNetwork(this.network).bip32, ADDRESS_INDEX);
@@ -816,7 +810,7 @@ export class LedgerVaultProvider implements IBTCProvider {
   /**
    * Pre-PegIn change must pay the depositor's own `/0/0` address: the app takes
    * change only as P2TR(depositor) after the 546-sat anchor, and rejects any
-   * output on the change branch (`sign_psbt_validate.c:571-661` @ b89dd580).
+   * output on the change branch (`_validate_prepegin_outputs`).
    */
   getChangeAddress = async (): Promise<string> =>
     this.withDeviceOperation("getChangeAddress", async () => {
@@ -933,7 +927,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * mirror. The device keeps the vault session through an auto-lock or a USB
    * reconnect while the app stays open, and loses it on an app exit or power
    * cycle (ADR-001). Adopts only an intent whose fingerprint equals the one
-   * these terms' APDUs would produce (`fw:docs/apdu.md` §INS 0x82 @ b89dd580),
+   * these terms' APDUs would produce (`docs/apdu.md`, INS 0x82),
    * so a different deposit is never resumed. The replay guard comes back as
    * every request sent since the device's counters last reset
    * ({@link dispatchedSinceCounterReset}): a request whose attempt failed is
@@ -1115,8 +1109,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * wallet policy after {@link augmentPsbtForWalletPolicy} adds the derivation
    * fields. A refund (#2371) and a Reclaim (#2714) — classified from the
    * provider's OWN parse, never a caller flag — are the standalone signs: the
-   * device accepts them with no loaded intent (`sign_psbt_validate.c:902-916`;
-   * Reclaim `:2524-2708` @ b89dd580), so only the intent requirement is waived;
+   * device accepts them with no loaded intent, so only the intent requirement is waived;
    * every other gate still runs, and {@link augmentPsbtForRefund} /
    * {@link augmentPsbtForReclaim} add the derivation entries the device
    * requires. Never finalizes — the SDK extracts signatures and finalizes
@@ -1186,11 +1179,9 @@ export class LedgerVaultProvider implements IBTCProvider {
           new Set(),
           ctx.depositorXOnlyHex,
           // A refund or Reclaim routes to the device's standalone sign path in
-          // EVERY vault state (dispatch: Reclaim `sign_psbt_validate.c:3781-3783`,
-          // refund `:3825` @ b89dd580), and that
-          // path consumes no dedup mask or cap (`sign_custom_inputs.c`,
-          // standalone section — contrast PegIn `:184` and Payout `:401`), so
-          // re-signing one is always a fresh user-approved ceremony.
+          // EVERY vault state, and that path consumes no dedup mask or cap
+          // (unlike PegIn and Payout), so re-signing one is always a fresh
+          // user-approved ceremony.
           standalone,
         );
         // Staging awaits the policy read; a reconnect during it would leave the
@@ -1209,20 +1200,19 @@ export class LedgerVaultProvider implements IBTCProvider {
    *
    * Per kind: the depositor Payout is the deposit-time shape and goes down
    * {@link signPsbt} unchanged (the intent-bound Payout signer takes its path
-   * from the intent, `sign_custom_inputs.c:403-412`). The other four need
-   * the derivation entry {@link augmentPsbtForDelegatedClaim} writes. The
-   * Assert is intent-bound — its signer prefix is pinned to the loaded intent
-   * (`sign_psbt_validate.c:3710-3716`) — so it keeps the intent requirement;
-   * Claim, WronglyChallenged and the claimer Payout (PayoutFinalize) are
-   * standalone, accepted with no intent (`:3654`, `:3677`, `:3681`), so for
+   * from the intent). The other four need the derivation entry
+   * {@link augmentPsbtForDelegatedClaim} writes. The Assert is intent-bound
+   * (its signer prefix is pinned to the loaded intent, `assert_prefix_ok`), so
+   * it keeps the intent requirement; Claim, WronglyChallenged and the claimer
+   * Payout (PayoutFinalize) are standalone, accepted with no intent, so for
    * them only that requirement is waived. The claimer Payout is additionally
    * refused WHILE an intent is loaded: the dispatcher routes any 2-in/2-out
    * PSBT whose input 0 spends a loaded vault's PegIn to the intent-bound
-   * Payout validator (`:3600-3634`), whose per-slot dedup — the depositor
-   * Payout was already signed under that intent, in ceremony order — WIPES
-   * the intent with SW_CAP_EXCEEDED (`:1765-1775`; otherwise SW_INCORRECT_DATA
-   * at the input-0 leaf check, `:1863`). Refusing here costs no device I/O
-   * and keeps the intent.
+   * Payout validator, whose per-slot dedup (the depositor Payout was already
+   * signed under that intent, in ceremony order) WIPES the intent with
+   * SW_CAP_EXCEEDED; otherwise it rejects with SW_INCORRECT_DATA at the input-0
+   * leaf check and keeps the intent. Refusing here costs no device I/O and
+   * keeps the intent either way.
    *
    * Nothing else is validated here: every term of these transactions is the
    * device's to check, and a rejection on these paths costs no loaded intent.
@@ -1306,9 +1296,8 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * Zero-I/O refund gates (#2371). The key check pre-empts the device's own
-   * derive-and-compare (`sign_psbt_validate.c:920-965`); the vault check
-   * pre-empts the INTENT_LOADED pins on the leaf CSV (`:906-910`) and input 0's
-   * prevout (`:1092-1097`) — both fire pre-approval on-device, but as an opaque
+   * derive-and-compare; the vault check pre-empts the INTENT_LOADED pins on
+   * the leaf CSV and input 0's prevout — both fire pre-approval on-device, but as an opaque
    * SW_INCORRECT_DATA whose failure path would also take {@link signStaged}'s
    * pessimistic mirror reset. Rejecting here keeps the typed error AND the
    * loaded intent. No automatic reset — tearing down a loaded ceremony is
@@ -1568,7 +1557,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     // carries the Assert payout leaf only so the device can display the terms.
     // Only the indices are honoured: `publicKey` is inert because the table pins
     // on the device-read key instead, and `useTweakedSigner` is inert because the
-    // device picks tweaking from the spend type (`base:sign_input.c:430-433`).
+    // device picks tweaking from the spend type.
     const signInputIndexes = options?.signInputs?.map((input) => input.index);
     let prepared: PreparedSignPsbt;
     try {
@@ -1589,7 +1578,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       }
       // Key-path flows sign under the default wallet policy: derivation fields
       // make the inputs internal on-device, and the policy id routes the base
-      // app into sign_internal_inputs (`base:sign_psbt.c:142-148`).
+      // app into sign_internal_inputs.
       const { policy } = await this.getPolicyContext();
       let augmented: string;
       try {
@@ -1644,12 +1633,10 @@ export class LedgerVaultProvider implements IBTCProvider {
    *
    * Locked-device words on the INITIAL SIGN_PSBT keep the intent because the app
    * never ran it: 0x5515 is sent only by the SDK IO layer before dispatch
-   * (`sdk:io_legacy/src/os_io_legacy.c:416`, inside the `io_exchange` receive
-   * loop `:245-247` that the base app reads from, `base:src/boilerplate/dispatcher.c:74`);
-   * 0x6982 exists in the SDK only under ENABLE_ADDRESS_BOOK
-   * (`sdk:Makefile.standard_app:78-82`, unset in both Makefiles) and 0x5303 is not
-   * defined at all; neither the app nor `base:` ever sends any of the three
-   * (`base:src/boilerplate/sw.h:16-18` is a #define + _Static_assert only). Only the
+   * (`io_exchange`'s receive loop, which the base app's dispatcher reads from);
+   * 0x6982 exists in the SDK only under ENABLE_ADDRESS_BOOK (unset in both
+   * Makefiles) and 0x5303 is not defined at all; neither the app nor the base
+   * app ever sends any of the three. Only the
    * sign loop proves the initial APDU was the refused one (`preDispatch`); a lock on
    * a CONTINUE or any other exchange is unproven — rounds may have run, caps may be
    * committed — and takes the pessimistic reset below.
@@ -1692,14 +1679,13 @@ export class LedgerVaultProvider implements IBTCProvider {
         !lockedBeforeDispatch &&
         // Standalone signs keep the mirror: NOTHING on the device's refund
         // or delegated-claim paths invalidates the vault context — not the
-        // validators' rejects (`sign_psbt_validate.c:811-1120` and
-        // `:2369-2887`, `:3189-3494` hold none of the file's six invalidate
-        // sites, all of which sit at `:742-2162` on the PegIn/Payout/NoPayout
-        // paths), not the standalone sign section, not the review screen's
-        // SW_DENY, and not the base app's PSBT-phase failures (zero vault
-        // references in `base:sign_psbt.c` and its phases).
-        // INTENT_LOADED is terminal until an explicit invalidate
-        // (`vault_context.c:44-47`). The abort branch above stays uniform.
+        // validators' rejects (every `vault_context_invalidate` site sits on
+        // the Pre-PegIn/PegIn/Payout/NoPayout paths or in the intent handlers),
+        // not the standalone sign section,
+        // not the review screen's SW_DENY, and not the base app's PSBT-phase
+        // failures (zero vault references in the base app's `sign_psbt`).
+        // INTENT_LOADED is terminal until an explicit invalidate. The abort
+        // branch above stays uniform.
         !standalone
       ) {
         // Pessimistically assume the device dropped the intent (error-path
@@ -1768,13 +1754,13 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * BIP-322 simple proof of possession via SIGN_PSBT tx_version 0 (#2221).
-   * State-independent on the device (`sign_psbt_validate.c:3573-3578`): no
+   * State-independent on the device: no
    * approved intent is required, and signing it never touches the intent
    * mirror or the signed-fingerprint set — with ONE exception: a user cancel
    * resets both via {@link classifySignFailure}'s uniform post-cancel policy,
    * so a cancelled PoP costs a full derive + re-approve like any other cancel.
    * When an intent IS loaded the device requires the PoP key to equal the
-   * intent's depositor key (`:3071-3076`) — both derive from `depositorPath`,
+   * intent's depositor key — both derive from `depositorPath`,
    * so that holds by construction.
    */
   signMessage = async (message: string, type: "bip322-simple" | "ecdsa"): Promise<string> =>
@@ -1815,8 +1801,8 @@ export class LedgerVaultProvider implements IBTCProvider {
           throw this.classifySignFailure(error, ctx.generation, "signMessage");
         }
         this.assertSameConnection(ctx.generation);
-        // Without a wallet policy the device answers SW_OK with NO yield
-        // (`sign_custom_inputs.c:101-115`); the collector's completion check
+        // Without a wallet policy the device answers SW_OK with NO yield;
+        // the collector's completion check
         // already throws on that, this narrows the one yield we package.
         const [yielded] = result.yields;
         if (
@@ -2068,7 +2054,7 @@ function fingerprintIntent(intent: {
 /**
  * Convert a display-order txid (what an explorer shows) to the internal order
  * the intent carries. The device compares it against the PSBT prevout, which
- * is also internal order (`vault_script.c:766-767`, "LE as stored").
+ * is also internal order ("LE as stored").
  */
 function displayTxidToInternal(txidHex: string): Uint8Array {
   const clean = txidHex.replace(/^0x/, "");

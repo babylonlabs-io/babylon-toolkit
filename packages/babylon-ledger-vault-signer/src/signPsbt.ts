@@ -98,7 +98,7 @@ export async function signPreparedVaultPsbt(
       "prepared signing state was already used — call prepareSignPsbt again for a retry",
     );
   }
-  // Without a policy the base app skips sign_internal_inputs (`base:sign_psbt.c:142-148`)
+  // Without a policy the base app skips sign_internal_inputs
   // and answers SW_OK with no yield — a failure the collector would only catch
   // after the user has approved on-device. Reject here, at zero device I/O.
   const needsWalletPolicy = [...prepared.table.byInput.values()].some((e) => e.kind === "taproot-keypath");

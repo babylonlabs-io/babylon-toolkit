@@ -1,16 +1,15 @@
 /**
  * BIP-322 "simple" proof-of-possession PSBT for the vault app's Screen 7.
  *
- * The device signs PoP as a SIGN_PSBT whose unsigned tx has `version == 0`
- * (`sign_psbt_validate.c:3578` @ b0c0ac4d). The PSBT is the BIP-322 to_sign
- * transaction: one input spending to_spend:0 (sequence 0), one OP_RETURN
- * output of value 0, locktime 0, with the message in the global proprietary
- * key `FC 06 "bvault" 00` (`bip322.h:24-38`). The firmware rebuilds to_spend
- * from the message and the BIP-86 tweaked key and compares its raw SHA256d
- * against PSBT_IN_PREVIOUS_TXID (`bip322.c:203-213`, `:3093-3111`). Built as a
+ * The device signs PoP as a SIGN_PSBT whose unsigned tx has `version == 0`.
+ * The PSBT is the BIP-322 to_sign transaction: one input spending to_spend:0
+ * (sequence 0), one OP_RETURN output of value 0, locktime 0, with the message
+ * in the global proprietary key `FC 06 "bvault" 00`. The firmware rebuilds
+ * to_spend from the message and the BIP-86 tweaked key and compares its raw
+ * SHA256d against PSBT_IN_PREVIOUS_TXID (`_validate_display_pop`). Built as a
  * PSBTv0: the vendored v0→v2 conversion in prepareSignPsbt emits the
- * OUTPUT_INDEX/SEQUENCE keys the device requires physically present
- * (`:3113-3139`). Message grammar is NOT validated here — the device is the boundary.
+ * OUTPUT_INDEX/SEQUENCE keys the device requires physically present. Message
+ * grammar is NOT validated here; the device is the boundary.
  *
  * @module ledger-vault-signer/popPsbt
  */
@@ -22,7 +21,7 @@ import { assertBip86Path, bip86PathToString } from "./bip86Path";
 import { bip86OutputScript } from "./expectedSignatures";
 
 const BIP322_TAG = "BIP0322-signed-message";
-/** `0xFC ‖ 0x06 ‖ "bvault" ‖ 0x00` — `BIP322_PSBT_PROP_POP_MSG_KEY` (`bip322.c:10-11`; doc `bip322.h:22-29,37-38`). */
+/** `0xFC ‖ 0x06 ‖ "bvault" ‖ 0x00`: the firmware's `BIP322_PSBT_PROP_POP_MSG_KEY`. */
 const POP_MESSAGE_PROPRIETARY_KEY = new Uint8Array([0xfc, 0x06, 0x62, 0x76, 0x61, 0x75, 0x6c, 0x74, 0x00]);
 
 const POP_TX_VERSION = 0;
@@ -51,8 +50,8 @@ function taggedHash(tag: string, data: Uint8Array): Buffer {
 
 /**
  * BIP-322 to_spend txid: SHA256d of the legacy serialization, returned in
- * wire byte order (raw digest) — exactly what the firmware stores in
- * PSBT_IN_PREVIOUS_TXID (`bip322.c:103,203-213`).
+ * wire byte order (raw digest), exactly what the firmware stores in
+ * PSBT_IN_PREVIOUS_TXID.
  */
 export function bip322ToSpendTxid(messageBytes: Uint8Array, tweakedXOnlyKey: Uint8Array): Uint8Array {
   const toSpend = new Transaction();

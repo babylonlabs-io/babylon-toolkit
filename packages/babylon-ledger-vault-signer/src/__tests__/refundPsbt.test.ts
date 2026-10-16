@@ -1,9 +1,8 @@
 /**
  * Refund-PSBT classification and augmentation (#2371).
  *
- * The leaf grammar mirrors the firmware's own parser byte-for-byte —
- * `fw:sign_psbt_validate_helpers.c:77-156` (`parse_refund_leaf_script`) @
- * `b0c0ac4d` — so every accept/reject vector here is a firmware-grammar pin,
+ * The leaf grammar mirrors the firmware's own `parse_refund_leaf_script`
+ * byte-for-byte, so every accept/reject vector here is a firmware-grammar pin,
  * including the shapes the firmware is deliberately loose about (OP_PUSHDATA1,
  * a non-minimal positive CScriptNum).
  */
@@ -369,7 +368,7 @@ describe("augmentPsbtForRefund", () => {
     expect(inputDeriv![0].path).toBe("m/86'/1'/0'/0/0");
     expect(inputDeriv![0].leafHashes).toEqual([]);
 
-    // The asymmetry the device demands (`fw:sign_psbt_validate.c:1025-1069`):
+    // The asymmetry the device demands:
     // the output entry is keyed by the scriptPubKey's witness program, which
     // is the BIP-86 TWEAK of the depositor key — never the depositor key itself.
     const outputDeriv = augmented.data.outputs[0].tapBip32Derivation;

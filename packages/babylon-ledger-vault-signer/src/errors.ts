@@ -79,11 +79,11 @@ export type LedgerYieldMismatchKind =
   | "unexpected-encoding";
 
 /**
- * A SIGN_PSBT YIELD failed the expected-signature table assertion — a
+ * A SIGN_PSBT YIELD failed the expected-signature table assertion: a
  * misrouted signature caught before it is ever recorded or merged. The loop
  * stops sending CONTINUEs and never retries a YIELD (per-type signature caps
  * and the payout claimer mask make a replayed SIGN_PSBT after partial YIELDs
- * non-idempotent — fw `sign_custom_inputs.c:180-181,348-352`).
+ * non-idempotent).
  */
 export class LedgerYieldMismatchError extends Error {
   readonly kind: LedgerYieldMismatchKind;
@@ -175,18 +175,18 @@ export class LedgerSignPsbtProtocolError extends Error {
 }
 
 /**
- * The host abandoned the SIGN_PSBT loop (abort signal) — the loop stops
+ * The host abandoned the SIGN_PSBT loop (abort signal): the loop stops
  * sending, nothing else. Retry after this is always a FULL re-ceremony (the
- * provider resets its mirror to idle). Device aftermath (verified at base app
- * rev `e400d8d8` + fw `90cf41f`):
+ * provider resets its mirror to idle). Device aftermath:
  *
- * - Within ~5 s (50 ticks, `base:io_ext.h:28`) the device sits blocked
- *   awaiting CONTINUE and eats the next non-CONTINUE APDU with 0x6A80
- *   (`base:dispatcher.c:107-111`) — a fast retry's first DERIVE APDU surfaces
- *   as the generic invalid-data error; the second attempt is clean.
- * - After >5 s of host silence the app exits to the dashboard
- *   (`base:io_ext.c:103-111` → SDK `app_exit()`); the host then sees 0x6E00,
- *   whose wrong-app copy guides reopening the app.
+ * - Within ~5 s (`INTERRUPTION_TIMEOUT_TICKS`, 50) the device sits blocked in
+ *   `process_interruption` awaiting CONTINUE and eats the next non-CONTINUE
+ *   APDU with `SW_INCORRECT_DATA` (0x6A80), so a fast retry's first DERIVE
+ *   APDU surfaces as the generic invalid-data error; the second attempt is
+ *   clean.
+ * - After >5 s of host silence `app_ticker_event_callback` resets the app to
+ *   the dashboard; the host then sees 0x6E00, whose wrong-app copy guides
+ *   reopening the app.
  */
 export class LedgerSignPsbtAbortedError extends Error {
   /** Yields the device had already delivered when the host stopped sending. */

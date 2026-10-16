@@ -633,7 +633,7 @@ describe("caller-requested input set narrows the expectation, never the classifi
 
 describe("the requested input set is inert for key-path signing", () => {
   // Under a wallet policy the base app signs EVERY internal input
-  // (`base:sign_psbt.c:142-148`), so narrowing would under-expect and the extra
+  // (`sign_internal_inputs`), so narrowing would under-expect and the extra
   // yields would fail AFTER the user already approved on-device.
   const FIXTURE = "deposit-flow__pre_pegin__0";
 

@@ -1,10 +1,10 @@
 /**
- * Ledger vault-app intent caps, mirrored from the firmware
- * (`app-babylon-vault` @ `b0c0ac4d`: `vault_tlv.c`, `vault_intent.h`,
- * `vault_constants.h`). The device rejects violations with SW_INCORRECT_DATA
- * and a dead session, so we fail comprehensibly BEFORE the ceremony.
+ * Ledger vault-app intent caps, mirrored from the firmware's intent parser
+ * (`vault_tlv.c`, `vault_intent.h`, `vault_constants.h`). The device rejects
+ * violations with SW_INCORRECT_DATA and a dead session, so we fail
+ * comprehensibly BEFORE the ceremony.
  *
- * These are device-envelope limits only — none exist on-chain or in
+ * These are device-envelope limits only: none exist on-chain or in
  * btc-vault. They live in this signer package; the SDK must never learn them.
  *
  * @module ledger-vault-signer/deviceCaps
@@ -13,11 +13,9 @@
 /**
  * Vault-core (tx-graph) versions the device can sign. Unlike the caps above,
  * the firmware has no version field: the intent TLV carries no Core, and the
- * device accepts one PegIn shape — nVersion 3, one input, three outputs with
- * a 240-sat P2A anchor (`sign_psbt_validate.c:1426-1432`,
- * `vault_constants.h:118,134`). Post-reset Core 1 is that shape (btc-vault
- * `PegInTx::expected_tx_version` / `expected_num_outputs`,
- * `crates/vault/src/transactions/pegin.rs:92-106` @ 5bc96f5c), and every other
+ * device accepts one PegIn shape, nVersion 3, one input, three outputs with
+ * a 240-sat P2A anchor. Post-reset Core 1 is that shape (btc-vault
+ * `PegInTx::expected_tx_version` / `expected_num_outputs`), and every other
  * Core is refused by btc-vault. Widen only on evidence a future version keeps
  * the shape.
  */
@@ -25,47 +23,47 @@ export const DEVICE_MIN_VAULT_CORE_VERSION = 1;
 export const DEVICE_MAX_VAULT_CORE_VERSION = 1;
 
 /**
- * Keeper and universal-challenger counts, each `[1, 32]` (`vault_intent.h:8-9`,
- * checked `vault_tlv.c:148,155`). Far below the protocol: the contract allows
+ * Keeper and universal-challenger counts, each `[1, 32]` (`VAULT_MAX_KEEPERS`,
+ * `VAULT_MAX_CHALLENGERS`). Far below the
+ * protocol: the contract allows
  * 1500 universal challengers and sets no keeper cap at all.
  */
 export const DEVICE_MAX_PARTICIPANTS_PER_ROLE = 32;
 
 /**
- * Vault groups per intent (`vault_constants.h` VAULT_MAX_VAULTS). Multi-vault
- * PegIn signing works in one session — `_validate_pegin` auto-detects the
+ * Vault groups per intent (`VAULT_MAX_VAULTS`). Multi-vault PegIn signing
+ * works in one session: `_validate_pegin` auto-detects the
  * group from Input 0's PSBT_IN_OUTPUT_INDEX.
  */
 export const DEVICE_MAX_VAULTS_PER_INTENT = 10;
 
 /**
- * Fee-rate bounds (sat/vB): the intent parser rejects rate == 0 AND
- * rate > 10000 (`vault_tlv.c:75`). The ceiling is vaultd's critical-tx config
- * default (`btc-vault crates/vaultd/src/config/btc.rs:19` @ d0d139305), not a
- * protocol constant; the contract caps `feeRate` at 1000 (`ProtocolParams.sol:44`),
+ * Fee-rate bounds (sat/vB): `vault_tlv_parse` rejects rate == 0 AND
+ * rate > 10000, a bare literal with no named constant. The ceiling is vaultd's critical-tx config default, not a
+ * protocol constant; the contract caps `feeRate` at 1000 (`ProtocolParams`),
  * so a contract-sourced rate can never reach it.
  */
 export const DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB = 10_000n;
 
 /**
- * Upper bound on `prepegin_max_fee` (`vault_tlv.c:170`; `PREPEGIN_MAX_FEE_LIMIT`
- * at `vault_constants.h:98`). Firmware-only — no btc-vault counterpart, and
+ * Upper bound on `prepegin_max_fee` (`PREPEGIN_MAX_FEE_LIMIT`). Firmware-only:
+ * no btc-vault counterpart, and
  * the SDK's sized fee cannot approach it at the contract's 1000 sat/vB cap.
  */
 export const DEVICE_MAX_PREPEGIN_FEE_SATS = 100_000_000n;
 
-/** Shared lower bound for the CSV/refund timelocks (`vault_constants.h:103`). */
+/** Shared lower bound for the CSV/refund timelocks (`VAULT_TIMELOCK_MIN`). */
 export const DEVICE_TIMELOCK_MIN_BLOCKS = 72;
 
-/** Inclusive upper bound for `pegin_csv_timelock` (`vault_constants.h:106`). */
+/** Inclusive upper bound for `pegin_csv_timelock` (`VAULT_TIMELOCK_MAX`). */
 export const DEVICE_PEGIN_CSV_TIMELOCK_MAX_BLOCKS = 1008;
 
-/** Inclusive upper bound for `htlc_refund_timelock` (`vault_constants.h:109`). */
+/** Inclusive upper bound for `htlc_refund_timelock` (`VAULT_HTLC_REFUND_TIMELOCK_MAX`). */
 export const DEVICE_REFUND_TIMELOCK_MAX_BLOCKS = 4320;
 
 /**
- * Inclusive bounds for `payout_timelock`. The intent parser is EXCLUSIVE
- * `(90, 4032)` (`vault_tlv.c:94`), so the accepted range is `[91, 4031]`; the
+ * Inclusive bounds for `payout_timelock`. `vault_tlv_parse` is EXCLUSIVE over
+ * `(VAULT_PAYOUT_TIMELOCK_MIN, VAULT_PAYOUT_TIMELOCK_MAX)` = `(90, 4032)`, so the accepted range is `[91, 4031]`; the
  * exclusive form gates deposits, so it wins over Screen 8's inclusive form.
  */
 export const DEVICE_PAYOUT_TIMELOCK_MIN_BLOCKS = 91;
@@ -73,20 +71,22 @@ export const DEVICE_PAYOUT_TIMELOCK_MAX_BLOCKS = 4031;
 
 /**
  * Relay dust limit for per-vault commission and reclaim values
- * (`vault_constants.h`). Equal to btc-vault's `DUST_AMOUNT` by value but a
- * distinct role — never merge them.
+ * (`VAULT_DUST_LIMIT`). Equal to btc-vault's `DUST_AMOUNT` by value but a
+ * distinct role; never merge them.
  */
 export const DEVICE_VAULT_DUST_LIMIT_SATS = 546n;
 
 /**
- * Device-only floor on `depositorClaimValue` — btc-vault's own floor is 330,
+ * Device-only floor on `depositorClaimValue` (`vault_tlv_parse_group`,
+ * `VAULT_DUST_LIMIT`) — btc-vault's own floor is 330,
  * so `[330, 545]` is allowed by the protocol but not the device. Firmware
  * asymmetry; must not be "fixed" on the protocol side.
  */
 export const DEVICE_MIN_DEPOSITOR_CLAIM_VALUE_SATS = DEVICE_VAULT_DUST_LIMIT_SATS;
 
 /**
- * The device's `peginAmount > commissionFee + 2 * dust` check. No btc-vault
+ * The device's `peginAmount > commissionFee + 2 * dust` check
+ * (`vault_tlv_parse_group`, `VAULT_DUST_LIMIT`). No btc-vault
  * counterpart — firmware-only; mirrored to fail early, never to be ported
  * into the protocol.
  */

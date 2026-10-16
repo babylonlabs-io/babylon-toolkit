@@ -10,17 +10,12 @@
  * Building the table also asserts each tapscript input's control block really
  * commits to its leaf, so a leaf the spent output never paid to is never armed.
  *
- * Firmware citations in this file are pinned, because the same path on another
- * branch shows the opposite behaviour: `base:` = LedgerHQ/app-bitcoin @
- * `e400d8d8` (`src/handler/sign_psbt/`, `src/common/`), `fw:` =
- * LedgerHQ/app-babylon-vault `fix/feedback` @ `90cf41f` (`src/`).
- *
- * YIELD wire shape (`base:sign_input.c:47-87`, protocol v1 / P2=1):
+ * YIELD wire shape (base app `sign_input.c`, protocol v1 / P2=1):
  * `varint(input_index) ‖ augm_len(1) ‖ pubkey_augm(augm_len) ‖ signature` —
  * tapscript: augm = untweaked x-only key(32) ‖ tapleaf_hash(32), keypath:
  * augm = tweaked output key(32); Schnorr sig is exactly 64 bytes at
- * SIGHASH_DEFAULT (a 65th byte means a non-zero sighash byte,
- * `base:sign_input.c:197-201` — reject, never strip).
+ * SIGHASH_DEFAULT (a 65th byte means a non-zero sighash byte: reject, never
+ * strip).
  *
  * @module ledger-vault-signer/expectedSignatures
  */
@@ -48,13 +43,9 @@ const CONTROL_BLOCK_PARITY_MASK = 0x01;
 /** BIP-341 tagged-hash tags for the taptree fold and the output-key tweak. */
 const TAPBRANCH_TAG = "TapBranch";
 const TAPTWEAK_TAG = "TapTweak";
-/**
- * Tapscript augm = x-only key(32) ‖ tapleaf hash(32). Line 66 fixes only the
- * +32 delta; `:206-207` is what pins the taproot `pubkey_len` at 32 (the ECDSA
- * call site at `:117` yields 33) — `base:sign_input.c:66,206-207`.
- */
+/** Tapscript augm = x-only key(32) ‖ tapleaf hash(32); the base app pins the taproot `pubkey_len` at 32 (ECDSA yields 33). */
 const AUGM_TAPSCRIPT_BYTES = 64;
-/** Keypath augm = tweaked x-only output key(32) — `base:sign_input.c:66,206-207,419-429`. */
+/** Keypath augm = tweaked x-only output key(32). */
 const AUGM_KEYPATH_BYTES = 32;
 /** BIP-340 Schnorr signature at SIGHASH_DEFAULT — no trailing sighash byte. */
 const SCHNORR_SIG_BYTES = 64;
@@ -71,8 +62,8 @@ export type InputSigExpectation =
       readonly kind: "tapscript";
       /** TapLeaf hashes (lowercase hex) of this input's TAP_LEAF_SCRIPT entries. */
       readonly expectedLeafHashHexes: ReadonlySet<string>;
-      /** UNTWEAKED depositor x-only key — the tapscript branch leaves `tweak_data` NULL
-       * (`base:sign_input.c:430-433`), so no tweak is applied (`base:sign_input.c:159-161`). */
+      /** UNTWEAKED depositor x-only key: the base app's tapscript branch leaves
+       * `tweak_data` NULL, so no tweak is applied. */
       readonly expectedSignerXOnlyHex: string;
     }
   | {
@@ -179,8 +170,7 @@ function isP2trScript(script: Buffer): boolean {
  * taproot output key AND its y-parity to equal the ones the witnessUtxo pays
  * to. Without this the host would accept a signature over a leaf the spent
  * output never committed to. The firmware requires the same binding on the
- * flows it reconstructs (wire spec §8, Refund row →
- * `fw:sign_psbt_validate.c:513-562`, `_refund_verify_taproot_commitment`).
+ * flows it reconstructs (`_refund_verify_taproot_commitment`).
  */
 function assertControlBlockCommitsToLeaf(
   inputIndex: number,
@@ -234,7 +224,7 @@ function assertControlBlockCommitsToLeaf(
 
 /**
  * Classify every input of the committed map model (build rules per the B1-c
- * spec §3.1; BIP-371 key types verified against `base:psbt.h:37-42`).
+ * spec §3.1; BIP-371 key types as the base app's `psbt.h` defines them).
  * Throws `LedgerSignPsbtProtocolError` on any rule violation — all before any
  * device I/O.
  *
@@ -243,13 +233,12 @@ function assertControlBlockCommitsToLeaf(
  * terms, and the device never signs it. `signInputIndexes` separates the two.
  *
  * The signed index is a property of the loaded ceremony, NOT of the PSBT shape:
- * `sign_custom_inputs` signs exactly ONE literal index per branch with no loop —
- * 0 for PegIn/NoPayout/Payout/standalone (`fw:sign_custom_inputs.c:167,256,334,611`)
- * but 1 for PayoutFinalize (`:467`), which is byte-identical in shape to a
- * depositor Payout (2-in/2-out) and separated only by device state. So the
- * requested set must come from the caller that knows the flow — it cannot be
- * inferred here, and it must not be pinned to a constant.
- * (`LedgerHQ/app-babylon-vault` @ `develop` 0468801138.)
+ * `sign_custom_inputs` signs exactly ONE literal index per branch with no loop,
+ * 0 for PegIn/NoPayout/Payout/standalone but 1 for PayoutFinalize, which is
+ * byte-identical in shape to a depositor Payout (2-in/2-out) and separated
+ * only by device state. So the requested set must come from the caller that
+ * knows the flow: it cannot be inferred here, and it must not be pinned to a
+ * constant.
  */
 export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableParams): ExpectedSignatureTable {
   const { psbt, depositorXOnlyHex, signInputIndexes } = params;
@@ -287,9 +276,9 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
     // PegIn row — so the leaf branch wins and never looks at the internal key.
     const leafEntries = psbt.getInputEntriesOfType(inputIndex, psbtIn.TAP_LEAF_SCRIPT);
     if (leafEntries.length > 0) {
-      // Exactly one leaf per input for now — >1 is an ambiguous leaf set,
-      // mirroring `fw:sign_psbt_validate.c:340-343` (a second TAP_LEAF_SCRIPT
-      // sets `ambiguous`), enforced at `:3514` and `:3539`, and the ts-sdk rule.
+      // Exactly one leaf per input for now: >1 is an ambiguous leaf set, which
+      // the device rejects (a second TAP_LEAF_SCRIPT sets `ambiguous`), as does
+      // the ts-sdk rule.
       if (leafEntries.length > 1) {
         throw new LedgerSignPsbtProtocolError(
           `input ${inputIndex} carries an ambiguous leaf set (${leafEntries.length} TAP_LEAF_SCRIPT entries)`,
@@ -358,7 +347,7 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
         );
       }
       // NEVER narrowed: under a policy the base app signs every internal input
-      // (`base:sign_psbt.c:142-148`), so the device picks the set, not the caller.
+      // (`sign_internal_inputs`), so the device picks the set, not the caller.
       const keypath: InputSigExpectation = {
         kind: "taproot-keypath",
         expectedOutputKeyHex: script.subarray(P2TR_SCRIPT_PREFIX.length).toString("hex"),
@@ -434,8 +423,8 @@ function seenKeyOf(yielded: CollectedYield): string {
 
 /**
  * A short tail is a malformed payload, not a claim about which key signed; only
- * a longer one is the device appending a non-zero sighash byte
- * (`base:sign_input.c:197-201` — reject, never strip).
+ * a longer one is the device appending a non-zero sighash byte (reject, never
+ * strip).
  */
 function assertSignatureLength(length: number, inputIndex: number): void {
   if (length < SCHNORR_SIG_BYTES) {
@@ -453,7 +442,7 @@ export function createYieldCollector(table: ExpectedSignatureTable): YieldCollec
   const seen = new Set<string>();
 
   const assertAndRecord = (payload: Buffer): void => {
-    // Payload = request minus the 0x10 code byte, exactly `base:sign_input.c:47-87`.
+    // Payload = request minus the 0x10 code byte, exactly as the base app's YIELD emits it.
     let inputIndex: number;
     let offset: number;
     try {

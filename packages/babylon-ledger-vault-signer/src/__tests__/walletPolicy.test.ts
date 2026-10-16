@@ -1,6 +1,6 @@
 /**
  * The default wallet policy is the routing switch that makes the device sign
- * key-path inputs at all (base `sign_psbt.c:142-148`). Its id becomes the
+ * key-path inputs at all (`sign_internal_inputs`). Its id becomes the
  * SIGN_PSBT header's wallet_id, so the serialization must match the Python
  * client the firmware tests drive (`ledger-bitcoin==0.4.0`). Oracle values are
  * the same ones the vendored `policy.golden.test.ts` pins.

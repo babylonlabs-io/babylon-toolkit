@@ -43,8 +43,8 @@ const MAX_CLIENT_RESPONSE_BYTES = 255;
 
 /**
  * A GET_MORE_ELEMENTS response spends 2 bytes on its own header,
- * `n_elements(1) ‖ el_len(1)` (parsed at base app `get_preimage.c:85-101` /
- * `get_merkle_leaf_hash.c:104-119`), leaving 253 for the elements.
+ * `n_elements(1) ‖ el_len(1)` (parsed by the base app's `get_preimage.c` and
+ * `get_merkle_leaf_hash.c`), leaving 253 for the elements.
  */
 const GET_MORE_ELEMENTS_HEADER_BYTES = 2;
 

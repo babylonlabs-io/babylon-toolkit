@@ -7,7 +7,8 @@
  * builder (#2221), and the standalone refund, reclaim and delegated-claim
  * PSBT classifiers (#2371, #2714, #2111). Wallet-connector's LedgerVaultProvider is the
  * consuming adapter; this package holds everything device-protocol-shaped and
- * nothing wallet-taxonomy-shaped.
+ * nothing wallet-taxonomy-shaped. Comments describe the firmware pinned in
+ * `FIRMWARE.md` and name its functions and constants, never file lines.
  *
  * @module ledger-vault-signer
  */
