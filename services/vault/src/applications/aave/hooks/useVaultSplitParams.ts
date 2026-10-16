@@ -17,14 +17,18 @@
  * The contract's liquidation path reads the key stored on the user's
  * `UserPosition`, not the reserve's current key — that value is copied from
  * `reserve.dynamicConfigKey` when the position is opened/refreshed and then
- * insulated from later reserve rotations. So:
+ * insulated from later reserve rotations until the next refresh. Every
+ * `borrow()` is a refresh: it copies the current key onto the position
+ * before it checks the health factor. So:
  *
- *   1. If the user already has a position, use
+ *   1. If an address is given and the user has a position, use
  *      `position.liveData.dynamicConfigKey` (authoritative for existing
- *      positions — matches what the contract will use during liquidation).
+ *      positions — matches what the contract will use during liquidation
+ *      and repay).
  *   2. Otherwise, call the contract's `getReserve` to read the reserve's
  *      current key — that is the value the contract will copy onto the
- *      user's position on their first borrow.
+ *      user's position on their next borrow. The borrow form calls this hook
+ *      without an address for that reason.
  *
  * The contract is the sole source of truth for this value; we deliberately
  * do not use the indexer-cached reserve config so there is no second,
