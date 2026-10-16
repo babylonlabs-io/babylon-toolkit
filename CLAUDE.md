@@ -48,6 +48,10 @@ Before a PR is opened, the author runs `/pre-review`, records decisions and fixe
 
 These paths handle irreversible value movement. An AI-generated mistake here is silent: code compiles, tests pass, wrong BTC amount ships. **Any change touching these files requires two reviewers, and the author must be able to explain every changed line without an AI assistant open.**
 
+The same rule covers `.github/CODEOWNERS` and `.github/workflows/critical-path-check.yml`.
+Each changed critical path requires two qualified code-owner approvals on the current commit.
+The required check reads owners from the base branch. #2359 stays open until a trusted external gate is required and verified.
+
 ### 1. WASM boundary (value computation)
 
 - Files:
