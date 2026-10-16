@@ -43,11 +43,8 @@ import { useSustainedFlag } from "./useSustainedFlag";
 
 const TEST_ID = "position-notification-banner";
 
-// Map the calculator's banner severity to a core-ui Notification variant. `red`
-// is the urgent Figma callout (error), `soft` advisories render as info, `green`
-// as success. `yellow` only arises from the stale-price status path (handled
-// separately below with an early return) — mapped here so the index is total
-// over every non-`hidden` severity. `hidden` renders nothing.
+// Map each calculator severity to a Notification variant. Show the optimal
+// order as information. The stale-price path handles yellow separately.
 const SEVERITY_VARIANT: Record<
   Exclude<BannerSeverity, "hidden">,
   NotificationVariant
@@ -55,7 +52,7 @@ const SEVERITY_VARIANT: Record<
   red: "error",
   yellow: "warning",
   soft: "info",
-  green: "success",
+  green: "info",
 };
 
 // Primary-warning → v3 card tone. Exhaustive over WarningType (like
@@ -304,7 +301,7 @@ export function PositionNotificationBanner({
   const cliffHasAffordableAdd =
     isCliffPrimary && result.suggestedNewVaultBtc !== null;
 
-  // Primary content: green standalone copy / risk warning / standalone reorder.
+  // Show the order status, risk warning, or reorder suggestion.
   let title: string;
   let detail: string;
   if (bannerState.severity === "green") {
