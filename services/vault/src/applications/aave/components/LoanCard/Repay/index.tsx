@@ -313,7 +313,7 @@ export function Repay() {
                   : null;
 
   return (
-    <div>
+    <div className="max-md:flex max-md:flex-col">
       {/* Repay Amount Section */}
       <Heading
         variant="h5"
@@ -420,7 +420,7 @@ export function Repay() {
           isRepayUnavailable
         }
         onClick={handleRepay}
-        className="mt-6"
+        className="mt-6 max-md:order-2"
         data-testid="repay-submit-button"
       >
         {isRepayUnavailable
@@ -437,14 +437,14 @@ export function Repay() {
       {unconfirmedWrite ? (
         <UnconfirmedTransactionCallout
           write={unconfirmedWrite}
-          className="mt-4"
+          className="mt-4 max-md:order-1"
         />
       ) : (
         statusCallout && (
           <Callout
             variant={statusCallout.variant}
             title={statusCallout.title}
-            className="mt-4"
+            className="mt-4 max-md:order-1"
           >
             {statusCallout.body}
           </Callout>

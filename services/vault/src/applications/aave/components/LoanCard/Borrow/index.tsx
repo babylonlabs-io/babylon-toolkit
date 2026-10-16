@@ -347,7 +347,7 @@ export function Borrow() {
                 : null;
 
   return (
-    <div>
+    <div className="max-md:flex max-md:flex-col">
       {/* Borrow Amount Section */}
       <Heading
         variant="h5"
@@ -465,7 +465,7 @@ export function Borrow() {
           oracleAddress == null
         }
         onClick={handleBorrow}
-        className="mt-2 disabled:!bg-accent-disabled disabled:!opacity-100"
+        className="mt-2 disabled:!bg-accent-disabled disabled:!opacity-100 max-md:order-2"
         data-testid="borrow-submit-button"
       >
         {getBorrowButtonText()}
@@ -476,14 +476,14 @@ export function Borrow() {
       {unconfirmedWrite ? (
         <UnconfirmedTransactionCallout
           write={unconfirmedWrite}
-          className="mt-4"
+          className="mt-4 max-md:order-1"
         />
       ) : (
         statusCallout && (
           <Callout
             variant={statusCallout.variant}
             title={statusCallout.title}
-            className="mt-4"
+            className="mt-4 max-md:order-1"
           >
             {statusCallout.body}
           </Callout>
