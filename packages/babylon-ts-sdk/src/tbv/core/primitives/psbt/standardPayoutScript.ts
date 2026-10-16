@@ -30,6 +30,8 @@
  * @module primitives/psbt/standardPayoutScript
  */
 
+import { schnorr } from "@noble/curves/secp256k1.js";
+
 import { stripHexPrefix } from "../utils/bitcoin";
 
 /** `OP_0 <20>` — P2WPKH. */
@@ -38,6 +40,8 @@ const P2WPKH_LEN = 22;
 const P2WSH_LEN = 34;
 /** `OP_1 <32>` — P2TR. */
 const P2TR_LEN = 34;
+/** `OP_1 OP_PUSHBYTES_32` — the P2TR scriptPubKey prefix. */
+const P2TR_SCRIPT_PREFIX = "5120";
 /** `OP_DUP OP_HASH160 <20> OP_EQUALVERIFY OP_CHECKSIG` — P2PKH. */
 const P2PKH_LEN = 25;
 /** `OP_HASH160 <20> OP_EQUAL` — P2SH. */
@@ -49,8 +53,17 @@ function isP2wpkh(s: string): boolean {
 function isP2wsh(s: string): boolean {
   return s.length === P2WSH_LEN * 2 && s.startsWith("0020");
 }
+/** P2TR whose 32-byte output key is an x-coordinate on secp256k1 (BIP-340 `lift_x`). */
 function isP2tr(s: string): boolean {
-  return s.length === P2TR_LEN * 2 && s.startsWith("5120");
+  if (s.length !== P2TR_LEN * 2 || !s.startsWith(P2TR_SCRIPT_PREFIX)) {
+    return false;
+  }
+  try {
+    schnorr.utils.lift_x(BigInt(`0x${s.slice(P2TR_SCRIPT_PREFIX.length)}`));
+  } catch {
+    return false;
+  }
+  return true;
 }
 function isP2pkh(s: string): boolean {
   return (
