@@ -16,6 +16,10 @@
  *  - Wallet rejection — user declines a signing prompt (typed top frame:
  *    EIP-1193 4001 / viem UserRejectedRequestError / CONNECTION_REJECTED; or,
  *    later and cause-walking, "user rejected" / "denied" wording).
+ *  - Send outcome unknown — the wallet refused an Ethereum send as "nonce too
+ *    low" but may have broadcast it (`SendOutcomeUnknownError`, or its message
+ *    as the activation hook flattens it). Not a failure, so it gets its own
+ *    status-unknown title.
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
  *  - Peg-in fingerprint changed — the registry re-derived the protocol
  *    configuration and it differed from the one the Pre-Pegin was built
@@ -36,9 +40,10 @@
  *    callout, or to the can't-complete callout when the ack window has no
  *    room; the gate's own chain-read failures map to the window-unavailable
  *    callout, by body).
- *  - Position capacity — the resume broadcast's typed refusals when the
- *    application says the depositor's position cannot take the batch, or the
- *    check could not reach a verdict. Both fire before any wallet prompt.
+ *  - Position capacity — the Pre-PegIn broadcast's typed refusals, new or
+ *    resumed, when the application says the depositor's position cannot take
+ *    the batch, or the check could not reach a verdict. Both fire before the
+ *    Pre-PegIn is signed for broadcast.
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -75,6 +80,7 @@ import {
   isPeginRegistrationMissingError,
   isPeginRegistrationNotFinalError,
   isRegisteredVaultVersionMismatchError,
+  isUnsupportedPayoutScriptError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -113,6 +119,7 @@ import {
   isPositionCapacityExceededError,
   isPositionCapacityUnavailableError,
 } from "./positionCapacityError";
+import { isStaleProtocolAddressesError } from "./staleProtocolAddresses";
 import {
   isTypedUserRejectionFrame,
   isUserCancellation,
@@ -155,6 +162,14 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   // Nothing was broadcast: the ack-window gate failed closed on a chain read
   // before any wallet prompt, and a later read can succeed.
   ERRORS.broadcastAckWindowUnavailable,
+  // Nothing was broadcast: the position-capacity gate failed closed on a
+  // chain read before the Pre-PegIn was signed for broadcast, and a later
+  // read can succeed.
+  ERRORS.positionCapacityUnavailable,
+  // Nothing was broadcast: the position-capacity gate refused this batch.
+  // Freeing room or a limit change can let it through, and Retry re-runs the
+  // check before broadcasting.
+  ERRORS.positionCapacityExceeded,
 ]);
 
 const STAGE_FAILED = ERRORS.prePeginStageFailed;
@@ -273,6 +288,13 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.signingRejected;
   }
 
+  // 2a. A send the wallet refused as "nonce too low" but may have broadcast.
+  // It may have done the call, so it is not shown under the failure title.
+  // Arrives typed, or from the activation hook flattened to its message.
+  if (classifyError(err) === "send-outcome-unknown") {
+    return ERRORS.sendOutcomeUnknown;
+  }
+
   if (err instanceof PendingPeginStorageReadError) {
     return ERRORS.storageUnreadable;
   }
@@ -298,6 +320,18 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // error for the bug report instead of becoming the callout body, which is
   // what the final bucket would do with an unrecognised error.
   if (isBuildPreconditionError(err)) {
+    return {
+      title: ERRORS.defaultTitle,
+      body: ERRORS.genericBody,
+      diagnostics: formatErrorDiagnostics(err),
+    };
+  }
+
+  // 3a''-stale. The protocol contract addresses could not be re-read from the
+  // registry and the cached ones are past their maximum age, so the build
+  // refused them. Mapped for the same reason as 3a'': the message names
+  // internals and would otherwise become the callout body.
+  if (isStaleProtocolAddressesError(err)) {
     return {
       title: ERRORS.defaultTitle,
       body: ERRORS.genericBody,
@@ -338,11 +372,11 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3a''''. The other limit a deposit can run into: the depositor's own
-  // position, checked by the resume broadcast before any wallet prompt. A
-  // refusal and a check with no verdict need different instructions (free
-  // room, or just try again), hence two callouts. Checked ahead of the
-  // cause-walking buckets below, so the read failure kept as `cause` cannot
-  // classify the refusal as something else.
+  // position, checked before any Pre-PegIn broadcast, new or resumed, and
+  // before it is signed for broadcast. A refusal and a check with no verdict
+  // need different instructions (free room, or just try again), hence two
+  // callouts. Checked ahead of the cause-walking buckets below, so the read
+  // failure kept as `cause` cannot classify the refusal as something else.
   if (isPositionCapacityExceededError(err)) {
     return ERRORS.positionCapacityExceeded;
   }
@@ -386,6 +420,12 @@ export function mapDepositError(err: unknown): DepositErrorContent {
           ? `PeginFingerprintChanged expected=${err.expected} actual=${err.actual}`
           : "PeginFingerprintChanged (revert data carried no fingerprints)",
     };
+  }
+
+  // 3b''. Non-standard operator payout script, refused before broadcast. Frozen
+  // at the vault's epochs, so retry cannot help.
+  if (isUnsupportedPayoutScriptError(err)) {
+    return ERRORS.unsupportedPayoutScript;
   }
 
   // 3c. Ethereum registration finality gate. Both cases stop the flow BEFORE

@@ -12,6 +12,38 @@ export type NetworkName = "devnet" | "testnet";
 export type BtcWalletId = "unisat" | "okx" | "onekey";
 export type EthWalletId = "metamask";
 export type DataMode = "real" | "mock";
+/** `--inject-nonce-too-low`: which "nonce too low" the borrow send gets (see actions/nonceTooLow.ts). */
+export type NonceTooLowInjection =
+  | "stale"
+  | "already-sent"
+  | "already-sent-fallback"
+  | "stale-then-already-sent";
+export const NONCE_TOO_LOW_INJECTIONS: readonly NonceTooLowInjection[] = [
+  "stale",
+  "already-sent",
+  "already-sent-fallback",
+  "stale-then-already-sent",
+];
+
+export function isNonceTooLowInjection(
+  value: string,
+): value is NonceTooLowInjection {
+  return (NONCE_TOO_LOW_INJECTIONS as readonly string[]).includes(value);
+}
+/**
+ * `--inject-reorg`: how the app's RPC shows the Aave write's block reorganized out (see
+ * actions/aaveWriteRpc.ts). `dropped`: the write's receipt is gone. `orphaned`: the receipt is still
+ * served, but the chain above that height no longer descends from its block.
+ */
+export type ReorgInjection = "dropped" | "orphaned";
+export const REORG_INJECTIONS: readonly ReorgInjection[] = [
+  "dropped",
+  "orphaned",
+];
+
+export function isReorgInjection(value: string): value is ReorgInjection {
+  return (REORG_INJECTIONS as readonly string[]).includes(value);
+}
 export type ActionId =
   | "connect"
   | "observe"
@@ -47,12 +79,8 @@ export interface NetworkConfig {
   /** Sepolia RPC + chain id used for the ETH balance pre-flight. */
   sepoliaRpcUrl: string;
   ethChainId: number;
-  /**
-   * Vite mode whose env the app resolves for this network (`pnpm dev` ⇒ `development`, `dev:testnet`
-   * ⇒ `dev-testnet`). The pegin pre-flight loads the contract addresses + endpoints from that mode's
-   * env (see peginParams.ts) rather than hardcoding them — they rotate via `scripts/sync-env.mjs`.
-   */
-  viteMode: string;
+  /** Profile in services/vault/networks the app runs on for this network (`pnpm dev` ⇒ devnet, `dev:testnet` ⇒ testnet-2). */
+  profile: string;
 }
 
 const SIGNET_MEMPOOL = "https://mempool.space/signet/api";
@@ -66,15 +94,15 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
-    viteMode: "development",
+    profile: "devnet",
   },
   testnet: {
     websiteUrl: "https://btc-vaults.testnet.babylonlabs.io/",
-    devScript: "dev:testnet", // `pnpm dev:testnet` (uses committed .env.dev-testnet)
+    devScript: "dev:testnet", // `pnpm dev:testnet` (runs the testnet-2 profile)
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
-    viteMode: "dev-testnet",
+    profile: "testnet-2",
   },
 };
 
@@ -260,6 +288,23 @@ export interface RunConfig {
    * irreversible, so this is the safe way to rehearse it.
    */
   reclaimDryRun?: boolean;
+  /**
+   * Borrow only: answer the borrow send with "nonce too low" (`--inject-nonce-too-low`) — `stale` (an
+   * earlier transaction used the nonce, so the app must send once more), `already-sent` (the
+   * transaction was broadcast, so the app must not send it again), `already-sent-fallback` (the same,
+   * from a wallet that would take viem's `wallet_sendTransaction` resend) or `stale-then-already-sent`
+   * (`stale`, then `already-sent` for the app's retry) — and check the account sent exactly one
+   * transaction.
+   */
+  injectNonceTooLow?: NonceTooLowInjection;
+  /**
+   * Borrow or repay only: once the write is mined, make the app's RPC show its block reorganized out
+   * (`--inject-reorg`) — `dropped` (the receipt is gone) or `orphaned` (the receipt is still served,
+   * but the chain above no longer descends from its block) — and check the app holds the write as
+   * unconfirmed instead of reporting it, then reports it once the block is back. A repay
+   * `--borrow-first` applies it to the repay only.
+   */
+  injectReorg?: ReorgInjection;
 }
 
 /** Resolve the target URL a run should open. */

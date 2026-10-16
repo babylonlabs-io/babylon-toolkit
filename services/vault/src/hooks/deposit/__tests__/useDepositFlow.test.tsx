@@ -24,6 +24,7 @@ import {
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import { BtcWalletLivenessError } from "@/utils/btc";
+import type { CancellableSigningProvider } from "@/utils/cancelSigning";
 import { VaultLifecycleStateError } from "@/utils/errors";
 
 import { DepositFlowStep } from "../depositFlowSteps";
@@ -158,6 +159,10 @@ vi.mock("@/services/vault/prePeginBroadcastAckWindow", () => ({
   assertPrePeginBroadcastAckWindowOpen: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/services/vault/assertResumePositionCapacity", () => ({
+  assertPositionAcceptsBatch: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Local override of the global gate mock so we can drive a frozen/paused scope.
 const depositGateMock = vi.hoisted(() => ({
   value: { protocol: null as string | null, aave: null as string | null },
@@ -167,9 +172,9 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 // Avoid threading a real QueryClientProvider through every renderHook —
-// `useDepositFlow` uses the client for two things: invalidating the UTXO query
-// after broadcast, and seeding the peg-in config cache when a drift guard
-// aborts. Hoisted rather than inline so the seed can be asserted.
+// `useDepositFlow` uses the client to invalidate the UTXO query after
+// broadcast, and to seed and then invalidate the peg-in config cache when a
+// drift guard aborts. Hoisted rather than inline so the seed can be asserted.
 const queryClientMocks = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   setQueryData: vi.fn(),
@@ -298,10 +303,9 @@ vi.mock("@/infrastructure", () => ({
 }));
 
 // The registry address is a fingerprint input, and the encoder rejects the
-// zero address — which is what `ENV` falls back to when
-// NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY is unset, as it is under vitest. Mock it
-// with a real address, as the other config-reading suites do, so the value the
-// assertions use is visible here rather than depending on ambient env.
+// zero address, which is what `ENV` falls back to when the inlined network
+// profile is unusable. Mock it with a real address, as the other
+// config-reading suites do, so the value the assertions use is visible here.
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
     BTC_VAULT_REGISTRY:
@@ -1330,7 +1334,7 @@ describe("useDepositFlow", () => {
     it("seeds the config cache with the pinned read so a restart cannot repeat the same failure", async () => {
       // Both aborts tell the depositor to start again, and restarting means
       // closing and reopening the form. That form reads the cached config,
-      // which has a five minute staleTime and which nothing invalidates — so
+      // which has a five minute staleTime and which nothing else refreshes — so
       // without this seed the restart re-reads the snapshot that just failed.
       const pinned = {
         ...chainMocks.peginConfig,
@@ -2866,10 +2870,10 @@ describe("useDepositFlow", () => {
         resolved = await flowPromise;
       });
 
-      // Elsewhere a late cancel + successful sign deliberately proceeds; at
-      // the broadcast site the next step is the irreversible pushTx, so the
-      // signed tx is withheld: cancelled copy, records stay PENDING so the
-      // resume flow's Broadcast button recovers the deposit.
+      // The broadcast and payout sites honor a late cancel; Pre-PegIn prepare
+      // and PoP signing proceed. Here the next step is the irreversible
+      // pushTx, so the signed tx is withheld: cancelled copy, records stay
+      // PENDING so the resume flow's Broadcast button recovers the deposit.
       expect(resolved).toBeNull();
       expect(result.current.error).toEqual(
         DEPOSIT_ERRORS.signingCanceledAfterRegistration,
@@ -3120,6 +3124,129 @@ describe("useDepositFlow", () => {
           message: COPY.deposit.warnings.payoutSigningCanceled(1),
         },
       ]);
+    });
+
+    it("withholds the depositor-graph sign and the presignature submit when a late cancel settles after the claimer batch signs", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const settle: { resolve: (v: string[]) => void } = {
+        resolve: () => {},
+      };
+      const signPsbts = vi
+        .fn()
+        // The claimer batch is held open for the cancel; a graph batch would
+        // resolve immediately and expose itself.
+        .mockImplementationOnce(
+          () =>
+            new Promise<string[]>((resolve) => {
+              settle.resolve = resolve;
+            }),
+        )
+        .mockResolvedValue(["signedGraph0", "signedGraph1"]);
+      const signPsbt = vi.fn().mockResolvedValue("signedGraph");
+      const submitPresignatures = vi.fn();
+      const wallet: BitcoinWallet & CancellableSigningProvider = {
+        ...MOCK_BTC_WALLET,
+        signPsbt,
+        signPsbts,
+        signMessage: vi.fn(),
+        deriveContextHash: vi.fn(),
+        cancelSigning: vi.fn(),
+      };
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ btcWallet, onProgress }) => {
+          // Mirrors the presign flow: claimer batch, then the depositor graph, then the submit to the vault provider.
+          await btcWallet.signPsbts!(["claimer0", "claimer1"]);
+          onProgress?.({ phase: "claimers", completed: 2, total: 2 });
+          await btcWallet.signPsbts!(["graph0", "graph1"]);
+          submitPresignatures();
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      await act(async () => {
+        settle.resolve(["signedClaimer0", "signedClaimer1"]); // sign completes AFTER the cancel
+        await flowPromise;
+      });
+
+      expect(signPsbts).toHaveBeenCalledTimes(1);
+      expect(signPsbt).not.toHaveBeenCalled();
+      expect(submitPresignatures).not.toHaveBeenCalled();
+      expect(hasPayoutSignCancelRecord("0xVault0Id")).toBe(true);
+    });
+
+    it("withholds the next payout sign and the presignature submit when a late cancel settles after a single signPsbt", async () => {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const settle: { resolve: (v: string) => void } = {
+        resolve: () => {},
+      };
+      const signPsbt = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<string>((resolve) => {
+              settle.resolve = resolve;
+            }),
+        )
+        .mockResolvedValue("signedGraph");
+      const submitPresignatures = vi.fn();
+      const wallet: BitcoinWallet & CancellableSigningProvider = {
+        ...MOCK_BTC_WALLET,
+        signPsbt,
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        deriveContextHash: vi.fn(),
+        cancelSigning: vi.fn(),
+      };
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ btcWallet }) => {
+          // The lone-PSBT path routes through signPsbt, then the depositor graph, then the submit.
+          await btcWallet.signPsbt("claimer0");
+          await btcWallet.signPsbt("graph0");
+          submitPresignatures();
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet }),
+      );
+
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+
+      await act(async () => {
+        settle.resolve("signedClaimer0"); // sign completes AFTER the cancel
+        await flowPromise;
+      });
+
+      expect(signPsbt).toHaveBeenCalledTimes(1);
+      expect(submitPresignatures).not.toHaveBeenCalled();
+      expect(hasPayoutSignCancelRecord("0xVault0Id")).toBe(true);
     });
 
     // Same shape for a single-vault deposit: the whole batch is trimmed to

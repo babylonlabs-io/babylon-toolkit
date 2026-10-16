@@ -10,8 +10,7 @@ import { getNetworkConfigBTC } from "@/config/network";
 /**
  * Get the Mempool API base URL.
  *
- * Uses the correct network (mainnet/signet) based on the value passed to
- * `configureBabylonConfig` at startup (sourced from `NEXT_PUBLIC_BTC_NETWORK`).
+ * Uses the network the active profile passed to `configureBabylonConfig` at startup.
  *
  * @returns Mempool API URL with `/api` suffix (e.g., https://mempool.space/signet/api)
  */

@@ -76,10 +76,6 @@ vi.mock("@/hooks/useApplicationCap", () => ({
   useApplicationCap: () => ({ snapshot: null, isLoading: false }),
 }));
 
-vi.mock("@/hooks/usePegoutPolling", () => ({
-  usePegoutPolling: () => ({ pegoutStatuses: new Map() }),
-}));
-
 const pricesMock = vi.hoisted(() => ({
   prices: {} as Record<string, number>,
   metadata: {} as Record<string, { isStale: boolean; fetchFailed: boolean }>,
@@ -101,7 +97,7 @@ vi.mock("@/applications/aave/context", () => ({
 }));
 
 vi.mock("@/applications/aave/hooks", () => ({
-  useAaveVaults: () => ({ vaults: [], redeemedVaults: [] }),
+  useAaveVaults: () => ({ vaults: [] }),
 }));
 
 const positionNotificationsMock = vi.hoisted(() => ({

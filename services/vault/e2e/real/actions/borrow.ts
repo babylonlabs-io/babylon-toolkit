@@ -34,6 +34,7 @@ import {
   fetchMaxBorrow,
   matchReserve,
 } from "../borrowParams";
+import { type NonceTooLowInjection, type ReorgInjection } from "../config";
 import { formatBtc } from "../preflight";
 import {
   BORROW_BUTTON_ENABLE_TIMEOUT_MS,
@@ -47,8 +48,20 @@ import {
 } from "../timing";
 import { formatTokenAmount } from "../tokenAmount";
 
+import {
+  type AaveWriteWatch,
+  assertReportedOnlyWhenBuried,
+  confirmReorgHeldThenReported,
+  readsConfirming,
+  watchAaveWriteRpc,
+} from "./aaveWriteRpc";
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { goToSection } from "./navigation";
+import {
+  assertAccountSentOnce,
+  installNonceTooLowInjection,
+  type NonceInjectionProbe,
+} from "./nonceTooLow";
 import { runPeginFlow } from "./pegin";
 import { startRecording } from "./recording";
 import {
@@ -64,6 +77,7 @@ import {
   MAX_AMOUNT_KEYWORD,
   MAX_BUTTON_RX,
   readTxFailedText,
+  SEND_OUTCOME_UNKNOWN_COPY_RX,
   SUCCESS_DONE_TESTID,
   TX_FAILED_RX,
 } from "./selectors";
@@ -110,6 +124,12 @@ const DEBT_INCREASE_MIN_USD = 0.01;
 
 /** The resolved borrow amount: click the form's Max button, or fill a specific token amount. */
 type BorrowAmount = { mode: "max" } | { mode: "amount"; value: string };
+
+/** An armed `--inject-nonce-too-low`: which refusal the borrow send gets, and its page-side probe. */
+interface BorrowNonceInjection {
+  mode: NonceTooLowInjection;
+  probe: NonceInjectionProbe;
+}
 
 /** What a borrow leg did: the reserve it borrowed from and the amount it resolved. */
 interface BorrowLeg {
@@ -386,13 +406,16 @@ async function waitForBorrowCta(
  * After submitting, actively approve the MetaMask pop-up (the borrow is one ETH tx — the reused OKX-style
  * window needs the active sweep; MetaMask fires its own event too) and wait for the "Borrow successful"
  * screen, then click Done. Fails fast, with the callout's text, if the form surfaces a "Transaction
- * failed" callout.
+ * failed" callout. On success, checks the app reported the borrow only once it was deep on the chain
+ * (`assertReportedOnlyWhenBuried`), from the submit button's label and the app's RPC reads.
  */
 async function confirmBorrowSuccess(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
   reserveLabel: string,
+  cta: Locator,
+  watch: AaveWriteWatch,
 ): Promise<void> {
   // Success is gated ONLY on markers specific to the borrow-success screen — the "Borrow successful"
   // title or the `loan-success-done-button` testid. NOT the generic "Done" role: deposit/withdraw/repay
@@ -406,14 +429,17 @@ async function confirmBorrowSuccess(
     page.getByRole("button", { name: DONE_BUTTON_RX }),
   );
   const txFailed = page.getByText(TX_FAILED_RX).first();
+  let sawConfirming = false;
   const deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sweepApprovals(context, page, log);
+    if (!sawConfirming) sawConfirming = await readsConfirming(page, cta);
 
     if (
       (await successTitle.isVisible().catch(() => false)) ||
       (await successDone.isVisible().catch(() => false))
     ) {
+      assertReportedOnlyWhenBuried(watch, sawConfirming, "Borrow", log);
       log(`✅ Borrow successful (${reserveLabel}) — clicking Done`);
       await doneButton.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
       return;
@@ -428,6 +454,60 @@ async function confirmBorrowSuccess(
   }
   throw new Error(
     `Borrow did not reach the "Borrow successful" screen within ${BORROW_TX_TIMEOUT_MS}ms — the MetaMask transaction may not have confirmed. See trace.zip + the failure screenshot.`,
+  );
+}
+
+/**
+ * `--inject-nonce-too-low=already-sent` (or `already-sent-fallback`): the borrow was broadcast, then
+ * answered "nonce too low" for its own nonce. The app must not send it again, and must not call it a
+ * failure either — the borrow may have gone through — so the form shows the outcome-unknown notice.
+ * Approves the one MetaMask prompt the broadcast needs on the way. Once the refusal is recorded, the
+ * success screen means the app sent a second borrow and "Transaction failed" means it told the user a
+ * borrow that went through had failed. Without it the injection never ran (or failed in the page,
+ * which the probe logs), and the run reports that instead of blaming the app.
+ */
+async function confirmOutcomeUnknownNotice(
+  page: Page,
+  context: BrowserContext,
+  log: (m: string) => void,
+  probe: NonceInjectionProbe,
+): Promise<void> {
+  const successTitle = page.getByText(BORROW_SUCCESS_RX).first();
+  const txFailed = page.getByText(TX_FAILED_RX).first();
+  const notice = page.getByText(SEND_OUTCOME_UNKNOWN_COPY_RX).first();
+  const deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await sweepApprovals(context, page, log);
+
+    if (await successTitle.isVisible().catch(() => false))
+      throw new Error(
+        probe.refused()
+          ? 'Borrow reached the success screen after the wallet reported its broadcast transaction as "nonce too low" — the app sent the borrow again.'
+          : "Borrow reached the success screen without the injected refusal — the borrow send never went through MetaMask's wrapped provider, so this run tested nothing.",
+      );
+    if (await txFailed.isVisible().catch(() => false)) {
+      const detail = await readTxFailedText(page);
+      throw new Error(
+        probe.refused()
+          ? `The form calls a borrow the wallet may have broadcast a failure — it shows "${detail}".`
+          : `Borrow failed before the injected refusal — the injection never answered the borrow send, so this run tested nothing. The form shows "${detail}".`,
+      );
+    }
+    if (await notice.isVisible().catch(() => false)) {
+      const text = (await notice.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
+        .trim();
+      log(
+        `✅ The app did not send the borrow again, and says it may have gone through: "${text}"`,
+      );
+      return;
+    }
+    await page.waitForTimeout(FORM_SETTLE_MS);
+  }
+  throw new Error(
+    probe.refused()
+      ? `Borrow showed neither the outcome-unknown notice nor a success screen within ${BORROW_TX_TIMEOUT_MS}ms after the injected "nonce too low".`
+      : `Borrow showed nothing within ${BORROW_TX_TIMEOUT_MS}ms, and the injection never answered the borrow send.`,
   );
 }
 
@@ -474,11 +554,14 @@ async function assertBorrowDebtIncreased(
  * Drive the borrow flow proper (assumes wallets connected + approver/recorder installed by the caller,
  * and collateral already present). Wrapped by `runBorrowWithOptionalPegin`, which adds the optional
  * pegin-first phase in front. Returns the reserve it borrowed from and the amount, as resolved before
- * filling the form.
+ * filling the form. With `reorg`, the app's RPC shows the borrow's block reorganized out once it is
+ * mined (see actions/aaveWriteRpc.ts).
  */
 async function runBorrowFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
+  injection: BorrowNonceInjection | undefined,
+  reorg: ReorgInjection | undefined,
 ): Promise<BorrowLeg> {
   const { page, context, log } = ctx;
   // Resolved before the browser flow, so an unknown or ambiguous token fails before anything is clicked.
@@ -509,14 +592,65 @@ async function runBorrowFlow(
   const cta = await waitForBorrowCta(page, log);
 
   onStep("borrow-submit");
-  log(
-    "Borrow CTA enabled — submitting (the approver will confirm the MetaMask tx)",
+  // With an injected refusal, the account's count before the send is what "exactly one transaction"
+  // is measured against.
+  await injection?.probe.assertPatched();
+  const countBefore = injection
+    ? await injection.probe.settledCount(ctx.eth.address)
+    : undefined;
+  // Installed right before the click, so the first receipt of the account's call to the adapter that
+  // the app reads is this borrow's.
+  const watch = await watchAaveWriteRpc(
+    page,
+    ctx.config.network,
+    ctx.eth.address,
+    reorg,
+    log,
   );
-  await cta.click();
+  try {
+    log(
+      "Borrow CTA enabled — submitting (the approver will confirm the MetaMask tx)",
+    );
+    await cta.click();
 
-  await confirmBorrowSuccess(page, context, log, describeReserve(reserve));
+    if (injection && injection.mode !== "stale") {
+      await confirmOutcomeUnknownNotice(page, context, log, injection.probe);
+    } else if (reorg) {
+      await confirmReorgHeldThenReported({
+        page,
+        context,
+        log,
+        cta,
+        watch,
+        flow: "Borrow",
+        successRx: BORROW_SUCCESS_RX,
+      });
+    } else {
+      await confirmBorrowSuccess(
+        page,
+        context,
+        log,
+        describeReserve(reserve),
+        cta,
+        watch,
+      );
+    }
+  } finally {
+    await watch.dispose();
+  }
 
   onStep("borrow-verify");
+  if (injection && countBefore !== undefined) {
+    await injection.probe.waitForRefusal();
+    injection.probe.assertNotResent();
+    await assertAccountSentOnce(
+      page,
+      ctx.config.network,
+      ctx.eth.address,
+      countBefore,
+      log,
+    );
+  }
   await assertBorrowDebtIncreased(ctx, debtBeforeUsd);
   return { reserve, amount };
 }
@@ -567,6 +701,8 @@ async function waitForFreshCollateral(
 export async function runBorrowWithOptionalPegin(
   ctx: ActionContext,
   onStep: (step: string) => void,
+  injection?: BorrowNonceInjection,
+  reorg?: ReorgInjection,
 ): Promise<BorrowLeg> {
   if (ctx.config.peginFirst) {
     ctx.log("--pegin-first: pegging in fresh collateral before borrowing");
@@ -582,7 +718,7 @@ export async function runBorrowWithOptionalPegin(
     onStep("await-collateral");
     await waitForFreshCollateral(ctx, baselineSats);
   }
-  return runBorrowFlow(ctx, onStep);
+  return runBorrowFlow(ctx, onStep, injection, reorg);
 }
 
 export const borrowAction: Action = {
@@ -602,11 +738,31 @@ export const borrowAction: Action = {
       () => currentStep,
     );
     try {
+      // Before connecting: viem binds the wallet provider's `request` when wagmi builds the connector
+      // client, so the wrapper must already be in place (see nonceTooLow.ts).
+      const mode = ctx.config.injectNonceTooLow;
+      const injection = mode
+        ? {
+            mode,
+            probe: await installNonceTooLowInjection(
+              page,
+              ctx.config.network,
+              mode,
+              log,
+            ),
+          }
+        : undefined;
+
       await connectWallets(ctx);
 
-      await runBorrowWithOptionalPegin(ctx, (step) => {
-        currentStep = step;
-      });
+      await runBorrowWithOptionalPegin(
+        ctx,
+        (step) => {
+          currentStep = step;
+        },
+        injection,
+        ctx.config.injectReorg,
+      );
 
       log("✅ Borrow complete.");
     } finally {

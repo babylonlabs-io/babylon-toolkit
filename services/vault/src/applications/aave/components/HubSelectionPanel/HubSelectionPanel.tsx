@@ -52,7 +52,8 @@ interface HubSelectionPanelProps {
 }
 
 /** Width of the leading Asset column; the stats share the remaining row. */
-const ASSET_COL_CLASS = "flex w-[200px] shrink-0 items-center gap-4";
+const ASSET_COL_CLASS =
+  "flex w-[200px] shrink-0 items-center gap-4 max-md:w-full";
 
 /** Gap between the select control and the Market Info button, in px. */
 const MARKET_INFO_GAP_PX = 16;
@@ -147,7 +148,7 @@ export function HubSelectionPanel({
         </p>
       ) : (
         <>
-          <div className="flex items-center px-4 text-sm text-accent-secondary">
+          <div className="flex items-center px-4 text-sm text-accent-secondary max-md:hidden">
             <span className={`${ASSET_COL_CLASS} py-4`}>
               {COPY.loans.assetSelection.columnAsset}
             </span>
@@ -164,7 +165,7 @@ export function HubSelectionPanel({
               // button, so the card's padding and hover move here.
               <div
                 key={row.key}
-                className={`flex w-full items-center gap-4 rounded-xl bg-background-secondary p-4 transition-colors ${
+                className={`flex w-full items-center gap-4 rounded-xl bg-background-secondary p-4 transition-colors max-md:flex-wrap ${
                   row.selectable ? "hover:brightness-125" : "opacity-40"
                 }`}
               >
@@ -172,7 +173,7 @@ export function HubSelectionPanel({
                   type="button"
                   disabled={!row.selectable}
                   onClick={() => onSelectReserve(row.reserveId)}
-                  className="flex min-w-0 flex-1 items-center text-left enabled:cursor-pointer"
+                  className="flex min-w-0 flex-1 items-center text-left enabled:cursor-pointer max-md:basis-full max-md:flex-wrap"
                   // E2E: e2e/real/actions/borrow.ts (selectHub) clicks the row
                   // by reserve id. Every row shares the token symbol, so the
                   // id is the only thing that tells them apart.
@@ -197,9 +198,19 @@ export function HubSelectionPanel({
                       </span>
                     </div>
                   </div>
-                  <div className="flex flex-1 items-center text-base text-accent-primary">
-                    <span className="flex-1">{row.aprLabel}</span>
-                    <span className="flex-1">{row.availableLabel}</span>
+                  <div className="flex flex-1 items-center text-base text-accent-primary max-md:basis-full max-md:flex-col">
+                    <span className="flex-1 max-md:flex max-md:w-full max-md:justify-between">
+                      <span className="text-sm text-accent-secondary md:hidden">
+                        {COPY.loans.borrowRateLabel}
+                      </span>
+                      <span>{row.aprLabel}</span>
+                    </span>
+                    <span className="flex-1 max-md:flex max-md:w-full max-md:justify-between">
+                      <span className="text-sm text-accent-secondary md:hidden">
+                        {COPY.loans.hub.columnAvailable}
+                      </span>
+                      <span>{row.availableLabel}</span>
+                    </span>
                   </div>
                 </button>
                 <button
@@ -209,7 +220,7 @@ export function HubSelectionPanel({
                     row.token.symbol,
                     row.hub.label,
                   )}
-                  className={NEUTRAL_ROW_BUTTON_CLASS}
+                  className={`${NEUTRAL_ROW_BUTTON_CLASS} max-md:w-full`}
                   data-testid={`hub-market-info-${row.key}`}
                 >
                   {COPY.loans.hub.marketInfo}

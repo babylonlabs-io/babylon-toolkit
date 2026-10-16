@@ -1,13 +1,21 @@
 /**
- * Tests for the two custom vault instructions. A fake sender records every
+ * Tests for the three custom vault instructions. A fake sender records every
  * APDU, so what is asserted is the exact byte sequence the device would see —
  * ordering included, since the firmware enforces phase order and answers an
  * out-of-order ceremony with an opaque status word.
  */
 
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
-import { approveVaultIntent, deriveContextHash, type ApduSender } from "../vaultCommands";
+import {
+  approveVaultIntent,
+  deriveContextHash,
+  getVaultState,
+  intentFingerprint,
+  type ApduSender,
+} from "../vaultCommands";
 
 const HARDENED = 0x80000000;
 const fill = (byte: number, len = 32) => new Uint8Array(len).fill(byte);
@@ -123,6 +131,20 @@ describe("deriveContextHash", () => {
     ).rejects.toThrow(/context must be 1\.\.1024 bytes/);
   });
 
+  it("rejects derivation path levels that are not u32 integers before any device I/O", async () => {
+    for (const bad of [2 ** 32, -1, 1.5]) {
+      const { send, sent } = recorder();
+      await expect(
+        deriveContextHash(send, {
+          appName: "bv",
+          derivationPath: [86 + HARDENED, bad],
+          context: new Uint8Array([1]),
+        }),
+      ).rejects.toThrow(/integers in 0\.\.0xffffffff/);
+      expect(sent).toHaveLength(0);
+    }
+  });
+
   it("rejects a response that is not a 32-byte root", async () => {
     const { send } = recorder([new Uint8Array(16)]);
     await expect(
@@ -207,5 +229,72 @@ describe("approveVaultIntent", () => {
     await expect(approveVaultIntent(send, { ...INTENT, scalars: { ...SCALARS, ...over } })).rejects.toThrow(msg);
     // Nothing reached the device: a mid-ceremony failure would nullify the intent.
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("intentFingerprint", () => {
+  it("is the last 4 bytes of SHA-256 over every CData approveVaultIntent sends, in order", async () => {
+    const keepers = Array.from({ length: 10 }, (_, i) => fill(i + 1));
+    const intent = {
+      scalars: { ...SCALARS, keeperCount: 10, challengerCount: 1, vaultCount: 2 },
+      groups: [GROUP, { ...GROUP, htlcVout: 1 }],
+      keeperPubkeys: keepers,
+      challengerPubkeys: [fill(0xcc)],
+    };
+    const { send, sent } = recorder();
+
+    await approveVaultIntent(send, intent);
+
+    const digest = createHash("sha256")
+      .update(Buffer.concat(sent.map((apdu) => Buffer.from(apdu.data))))
+      .digest();
+    expect(Buffer.from(intentFingerprint(intent)).toString("hex")).toBe(digest.subarray(28).toString("hex"));
+  });
+});
+
+describe("getVaultState", () => {
+  it("sends INS 0x82 with P1 = P2 = 0 and no data", async () => {
+    const { send, sent } = recorder([new Uint8Array([0x00, 0x00])]);
+
+    await getVaultState(send);
+
+    expect(sent).toEqual([{ ins: 0x82, p1: 0x00, p2: 0x00, data: new Uint8Array(0) }]);
+  });
+
+  it("reads 00 00 as an idle session", async () => {
+    const { send } = recorder([new Uint8Array([0x00, 0x00])]);
+
+    await expect(getVaultState(send)).resolves.toEqual({ phase: "idle" });
+  });
+
+  it("reads 00 04 <context_fp> as a derived root with no intent", async () => {
+    const { send } = recorder([new Uint8Array([0x00, 0x04, 0xd1, 0xf8, 0xec, 0xda])]);
+
+    await expect(getVaultState(send)).resolves.toEqual({
+      phase: "hash-derived",
+      contextFingerprint: new Uint8Array([0xd1, 0xf8, 0xec, 0xda]),
+    });
+  });
+
+  it("reads 04 <intent_fp> 04 <context_fp> as an approved intent", async () => {
+    const { send } = recorder([new Uint8Array([0x04, 0x44, 0xa9, 0x9b, 0x57, 0x04, 0xd1, 0xf8, 0xec, 0xda])]);
+
+    await expect(getVaultState(send)).resolves.toEqual({
+      phase: "intent-loaded",
+      intentFingerprint: new Uint8Array([0x44, 0xa9, 0x9b, 0x57]),
+      contextFingerprint: new Uint8Array([0xd1, 0xf8, 0xec, 0xda]),
+    });
+  });
+
+  it.each([
+    ["an empty response", []],
+    ["a fingerprint length other than 0 or 4", [0x00, 0x03, 0x01, 0x02, 0x03]],
+    ["a truncated fingerprint", [0x00, 0x04, 0x01, 0x02]],
+    ["trailing bytes", [0x00, 0x00, 0x00]],
+    ["an intent without a context root", [0x04, 0x01, 0x02, 0x03, 0x04, 0x00]],
+  ])("refuses %s", async (_label, bytes) => {
+    const { send } = recorder([new Uint8Array(bytes)]);
+
+    await expect(getVaultState(send)).rejects.toThrow(/GET_VAULT_STATE/);
   });
 });

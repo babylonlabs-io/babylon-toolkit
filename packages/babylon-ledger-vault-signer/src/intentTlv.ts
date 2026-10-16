@@ -6,6 +6,8 @@
  * @module ledger-vault-signer/intentTlv
  */
 
+import { assertBip86Path } from "./bip86Path";
+
 /** `vault_constants.h:24,30` — both pinned at 1 for the v22 protocol. */
 const VAULT_STRUCTURE_TYPE = 0x01;
 const VAULT_PROTOCOL_VERSION = 0x01;
@@ -118,7 +120,7 @@ export interface IntentScalars {
    */
   prepeginTxidInternal: Uint8Array;
   htlcRefundTimelock: number;
-  /** Exactly 5 levels; the device rejects any other depth. */
+  /** BIP-86 path `86'/coin'/account'/branch/index`, checked by `assertBip86Path`. */
   depositorPath: readonly number[];
   keeperCount: number;
   challengerCount: number;
@@ -136,20 +138,14 @@ export interface IntentVaultGroup {
   peginMaxFee: bigint;
 }
 
-const DEPOSITOR_PATH_LEVELS = 5;
-
 /**
  * Encode the 13 scalar fields. Emitted in the reference client's order —
  * the parser accepts any order, but matching it keeps a byte diff against
  * their fixtures readable.
  */
 export function encodeIntentScalars(scalars: IntentScalars): Uint8Array {
-  if (scalars.depositorPath.length !== DEPOSITOR_PATH_LEVELS) {
-    throw new Error(
-      `depositorPath must have exactly ${DEPOSITOR_PATH_LEVELS} levels, got ${scalars.depositorPath.length}`,
-    );
-  }
-  const path = concat(scalars.depositorPath.map((level) => uintBE(BigInt(level >>> 0), 4, "path level")));
+  assertBip86Path("depositorPath", scalars.depositorPath);
+  const path = concat(scalars.depositorPath.map((level) => uintBE(BigInt(level), 4, "path level")));
 
   return concat([
     tlvU8(TAG_STRUCTURE_TYPE, VAULT_STRUCTURE_TYPE, "structureType"),

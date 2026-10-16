@@ -1,3 +1,4 @@
+import { isAddress } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockMulticall = vi.fn();
@@ -23,24 +24,41 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
-  Network: {
-    MAINNET: "mainnet",
-    SIGNET: "signet",
-    TESTNET: "testnet",
-  },
+vi.mock("@/config/network", () => ({
+  getNetworkConfigETH: vi.fn(() => ({ chainId: 11155111 })),
 }));
 
-vi.mock("@/config/network", () => ({
-  getBTCNetwork: vi.fn(() => "signet"),
-}));
+import { getNetworkConfigETH } from "@/config/network";
 
 import type { ChainlinkRoundData } from "../query";
 import {
+  CHAINLINK_PRICE_FEEDS,
   getTokenPrices,
   isPriceFresh,
   resetStaleFeedReporting,
 } from "../query";
+
+const ETH_MAINNET_CHAIN_ID = 1;
+const ETH_SEPOLIA_CHAIN_ID = 11155111;
+
+/** Ethereum-mainnet BTC / USD proxy (Chainlink registry, feeds-mainnet.json). */
+const MAINNET_BTC_FEED = "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c";
+/** Sepolia BTC / USD proxy (Chainlink registry, feeds-ethereum-testnet-sepolia.json). */
+const SEPOLIA_BTC_FEED = "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43";
+
+/** 20 hours: inside USDC's 23 h heartbeat, far past BTC's 1 h one. */
+const TWENTY_HOURS_SECONDS = 72_000n;
+/** 25 hours: past USDT's 24 h heartbeat plus the 10 min grace. */
+const TWENTY_FIVE_HOURS_SECONDS = 90_000n;
+
+/** Heartbeat (3600 s) plus the 600 s grace window. */
+const BTC_MAX_AGE_SECONDS = 4200;
+
+function useChain(chainId: number) {
+  vi.mocked(getNetworkConfigETH).mockReturnValue({
+    chainId,
+  } as ReturnType<typeof getNetworkConfigETH>);
+}
 
 /** Simulated Chainlink round ID for test fixtures */
 const ROUND_ID = 100n;
@@ -102,7 +120,7 @@ function makeRoundData(
 describe("isPriceFresh", () => {
   it("returns true when round is complete and data is fresh", () => {
     const roundData = makeRoundData();
-    expect(isPriceFresh(roundData)).toBe(true);
+    expect(isPriceFresh(roundData, BTC_MAX_AGE_SECONDS)).toBe(true);
   });
 
   it("returns false when answeredInRound < roundId (incomplete round)", () => {
@@ -110,7 +128,7 @@ describe("isPriceFresh", () => {
       roundId: ROUND_ID,
       answeredInRound: INCOMPLETE_ANSWERED_IN_ROUND,
     });
-    expect(isPriceFresh(roundData)).toBe(false);
+    expect(isPriceFresh(roundData, BTC_MAX_AGE_SECONDS)).toBe(false);
   });
 
   it("returns false when data age exceeds max threshold", () => {
@@ -118,7 +136,7 @@ describe("isPriceFresh", () => {
     const roundData = makeRoundData({
       updatedAt: nowSeconds - TWO_HOURS_SECONDS,
     });
-    expect(isPriceFresh(roundData)).toBe(false);
+    expect(isPriceFresh(roundData, BTC_MAX_AGE_SECONDS)).toBe(false);
   });
 
   it("respects custom maxAgeSeconds parameter", () => {
@@ -136,6 +154,7 @@ describe("getTokenPrices", () => {
     vi.clearAllMocks();
     // The stale-feed dedup store is module-scoped and outlives a single test.
     resetStaleFeedReporting();
+    useChain(ETH_SEPOLIA_CHAIN_ID);
   });
 
   /**
@@ -446,6 +465,37 @@ describe("getTokenPrices", () => {
     }
   });
 
+  it("the BTC_PRICE_FEED override keeps the BTC heartbeat", async () => {
+    const { ENV } = await import("@/config/env");
+    const originalFeed = ENV.BTC_PRICE_FEED;
+    useChain(ETH_SEPOLIA_CHAIN_ID);
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+
+    try {
+      ENV.BTC_PRICE_FEED = "0xA5c0105B71D9D2CaDC151A1875a5B71C85AbF8DB";
+      mockMulticall.mockResolvedValueOnce(
+        makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+          updatedAt: nowSeconds - TWENTY_HOURS_SECONDS,
+        }),
+      );
+
+      const { metadata } = await getTokenPrices(["BTC"]);
+
+      expect(metadata["BTC"].isStale).toBe(true);
+    } finally {
+      ENV.BTC_PRICE_FEED = originalFeed;
+    }
+  });
+
+  it("every feed address in both chain tables is a valid checksummed address", () => {
+    for (const [chainId, table] of Object.entries(CHAINLINK_PRICE_FEEDS)) {
+      for (const [symbol, feed] of Object.entries(table)) {
+        if (feed === null) continue;
+        expect(isAddress(feed.address), `${chainId} ${symbol}`).toBe(true);
+      }
+    }
+  });
+
   it("skips symbols with no feed address", async () => {
     const result = await getTokenPrices(["UNKNOWN_TOKEN"]);
 
@@ -500,7 +550,7 @@ describe("getTokenPrices", () => {
   });
 
   it("deduplicates shared BTC aliases into one feed entry in a mixed-symbol batch", async () => {
-    // vBTC and BTC both resolve to the BTC feed via getChainlinkFeedAddress.
+    // vBTC and BTC both resolve to the BTC feed via getChainlinkFeed.
     // The batch must collapse them to a single multicall entry pair
     // (latestRoundData + decimals) rather than re-fetching the same feed.
     mockMulticall.mockResolvedValueOnce([
@@ -521,5 +571,84 @@ describe("getTokenPrices", () => {
     expect(result.prices["sBTC"]).toBe(BTC_PRICE_USD);
     expect(result.prices["ETH"]).toBe(ETH_PRICE_USD);
     expect(result.prices["WETH"]).toBe(ETH_PRICE_USD);
+  });
+
+  it("reads the Ethereum-mainnet feed table when the configured chain is 1", async () => {
+    useChain(ETH_MAINNET_CHAIN_ID);
+    mockFeedResponse(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS);
+
+    await getTokenPrices(["BTC"]);
+
+    expect(mockMulticall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contracts: expect.arrayContaining([
+          expect.objectContaining({ address: MAINNET_BTC_FEED }),
+        ]),
+      }),
+    );
+  });
+
+  it("reads the Sepolia feed table when the configured chain is 11155111", async () => {
+    mockFeedResponse(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS);
+
+    await getTokenPrices(["BTC"]);
+
+    expect(mockMulticall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contracts: expect.arrayContaining([
+          expect.objectContaining({ address: SEPOLIA_BTC_FEED }),
+        ]),
+      }),
+    );
+  });
+
+  it("treats a 20-hour-old USDC round as fresh on mainnet (23 h heartbeat)", async () => {
+    useChain(ETH_MAINNET_CHAIN_ID);
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce(
+      makeFeedResult(100_000_000n, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds - TWENTY_HOURS_SECONDS,
+      }),
+    );
+
+    const { metadata } = await getTokenPrices(["USDC"]);
+
+    expect(metadata["USDC"].isStale).toBe(false);
+  });
+
+  it("treats a 20-hour-old BTC round as stale on mainnet (1 h heartbeat)", async () => {
+    useChain(ETH_MAINNET_CHAIN_ID);
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce(
+      makeFeedResult(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds - TWENTY_HOURS_SECONDS,
+      }),
+    );
+
+    const { metadata } = await getTokenPrices(["BTC"]);
+
+    expect(metadata["BTC"].isStale).toBe(true);
+  });
+
+  it("treats a 25-hour-old USDT round as stale on mainnet and reports its age", async () => {
+    const { logger } = await import("@/infrastructure");
+    useChain(ETH_MAINNET_CHAIN_ID);
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    mockMulticall.mockResolvedValueOnce(
+      makeFeedResult(100_000_000n, STANDARD_DECIMALS, {
+        updatedAt: nowSeconds - TWENTY_FIVE_HOURS_SECONDS,
+      }),
+    );
+
+    const { metadata } = await getTokenPrices(["USDT"]);
+
+    expect(metadata["USDT"].isStale).toBe(true);
+    expect(logger.event).toHaveBeenCalledWith(
+      "Chainlink price data is stale. Using last known price.",
+      expect.objectContaining({
+        tags: expect.objectContaining({ staleReason: "age" }),
+        ageHours: "25.0",
+      }),
+    );
   });
 });

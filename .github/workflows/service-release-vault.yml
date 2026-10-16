@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       ENVIRONMENT:
-        description: 'Environment to publish. "all" (the push/tag default) publishes every environment below; vault-real-money-devnet is published from main only.'
+        description: 'Environment to publish. "all" (the push/tag default) publishes every environment below.'
         required: false
         default: all
         type: choice
@@ -20,7 +20,6 @@ on:
           - vault-devnet
           - vault-staging-devnet
           - vault-testnet
-          - vault-real-money-devnet
       CORRELATION_ID:
         description: 'Opaque ID set by an orchestrating workflow (e.g. tbv-deployment unified redeploy) so it can locate this run via run-name. Empty for manual runs.'
         required: false
@@ -76,6 +75,8 @@ jobs:
 
       - name: Build
         run: pnpm run build
+        env:
+          NEXT_PUBLIC_TBV_NETWORK: devnet
 
   # Resolve which environments this run publishes. A workflow_dispatch run may
   # scope to a single environment (ENVIRONMENT input); push/tag runs and the
@@ -95,14 +96,19 @@ jobs:
         run: |
           set -euo pipefail
           ALL='[
-            {"environment":"vault-devnet","aws_account":"537927626649"},
-            {"environment":"vault-staging-devnet","aws_account":"537927626649"},
-            {"environment":"vault-testnet","aws_account":"615368094160","prod":true},
-            {"environment":"vault-real-money-devnet","aws_account":"537927626649","role":"gha-s3-frontend-push-real-money-devnet","main_only":true}
+            {"environment":"vault-devnet","network":"devnet","expected_kind":"test","aws_account":"537927626649"},
+            {"environment":"vault-staging-devnet","network":"staging","expected_kind":"test","aws_account":"537927626649"},
+            {"environment":"vault-testnet","network":"testnet-2","expected_kind":"test","aws_account":"615368094160","prod":true}
           ]'
+          # vault-real-money-devnet returns once services/vault/networks/real-money-devnet.json exists
+          # (`pnpm sync-env real-money-devnet --kind internal`); until then its leg would fail the
+          # pre-build profile check on every main push and hide a real failure in the other legs.
+          # Restore its entry (its own "role", "main_only") and the ENVIRONMENT dispatch option from
+          # git history when the profile lands.
           # "role" names a dedicated AWS role for that environment (default: gha-s3-frontend-push).
           # A "main_only" entry publishes with a role that trusts refs/heads/main alone, so off main
           # it is left out of the all-environment run and refused when asked for by name.
+          # "network" names the profile in services/vault/networks that the build inlines; "expected_kind" is asserted against that profile before the build, so a profile edit cannot change a deployment's class unnoticed. "prod" is the AWS/manifest flag and is independent of kind.
           if [ -z "${ENVIRONMENT:-}" ] || [ "$ENVIRONMENT" = "all" ]; then
             SELECTED=$(echo "$ALL" | jq -c --arg ref "$GITHUB_REF" '[.[] | select(.main_only != true or $ref == "refs/heads/main")]')
             SKIPPED=$(echo "$ALL" | jq -r --argjson selected "$SELECTED" '[.[].environment] - [$selected[].environment] | join(", ")')
@@ -187,30 +193,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check network profile against the matrix
+        env:
+          NETWORK: ${{ matrix.network }}
+          EXPECTED_KIND: ${{ matrix.expected_kind }}
+        run: pnpm --filter @services/vault run check:network-profile "$NETWORK" --kind "$EXPECTED_KIND"
+
       - name: Build project
         run: pnpm run build
         env:
           NODE_OPTIONS: "--max-old-space-size=8192" # 8GB node memory limit
-          # Bitcoin Network Configuration (Vault)
-          NEXT_PUBLIC_BTC_NETWORK: ${{ vars.NEXT_PUBLIC_BTC_NETWORK }}
-          NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
-          # Ethereum Network Configuration (Vault)
-          NEXT_PUBLIC_ETH_CHAINID: ${{ vars.NEXT_PUBLIC_ETH_CHAINID }}
+          # The profile (contracts, endpoints, pairing) comes from the matrix, not from the environment.
+          NEXT_PUBLIC_TBV_NETWORK: ${{ matrix.network }}
+          # Per-deployment overrides; every name below is classed in services/vault/env-manifest.json.
           NEXT_PUBLIC_ETH_RPC_URL: ${{ vars.NEXT_PUBLIC_ETH_RPC_URL }}
-          # GraphQL Endpoint
-          NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: ${{ vars.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT }}
-          # Vault Provider Proxy
-          NEXT_PUBLIC_TBV_VP_PROXY_URL: ${{ vars.NEXT_PUBLIC_TBV_VP_PROXY_URL }}
+          NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
           NEXT_PUBLIC_TBV_VP_EXPLORER_URL: ${{ vars.NEXT_PUBLIC_TBV_VP_EXPLORER_URL }}
-          # Auxiliary APIs
           NEXT_PUBLIC_TBV_SIDECAR_API_URL: ${{ vars.NEXT_PUBLIC_TBV_SIDECAR_API_URL }}
           NEXT_PUBLIC_TBV_ORDINALS_API_URL: ${{ vars.NEXT_PUBLIC_TBV_ORDINALS_API_URL }}
           NEXT_PUBLIC_TBV_UTILS_API: ${{ vars.NEXT_PUBLIC_TBV_UTILS_API }}
-          # Trustless Bitcoin Vault (TBV) Contracts
-          NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY }}
-          NEXT_PUBLIC_TBV_AAVE_ADAPTER: ${{ vars.NEXT_PUBLIC_TBV_AAVE_ADAPTER }}
-          NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: ${{ vars.NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG }}
-          NEXT_PUBLIC_TBV_BTC_PRICE_FEED: ${{ vars.NEXT_PUBLIC_TBV_BTC_PRICE_FEED }}
           # Build Metadata
           NEXT_PUBLIC_COMMIT_HASH: ${{ github.sha }}
           NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
@@ -243,6 +244,11 @@ jobs:
           NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS: ${{ vars.NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS }}
           # Misc
           NEXT_PUBLIC_NOTICE_BANNER_MESSAGE: ${{ vars.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE }}
+
+      - name: Check the built bundle inlines the matrix profile
+        env:
+          NETWORK: ${{ matrix.network }}
+        run: pnpm --filter @services/vault run check:built-profile "$NETWORK"
 
       - name: Copy all index.html to fix path for activity, app/aave
         run: |

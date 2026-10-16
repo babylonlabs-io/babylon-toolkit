@@ -7,17 +7,20 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { useAccount, useWalletClient } from "wagmi";
+import type { Address, Hex } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
 import { assertNoTransactionInFlight } from "@/clients/eth-contract/transactionInFlight";
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   WalletError,
   isWriteNotice,
@@ -47,16 +50,22 @@ export interface UseWithdrawCollateralTransactionResult {
    * Execute the withdraw collateral transaction. Resolves `succeeded` once it
    * is mined, including a transaction mined after the normal receipt wait,
    * which this keeps waiting for, and `unknown` when it may still be mined:
-   * the user stopped waiting, or the wallet replaced it with a transaction
-   * that could not be read.
-   * @param selection - The reviewed vaults, each bound to the amount the
-   *   review showed. Refused before signing if the registry disagrees.
+   * the user stopped waiting, the wallet replaced it with a transaction that
+   * could not be read, or the wallet refused as "nonce too low" a send it may
+   * have broadcast.
+   * @param selection - The reviewed vaults and amounts. Signing stops if the
+   *   registry does not match them.
    */
   executeWithdraw: (
     selection: readonly CollateralAmountPair[],
   ) => Promise<AaveActionResult>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
+  /**
+   * This form's own withdrawal is mined, and its outcome waits for it to be deep
+   * enough on the chain. Clears when the withdrawal ends.
+   */
+  isConfirming: boolean;
   /**
    * The account's Aave write in progress, from this form or any other. Every
    * Aave action stays disabled while it is set.
@@ -66,9 +75,10 @@ export interface UseWithdrawCollateralTransactionResult {
   error: string | null;
   /**
    * Last outcome that is not a failure (null when none): a refusal before
-   * anything was signed, a wallet replacement that may have done the
-   * withdrawal, a withdrawal the user stopped waiting for, or another Aave
-   * form's write holding the lock. Shown without the failure title.
+   * anything was signed, a wallet replacement or a "nonce too low" for a
+   * broadcast send, either of which may have done the withdrawal, a
+   * withdrawal the user stopped waiting for, or another Aave form's write
+   * holding the lock. Shown without the failure title.
    */
   notice: string | null;
   /** Clear the last failure message and notice (e.g. when the dialog reopens). */
@@ -86,14 +96,14 @@ export interface UseWithdrawCollateralTransactionResult {
  */
 export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+  const account = useETHWallet().address as Address | undefined;
   const queryClient = useQueryClient();
   const { markVaultsAsPending } = usePendingVaults();
   const gate = useProtocolGateState();
-  const pendingWrite = usePendingAaveWrite(address);
+  const pendingWrite = usePendingAaveWrite(account);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -112,47 +122,46 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
       setError(null);
       setNotice(null);
       setIsProcessing(true);
+      // The button reads "Confirming" while the withdrawal gets deep enough
+      // on the chain.
+      const markIncluded = () => setIsConfirming(true);
       try {
-        // Validate wallet connection
-        if (!walletClient) {
+        if (!account) {
           throw new WalletError(
             COPY.wallet.connectToContinue,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }
 
-        if (!address) {
-          throw new WalletError(
-            COPY.wallet.addressUnavailable,
-            ErrorCode.WALLET_NOT_CONNECTED,
-          );
-        }
-
         // The account's Aave lock covers the pre-send check too, so a second
         // call made while it runs is refused instead of sent after this one.
-        const outcome = await runAaveWrite(address, async () => {
+        const outcome = await runAaveWrite(account, async () => {
           // A withdrawal this page did not see (sent before a reload, or from
           // another tab) may still be pending.
           await assertNoTransactionInFlight({
             publicClient: ethClient.getPublicClient(),
-            account: address,
+            account,
           });
 
-          // The review summed and projected the indexer's amounts, but the
-          // contract withdraws the registry's. Refuse before the wallet
-          // prompt if any selected vault's registry amount, status or
-          // application disagrees.
+          // Check each reviewed amount, status and application before signing.
           await assertCollateralAmountsMatchOnChain(
             selection,
             getAaveAdapterAddress(),
           );
 
+          const walletClient = await getWalletClientOnExpectedChain(account);
           await withdrawSelectedCollateral(
             walletClient,
             getETHChain(),
-            vaultIds,
+            vaultIds as Hex[],
+            markIncluded,
           );
         });
+        // "Confirming" holds through the refresh only for a mined withdrawal:
+        // one the lock's watch found after the first wait gave up never
+        // reported its inclusion, and one the user stopped waiting on is not
+        // confirming.
+        setIsConfirming(outcome === "mined");
 
         // Mark vaults as pending withdrawal before indexer updates, only once
         // the withdrawal is known to be mined
@@ -168,17 +177,22 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         setNotice(COPY.common.unconfirmedTransaction.stopped);
         return "unknown";
       } catch (error) {
-        // The wallet replaced the transaction. A speed-up may still have done
-        // the withdrawal, so the position must show the chain's answer before
-        // the user decides whether to try again.
-        if (error instanceof TransactionReplacedError) {
+        // The wallet replaced the transaction, or refused as "nonce too low" a
+        // send it may have broadcast. Either may still have done the
+        // withdrawal, so the position must show the chain's answer before the
+        // user decides whether to try again.
+        if (
+          error instanceof TransactionReplacedError ||
+          error instanceof SendOutcomeUnknownError
+        ) {
           await invalidateVaultQueries(queryClient);
         }
-        // Not a failure: a refusal before anything was signed, or a
-        // replacement that may have done the withdrawal.
+        // Not a failure: a refusal before anything was signed, or an outcome
+        // that may have done the withdrawal.
         if (isWriteNotice(error)) {
           setNotice(error.message);
-          return error instanceof TransactionReplacedError
+          return error instanceof TransactionReplacedError ||
+            error instanceof SendOutcomeUnknownError
             ? "unknown"
             : "failed";
         }
@@ -202,9 +216,10 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         return "failed";
       } finally {
         setIsProcessing(false);
+        setIsConfirming(false);
       }
     },
-    [walletClient, address, queryClient, markVaultsAsPending, gate],
+    [account, queryClient, markVaultsAsPending, gate],
   );
 
   // Another Aave form's write holds the lock while it is signed or sent, so
@@ -215,6 +230,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   return {
     executeWithdraw,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error,
     notice:

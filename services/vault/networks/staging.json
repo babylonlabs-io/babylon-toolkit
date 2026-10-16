@@ -1,0 +1,21 @@
+{
+  "name": "staging",
+  "kind": "test",
+  "registryCommit": "547aeb09e0d6ec6732cb85b21535f6be0b0f7608",
+  "btcNetwork": "signet",
+  "ethChainId": 11155111,
+  "ethRpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+  "indexerUrl": "https://babylon-vault-indexer-api.vault-staging-devnet.babylonlabs.io",
+  "vpProxyUrl": "https://vault-provider-proxy-api.vault-staging-devnet.babylonlabs.io",
+  "contracts": {
+    "btcVaultRegistry": "0x59Cf7BE834fFaA3611DD6B4A229B6F56B6635320",
+    "aaveAdapter": "0x870b8F64924AEf1bb51c3f62d2a2AA5dA09835d4",
+    "aaveAdapterConfig": "0xc90871CF466851d4B09Fce3b42f04109BA2C92C4",
+    "btcPriceFeed": "0x6b65E62fBF7bEAEfDEBE363C67DF15e29ae4CEAF"
+  },
+  "overrides": {
+    "reason": "tbv-networks staging hosts do not resolve in DNS (checked 2026-10-14); the live hosts are staging-devnet.babylonlabs.io",
+    "indexerUrl": "https://babylon-vault-indexer-api.staging-devnet.babylonlabs.io",
+    "vpProxyUrl": "https://vault-provider-proxy-api.staging-devnet.babylonlabs.io"
+  }
+}

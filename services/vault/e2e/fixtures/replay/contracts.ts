@@ -9,10 +9,9 @@
  * "Aave adapter mismatch" outright, which is the error boundary the capture
  * used to photograph.
  *
- * Recovered from the recording itself rather than from an `.env` file, which
- * is what keeps them honest: the devnet deployment has moved on since, so the
- * values in `.env.example` today would replay nothing. Re-recording is what
- * updates these, together.
+ * Kept in networks/e2e-replay.json, the profile the Playwright servers select,
+ * so the app and this fixture cannot disagree. Re-recording is what updates
+ * that file, together with the recorded responses.
  *
  * Provenance, so a later reader can re-derive each one:
  *  - `AAVE_ADAPTER` is the sole `applications.items[].id` in the recorded
@@ -27,13 +26,24 @@
  *    answered with.
  */
 
+import type { Address } from "viem";
+
+import profile from "../../../networks/e2e-replay.json" with { type: "json" };
+
 export const RECORDED_DEPLOYMENT = {
-  BTC_VAULT_REGISTRY: "0xb331467c4db13dccc77fa66c2d185b74ed57ab80",
-  AAVE_ADAPTER: "0x31bc43cab2d91b3016bee8e9fc1194d46d7b0590",
-  AAVE_ADAPTER_CONFIG: "0x93071eef9dd7f692f377a0085dbac120324f719e",
-  BTC_PRICE_FEED: "0xA5c0105B71D9D2CaDC151A1875a5B71C85AbF8DB",
-  ETH_CHAIN_ID: "11155111",
-} as const;
+  BTC_VAULT_REGISTRY: profile.contracts.btcVaultRegistry as Address,
+  AAVE_ADAPTER: profile.contracts.aaveAdapter as Address,
+  AAVE_ADAPTER_CONFIG: profile.contracts.aaveAdapterConfig as Address,
+  BTC_PRICE_FEED: profile.contracts.btcPriceFeed as Address,
+  ETH_CHAIN_ID: String(profile.ethChainId),
+};
+
+/** Mock backends the e2e-replay profile points the app at; route handlers match these. */
+export const RECORDED_ENDPOINTS = {
+  ETH_RPC_URL: profile.ethRpcUrl,
+  VP_PROXY_URL: profile.vpProxyUrl,
+  GRAPHQL_ENDPOINT: profile.indexerUrl,
+};
 
 /**
  * The depositor the recording belongs to.

@@ -62,17 +62,23 @@ interface SignPayoutBaseParams {
   peginTxHex: string;
 
   /**
-   * Vault provider's BTC public key (x-only, 64-char hex).
+   * Vault provider's RFC-006 operation key (x-only, 64-char hex) at the
+   * vault's frozen `vpKeyEpoch`, as `readStampedParticipantKeys` returns it.
+   * Never the registration key or the indexer's copy.
    */
   vaultProviderBtcPubkey: string;
 
   /**
-   * Vault keeper BTC public keys (x-only, 64-char hex).
+   * Vault keeper operation keys (x-only, 64-char hex) at the vault's frozen
+   * `appKeeperKeyEpoch`, as `readStampedParticipantKeys` returns them. The
+   * roster holds registration keys, which differ from these for a vault
+   * registered after a keeper had rotated.
    */
   vaultKeeperBtcPubkeys: string[];
 
   /**
-   * Universal challenger BTC public keys (x-only, 64-char hex).
+   * Universal challenger operation keys (x-only, 64-char hex) at the vault's
+   * frozen `ucKeyEpoch`, as `readStampedParticipantKeys` returns them.
    */
   universalChallengerBtcPubkeys: string[];
 

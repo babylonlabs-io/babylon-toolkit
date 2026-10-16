@@ -18,7 +18,11 @@ import { derivePrePeginTxHash } from "./vaultTransformers";
 const WITHDRAWING_VAULT_STATUS = "redeemed";
 
 /** Terminal vault statuses — the vault has left the position for good */
-const SETTLED_VAULT_STATUSES = new Set(["liquidated", "depositor_withdrawn"]);
+const SETTLED_VAULT_STATUSES = new Set([
+  "liquidated",
+  "depositor_withdrawn",
+  "non_depositor_spend",
+]);
 
 /** Resolves a vault provider address to display name and icon */
 type ProviderResolver = (address: string) => VaultProvider | undefined;

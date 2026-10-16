@@ -59,6 +59,11 @@ export interface EnsureAuthenticatedVpClientParams {
    * resume, and artifact download popup-free.
    */
   requireFreshDeviceCeremony?: boolean;
+  /**
+   * Checked immediately before the wallet derive, after the cold path's
+   * reads: a flow the depositor left during them must not open the prompt.
+   */
+  signal?: AbortSignal;
 }
 
 export async function ensureAuthenticatedVpClient(
@@ -108,6 +113,8 @@ export async function ensureAuthenticatedVpClient(
   // provider before the wallet popup.
   const vpAddress = params.providerAddress as Address;
   const authPins = await resolveVpAuthPins(vpAddress, params.vaultId);
+
+  params.signal?.throwIfAborted();
 
   // Cold-start: derive auth anchor from the wallet (popup).
   let root: Uint8Array | null = null;

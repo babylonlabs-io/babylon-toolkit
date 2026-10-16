@@ -62,6 +62,12 @@ interface WithdrawReviewContentProps {
   vpCommission: WithdrawCommission;
   isProcessing: boolean;
   /**
+   * The button reads "Confirming": this withdrawal is mined and waiting to be
+   * deep enough on the chain for its outcome to be reported, or an Aave
+   * transaction from this wallet is unconfirmed.
+   */
+  isConfirming: boolean;
+  /**
    * An Aave transaction from this wallet that has been broadcast but not yet
    * confirmed. Shown in place of the error, since nothing has failed.
    */
@@ -93,6 +99,7 @@ export function WithdrawReviewContent({
   assertTimelockBlocks,
   vpCommission,
   isProcessing,
+  isConfirming,
   unconfirmedWrite,
   error,
   notice,
@@ -277,7 +284,9 @@ export function WithdrawReviewContent({
                   variant="body2"
                   className="text-accent-contrast"
                 >
-                  {REVIEW_COPY.processing}
+                  {isConfirming
+                    ? REVIEW_COPY.confirming
+                    : REVIEW_COPY.processing}
                 </Text>
               </span>
             ) : (

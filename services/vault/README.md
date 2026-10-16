@@ -25,7 +25,7 @@ Create a `.env` file in the `services/vault` directory:
 cp .env.example .env
 ```
 
-Edit the `.env` file with the required environment variables (see [Environment Variables](#environment-variables) below).
+Edit `.env` for your overrides (Reown project id at minimum; see [Configuration](#configuration) below). The network profile defaults to `devnet`.
 
 ### 3. Run Development Server
 
@@ -43,69 +43,50 @@ pnpm dev
 
 The application will be available at `http://localhost:5173` (default Vite port).
 
-## Environment Variables
+## Configuration
 
-Create a `.env` file with the following variables:
+The app is configured in two layers.
 
-### Required
+**1. A network profile** in `networks/<name>.json` holds everything that belongs to a
+deployment: Bitcoin network, Ethereum chain, contract addresses, indexer and vault-provider
+proxy endpoints, and a `kind` (`production`, `test` or `internal`) that decides which
+Bitcoin and Ethereum networks may be paired. Profiles are generated from the private
+`babylonlabs-io/tbv-networks` registry and committed, so every change is a reviewed diff.
 
-- `NEXT_PUBLIC_BTC_NETWORK` - Bitcoin network (must be `mainnet` or `signet`)
-  - Use `signet` for devnet/testnet
-  - Use `mainnet` for production
-  - Example: `signet`
-- `NEXT_PUBLIC_ETH_CHAINID` - Ethereum chain ID (must be `1` or `11155111`)
-  - Use `11155111` (Sepolia) for devnet/testnet
-  - Use `1` (Ethereum Mainnet) for production
-  - Example: `11155111`
-- `NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT` - GraphQL API endpoint for vault data (also provides vault provider RPC URLs)
-  - Example: `https://babylon-vault-indexer-api.vault-devnet.babylonlabs.io`
-- `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` - TBV BTC Vault Registry contract address
-  - The `ProtocolParams` it points to must expose `peginActivationDelay()`. The activation gate fails closed, so where the getter is absent or reverts, Activate stays disabled for every depositor. Verify with `cast call <protocolParams> "peginActivationDelay()(uint256)"`
-- `NEXT_PUBLIC_TBV_AAVE_ADAPTER` - TBV Aave Integration Adapter contract address
+```bash
+pnpm sync-env devnet                  # refresh one profile from the registry
+pnpm sync-env --all                   # refresh every registry-backed profile
+pnpm sync-env:check                   # exit 1 if any committed profile is stale
+pnpm sync-env <name> --kind test      # add a profile for a new registry entry
+```
 
-### Optional
+A profile may carry an `overrides` block for its three endpoints while the registry entry
+is wrong; each override states a reason and `sync-env` keeps it across regenerations.
+`e2e-replay.json` is hand-written (`registryCommit: null`) and backs the Playwright suite.
 
-- `NEXT_PUBLIC_MEMPOOL_API` - Mempool.space host for Bitcoin node queries
-  - Default: `https://mempool.space` (mainnet) or `https://mempool.space/signet` (signet)
-- `NEXT_PUBLIC_ETH_RPC_URL` - Custom Ethereum RPC URL
-  - Default: `https://cloudflare-eth.com` (mainnet) or `https://rpc.sepolia.org` (sepolia)
-- `NEXT_PUBLIC_COMMIT_HASH` - Git commit hash (usually injected during CI)
-- `NEXT_PUBLIC_CANONICAL` - Canonical URL for the application
+**2. Build variables**, `NEXT_PUBLIC_*`, select the profile and hold per-deployment
+overrides. Every name the app reads is listed with its class in `env-manifest.json`;
+`pnpm check:env-manifest` fails when source, the release workflow and that list disagree.
 
-### Feature Flags
+| Variable                                                                                                                              | Class      | Meaning                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_TBV_NETWORK`                                                                                                             | required   | Profile name. Unset locally means `devnet`; CI builds must set it. An unknown name fails the build. |
+| `NEXT_PUBLIC_REOWN_PROJECT_ID`                                                                                                        | required   | Reown (WalletConnect) project id.                                                                   |
+| `NEXT_PUBLIC_ETH_RPC_URL`                                                                                                             | optional   | Overrides the profile's RPC.                                                                        |
+| `NEXT_PUBLIC_MEMPOOL_API`                                                                                                             | optional   | Mempool host (no `/signet`, no `/api`). Default `https://mempool.space`.                            |
+| `NEXT_PUBLIC_TBV_UTILS_API`, `NEXT_PUBLIC_TBV_SIDECAR_API_URL`, `NEXT_PUBLIC_TBV_VP_EXPLORER_URL`, `NEXT_PUBLIC_TBV_ORDINALS_API_URL` | optional   | Auxiliary services; each feature degrades when unset.                                               |
+| `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE`, `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS`, `NEXT_PUBLIC_FF_*`                                       | optional   | Operator switches; see `src/config/featureFlags.ts`.                                                |
+| `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                  | build-only | Set by the release workflow.                                                                        |
 
-- `NEXT_PUBLIC_FF_DISABLE_DEPOSIT` - Kill-switch to disable deposit functionality during maintenance or incidents
-  - Default: `false` (deposits are enabled unless explicitly set to `"true"`)
-  - Set to `"true"` to disable deposit functionality
-  - When disabled, users will see "Depositing Unavailable" and the deposit button will be disabled
+The Ethereum RPC in use, the profile's `ethRpcUrl` or the `NEXT_PUBLIC_ETH_RPC_URL` override,
+must serve `eth_simulateV1` with a gas allowance of at least 16,777,216: the activation checks
+its gas limit with it before sending (`src/services/vault/activationGasLimit.ts`).
+`https://ethereum-sepolia-rpc.publicnode.com` does; `https://rpc.sepolia.ethpandaops.io` does not.
 
-- `NEXT_PUBLIC_FF_DISABLE_BORROW` - Kill-switch to disable borrowing functionality during maintenance or incidents
-  - Default: `false` (borrowing is enabled unless explicitly set to `"true"`)
-  - Set to `"true"` to disable borrowing functionality
-  - When disabled, users will see "Borrowing Unavailable" and the borrow button will be disabled
-
-- `NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT` - Forces partial liquidation split to always be suggested, even with active vaults
-  - Default: `false` (disabled unless explicitly set to `"true"`)
-  - Set to `"true"` to bypass the active-vaults check — useful for dev/QA testing of the split deposit flow
-
-- `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` - Shows the teal "Protocol is frozen" banner and disables new deposits and borrows (Freeze blocks new entry; exits like repay/withdraw/liquidation stay available)
-  - Default: `false` (banner hidden unless explicitly set to `"true"`)
-  - Operator-controlled; the banner reflects the flag (the on-chain Frozen/Paused state exists but isn't read yet)
-
-- `NEXT_PUBLIC_FF_PROTOCOL_PAUSED` - Shows the red "Protocol is paused" banner (the full stop; last-resort emergency)
-  - Default: `false` (banner hidden unless explicitly set to `"true"`)
-  - Takes precedence over `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` when both are set
-
-- `NEXT_PUBLIC_FF_ENABLE_EXPLORE` - Shows the Explore section: the `/explore` page and its sidebar entry
-  - Default: `false` (the route redirects to `/` and the nav item is hidden unless explicitly set to `"true"`)
-  - Off until the partner list is backed by the contributor registry rather than a hand-authored seed list
-
-- `NEXT_PUBLIC_FF_ENABLE_MOBILE` - Turns on the phone experience for the mobile epic (#2580): the Continue on Desktop screen for Bitcoin actions and no Bitcoin row in the connect dialog on touch-first devices with no Bitcoin wallet
-  - Default: `false` (off unless explicitly set to `"true"`)
-
-- `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE` - The single operator message shown to depositors, placed by context (non-boolean config)
-  - Default: empty (the default per-context copy is shown; standalone notice hidden)
-  - When set: fills the frozen/paused status-card body if a status is active, else fills the deposit-disabled banner text if deposits are off, else shows as a standalone top-of-app notice
+Local development: `pnpm dev` runs devnet; `pnpm dev:testnet` runs the `testnet-2`
+profile. Run `NEXT_PUBLIC_TBV_NETWORK=<name> pnpm dev` to pick another. The selector must
+not be set in a dotenv file: Nx loads `.env` into the build but keys its cache on the process
+environment, so a selector found there is refused by the build and the dev server.
 
 ## Available Scripts
 
@@ -132,12 +113,20 @@ Create a `.env` file with the following variables:
 
 ## Deployment
 
-The application is built using Vite and can be deployed to any static hosting service:
+`.github/workflows/service-release-vault.yml` builds one bundle per GitHub Environment. Each
+matrix entry names its profile and expected kind; the workflow checks the profile before the
+build, passes `NEXT_PUBLIC_TBV_NETWORK` from the matrix, and checks the built bundle inlined
+that profile and no other. GitHub Environments hold only the override variables.
 
-```bash
-pnpm build
-# Output will be in dist/
-```
+To add an environment:
+
+1. Add `<name>/network_info.json` to `babylonlabs-io/tbv-networks` (or confirm it exists).
+2. `pnpm sync-env <name> --kind test|internal|production`, review `networks/<name>.json`,
+   add an `overrides` block only if the registry entry is wrong, and open a PR.
+3. Create the GitHub Environment with the override variables it needs (`NEXT_PUBLIC_REOWN_PROJECT_ID`,
+   Sentry, `NEXT_PUBLIC_CANONICAL`, flags). Never add a contract address or endpoint there.
+4. Add a matrix entry to `service-release-vault.yml` with `"network":"<name>"` and
+   `"expected_kind":"<kind>"`, plus the AWS account and, for a main-only environment, its role.
 
 ## Troubleshooting
 

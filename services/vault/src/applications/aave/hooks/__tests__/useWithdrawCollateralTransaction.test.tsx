@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,9 +36,14 @@ vi.mock("../../context", () => ({
   }),
 }));
 
-vi.mock("wagmi", () => ({
-  useWalletClient: () => ({ data: { account: { address: "0xuser" } } }),
-  useAccount: () => ({ address: "0xuser" }),
+vi.mock("@/context/wallet", () => ({
+  useETHWallet: () => ({ address: "0xuser" }),
+}));
+
+vi.mock("@/clients/eth-contract/walletChain", () => ({
+  getWalletClientOnExpectedChain: vi
+    .fn()
+    .mockResolvedValue({ account: { address: "0xuser" } }),
 }));
 
 const mockAssertNoTransactionInFlight = vi.hoisted(() => vi.fn());
@@ -61,13 +66,21 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
     mockWaitReceipt(...a),
 }));
 
+// A late receipt is taken as already deep enough on the chain; the depth
+// check itself is covered by canonicalReceipt.test.ts.
+vi.mock("@/clients/eth-contract/canonicalReceipt", () => ({
+  waitForCanonicalReceipt: async ({ receipt }: { receipt: unknown }) => receipt,
+}));
+
 vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), event: vi.fn() },
 }));
 
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { COPY } from "@/copy";
 import {
   ContractError,
+  SendOutcomeUnknownError,
   TransactionInFlightError,
   UnconfirmedTransactionError,
 } from "@/utils/errors";
@@ -118,6 +131,86 @@ describe("useWithdrawCollateralTransaction", () => {
     });
 
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
+  });
+
+  it("reads as confirming from the moment the withdrawal's transaction is included until the withdrawal ends", async () => {
+    let finish!: () => void;
+    mockWithdraw.mockImplementation(async (...args: unknown[]) => {
+      const onIncluded = args[args.length - 1] as () => void;
+      onIncluded();
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { transactionHash: "0xtx", receipt: {} };
+    });
+    const { result } = setup();
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = result.current.executeWithdraw(SELECTION);
+    });
+    await waitFor(() => expect(result.current.isConfirming).toBe(true));
+
+    await act(async () => {
+      finish();
+      await pending;
+    });
+    expect(result.current.isConfirming).toBe(false);
+  });
+
+  it("reads as confirming while it refreshes after the lock's watch finds an unconfirmed withdrawal mined", async () => {
+    const hash =
+      "0x5555555555555555555555555555555555555555555555555555555555555555";
+    let mine!: (receipt: unknown) => void;
+    mockWaitReceipt.mockReturnValue(
+      new Promise((resolve) => {
+        mine = resolve;
+      }),
+    );
+    mockWithdraw.mockRejectedValue(
+      new UnconfirmedTransactionError(new ContractError("timed out"), {
+        hash,
+        from: "0xuser" as `0x${string}`,
+        to: "0xadapter" as `0x${string}`,
+        data: "0x",
+        nonce: null,
+        sentAtBlock: null,
+      }),
+    );
+    const { client, result } = setup();
+    let refreshed!: () => void;
+    const refresh = new Promise<void>((resolve) => {
+      refreshed = resolve;
+    });
+    vi.spyOn(client, "invalidateQueries").mockImplementation(() => refresh);
+    let withdrawing!: Promise<string>;
+    await act(async () => {
+      withdrawing = result.current.executeWithdraw(SELECTION);
+    });
+
+    await act(async () => {
+      mine({
+        status: "success",
+        transactionHash: hash,
+        from: "0xuser",
+        logs: [],
+      });
+    });
+    try {
+      await waitFor(() => {
+        expect(result.current.pendingWrite).toBeNull();
+        expect(result.current.isConfirming).toBe(true);
+      });
+      expect(result.current.isProcessing).toBe(true);
+    } finally {
+      // Ends the write either way, so the account's lock does not outlive
+      // this test.
+      await act(async () => {
+        refreshed();
+        await withdrawing;
+      });
+    }
+    expect(result.current.isConfirming).toBe(false);
   });
 
   it("marks the withdrawn vault pending so the list can show it withdrawing", async () => {
@@ -131,6 +224,7 @@ describe("useWithdrawCollateralTransaction", () => {
       [VAULT_ID],
       "withdraw",
     );
+    expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
   });
 
   it("leaves the position query untouched when the transaction reverts", async () => {
@@ -209,6 +303,7 @@ describe("useWithdrawCollateralTransaction - on-chain amount guard", () => {
       expect.anything(),
       expect.anything(),
       [SECOND_VAULT_ID, VAULT_ID],
+      expect.any(Function),
     );
   });
 });
@@ -230,6 +325,28 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
     expect(result.current.error).toBeNull();
     expect(mockAssertAmounts).not.toHaveBeenCalled();
     expect(mockWithdraw).not.toHaveBeenCalled();
+    expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
+  });
+
+  it('reports a "nonce too low" for a withdrawal the wallet may have broadcast as an unknown outcome, not a failure, and refreshes the position', async () => {
+    mockWithdraw.mockRejectedValue(
+      new SendOutcomeUnknownError(
+        new Error("nonce too low: next nonce 789, tx nonce 788"),
+      ),
+    );
+    const { client, result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeWithdraw(SELECTION);
+    });
+
+    expect(resolved).toBe("unknown");
+    expect(result.current.notice).toBe(
+      COPY.common.classifiedErrors.sendOutcomeUnknown,
+    );
+    expect(result.current.error).toBeNull();
+    expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
   });
 
   it("reports an unknown outcome with the stopped notice, and does not mark the vaults withdrawing, when the user stops waiting", async () => {

@@ -9,9 +9,14 @@
  * and finds the transaction that replaced it. Every loan and collateral form
  * reads the lock, so closing and reopening a form, or opening another one,
  * cannot send a second transaction meanwhile. Only a definite answer ends
- * the write as a failure: a receipt that says reverted, or the SDK reporting
- * that a Safe transaction executed and reverted. Any other failed wait,
- * including a Safe Transaction Service error, keeps the lock.
+ * the write as a failure: a receipt that says reverted, or a Safe's own
+ * failure log for the proposal in it, once it is AAVE_WRITE_CONFIRMATIONS
+ * deep on the chain, or the SDK reporting that a Safe transaction executed
+ * and reverted. A Safe proposal's execution that reverted is not one: the
+ * proposal can still take effect. Any other failed wait, including a Safe
+ * Transaction Service error, keeps the lock. A late receipt counts only at
+ * that depth too, so one from a block that is reorganized out keeps the wait
+ * going instead of ending it.
  *
  * Module-scoped and in memory only. A form unmounting must not drop the lock,
  * and the wait keeps running after it. A reload does drop it: nothing here is
@@ -33,7 +38,12 @@ import {
 } from "viem";
 import { getTransactionCount } from "viem/actions";
 
+import { waitForCanonicalReceipt } from "@/clients/eth-contract/canonicalReceipt";
 import { ethClient } from "@/clients/eth-contract/client";
+import {
+  isProposalExecution,
+  judgeSafeExecution,
+} from "@/clients/eth-contract/safeExecution";
 import {
   REPLACEMENT_LOOKUP_TIMEOUT_MS,
   assertReceiptIsForSentCall,
@@ -57,6 +67,7 @@ import {
 } from "@/utils/errors";
 
 import {
+  AAVE_WRITE_CONFIRMATIONS,
   RECEIPT_RETRY_DELAY_MS,
   RECEIPT_WAIT_ROUND_MS,
   STOP_WAITING_AVAILABLE_AFTER_MS,
@@ -71,7 +82,10 @@ export interface UnconfirmedAaveWrite {
 }
 
 export type PendingAaveWrite =
-  /** The pre-sign checks, signing, broadcasting, or the normal receipt wait. */
+  /**
+   * The pre-sign checks, signing, broadcasting, the normal receipt wait, and
+   * the wait for the transaction to reach AAVE_WRITE_CONFIRMATIONS.
+   */
   { phase: "submitting" } | UnconfirmedAaveWrite;
 
 /** `stopped`: the user stopped waiting, and the transaction may still be mined. */
@@ -80,9 +94,10 @@ export type AaveWriteOutcome = "mined" | "stopped";
 /**
  * How a borrow or repay ended, for the form that started it. `failed`: it did
  * not take effect (refused, rejected, reverted or canceled). `unknown`: it may
- * still take effect (the user stopped waiting, or the wallet replaced it with
- * a transaction that could not be read), so the form must not offer the same
- * amount again as if nothing happened.
+ * still take effect (the user stopped waiting, the wallet replaced it with a
+ * transaction that could not be read, or the wallet refused as "nonce too low"
+ * a send it may have broadcast), so the form must not offer the same amount
+ * again as if nothing happened.
  */
 export type AaveActionResult = "succeeded" | "failed" | "unknown";
 
@@ -128,13 +143,17 @@ export function subscribeToPendingAaveWrites(listener: () => void): () => void {
  * pass the pre-sign checks inside `write`, so a second call made while they
  * run is refused rather than sent after the first.
  *
- * Resolves `mined` once the write's transaction is mined, late included, and
- * `stopped` when the user stops waiting on an unconfirmed one.
+ * Resolves `mined` once the write's transaction is mined and
+ * AAVE_WRITE_CONFIRMATIONS deep, late included, and `stopped` when the user
+ * stops waiting on an unconfirmed one.
  *
  * @throws WriteInProgressError when another write for `account` holds the
  *   lock.
  * @throws ContractError when the write fails before or without broadcasting,
  *   when its transaction reverts, or when the wallet replaced it.
+ * @throws SendOutcomeUnknownError when the wallet refused a send as "nonce
+ *   too low" that it may have broadcast. There is no hash to wait on, so the
+ *   lock is released.
  */
 export async function runAaveWrite(
   account: Address,
@@ -234,7 +253,14 @@ async function waitUntilMined(
     });
     // Stopped while this round ran: the outcome no longer has a reader.
     if (signal.aborted) throw signal.reason;
-    if (receipt) return settle(publicClient, receipt, broadcast);
+    if (receipt) {
+      const outcome = await settle(publicClient, receipt, broadcast, signal);
+      if (outcome) return outcome;
+      // Not deep on the chain within the round: its block may have been
+      // reorganized out, and a wallet replacement may hold the nonce now. The
+      // nonce check below still looks for one, past the original's receipt
+      // when the RPC keeps serving it (see settleUsedNonce).
+    }
 
     // Only while the original is still in the node's pool; a replacement
     // drops it. The nonce counts only if the account sent it.
@@ -254,11 +280,16 @@ async function waitUntilMined(
         sentNonce,
       );
       if (usage?.used) {
-        const outcome = await settleUsedNonce(publicClient, broadcast, {
-          nonce: sentNonce,
-          unusedAtBlock,
-          usedAtBlock: usage.atBlock,
-        });
+        const outcome = await settleUsedNonce(
+          publicClient,
+          broadcast,
+          {
+            nonce: sentNonce,
+            unusedAtBlock,
+            usedAtBlock: usage.atBlock,
+          },
+          signal,
+        );
         if (outcome) return outcome;
       } else if (usage) {
         unusedAtBlock = usage.atBlock;
@@ -291,12 +322,20 @@ async function readNonceUsage(
 /**
  * The broadcast transaction's nonce was used: by the transaction itself, or by
  * a wallet replacement, which is then found and judged by its call. Null when
- * the RPC could not answer, so the wait goes on.
+ * the RPC could not answer, or the receipt found is not deep on the chain yet,
+ * so the wait goes on.
  *
- * @throws TransactionReplacedError when the block that used the nonce was read
- *   and holds no transaction from the account with it, when no block is known
- *   where the nonce was still unused, or when the replacement was not a
- *   speed-up of the same call.
+ * The RPC can keep serving the original's receipt after its block was
+ * reorganized out, while a replacement took the nonce on the chain. So a
+ * receipt that is not deep does not end the search: the transaction that
+ * used the nonce is still looked for. While that receipt is served, though,
+ * nothing here is proof that another transaction took the nonce, so the
+ * outcome is never reported as a replacement that could not be read.
+ *
+ * @throws TransactionReplacedError when the original's receipt is not served
+ *   and the block that used the nonce was read and holds no transaction from
+ *   the account with it, or no block is known where the nonce was still
+ *   unused; or when the replacement was not a speed-up of the same call.
  */
 async function settleUsedNonce(
   publicClient: PublicClient,
@@ -306,14 +345,20 @@ async function settleUsedNonce(
     unusedAtBlock,
     usedAtBlock,
   }: { nonce: number; unusedAtBlock: bigint | null; usedAtBlock: bigint },
+  signal: AbortSignal,
 ): Promise<"mined" | null> {
   const own = await readOwnReceipt(publicClient, broadcast.hash);
   if (own === "unreadable") return null;
-  if (own !== "absent") return settle(publicClient, own, broadcast);
+  const ownServed = own !== "absent";
+  if (ownServed) {
+    const outcome = await settle(publicClient, own, broadcast, signal);
+    if (outcome) return outcome;
+  }
 
   // Only when the block-number read failed right after the send and every
   // later read already saw the nonce used: there is no range to search.
   if (unusedAtBlock === null) {
+    if (ownServed) return null;
     throw new TransactionReplacedError("unknown", broadcast.hash);
   }
   // A lagging backend answered with a block behind one already seen with the
@@ -333,9 +378,10 @@ async function settleUsedNonce(
   });
   if (replacement === "unreadable") return null;
   if (replacement === null) {
+    if (ownServed) return null;
     throw new TransactionReplacedError("unknown", broadcast.hash);
   }
-  return settle(publicClient, replacement, broadcast);
+  return settle(publicClient, replacement, broadcast, signal);
 }
 
 /**
@@ -362,18 +408,82 @@ async function readOwnReceipt(
   }
 }
 
+/**
+ * Judge a late receipt, once it is AAVE_WRITE_CONFIRMATIONS deep, from the
+ * receipt as re-read then (see `executeTx` for why). Null when it does not get
+ * that deep within one round, or when it is a Safe proposal's execution that
+ * reverted, names another proposal or logs nothing for it, so the wait goes
+ * on.
+ *
+ * @throws the signal's reason when the user stopped waiting meanwhile.
+ * @throws TransactionReplacedError when the transaction mined was a
+ *   replacement that was not a speed-up of the same call.
+ * @throws ContractError when the transaction reverted (not a Safe proposal's
+ *   execution), or a Safe's own call failed inside it.
+ */
 async function settle(
   publicClient: PublicClient,
-  receipt: TransactionReceipt,
+  firstReceipt: TransactionReceipt,
   broadcast: BroadcastTransaction,
-): Promise<"mined"> {
+  signal: AbortSignal,
+): Promise<"mined" | null> {
+  let receipt: TransactionReceipt;
+  try {
+    receipt = await waitForCanonicalReceipt({
+      publicClient,
+      receipt: firstReceipt,
+      confirmations: AAVE_WRITE_CONFIRMATIONS,
+      timeoutMs: RECEIPT_WAIT_ROUND_MS,
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) throw signal.reason;
+    logger.warn(
+      "A late Aave transaction receipt is not deep on the chain yet",
+      {
+        data: { error: error instanceof Error ? error.message : String(error) },
+      },
+    );
+    return null;
+  }
+
   await assertReceiptIsForSentCall({ publicClient, receipt, sent: broadcast });
-  if (receipt.status === "reverted") {
+  // A Safe proposal's execution that reverted did not take effect, but the
+  // proposal can still, or already did through another executor (see
+  // executeTx); the next round asks the Safe Transaction Service again.
+  if (
+    receipt.status === "reverted" &&
+    isProposalExecution(receipt, broadcast.from, broadcast.hash)
+  ) {
+    logger.warn("A late Safe execution reverted; its proposal may still run", {
+      data: { hash: receipt.transactionHash },
+    });
+    return null;
+  }
+  // A Safe's own call can fail inside a successful outer execution, and its
+  // verdict is read from the receipt at depth (see safeExecution.ts).
+  const safeExecution =
+    receipt.status === "success"
+      ? await judgeSafeExecution(
+          publicClient,
+          receipt,
+          broadcast.from,
+          broadcast.hash,
+        )
+      : "none";
+  if (receipt.status === "reverted" || safeExecution === "failed") {
     throw new ContractError(
       COPY.common.unconfirmedTransaction.reverted,
       ErrorCode.CONTRACT_REVERT,
       receipt.transactionHash,
     );
+  }
+  if (safeExecution === "unknown") {
+    logger.warn(
+      "A late Aave transaction's Safe execution holds no verdict for the proposal",
+      { data: { hash: receipt.transactionHash } },
+    );
+    return null;
   }
   return "mined";
 }

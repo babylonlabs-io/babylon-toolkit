@@ -84,6 +84,16 @@ describe("getXOnlyPublicKeyHex", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("rejects path levels that are not u32 integers before any device I/O", async () => {
+    for (const bad of [2 ** 32, -1, 1.5]) {
+      const { send, sent } = fakeSender(asciiXpubAtLeaf(MAINNET_VERSIONS));
+      await expect(
+        getXOnlyPublicKeyHex(send, [...MAINNET_LEAF_PATH.slice(0, -1), bad], MAINNET_VERSIONS),
+      ).rejects.toThrow(/integers in 0\.\.0xffffffff/);
+      expect(sent).toHaveLength(0);
+    }
+  });
+
   it("rejects a malformed device response rather than deriving from it", async () => {
     const { send } = fakeSender(new TextEncoder().encode("not-an-extended-key"));
 

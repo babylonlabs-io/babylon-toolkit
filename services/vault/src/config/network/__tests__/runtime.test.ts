@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BTC_MAINNET, BTC_SIGNET } from "../constants";
 import { resolveMempoolApiUrl } from "../runtime";
@@ -42,5 +42,76 @@ describe("resolveMempoolApiUrl", () => {
     expect(
       resolveMempoolApiUrl("https://mempool.example.com/", BTC_SIGNET),
     ).toBe("https://mempool.example.com/signet");
+  });
+});
+
+const BASE_OPTIONS = {
+  kind: "test" as const,
+  ethChainId: 11155111 as const,
+  ethRpcUrl: "https://rpc.example",
+  btcNetwork: "signet" as const,
+};
+
+async function freshRuntime() {
+  vi.resetModules();
+  return import("../runtime");
+}
+
+describe("configureBabylonConfig", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("accepts a test profile on signet + Sepolia and exposes its kind", async () => {
+    const runtime = await freshRuntime();
+    runtime.configureBabylonConfig(BASE_OPTIONS);
+    expect(runtime.getDeploymentKind()).toBe("test");
+  });
+
+  it("accepts an internal profile on BTC mainnet + Sepolia", async () => {
+    const runtime = await freshRuntime();
+    expect(() =>
+      runtime.configureBabylonConfig({
+        ...BASE_OPTIONS,
+        kind: "internal",
+        btcNetwork: "mainnet",
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects BTC mainnet + Sepolia for a test profile", async () => {
+    const runtime = await freshRuntime();
+    expect(() =>
+      runtime.configureBabylonConfig({
+        ...BASE_OPTIONS,
+        btcNetwork: "mainnet",
+      }),
+    ).toThrow('Invalid network pairing for kind "test"');
+  });
+
+  it("rejects an empty RPC URL", async () => {
+    const runtime = await freshRuntime();
+    expect(() =>
+      runtime.configureBabylonConfig({ ...BASE_OPTIONS, ethRpcUrl: "" }),
+    ).toThrow("ethRpcUrl is required");
+  });
+
+  it("throws on a second call", async () => {
+    const runtime = await freshRuntime();
+    runtime.configureBabylonConfig(BASE_OPTIONS);
+    expect(() => runtime.configureBabylonConfig(BASE_OPTIONS)).toThrow(
+      "configureBabylonConfig() has already been called",
+    );
+  });
+
+  it("appends /signet to the mempool host for signet", async () => {
+    const runtime = await freshRuntime();
+    runtime.configureBabylonConfig({
+      ...BASE_OPTIONS,
+      mempoolApiUrl: "https://mempool.signet.babylonlabs.io",
+    });
+    expect(runtime.getBabylonConfigState().mempoolApiUrl).toBe(
+      "https://mempool.signet.babylonlabs.io/signet",
+    );
   });
 });

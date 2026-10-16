@@ -17,7 +17,8 @@
  *     the adapter (only when the current allowance is insufficient; USDT-style tokens add a
  *     reset-to-zero first), then the repay. The stale-RPC retry's forced approve only fires when no
  *     initial approve ran, so three is the ceiling either way. The CTA reads "Processing…"
- *     throughout; the pop-up approver confirms whatever appears.
+ *     throughout, then "Confirming…" once the repay is mined and the app waits for it to be deep
+ *     enough on the chain; the pop-up approver confirms whatever appears.
  *
  * Selectors are testid-first (added to the src repay controls, mirroring borrow) with tolerant
  * text/role/class fallbacks. No SDK / product logic is reimplemented — the amount is a best-effort
@@ -34,7 +35,7 @@ import {
   fetchBorrowContext,
   matchReserve,
 } from "../borrowParams";
-import { type NetworkName } from "../config";
+import { type NetworkName, type ReorgInjection } from "../config";
 import {
   CONSERVATIVE_REPAY_FRACTION,
   fetchRepayableDebts,
@@ -51,6 +52,13 @@ import {
 } from "../timing";
 import { formatTokenAmount } from "../tokenAmount";
 
+import {
+  type AaveWriteWatch,
+  assertReportedOnlyWhenBuried,
+  confirmReorgHeldThenReported,
+  readsConfirming,
+  watchAaveWriteRpc,
+} from "./aaveWriteRpc";
 import { installPopupApprover, sweepApprovals } from "./approver";
 import { runBorrowWithOptionalPegin } from "./borrow";
 import { goToSection } from "./navigation";
@@ -356,15 +364,19 @@ async function waitForRepayCta(
 /**
  * After submitting, actively approve the MetaMask pop-up(s) — repay can be ONE tx (repay) or TWO (an
  * ERC-20 approve of the debt token, then the repay) depending on the current allowance; the CTA reads
- * "Processing…" across both and the approver's sweep confirms whichever appear. Wait for the "Repay
+ * "Processing…" across both, then "Confirming…" while the mined repay gets deep enough on the chain,
+ * and the approver's sweep confirms whichever appear. Wait for the "Repay
  * successful" screen, then click Done. Fails fast, with the callout's text, if the form surfaces a
- * "Transaction failed" callout.
+ * "Transaction failed" callout. On success, checks the app reported the repay only once it was deep on
+ * the chain (`assertReportedOnlyWhenBuried`), from the submit button's label and the app's RPC reads.
  */
 async function confirmRepaySuccess(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
   reserveLabel: string,
+  cta: Locator,
+  watch: AaveWriteWatch,
 ): Promise<void> {
   // Success is gated ONLY on markers specific to the loan-success screen — the "Repay successful" title
   // or the `loan-success-done-button` testid. NOT the generic "Done" role: borrow/deposit/withdraw
@@ -378,14 +390,17 @@ async function confirmRepaySuccess(
     page.getByRole("button", { name: DONE_BUTTON_RX }),
   );
   const txFailed = page.getByText(TX_FAILED_RX).first();
+  let sawConfirming = false;
   const deadline = Date.now() + REPAY_TX_TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sweepApprovals(context, page, log);
+    if (!sawConfirming) sawConfirming = await readsConfirming(page, cta);
 
     if (
       (await successTitle.isVisible().catch(() => false)) ||
       (await successDone.isVisible().catch(() => false))
     ) {
+      assertReportedOnlyWhenBuried(watch, sawConfirming, "Repay", log);
       log(`✅ Repay successful (${reserveLabel}) — clicking Done`);
       await doneButton.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
       return;
@@ -471,10 +486,15 @@ export function repayBorrowedReserve(
   return legContext(ctx, { repayReserveId: borrowed.reserveId.toString() });
 }
 
-/** Drive the repay flow proper (assumes wallets connected + approver/recorder installed by the caller). */
+/**
+ * Drive the repay flow proper (assumes wallets connected + approver/recorder installed by the caller).
+ * With `reorg`, the app's RPC shows the repay's block reorganized out once it is mined (see
+ * actions/aaveWriteRpc.ts); an approve before it is untouched.
+ */
 export async function runRepayFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
+  reorg?: ReorgInjection,
 ): Promise<void> {
   const { page, context, log } = ctx;
   // Resolved before the browser flow (and after any borrow leg), so an unknown or ambiguous loan fails
@@ -500,12 +520,44 @@ export async function runRepayFlow(
   const cta = await waitForRepayCta(page, log);
 
   onStep("repay-submit");
-  log(
-    "Repay CTA enabled — submitting (the approver will confirm the MetaMask approve/repay tx(s))",
+  // Installed right before the click, so the first receipt of the account's call to the adapter that
+  // the app reads is this repay's (an approve targets the token, not the adapter).
+  const watch = await watchAaveWriteRpc(
+    page,
+    ctx.config.network,
+    ctx.eth.address,
+    reorg,
+    log,
   );
-  await cta.click();
+  try {
+    log(
+      "Repay CTA enabled — submitting (the approver will confirm the MetaMask approve/repay tx(s))",
+    );
+    await cta.click();
 
-  await confirmRepaySuccess(page, context, log, describeReserve(debt));
+    if (reorg) {
+      await confirmReorgHeldThenReported({
+        page,
+        context,
+        log,
+        cta,
+        watch,
+        flow: "Repay",
+        successRx: REPAY_SUCCESS_RX,
+      });
+    } else {
+      await confirmRepaySuccess(
+        page,
+        context,
+        log,
+        describeReserve(debt),
+        cta,
+        watch,
+      );
+    }
+  } finally {
+    await watch.dispose();
+  }
 
   onStep("repay-verify");
   await assertRepayDebtDecreased(ctx, debtBeforeUsd);
@@ -553,9 +605,13 @@ export const repayAction: Action = {
         }
       }
 
-      await runRepayFlow(repayCtx, (step) => {
-        currentStep = step;
-      });
+      await runRepayFlow(
+        repayCtx,
+        (step) => {
+          currentStep = step;
+        },
+        ctx.config.injectReorg,
+      );
 
       log("✅ Repay complete.");
     } finally {

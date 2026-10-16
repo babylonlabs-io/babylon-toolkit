@@ -4,7 +4,7 @@
 
 /**
  * Vault status — combines on-chain contract status (0-4) with indexer-derived
- * statuses (5-7). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
+ * statuses (5-8). The contract enum (BTCVaultRegistry.sol BTCVaultStatus) only
  * has: Pending(0), Verified(1), Active(2), Redeemed(3), Expired(4).
  * The indexer maps these and adds extra statuses for UI display.
  *
@@ -30,6 +30,13 @@ export enum ContractStatus {
   DEPOSITOR_WITHDRAWN = 6,
   /** Status 7 (indexer-only): Vault expired due to AckTimeout or ActivationTimeout */
   EXPIRED = 7,
+  /**
+   * Status 8 (indexer-only): a redeemed vault's BTC was spent on Bitcoin to a
+   * script other than the depositor's payout script, in practice a vault
+   * keeper's claim that no challenger blocked. The vault's BTC is gone; only
+   * the depositor's PegIn output 1 reserve may remain.
+   */
+  NON_DEPOSITOR_SPEND = 8,
 }
 
 /** Reason why a vault expired */
@@ -242,6 +249,12 @@ export function getPeginProtocolState(
   }
 
   if (contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN) {
+    return { contractStatus, availableActions: [] };
+  }
+
+  // Terminal like DEPOSITOR_WITHDRAWN: the vault output is spent. The reserve
+  // reclaim is decided by the app from Bitcoin reads, not offered here.
+  if (contractStatus === ContractStatus.NON_DEPOSITOR_SPEND) {
     return { contractStatus, availableActions: [] };
   }
 

@@ -87,6 +87,10 @@ const depositsState = {
   claimExpiredModal: { claimingActivity: null as VaultActivity | null },
 };
 
+// The page selects these outside `usePendingDeposits` (utils/returnedVaults)
+// and hands them to the hook alongside the deposits.
+let returnedRedeemedActivities: VaultActivity[] = [];
+
 const stubActivity = (id: string) => ({ id }) as VaultActivity;
 
 const settledVault = (id: string) =>
@@ -115,6 +119,7 @@ describe("useVaultsPageEmptiness", () => {
     depositsState.pendingActivities = [];
     depositsState.expiredActivities = [];
     depositsState.reclaimableCandidates = [];
+    returnedRedeemedActivities = [];
     depositsState.isLoading = false;
     depositsState.error = null;
     reclaimChainData.clear();
@@ -131,7 +136,9 @@ describe("useVaultsPageEmptiness", () => {
       new SyntaxError("Unexpected end of JSON input"),
     );
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -143,10 +150,32 @@ describe("useVaultsPageEmptiness", () => {
     });
   });
 
+  it("is not empty when the only vault is a redeemed one with no collateral row", () => {
+    // Auto-redeemed at activation: never collateral, so `hasDisplayCollateral`
+    // is false, and not in any deposits list either. The returned row is what
+    // keeps the page populated until the payout lands.
+    returnedRedeemedActivities = [stubActivity("0xreturned")];
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: false,
+      hasPartialError: false,
+      hasNonIndexerError: false,
+      storageOnlyError: false,
+    });
+  });
+
   it("is empty and not loading while disconnected", () => {
     walletState.ethConnected = false;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -162,7 +191,9 @@ describe("useVaultsPageEmptiness", () => {
     walletState.ethConnected = false;
     depositsState.pendingActivities = [stubActivity("pending-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(true);
   });
@@ -170,13 +201,17 @@ describe("useVaultsPageEmptiness", () => {
   it("passes undefined to useDashboardState while disconnected", () => {
     walletState.ethConnected = false;
 
-    renderHook(() => useVaultsPageEmptiness(depositsState));
+    renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
   });
 
   it("passes the wallet address to useDashboardState while connected", () => {
-    renderHook(() => useVaultsPageEmptiness(depositsState));
+    renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
   });
@@ -185,7 +220,9 @@ describe("useVaultsPageEmptiness", () => {
     walletState.btcConnected = false;
     dashboardState.hasDisplayCollateral = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -201,7 +238,9 @@ describe("useVaultsPageEmptiness", () => {
   it("is loading, not empty, while the position query resolves", () => {
     dashboardState.isLoading = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: true,
@@ -216,7 +255,9 @@ describe("useVaultsPageEmptiness", () => {
   it("is loading, not empty, while the deposits query resolves", () => {
     depositsState.isLoading = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.isEmpty).toBe(false);
@@ -225,7 +266,9 @@ describe("useVaultsPageEmptiness", () => {
   it("is not empty when the account has display collateral", () => {
     dashboardState.hasDisplayCollateral = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(false);
   });
@@ -233,7 +276,9 @@ describe("useVaultsPageEmptiness", () => {
   it("is not empty when a deposit is pending", () => {
     depositsState.pendingActivities = [stubActivity("pending-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(false);
   });
@@ -241,7 +286,9 @@ describe("useVaultsPageEmptiness", () => {
   it("is not empty when an expired deposit awaits refund", () => {
     depositsState.expiredActivities = [stubActivity("expired-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(false);
   });
@@ -254,7 +301,7 @@ describe("useVaultsPageEmptiness", () => {
       ];
 
       const { result } = renderHook(() =>
-        useVaultsPageEmptiness(depositsState),
+        useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
       );
 
       expect(result.current.isEmpty).toBe(false);
@@ -270,7 +317,9 @@ describe("useVaultsPageEmptiness", () => {
       stubActivity("expired-2"),
     ];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(false);
   });
@@ -286,7 +335,9 @@ describe("useVaultsPageEmptiness", () => {
       reclaimStatus({ spent: false, confirmed: false }),
     );
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(false);
   });
@@ -294,7 +345,9 @@ describe("useVaultsPageEmptiness", () => {
   it("is loading, not empty, while a settled vault's reclaim reads are unresolved", () => {
     depositsState.reclaimableCandidates = [settledVault("settled-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.isEmpty).toBe(false);
@@ -304,7 +357,9 @@ describe("useVaultsPageEmptiness", () => {
     dashboardState.hasDisplayCollateral = true;
     depositsState.reclaimableCandidates = [settledVault("settled-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isEmpty).toBe(false);
@@ -321,13 +376,17 @@ describe("useVaultsPageEmptiness", () => {
       reclaimStatus({ spent: true, confirmed: true, blockHeight: 899_998 }),
     );
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(true);
   });
 
   it("is empty when connected with no vaults and no deposits", () => {
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -344,7 +403,9 @@ describe("useVaultsPageEmptiness", () => {
     // row is left — but the success screen is still awaiting acknowledgement.
     depositsState.claimExpiredModal.claimingActivity = stubActivity("redeemed");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.isEmpty).toBe(false);
   });
@@ -352,7 +413,9 @@ describe("useVaultsPageEmptiness", () => {
   it("reports an error, never an empty account, when the position read failed", () => {
     dashboardState.positionError = new Error("rpc down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -367,7 +430,9 @@ describe("useVaultsPageEmptiness", () => {
   it("reports an error, never an empty account, when the deposits read failed", () => {
     depositsState.error = new Error("indexer down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.hasError).toBe(true);
     expect(result.current.isEmpty).toBe(false);
@@ -377,7 +442,9 @@ describe("useVaultsPageEmptiness", () => {
     dashboardState.positionError = new Error("rpc down");
     depositsState.pendingActivities = [stubActivity("pending-1")];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -393,7 +460,9 @@ describe("useVaultsPageEmptiness", () => {
     dashboardState.hasDisplayCollateral = true;
     depositsState.error = new Error("indexer down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.hasPartialError).toBe(true);
     expect(result.current.hasError).toBe(false);
@@ -403,7 +472,9 @@ describe("useVaultsPageEmptiness", () => {
   it("warns when the chain has collateral but its indexed rows are incomplete", () => {
     dashboardState.hasDisplayCollateral = true;
     dashboardState.indexerError = new Error("Indexed collateral is incomplete");
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
     expect(result.current.hasPartialError).toBe(true);
     expect(result.current.hasNonIndexerError).toBe(false);
     expect(result.current.isEmpty).toBe(false);
@@ -413,7 +484,9 @@ describe("useVaultsPageEmptiness", () => {
   it("does not flag a partial error when both sources loaded cleanly", () => {
     dashboardState.hasDisplayCollateral = true;
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.hasPartialError).toBe(false);
   });
@@ -424,7 +497,9 @@ describe("useVaultsPageEmptiness", () => {
     // records are the exception — see the test below.
     dashboardState.positionError = new Error("rpc down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current.hasError).toBe(true);
     expect(result.current.hasPartialError).toBe(false);
@@ -438,7 +513,9 @@ describe("useVaultsPageEmptiness", () => {
       new SyntaxError("Unexpected end of JSON input"),
     );
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,
@@ -454,7 +531,9 @@ describe("useVaultsPageEmptiness", () => {
     walletState.ethConnected = false;
     depositsState.error = new Error("indexer down");
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
 
     expect(result.current).toEqual({
       isLoading: false,

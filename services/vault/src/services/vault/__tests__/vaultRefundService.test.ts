@@ -3,10 +3,24 @@
 // callbacks). The SDK's buildAndBroadcastRefund has its own dedicated tests.
 const mockBuildAndBroadcastRefund = vi.fn();
 
+const { MockRefundBroadcastRejectedError } = vi.hoisted(() => ({
+  MockRefundBroadcastRejectedError: class RefundBroadcastRejectedError extends Error {
+    constructor(
+      readonly code: -25 | -27,
+      readonly vaultId: string,
+      readonly signedTxHex: string,
+      readonly cause: Error,
+    ) {
+      super(cause.message);
+    }
+  },
+}));
+
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   buildAndBroadcastRefund: (...args: unknown[]) =>
     mockBuildAndBroadcastRefund(...args),
   BIP68NotMatureError: class BIP68NotMatureError extends Error {},
+  RefundBroadcastRejectedError: MockRefundBroadcastRejectedError,
   REFUND_VSIZE: 160,
   estimateRefundFeeSats: (rate: number) => {
     if (!Number.isFinite(rate) || rate <= 0) {
@@ -719,14 +733,15 @@ describe("vaultRefundService - adapter wiring", () => {
         confirmed: false,
         spendingTxid: peginTxid,
       });
-    (pushTx as Mock).mockRejectedValue(
-      new Error(
-        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-25,"message":"bad-txns-inputs-missingorspent"}',
+    mockBuildAndBroadcastRefund.mockRejectedValue(
+      new MockRefundBroadcastRejectedError(
+        -25,
+        VAULT_ID,
+        "signed_tx",
+        new Error(
+          'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-25,"message":"bad-txns-inputs-missingorspent"}',
+        ),
       ),
-    );
-    mockBuildAndBroadcastRefund.mockImplementation(
-      async (input: { broadcastTx: (hex: string) => Promise<unknown> }) =>
-        input.broadcastTx("signed_tx"),
     );
 
     const promise = buildAndBroadcastRefundTransaction({
@@ -747,9 +762,14 @@ describe("vaultRefundService - adapter wiring", () => {
     (fetchHtlcSpend as Mock)
       .mockResolvedValueOnce({ spent: false, confirmed: false })
       .mockResolvedValueOnce({ spent: true, confirmed: true });
-    (pushTx as Mock).mockRejectedValue(
-      new Error(
-        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-25,"message":"bad-txns-inputs-missingorspent"}',
+    mockBuildAndBroadcastRefund.mockRejectedValue(
+      new MockRefundBroadcastRejectedError(
+        -25,
+        VAULT_ID,
+        "signed_tx",
+        new Error(
+          'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-25,"message":"bad-txns-inputs-missingorspent"}',
+        ),
       ),
     );
 
@@ -778,9 +798,14 @@ describe("vaultRefundService - adapter wiring", () => {
     (fetchHtlcSpend as Mock)
       .mockResolvedValueOnce({ spent: false, confirmed: false })
       .mockResolvedValueOnce({ spent: true, confirmed: true });
-    (pushTx as Mock).mockRejectedValue(
-      new Error(
-        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+    mockBuildAndBroadcastRefund.mockRejectedValue(
+      new MockRefundBroadcastRejectedError(
+        -27,
+        VAULT_ID,
+        "signed_tx",
+        new Error(
+          'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+        ),
       ),
     );
 
@@ -830,9 +855,14 @@ describe("vaultRefundService - adapter wiring", () => {
         confirmed: true,
         spendingTxid: "raced_refund_txid",
       });
-    (pushTx as Mock).mockRejectedValue(
-      new Error(
-        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+    mockBuildAndBroadcastRefund.mockRejectedValue(
+      new MockRefundBroadcastRejectedError(
+        -27,
+        VAULT_ID,
+        "signed_tx",
+        new Error(
+          'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+        ),
       ),
     );
 
@@ -854,10 +884,11 @@ describe("vaultRefundService - adapter wiring", () => {
     (fetchHtlcSpend as Mock)
       .mockResolvedValueOnce({ spent: false, confirmed: false })
       .mockResolvedValueOnce({ spent: false, confirmed: false });
-    (pushTx as Mock).mockRejectedValue(
-      new Error(
-        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
-      ),
+    const cause = new Error(
+      'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+    );
+    mockBuildAndBroadcastRefund.mockRejectedValue(
+      new MockRefundBroadcastRejectedError(-27, VAULT_ID, "signed_tx", cause),
     );
 
     const promise = buildAndBroadcastRefundTransaction({
@@ -868,6 +899,7 @@ describe("vaultRefundService - adapter wiring", () => {
       feeRate: 10,
     });
 
+    await expect(promise).rejects.toBe(cause);
     await expect(promise).rejects.toThrow(/-27|already in block chain/);
     await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
   });

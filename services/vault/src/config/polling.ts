@@ -1,8 +1,8 @@
 /**
  * Shared polling configuration for vault provider RPC calls.
  *
- * Used by both pegin and pegout polling hooks to ensure
- * consistent intervals and retry behavior.
+ * Shared by the pegin status poll and the redeemed-vault claim-link poll so
+ * their intervals and retry behavior stay consistent.
  * RPC timeout is handled by the SDK's VaultProviderRpcClient (default 60s).
  */
 

@@ -4,9 +4,12 @@
  * Emptiness predicate for the v3 /vaults page: `isEmpty` is true when the
  * account has nothing to show in any vault lifecycle section — no collateral
  * vaults (including optimistic activating rows), no pending deposits, no
- * expired deposits and no reclaimable settled vaults. Completed refunds stay
- * visible. Completed reclaims do not. The row list and this hook both read
- * `useActionableReclaims`. `useConnection` counts a session as connected only
+ * expired deposits, no redeemed vaults without a collateral row (the rows
+ * `utils/returnedVaults` selects) and no reclaimable settled vaults.
+ * Completed refunds stay visible. Completed reclaims do not. The row list and
+ * this hook both read `useActionableReclaims`, and both receive the
+ * returned-redeemed rows the page selected once.
+ * `useConnection` counts a session as connected only
  * with confirmed Ethereum. Any other session is always "empty" regardless of
  * what the ETH-keyed queries returned, so the page shows the connect prompt.
  *
@@ -67,7 +70,10 @@ interface VaultsPageDeposits {
   claimExpiredModal: { claimingActivity: VaultActivity | null };
 }
 
-export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
+export function useVaultsPageEmptiness(
+  deposits: VaultsPageDeposits,
+  returnedRedeemedActivities: VaultActivity[],
+): {
   isLoading: boolean;
   isEmpty: boolean;
   hasError: boolean;
@@ -103,6 +109,7 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     hasDisplayCollateral ||
     pendingActivities.length > 0 ||
     expiredActivities.length > 0 ||
+    returnedRedeemedActivities.length > 0 ||
     actionableReclaims.length > 0 ||
     claimExpiredModal.claimingActivity !== null;
   const isLoading =

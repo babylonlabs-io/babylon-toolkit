@@ -35,21 +35,34 @@ describe("shouldProbeWalletLiveness", () => {
 });
 
 describe("verifyBtcWalletLiveness", () => {
-  it("passes a lost hardware-device session through with its typed code", async () => {
-    // The caller needs the code to offer a reconnect; the generic
-    // "unresponsive wallet" copy would hide it.
+  it("passes a lost hardware-device session and a wrong-app device through with their typed codes", async () => {
+    // The caller needs each code to name the real recovery (reconnect, or open
+    // the vault app); the generic "unresponsive wallet" copy would hide it.
     const lost = Object.assign(new Error("Ledger Vault is not connected"), {
       code: "DEVICE_DISCONNECTED",
     });
-    const wallet = makeWallet({
+    const lostWallet = makeWallet({
       getAddress: async () => {
         throw lost;
       },
     });
 
     await expect(
-      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
+      verifyBtcWalletLiveness(lostWallet, EXPECTED_ADDRESS),
     ).rejects.toBe(lost);
+
+    const wrongApp = Object.assign(new Error("Open the Ledger vault app"), {
+      code: "DEVICE_WRONG_APP",
+    });
+    const wrongAppWallet = makeWallet({
+      getAddress: async () => {
+        throw wrongApp;
+      },
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wrongAppWallet, EXPECTED_ADDRESS),
+    ).rejects.toBe(wrongApp);
   });
 
   it("still reports any other address-read failure as an unresponsive wallet", async () => {

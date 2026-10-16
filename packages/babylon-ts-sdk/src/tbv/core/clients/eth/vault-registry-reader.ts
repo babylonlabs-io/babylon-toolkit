@@ -65,6 +65,9 @@ type RawVaultProtocolInfo = {
   vaultCoreVersion: number;
 };
 
+/** Raw `getBtcVaultProtocolInfo` tuple as decoded by the key-epochs ABI. */
+type RawVaultKeyEpochsInfo = RawVaultProtocolInfo & KeyEpochs;
+
 function mapVaultBasicInfo(result: RawVaultBasicInfo): VaultBasicInfo {
   return {
     depositor: result.depositor,
@@ -224,7 +227,27 @@ function assertEpochInRange(
   return value;
 }
 
-function mapKeyEpochs(result: KeyEpochs, vaultId: Hex): KeyEpochs {
+/** Matched by substring ("not found on-chain") in the vault app's `isVaultRecordEmptyError`. */
+const VAULT_RECORD_NOT_FOUND_MESSAGE =
+  "not found on-chain or has no pegin transaction";
+
+function assertVaultRecordPresent(
+  record: { depositorSignedPeginTx: Hex },
+  vaultId: Hex,
+): void {
+  if (
+    !record.depositorSignedPeginTx ||
+    record.depositorSignedPeginTx === "0x"
+  ) {
+    throw new Error(`Vault ${vaultId} ${VAULT_RECORD_NOT_FOUND_MESSAGE}`);
+  }
+}
+
+function mapKeyEpochs(result: RawVaultKeyEpochsInfo, vaultId: Hex): KeyEpochs {
+  // An upgraded registry decodes an unknown or not-yet-indexed vault to a zero
+  // struct whose epochs read as {0,0,0} (genesis keys), so check the record
+  // exists first.
+  assertVaultRecordPresent(result, vaultId);
   return {
     vpKeyEpoch: assertEpochInRange(result.vpKeyEpoch, "vpKeyEpoch", vaultId),
     appKeeperKeyEpoch: assertEpochInRange(
@@ -383,7 +406,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       abi: BTCVaultRegistryKeyEpochsABI,
       functionName: "getBtcVaultProtocolInfo",
       args: [vaultId],
-    })) as unknown as KeyEpochs;
+    })) as RawVaultKeyEpochsInfo;
 
     return mapKeyEpochs(result, vaultId);
   }
@@ -402,7 +425,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     });
 
     return results.map((info, i) =>
-      mapKeyEpochs(info as unknown as KeyEpochs, vaultIds[i]),
+      mapKeyEpochs(info as RawVaultKeyEpochsInfo, vaultIds[i]),
     );
   }
 
@@ -445,20 +468,12 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
 
     return results.map((info, i) => {
       const result = info as unknown as RawVaultProtocolInfo;
-      if (
-        !result.depositorSignedPeginTx ||
-        result.depositorSignedPeginTx === "0x"
-      ) {
-        // An empty record is not proof the vault is absent: a lagging RPC
-        // node returns HTTP 200 with a zero struct, so no retry below this
-        // layer can see it. Single-shot is only safe because the finality
-        // gate (`waitForPeginRegistrationDepth`) runs first on the deposit
-        // path — move this ahead of it and the read-after-write race returns.
-        // The vault app matches this message to render "still confirming".
-        throw new Error(
-          `Vault ${vaultIds[i]} not found on-chain or has no pegin transaction`,
-        );
-      }
+      // An empty record is not proof the vault is absent: a lagging RPC
+      // node returns HTTP 200 with a zero struct, so no retry below this
+      // layer can see it. Single-shot is only safe because the finality
+      // gate (`waitForPeginRegistrationDepth`) runs first on the deposit
+      // path — move this ahead of it and the read-after-write race returns.
+      assertVaultRecordPresent(result, vaultIds[i]);
       return mapVaultProtocolInfo(result);
     });
   }
@@ -527,14 +542,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     const basic = mapVaultBasicInfo(basicRaw);
     const protocol = mapVaultProtocolInfo(protocolRaw);
 
-    if (
-      !protocol.depositorSignedPeginTx ||
-      protocol.depositorSignedPeginTx === "0x"
-    ) {
-      throw new Error(
-        `Vault ${vaultId} not found on-chain or has no pegin transaction`,
-      );
-    }
+    assertVaultRecordPresent(protocol, vaultId);
 
     return { basic, protocol };
   }

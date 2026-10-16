@@ -80,6 +80,7 @@ const feeState: DepositFeeState = {
   appVersionUnsupported: false,
   p2aAnchorValueSats: 0n,
   depositorClaimValueError: null,
+  protocolFeeWei: 0n,
   protocolFeeAmount: "--",
   protocolFeePrice: "",
   protocolFeeIsError: false,
@@ -95,7 +96,6 @@ const providerState: DepositProviderState = {
 
 const walletState: DepositWalletState = {
   isWalletConnected: true,
-  isLedgerVaultWallet: false,
 };
 
 const gatingState: DepositGatingState = {

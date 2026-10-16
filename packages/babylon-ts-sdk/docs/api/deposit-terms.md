@@ -118,7 +118,7 @@ readonly vaultProviderBtcPubkey: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-x-only hex (64 chars), as validated on-chain upstream.
+x-only hex (64 chars): the vault provider's operation key, resolved on-chain upstream.
 
 ##### peginAmount
 
@@ -273,9 +273,11 @@ vaultKeeperBtcPubkeys: readonly string[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-x-only hex. Sorted ascending by the upstream on-chain validation
-(validateOnChainParticipantKeys); the builder passes them through
-unasserted — approving devices may reject unsorted lists at load.
+x-only hex operation keys, sorted ascending upstream: by
+validateOnChainParticipantKeys for a fresh deposit, and as the keys at
+the vault's frozen epochs (what readStampedParticipantKeys resolves) when
+the terms are rebuilt on resume or at claim time. The builder passes them
+through unasserted — approving devices may reject unsorted lists at load.
 
 ##### universalChallengerBtcPubkeys
 
@@ -352,9 +354,10 @@ optional holdsApprovedDepositTerms(terms): Promise<boolean>;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
 OPTIONAL fast-path probe: can the Pre-PegIn signature for exactly these
-terms proceed under the connection's held approval without a new
+terms proceed under the approval the device still holds, without a new
 ceremony? MUST report false once that Pre-PegIn was signed (one-shot),
-MUST answer from host state without device I/O, MUST return false on any
+MUST NOT prompt the user — host state, or a silent read-only device query
+such as the Ledger vault app's GET_VAULT_STATE — MUST return false on any
 doubt, and MUST never throw. A stale true fails closed at the next
 signature — this is a UX optimization, never an authorization.
 
@@ -403,10 +406,10 @@ so implementations MUST NOT validate or bind `prepeginTxid` here.
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-Where Pre-PegIn change must pay. Approval (policy) wallets sign key-path
-under a wallet policy whose change branch the device alone can derive and
-mark internal — the receive address is NOT acceptable change
-(`process_in_outs.c:114-117` @ e400d8d8).
+Where Pre-PegIn change must pay. An approval (policy) wallet's device
+dictates the change address it accepts; the Ledger vault app takes change
+only at the depositor's own `/0/0` address
+(`sign_psbt_validate.c:571-661` @ b89dd580).
 
 Separate from [DepositTermsApprover](#deposittermsapprover) because only the Pre-PegIn build
 needs it: the presign/payout ceremonies approve terms without ever creating
@@ -1258,8 +1261,9 @@ flow does in between (PoP/PegIn signing spend separate device state;
 app-babylon-vault `sign_psbt_validate.c` @ 73a57c50). A stale true fails
 closed at the signature; the retry then re-runs the full ceremony.
 
-Otherwise always derives first — the host cannot read device state, so
-this path never approves-only.
+Otherwise always derives first, so this path never approves-only: whether
+the device still holds the approval is the wallet's to answer, through
+`holdsApprovedDepositTerms`.
 
 #### Parameters
 

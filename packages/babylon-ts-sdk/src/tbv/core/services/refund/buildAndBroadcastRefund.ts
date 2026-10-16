@@ -28,7 +28,7 @@ import {
 } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
 
-import { BIP68NotMatureError } from "./errors";
+import { BIP68NotMatureError, RefundBroadcastRejectedError } from "./errors";
 
 const BYTES32_HEX_RE = /^0x[0-9a-fA-F]{64}$/;
 // BTC raw-hex convention: 0x prefix optional, even number of hex chars, must
@@ -92,6 +92,10 @@ export function estimateRefundFeeSats(feeRateSatsVb: number): bigint {
 // WASM PSBT builder based on the refund script path.)
 const REFUND_INPUT_COUNT = 1;
 const BIP68_ERROR_RE = /non-BIP68-final/i;
+// bitcoind sendrawtransaction codes relayed verbatim by mempool.space:
+// -27 already in the UTXO set; -25 general error, usually missing or spent inputs.
+const ALREADY_IN_CHAIN_CODE_RE = /"code"\s*:\s*-27\b/;
+const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
 
 function assertBytes32(value: string, label: string): void {
   if (value.length !== 66) {
@@ -173,27 +177,53 @@ export interface VaultRefundData {
 }
 
 /**
- * Version-resolved protocol context that parameterises the HTLC's taproot
- * scripts. The *signer-set* fields (`vaultKeeperPubkeys`,
- * `universalChallengerPubkeys`) and the version-locked numeric protocol
- * params **must** be sourced from the on-chain contract at the version
- * pinned in {@link VaultRefundData} — this is the trust boundary.
- * `vaultProviderPubkey` today is sourced from the GraphQL indexer via
- * `fetchVaultProviderById`; the caller is responsible for any additional
- * cross-check it requires. Keeper and challenger pubkey arrays must be
- * pre-sorted the same way the Rust protocol sorts them (canonical for
- * script derivation).
+ * The protocol context the refund rebuilds the vault's Pre-PegIn HTLC from.
+ * This is the trust boundary: every field must come from the chain, and
+ * {@link readRefundPrePeginContext} reads all of it.
+ *
+ * The three key fields must be the RFC-006 *operation* keys at the vault's
+ * frozen epochs (`vpKeyEpoch`, `appKeeperKeyEpoch`, `ucKeyEpoch`), and the
+ * numeric fields must be the offchain params at the vault's
+ * `offchainParamsVersion`. The rosters (`getVaultKeepersByVersion`,
+ * `getUniversalChallengersByVersion`) hold *registration* keys, which differ
+ * from the keys committed by any vault registered after a participant had
+ * rotated; a refund rebuilt from them for such a vault no longer matches the
+ * funded output and is refused. The indexer's vault-provider key is only a
+ * hint (the registration key, or the current operation key once the indexer
+ * tracks rotations) and is never the key to build with. Current operation
+ * keys are no substitute either: they fail for any vault registered before a
+ * participant's latest rotation. A vault's frozen epochs never move, so
+ * rotations after it registered do not change its HTLC.
  */
 export interface RefundPrePeginContext {
+  /** The vault provider's operation key at the vault's `vpKeyEpoch` (x-only hex). */
   vaultProviderPubkey: string;
+  /** The vault keepers' operation keys at the vault's `appKeeperKeyEpoch`, sorted (x-only hex). */
   vaultKeeperPubkeys: readonly string[];
+  /** The universal challengers' operation keys at the vault's `ucKeyEpoch`, sorted (x-only hex). */
   universalChallengerPubkeys: readonly string[];
+  /** The refund CSV timelock in blocks: `tRefund` at the vault's `offchainParamsVersion`. */
   timelockRefund: number;
+  /**
+   * The protocol fee rate (sat/vB) at the vault's `offchainParamsVersion`. It
+   * sized the HTLC value; the refund transaction's own fee is
+   * `RefundInput.feeRate`.
+   */
   feeRate: bigint;
+  /** The minimum peg-in fee rate (sat/vB) at the vault's `offchainParamsVersion`. */
   minPeginFeeRate: bigint;
+  /**
+   * The number of local challengers in the depositor's own claim graph, which
+   * this value sizes: the vault keeper count. (A vault provider's or a
+   * keeper's claim graph uses a different rule: the vault provider and the
+   * keepers, minus the claimer.)
+   */
   numLocalChallengers: number;
+  /** The security council quorum at the vault's `offchainParamsVersion`. */
   councilQuorum: number;
+  /** The security council size: the number of `securityCouncilKeys` at the vault's `offchainParamsVersion`. */
   councilSize: number;
+  /** The Bitcoin network the vault lives on. */
   network: Network;
 }
 
@@ -221,8 +251,11 @@ export interface RefundInput<
    */
   readVault: () => Promise<VaultRefundData>;
   /**
-   * Fetch the version-pinned refund context (sorted pubkeys, timelock, etc.)
-   * derived from the vault's locked versions.
+   * Fetch the protocol context the refund rebuilds the HTLC from. Use
+   * {@link readRefundPrePeginContext}, closing over `vaultId`:
+   * `(vault) => readRefundPrePeginContext({ vaultId, vault, readers, network })`.
+   * A hand-written implementation must return the operation keys at the
+   * vault's frozen epochs; see {@link RefundPrePeginContext}.
    */
   readPrePeginContext: (
     vault: VaultRefundData,
@@ -381,13 +414,17 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
  *
  * The broadcast transport is expected to surface Bitcoin's `non-BIP68-final`
  * policy rejection as an `Error` whose message contains that string; when
- * it does, the SDK wraps it in {@link BIP68NotMatureError}. All other
- * transport errors propagate unchanged.
+ * it does, the SDK wraps it in {@link BIP68NotMatureError}. Relayed bitcoind
+ * `-25` / `-27` rejections are wrapped in {@link RefundBroadcastRejectedError}.
+ * All other transport errors propagate unchanged.
  *
  * @returns whatever the injected `broadcastTx` returns (generic pass-through)
  * @throws `Error` if any validation fails
  * @throws {@link BIP68NotMatureError} if the broadcast is rejected because
  *         the refund CSV timelock has not yet matured
+ * @throws {@link RefundBroadcastRejectedError} if the broadcast is rejected
+ *         with bitcoind `-25` (a general transaction error, usually missing
+ *         or spent inputs) or `-27` (already in the chain)
  * @throws anything `readVault`, `readPrePeginContext`,
  *         `signPsbt`, or `broadcastTx` throws
  */
@@ -569,8 +606,16 @@ export async function buildAndBroadcastRefund<
   try {
     return await broadcastTx(signedTxHex);
   } catch (error) {
-    if (error instanceof Error && BIP68_ERROR_RE.test(error.message)) {
-      throw new BIP68NotMatureError(vaultId, error);
+    if (error instanceof Error) {
+      if (BIP68_ERROR_RE.test(error.message)) {
+        throw new BIP68NotMatureError(vaultId, error);
+      }
+      if (ALREADY_IN_CHAIN_CODE_RE.test(error.message)) {
+        throw new RefundBroadcastRejectedError(-27, vaultId, signedTxHex, error);
+      }
+      if (MISSING_OR_SPENT_INPUTS_CODE_RE.test(error.message)) {
+        throw new RefundBroadcastRejectedError(-25, vaultId, signedTxHex, error);
+      }
     }
     throw error;
   }

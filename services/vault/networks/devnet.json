@@ -1,0 +1,16 @@
+{
+  "name": "devnet",
+  "kind": "test",
+  "registryCommit": "3f47a443a444591ff592d3607acd67377eb9d30f",
+  "btcNetwork": "signet",
+  "ethChainId": 11155111,
+  "ethRpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+  "indexerUrl": "https://babylon-vault-indexer-api.vault-devnet.babylonlabs.io",
+  "vpProxyUrl": "https://vault-provider-proxy-api.vault-devnet.babylonlabs.io",
+  "contracts": {
+    "btcVaultRegistry": "0x3408542836a6115AA62d5b5b6669D29651B07577",
+    "aaveAdapter": "0xcCFC349D8BDb0fDffe1Bd12Bb0EdaF40adec0686",
+    "aaveAdapterConfig": "0x64a3825eE4C8b8d9B8c8e29B71c245453a3eDF53",
+    "btcPriceFeed": "0xA5c0105B71D9D2CaDC151A1875a5B71C85AbF8DB"
+  }
+}

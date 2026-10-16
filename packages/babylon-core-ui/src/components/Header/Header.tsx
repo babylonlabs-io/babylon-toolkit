@@ -3,6 +3,7 @@ import { MdClose, MdOutlineMenu } from "react-icons/md";
 import { twJoin, twMerge } from "tailwind-merge";
 
 import { useIsMobile } from "../../hooks";
+import { useCoreUI } from "../../providers/CoreUIProvider";
 import { Container } from "../Container/Container";
 import { MobileLogo } from "../Logo/MobileLogo";
 import { SmallLogo } from "../Logo/SmallLogo";
@@ -66,6 +67,7 @@ export const Header = ({
   size = "md",
 }: HeaderProps) => {
   const isMobileView = useIsMobile();
+  const { portalContainer } = useCoreUI();
   const [mobileMenuTop, setMobileMenuTop] = useState<number | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -117,6 +119,38 @@ export const Header = ({
       document.removeEventListener("focusin", dismissOutside);
     };
   }, [isMobileMenuOpen, mobileMenuId]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen || !headerRef.current) return;
+    const inertElements: Element[] = [];
+    const makeInert = (element: Element) => {
+      if (element.hasAttribute("inert")) return;
+      element.setAttribute("inert", "");
+      inertElements.push(element);
+    };
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const added of Array.from(mutation.addedNodes)) {
+          if (added instanceof Element) makeInert(added);
+        }
+      }
+    });
+    let node: HTMLElement = headerRef.current;
+    while (node !== document.body && node.parentElement) {
+      const parent: HTMLElement = node.parentElement;
+      if (parent !== document.body && parent !== portalContainer) {
+        for (const sibling of Array.from(parent.children)) {
+          if (sibling !== node) makeInert(sibling);
+        }
+        observer.observe(parent, { childList: true });
+      }
+      node = parent;
+    }
+    return () => {
+      observer.disconnect();
+      for (const element of inertElements) element.removeAttribute("inert");
+    };
+  }, [isMobileMenuOpen, portalContainer]);
 
   const closeMobileMenu = () => {
     setMobileMenuTop(null);

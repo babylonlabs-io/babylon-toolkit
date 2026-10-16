@@ -24,6 +24,12 @@ interface EmergencyWithdrawConfirmContentProps {
   error: string | null;
   /** Terminal failure (activation deadline passed) — confirm stays disabled. */
   errorTerminal: boolean;
+  /**
+   * The wallet refused the reveal but may have broadcast it: shown as the
+   * status-unknown warning, which says how to retry, instead of `error`, and
+   * confirm stays disabled.
+   */
+  errorOutcomeUnknown: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   /**
@@ -48,6 +54,7 @@ export function EmergencyWithdrawConfirmContent({
   withdrawing,
   error,
   errorTerminal,
+  errorOutcomeUnknown,
   onConfirm,
   onCancel,
   ledgerStep = null,
@@ -72,6 +79,7 @@ export function EmergencyWithdrawConfirmContent({
     acknowledged &&
     !withdrawing &&
     !errorTerminal &&
+    !errorOutcomeUnknown &&
     !applicationInactive &&
     !activateAndRedeemPaused;
 
@@ -138,7 +146,17 @@ export function EmergencyWithdrawConfirmContent({
             {COPY.deposit.emergencyWithdraw.applicationInactive}
           </Callout>
         )}
-        {error && <Callout variant="error">{error}</Callout>}
+        {error &&
+          (errorOutcomeUnknown ? (
+            <Callout
+              variant="warning"
+              title={COPY.deposit.errors.sendOutcomeUnknown.title}
+            >
+              {COPY.deposit.errors.sendOutcomeUnknown.body}
+            </Callout>
+          ) : (
+            <Callout variant="error">{error}</Callout>
+          ))}
         {ledgerStep?.kind === "awaiting-app" && (
           <DeviceAppWaitDetail appName={ledgerStep.appName} />
         )}
@@ -174,7 +192,7 @@ export function EmergencyWithdrawConfirmContent({
               COPY.deposit.ledger.activationPause.continue
             ) : ledgerStep?.kind === "reconnect-required" ? (
               COPY.deposit.ledger.reconnectButton
-            ) : error && !errorTerminal ? (
+            ) : error && !errorTerminal && !errorOutcomeUnknown ? (
               COPY.deposit.emergencyWithdraw.retryButton
             ) : (
               COPY.deposit.emergencyWithdraw.confirmButton

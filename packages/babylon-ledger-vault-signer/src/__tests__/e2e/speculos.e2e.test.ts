@@ -6,9 +6,10 @@
  * Stages, in order — each one arms the device state the next consumes:
  *   1. app identity
  *   2. DERIVE_CONTEXT_HASH → context root (the HTLC hashlock's source)
- *   3. policy context (fingerprint, account xpub, change key) + Pre-PegIn build
+ *   3. policy context (fingerprint, account xpub) + Pre-PegIn build
  *   4. APPROVE_VAULT_INTENT over terms bound to that Pre-PegIn's txid
- *   5. Pre-PegIn with an UNMARKED change output → device rejection, intent intact
+ *   4b-4c. GET_VAULT_STATE fingerprints; an app read leaves the intent loaded
+ *   5. Pre-PegIn paying change to the change branch (the 0.10.1 shape) → device rejection, intent intact
  *   6. Pre-PegIn under the default wallet policy → one key-path yield per input
  *   7-9. PegIn (spends the real Pre-PegIn txid), sighash check, finalize
  *   10. BIP-322 PoP, last among the intent stages, so it signs while the
@@ -18,19 +19,23 @@
  *       `signInputIndexes: [0]`) + NoPayout against a production-SDK-built
  *       graph fixture, still under the stage-4 intent.
  *   12. abort/dispatcher recovery (T7 stage b): interrupt SIGN_PSBT mid-loop,
- *       pin the eaten-APDU behavior and the full re-ceremony recovery. Runs
- *       LAST — it re-derives, which resets the vault session.
+ *       pin the eaten-APDU behavior and the full re-ceremony recovery. Last
+ *       of the intent-bound stages — it re-derives, which resets the vault
+ *       session. Stages 13 and 14 are standalone flows that run after it.
+ *   13. standalone Refund, with and without a loaded intent.
+ *   14. standalone Reclaim of the claim reserve (Screen 9).
  *
  * Stage 5 MUST precede stage 6: a successful Pre-PegIn sign arms the one-shot
  * cap and the next one answers SW_CAP_EXCEEDED (`sign_psbt_validate.c:741-744`).
  *
  * Requires a running container with the vault app (nanosp, testnet build,
- * firmware-test mnemonic) built from ELF commit `b0c0ac4d` (app 0.10.1) — the
+ * firmware-test mnemonic) built from ELF commit `b89dd580` (app 0.11.0) — the
  * `compiled_app_binaries_testnet` artifact (`nanos2/bin/app.elf`) of
- * https://github.com/LedgerHQ/app-babylon-vault/actions/runs/33860782380
- * ("Build and run functional tests using ragger through reusable workflow";
- * artifacts expire 2026-12-03, after which rebuild from the commit); every
- * firmware line cited in this file is at that commit. Skipped unless
+ * https://github.com/LedgerHQ/app-babylon-vault-dev/actions/runs/37902155561
+ * (private repo; artifacts expire 2027-01-07, after which rebuild from the
+ * commit). Firmware lines marked `@ b89dd580` are at that commit; the others
+ * are still at `b0c0ac4d` (app 0.10.1) until
+ * https://github.com/babylonlabs-io/babylon-toolkit/issues/2715 re-pins them. Skipped unless
  * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure — CI):
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
@@ -39,29 +44,34 @@
  * between runs.
  */
 
+import { HDKey } from "@scure/bip32";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
+import { createHash } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { getExtendedPublicKey, getMasterFingerprintHex } from "../../derivation";
 import { assertDepositTermsDeviceCompatible } from "../../envelope";
 import { isLedgerDeviceError, isLedgerSignPsbtAbortedError, type LedgerSignPsbtAbortedError } from "../../errors";
 import { bip86OutputScript } from "../../expectedSignatures";
-import { augmentPsbtForWalletPolicy, deriveChangeXOnlyHex } from "../../policyPsbt";
+import { augmentPsbtForWalletPolicy } from "../../policyPsbt";
 import { bip322ToSpendTxid, buildPopPsbtHex } from "../../popPsbt";
 import { SW_CAP_EXCEEDED } from "../../rawApdu";
+import { augmentPsbtForReclaim } from "../../reclaimPsbt";
 import { augmentPsbtForRefund } from "../../refundPsbt";
 import { signPreparedVaultPsbt, signVaultPsbt, type SignVaultPsbtResult } from "../../signPsbt";
 import { prepareSignPsbt, type PreparedSignPsbt } from "../../signPsbtPrepare";
-import { approveVaultIntent, deriveContextHash } from "../../vaultCommands";
+import { approveVaultIntent, deriveContextHash, getVaultState, intentFingerprint } from "../../vaultCommands";
 import { buildDefaultTaprootPolicy, type DefaultTaprootWalletPolicy } from "../../walletPolicy";
 import { buildDepositorGraphFixture, type DepositorGraphFixture } from "./depositorGraphFixture";
 import {
   buildDepositTerms,
   buildPeginPsbt,
   buildPrePeginPsbt,
+  buildReclaimPsbtFixture,
   buildRefundPsbtFixture,
   computePeginSighash,
+  computeReclaimSighash,
   computeRefundSighash,
   DEPOSITOR_PATH,
   DEPOSITOR_XONLY_HEX,
@@ -100,9 +110,9 @@ async function loadSdkVerifier() {
 }
 type SdkVerifier = Awaited<ReturnType<typeof loadSdkVerifier>>;
 
-/** App version of the pinned ELF (`b0c0ac4d`). Stage 1 asserts it, which rules out a
+/** App version of the pinned ELF (`b89dd580`). Stage 1 asserts it, which rules out a
  * differently-versioned build only — the app exposes no commit; the ELF provenance above is the pin. */
-const PINNED_APP_VERSION = "0.10.1";
+const PINNED_APP_VERSION = "0.11.0";
 
 /** Live-verified nanosp review-screen texts (reference driver `lsk_ceremony2.py`). */
 const DERIVE_APPROVAL_TEXT = "Allow derivation";
@@ -151,8 +161,9 @@ const POP_MESSAGE =
 const ACCOUNT_PATH_LEVELS = 3;
 const POLICY_COIN_TYPE = 1;
 const POLICY_ACCOUNT_INDEX = 0;
-/** Change lives at `account/1/0` — the policy derives the branch, we pick the index. */
-const CHANGE_ADDRESS_INDEX = 0;
+/** `account/1/0`: where 0.10.1 took change, and where 0.11 refuses it. */
+const CHANGE_BRANCH = 1;
+const CHANGE_BRANCH_ADDRESS_INDEX = 0;
 
 /**
  * BIP-322 to_sign framing, restated. The to_spend txid still comes from
@@ -179,8 +190,9 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
   let contextRoot: Uint8Array | undefined;
   let policy: DefaultTaprootWalletPolicy | undefined;
   let masterFingerprintHex: string | undefined;
-  let changeXOnly: string | undefined;
   let prePegin: PrePeginPsbtFixture | undefined;
+  let changeBranchPrePegin: PrePeginPsbtFixture | undefined;
+  let approvedIntent: ReturnType<typeof termsToIntent> | undefined;
   let fixture: PeginPsbtFixture | undefined;
   let signResult: SignVaultPsbtResult | undefined;
 
@@ -233,9 +245,14 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         accountXpub,
         bip32Versions: TESTNET_VERSIONS,
       });
-      changeXOnly = deriveChangeXOnlyHex(accountXpub, TESTNET_VERSIONS, CHANGE_ADDRESS_INDEX);
-      prePegin = buildPrePeginPsbt(vaultHashlock(contextRoot as Uint8Array, HTLC_VOUT), changeXOnly);
+      const hashlock = vaultHashlock(contextRoot as Uint8Array, HTLC_VOUT);
+      prePegin = buildPrePeginPsbt(hashlock);
       expect(prePegin.txidInternal).toHaveLength(32);
+      const changeBranchKey = HDKey.fromExtendedKey(accountXpub, TESTNET_VERSIONS)
+        .deriveChild(CHANGE_BRANCH)
+        .deriveChild(CHANGE_BRANCH_ADDRESS_INDEX).publicKey;
+      if (!changeBranchKey) throw new Error("account xpub derived no change-branch key");
+      changeBranchPrePegin = buildPrePeginPsbt(hashlock, bip86OutputScript(Buffer.from(changeBranchKey.subarray(1)).toString("hex")));
     },
     SANITY_TIMEOUT_MS,
   );
@@ -261,25 +278,59 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       approvePending.catch(() => undefined); // handled at the await below
       const intentScreens = await approveOnScreen(SPECULOS_URL, INTENT_APPROVAL_TEXT);
       await approvePending;
+      approvedIntent = intent;
       console.log(`[speculos-e2e] intent screens: ${intentScreens.join(" || ")}`);
     },
     CEREMONY_TIMEOUT_MS,
   );
 
   it(
-    "(5) rejects a Pre-PegIn whose change output carries no derivation (not internal) without dropping the intent",
+    "(4b) GET_VAULT_STATE reports the approved intent and the derived root by the fingerprints the host computed",
     async () => {
-      expect(prePegin, "policy-context stage must have built the Pre-PegIn").toBeDefined();
-      const unmarkedChange = augmentPsbtForWalletPolicy({
-        psbtHex: (prePegin as PrePeginPsbtFixture).psbtHex,
+      expect(approvedIntent, "intent stage must have approved an intent").toBeDefined();
+      // Context fingerprint: SHA-256(root)[28..32] (`docs/apdu.md` §Fingerprint definitions @ b89dd580).
+      const contextFp = createHash("sha256").update(contextRoot as Uint8Array).digest().subarray(28);
+      await expect(getVaultState(send)).resolves.toEqual({
+        phase: "intent-loaded",
+        intentFingerprint: intentFingerprint(approvedIntent as ReturnType<typeof termsToIntent>),
+        contextFingerprint: new Uint8Array(contextFp),
+      });
+    },
+    SANITY_TIMEOUT_MS,
+  );
+
+  it(
+    "(4c) GET_APP_AND_VERSION under a loaded intent leaves the intent in place",
+    async () => {
+      // The host reads the open app before an intent-bound sign, to wait out
+      // a locked device; that read must not cost the approved intent.
+      expect(approvedIntent, "intent stage must have approved an intent").toBeDefined();
+      const before = await getVaultState(send);
+      expect(before.phase).toBe("intent-loaded");
+
+      const app = await getAppAndVersion(sendRaw);
+      expect(app.name).toContain("Babylon Vault");
+
+      await expect(getVaultState(send)).resolves.toEqual(before);
+    },
+    SANITY_TIMEOUT_MS,
+  );
+
+  it(
+    "(5) rejects a Pre-PegIn paying change to the change branch without dropping the intent",
+    async () => {
+      expect(changeBranchPrePegin, "policy-context stage must have built the change-branch Pre-PegIn").toBeDefined();
+      const changeBranch = augmentPsbtForWalletPolicy({
+        psbtHex: (changeBranchPrePegin as PrePeginPsbtFixture).psbtHex,
         depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
         walletPolicy: policy as DefaultTaprootWalletPolicy,
         depositorPath: DEPOSITOR_PATH,
-        // no `change` → the change output is external on-device → `_validate_prepegin`
-        // catch-all reject (`sign_psbt_validate.c:709-711`), before the txid/cap checks.
       });
+      // The change pays neither the auth anchor nor P2TR(depositor), so
+      // `_validate_prepegin_outputs` refuses it (`sign_psbt_validate.c:652-655`
+      // @ b89dd580), before the txid and cap checks.
       const prepared = prepareSignPsbt({
-        psbtHex: unmarkedChange,
+        psbtHex: changeBranch,
         depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
         walletPolicy: policy as DefaultTaprootWalletPolicy,
       });
@@ -310,7 +361,6 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
         walletPolicy: policy as DefaultTaprootWalletPolicy,
         depositorPath: DEPOSITOR_PATH,
-        change: { addressIndex: CHANGE_ADDRESS_INDEX },
       });
       const prepared = prepareSignPsbt({
         psbtHex: augmented,
@@ -855,6 +905,50 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     );
   });
 
+  describe("(14) standalone Reclaim (#2714): the claim reserve back to the depositor", () => {
+    /** "Sign reclaim\ntransaction?" is the finish page (`display.c:395` @ b89dd580). */
+    const RECLAIM_APPROVAL_TEXT = "transaction?";
+    const RECLAIM_INPUT = 0;
+    /** Any PegIn txid: the device cannot bind one for Reclaim and shows it for display only. */
+    const PEGIN_TXID_INTERNAL = Buffer.alloc(32, 0x77);
+
+    it(
+      "signs the SDK-shaped Reclaim once input 0 carries D's derivation entry, and the signature verifies",
+      async () => {
+        expect(masterFingerprintHex, "policy-context stage must have read the fingerprint").toBeDefined();
+        const reclaim = buildReclaimPsbtFixture(PEGIN_TXID_INTERNAL);
+        const augmented = augmentPsbtForReclaim({
+          psbtHex: reclaim.psbtHex,
+          depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+          masterFingerprintHex: masterFingerprintHex as string,
+          depositorPath: DEPOSITOR_PATH,
+        });
+
+        await waitForIdleScreen();
+        const signPending = signPreparedVaultPsbt(
+          sendRaw,
+          prepareSignPsbt({ psbtHex: augmented, depositorXOnlyHex: DEPOSITOR_XONLY_HEX, signInputIndexes: [RECLAIM_INPUT] }),
+          { signal: AbortSignal.timeout(SIGNING_ABORT_MS) },
+        );
+        signPending.catch(() => undefined); // handled at the await below
+        const reclaimScreens = await approveOnScreen(SPECULOS_URL, RECLAIM_APPROVAL_TEXT);
+        const result = await signPending;
+        console.log(`[speculos-e2e] reclaim screens: ${reclaimScreens.join(" || ")}`);
+
+        expect(reclaimScreens.join(" || ")).toContain("Reclaim reserve");
+        expect(result.yields).toHaveLength(1);
+        const yielded = result.yields[0];
+        if (yielded.kind !== "tapscript") throw new Error("stage (14) expected a tapscript yield");
+        expect(yielded.inputIndex).toBe(RECLAIM_INPUT);
+        expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
+        expect(yielded.leafHashHex).toBe(reclaim.leafHash.toString("hex"));
+        const sighash = computeReclaimSighash(augmented, reclaim);
+        expect(verifySchnorrSignature(sighash, DEPOSITOR_XONLY_HEX, yielded.signature)).toBe(true);
+      },
+      CEREMONY_TIMEOUT_MS,
+    );
+  });
+
   /** Re-run the device ceremony (derive → intent) over the same deterministic fixture; returns the re-derived root. */
   async function rearmIntentCeremony(): Promise<Uint8Array> {
     await waitForIdleScreen();
@@ -877,14 +971,13 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     return root;
   }
 
-  /** Stage-6-shaped Pre-PegIn (change marked internal), freshly prepared — prepared objects are single-use. */
+  /** Stage-6-shaped Pre-PegIn, freshly prepared — prepared objects are single-use. */
   function prepareAugmentedPrePegin(): PreparedSignPsbt {
     const augmented = augmentPsbtForWalletPolicy({
       psbtHex: (prePegin as PrePeginPsbtFixture).psbtHex,
       depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
       walletPolicy: policy as DefaultTaprootWalletPolicy,
       depositorPath: DEPOSITOR_PATH,
-      change: { addressIndex: CHANGE_ADDRESS_INDEX },
     });
     return prepareSignPsbt({
       psbtHex: augmented,

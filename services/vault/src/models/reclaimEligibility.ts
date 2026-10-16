@@ -108,8 +108,6 @@ export interface ReclaimEligibilityInput {
   tipHeight: number | undefined;
   /** Whether the vault belongs to the connected wallet. */
   isOwnedByWallet: boolean;
-  /** Whether the connected BTC wallet is the Ledger vault app. */
-  isLedgerWallet: boolean;
   /** Whether protocol status has paused exits. */
   isWithdrawBlocked: boolean;
   /**
@@ -168,7 +166,6 @@ export function getReclaimEligibility(
     reserveSpend,
     tipHeight,
     isOwnedByWallet,
-    isLedgerWallet,
     isWithdrawBlocked,
     isReclaimInFlight,
   } = input;
@@ -212,37 +209,38 @@ export function getReclaimEligibility(
 
   // A sweep we broadcast this session, before the 60s poll has observed it.
   // Without this the row would keep offering an enabled button for up to a
-  // minute after the user confirmed.
-  if (isReclaimInFlight && payoutSettled) return { type: "reclaiming" };
+  // minute after the user confirmed. Not gated on the payout: the sweep was
+  // signed only after the settlement check held, so a later read that shows
+  // the payout shallower (a node behind, a reorg) must not turn it into a wait.
+  if (isReclaimInFlight) return { type: "reclaiming" };
 
-  if (!payoutSettled) return { type: "absent" };
-
-  // Past this point the reserve is genuinely reclaimable and the depositor
-  // should be told so even when they cannot act right now.
+  // Past this point the reserve is the row's action — reclaimable now, or once
+  // the payout settles — and the depositor should be told so even when they
+  // cannot act right now. The pause block comes first: a depositor who cannot
+  // reach `available` must not be told to wait for the settlement.
 
   // Reclaim is an exit, so it follows withdraw's pause semantics.
   if (isWithdrawBlocked) {
     return { type: "blocked", tooltip: COPY.reclaim.blocked.protocolPaused };
   }
 
-  // The Ledger vault app cannot sign this transaction. Its firmware routes any
-  // 34-byte `<D> OP_CHECKSIG` tapleaf to the claim validator
-  // (app-babylon-vault `src/sign_psbt_validate.c`), which hard-requires the
-  // protocol claim_tx shape of 1 input and 2 outputs. The dApp's sweep is
-  // 1-in/1-out (one vault per reclaim), so the claim validator rejects it on
-  // the output count with SW_INCORRECT_DATA.
-  //
-  // Deliberately reclaim-specific: refund *is* reachable on the device
-  // (`_validate_display_refund`), so this must not become "no Bitcoin actions
-  // on Ledger". Supporting reclaim needs a new firmware validator with its own
-  // approval screen, plus host-side work in babylon-ledger-vault-signer.
-  //
-  // Shown as blocked rather than hidden so Ledger users still learn the reserve
-  // exists. Decision (#2375): ship the Ledger wallet with reclaim blocked; a
-  // reserve-sweep validator is a post-flip firmware ask. The copy must not point
-  // at "another wallet" (= the seed).
-  if (isLedgerWallet) {
-    return { type: "blocked", tooltip: COPY.reclaim.blocked.ledgerUnsupported };
+  // The indexer reports the vault DEPOSITOR_WITHDRAWN (or NON_DEPOSITOR_SPEND,
+  // a vault keeper's claim) a few blocks before the gate above holds:
+  // babylon-btc-monitor writes either once the PegIn output 0 spend is
+  // `spend-finality-depth` deep (default 2; `internal/service/service.go:292-295`
+  // @ 1b3662c), and this app's own Bitcoin node can lag the monitor's, or
+  // after a reorg never agree with it. `absent` here would drop the row from
+  // the one section that lists the vault at this status, so the vault would
+  // vanish for the few blocks until the depth is reached. The row stays, with
+  // the action disabled. Not `available`: `isPayoutSettled` is the safety
+  // condition, and this branch leaves it untouched.
+  if (!payoutSettled) {
+    return {
+      type: "blocked",
+      tooltip: COPY.reclaim.blocked.payoutSettling(
+        RECLAIM_MIN_PAYOUT_CONFIRMATIONS,
+      ),
+    };
   }
 
   return { type: "available" };

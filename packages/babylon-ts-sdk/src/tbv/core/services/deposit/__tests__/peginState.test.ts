@@ -123,6 +123,11 @@ describe("peginProtocolState", () => {
       const state = getPeginProtocolState(ContractStatus.DEPOSITOR_WITHDRAWN);
       expect(state.availableActions).toEqual([]);
     });
+
+    it("returns empty actions for NON_DEPOSITOR_SPEND", () => {
+      const state = getPeginProtocolState(ContractStatus.NON_DEPOSITOR_SPEND);
+      expect(state.availableActions).toEqual([]);
+    });
   });
 
   // ==========================================================================

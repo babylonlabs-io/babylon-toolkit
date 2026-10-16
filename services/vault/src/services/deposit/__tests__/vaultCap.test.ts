@@ -19,8 +19,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: false,
         maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
   });
 
   it("blocks neither when the cap is unknown (null)", () => {
@@ -30,8 +35,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: null,
         enabled: true,
         maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
   });
 
   it("blocks neither well below the cap (split fits)", () => {
@@ -41,8 +51,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
   });
 
   it("allows a split exactly when it fits (count + 2 == cap)", () => {
@@ -52,8 +67,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
   });
 
   it("disables the split near the cap (single fits, split overflows)", () => {
@@ -63,8 +83,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: "per-position" });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: "per-position",
+    });
   });
 
   it("blocks the deposit at the cap (single overflows)", () => {
@@ -74,8 +99,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: true, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: true,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
   });
 
   it("blocks the deposit over the cap", () => {
@@ -85,8 +115,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: true, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: true,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
   });
 
   // The protocol's HTLC-output cap is a second, independent reason a split may
@@ -100,8 +135,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: 1,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: "htlc-output-cap" });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: "htlc-output-cap",
+    });
   });
 
   it("allows the split when the protocol allows exactly two HTLC outputs", () => {
@@ -111,8 +151,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: 2,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
   });
 
   it("applies the HTLC cap even when per-position enforcement is off", () => {
@@ -125,8 +170,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: null,
         enabled: false,
         maxHtlcOutputCount: 1,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: "htlc-output-cap" });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: "htlc-output-cap",
+    });
   });
 
   it("reports the per-position reason first when both caps bite", () => {
@@ -138,8 +188,13 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: 1,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: false, splitUnavailableReason: "per-position" });
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: "per-position",
+    });
   });
 
   it("leaves the deposit blocked at the per-position cap regardless of the HTLC cap", () => {
@@ -149,8 +204,116 @@ describe("resolveVaultCapState", () => {
         maxVaultsPerPosition: 10,
         enabled: true,
         maxHtlcOutputCount: 1,
+        liveVaultSlots: null,
       }),
-    ).toEqual({ isAtCap: true, splitUnavailableReason: null });
+    ).toEqual({
+      isAtCap: true,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
+  });
+});
+
+// The protocol-wide live-vault cap. `liveVaultSlots` is the slots a
+// registration can reserve, and a batch of N BTCVaults reserves N in one
+// transaction.
+describe("resolveVaultCapState with the live-vault cap", () => {
+  it("blocks the deposit when no live-vault slot is free", () => {
+    expect(
+      resolveVaultCapState({
+        existingVaultCount: 0,
+        maxVaultsPerPosition: 10,
+        enabled: true,
+        maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: 0n,
+      }),
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: true,
+      splitUnavailableReason: null,
+    });
+  });
+
+  it("forces a single vault when only one slot is free, since a split needs two", () => {
+    expect(
+      resolveVaultCapState({
+        existingVaultCount: 0,
+        maxVaultsPerPosition: 10,
+        enabled: true,
+        maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: 1n,
+      }),
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: "live-vault-cap",
+    });
+  });
+
+  it("allows the split when two slots are free", () => {
+    expect(
+      resolveVaultCapState({
+        existingVaultCount: 0,
+        maxVaultsPerPosition: 10,
+        enabled: true,
+        maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: 2n,
+      }),
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: null,
+    });
+  });
+
+  it("applies the live-vault cap even when per-position enforcement is off", () => {
+    expect(
+      resolveVaultCapState({
+        existingVaultCount: 0,
+        maxVaultsPerPosition: null,
+        enabled: false,
+        maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: 0n,
+      }),
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: true,
+      splitUnavailableReason: null,
+    });
+  });
+
+  it("names the HTLC cap ahead of the live-vault cap when both rule out the split", () => {
+    // The HTLC cap is the lasting reason: a freed slot would not bring the
+    // split back.
+    expect(
+      resolveVaultCapState({
+        existingVaultCount: 0,
+        maxVaultsPerPosition: 10,
+        enabled: true,
+        maxHtlcOutputCount: 1,
+        liveVaultSlots: 1n,
+      }),
+    ).toEqual({
+      isAtCap: false,
+      isLiveVaultCapReached: false,
+      splitUnavailableReason: "htlc-output-cap",
+    });
+  });
+
+  it("reports both blocks when the position and the protocol are both full", () => {
+    expect(
+      resolveVaultCapState({
+        existingVaultCount: 10,
+        maxVaultsPerPosition: 10,
+        enabled: true,
+        maxHtlcOutputCount: PERMISSIVE_HTLC_CAP,
+        liveVaultSlots: 0n,
+      }),
+    ).toEqual({
+      isAtCap: true,
+      isLiveVaultCapReached: true,
+      splitUnavailableReason: null,
+    });
   });
 });
 

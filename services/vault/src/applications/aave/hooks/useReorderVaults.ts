@@ -7,18 +7,20 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import type { Hex } from "viem";
-import { useAccount, useWalletClient } from "wagmi";
+import type { Address, Hex } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
 import { assertNoTransactionInFlight } from "@/clients/eth-contract/transactionInFlight";
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   WalletError,
   isWriteNotice,
@@ -106,9 +108,9 @@ export interface UseReorderVaultsResult {
   error: string | null;
   /**
    * Last outcome that is not a failure (null when none): a refusal before
-   * anything was signed, a wallet replacement that may have done the
-   * reorder, or another Aave form's write holding the lock. Shown without the
-   * failure title.
+   * anything was signed, a wallet replacement or a "nonce too low" for a
+   * broadcast send, either of which may have done the reorder, or another Aave
+   * form's write holding the lock. Shown without the failure title.
    */
   notice: string | null;
   /** Clear the last failure message and notice (e.g. when the modal reopens). */
@@ -147,18 +149,18 @@ function reorderErrorMessage(error: unknown): string {
  *
  * After a success, cache invalidation is deferred to the success modal close
  * handler to give the indexer time to process the block. When the outcome is
- * unknown (the user stopped waiting, or the wallet replaced the transaction)
- * there is no success modal, so the hook refreshes the position itself.
+ * unknown (the user stopped waiting, the wallet replaced the transaction, or
+ * the wallet refused as "nonce too low" a send it may have broadcast) there is
+ * no success modal, so the hook refreshes the position itself.
  */
 export function useReorderVaults(): UseReorderVaultsResult {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+  const account = useETHWallet().address as Address | undefined;
   const queryClient = useQueryClient();
   const gate = useProtocolGateState();
-  const pendingWrite = usePendingAaveWrite(address);
+  const pendingWrite = usePendingAaveWrite(account);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -178,35 +180,28 @@ export function useReorderVaults(): UseReorderVaultsResult {
       setNotice(null);
       setIsProcessing(true);
       try {
-        if (!walletClient) {
+        if (!account) {
           throw new WalletError(
             COPY.wallet.connectToContinue,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }
 
-        if (!address) {
-          throw new WalletError(
-            COPY.wallet.addressUnavailable,
-            ErrorCode.WALLET_NOT_CONNECTED,
-          );
-        }
-
         // The account's Aave lock covers the pre-sign checks too, so a second
         // call made while they run is refused instead of sent after this one.
-        const outcome = await runAaveWrite(address, async () => {
+        const outcome = await runAaveWrite(account, async () => {
           // A reorder this page did not see (sent before a reload, or from
           // another tab) may still be pending.
           await assertNoTransactionInFlight({
             publicClient: ethClient.getPublicClient(),
-            account: address,
+            account,
           });
 
           const adapterAddress = getAaveAdapterAddress();
 
           const currentVaultIds = await assertReorderMembership(
             adapterAddress,
-            address,
+            account,
             permutedVaultIds,
           );
 
@@ -249,6 +244,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
             }
           }
 
+          const walletClient = await getWalletClientOnExpectedChain(account);
           await reorderVaultOrder(
             walletClient,
             getETHChain(),
@@ -262,13 +258,17 @@ export function useReorderVaults(): UseReorderVaultsResult {
         await invalidateVaultQueries(queryClient);
         return false;
       } catch (error) {
-        // The wallet replaced the transaction. A speed-up may still have done
-        // the reorder, so the position must show the chain's order.
-        if (error instanceof TransactionReplacedError) {
+        // The wallet replaced the transaction, or refused as "nonce too low" a
+        // send it may have broadcast. Either may still have done the reorder,
+        // so the position must show the chain's order.
+        if (
+          error instanceof TransactionReplacedError ||
+          error instanceof SendOutcomeUnknownError
+        ) {
           await invalidateVaultQueries(queryClient);
         }
-        // Not a failure: a refusal before anything was signed, or a
-        // replacement that may have done the reorder.
+        // Not a failure: a refusal before anything was signed, or an outcome
+        // that may have done the reorder.
         if (isWriteNotice(error)) {
           setNotice(error.message);
           return false;
@@ -281,7 +281,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
         setIsProcessing(false);
       }
     },
-    [walletClient, address, queryClient, gate],
+    [account, queryClient, gate],
   );
 
   // Another Aave form's write holds the lock while it is signed or sent, so

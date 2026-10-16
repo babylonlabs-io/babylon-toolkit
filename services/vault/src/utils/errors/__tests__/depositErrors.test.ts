@@ -36,6 +36,7 @@ import {
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
 } from "../positionCapacityError";
+import { SendOutcomeUnknownError } from "../transactionOutcome";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 const ERRORS = COPY.deposit.errors;
@@ -50,6 +51,18 @@ class FakeWalletError extends Error {
 }
 
 describe("mapDepositError", () => {
+  it("maps a send the wallet may have broadcast, typed or flattened to its message, to the status-unknown callout, not the failure title", () => {
+    const typed = new SendOutcomeUnknownError(
+      new Error("nonce too low: next nonce 789, tx nonce 788"),
+    );
+
+    expect(mapDepositError(typed)).toEqual(ERRORS.sendOutcomeUnknown);
+    expect(mapDepositErrorAfterRegistration(typed.message)).toEqual(
+      ERRORS.sendOutcomeUnknown,
+    );
+    expect(ERRORS.sendOutcomeUnknown.title).not.toBe(ERRORS.defaultTitle);
+  });
+
   it("maps a coded wallet rejection to the signing-rejected callout", () => {
     const err = new FakeWalletError(
       "CONNECTION_REJECTED",
@@ -896,6 +909,16 @@ describe("isResumableDepositError", () => {
     expect(isResumableDepositError(ERRORS.broadcastAckWindowUnavailable)).toBe(
       true,
     );
+  });
+
+  it("treats a position-capacity read failure as resumable after registration", () => {
+    expect(isResumableDepositError(ERRORS.positionCapacityUnavailable)).toBe(
+      true,
+    );
+  });
+
+  it("treats a position-capacity refusal as resumable after registration", () => {
+    expect(isResumableDepositError(ERRORS.positionCapacityExceeded)).toBe(true);
   });
 
   it("treats a lost device session as resumable, and flags it for a reconnect first", () => {

@@ -16,9 +16,39 @@ import { ReclaimModal } from "../index";
 // The shared v3 shell renders the app top bar, whose graph reaches
 // wallet-connector and can't be transformed here. This suite is about the
 // reclaim content inside it.
+// The close control is rendered only when the modal is closable right now.
 vi.mock("@/components/shared/V3ModalShell", () => ({
-  V3ModalShell: ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div>{children}</div> : null,
+  V3ModalShell: ({
+    open,
+    onClose,
+    children,
+  }: {
+    open: boolean;
+    onClose?: () => void;
+    children: ReactNode;
+  }) =>
+    open ? (
+      <div>
+        {onClose && (
+          <button type="button" onClick={onClose}>
+            close-modal
+          </button>
+        )}
+        {children}
+      </div>
+    ) : null,
+}));
+
+// Ledger device state: default no wait held.
+const ledgerDevice = vi.hoisted(() => ({
+  appWait: { status: "ready" } as
+    | { status: "ready" }
+    | { status: "awaiting-app"; expectedAppName: string },
+  cancelAppWait: vi.fn(),
+  reconnect: vi.fn(async () => {}),
+}));
+vi.mock("@/hooks/useLedgerVaultDevice", () => ({
+  useLedgerVaultDevice: () => ledgerDevice,
 }));
 
 vi.mock("@/services/vault/vaultReclaimService", async (importOriginal) => {
@@ -53,7 +83,7 @@ const ACTIVITY = {
   providers: [],
 } as unknown as VaultActivity;
 
-function renderModal(onBroadcast = vi.fn()) {
+function renderModal(onBroadcast = vi.fn(), onClose = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -62,7 +92,7 @@ function renderModal(onBroadcast = vi.fn()) {
       <ReclaimModal
         open
         activity={ACTIVITY}
-        onClose={vi.fn()}
+        onClose={onClose}
         onSuccess={vi.fn()}
         onBroadcast={onBroadcast}
       />
@@ -77,6 +107,7 @@ function mockReclaimState(overrides: Record<string, unknown> = {}) {
     reclaimTxId: null,
     alreadySettled: false,
     error: null,
+    deviceDisconnected: false,
     handleReclaim: vi.fn(),
     ...overrides,
   } as ReturnType<typeof useReclaimState>);
@@ -85,6 +116,7 @@ function mockReclaimState(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockBtcWalletState.locked = false;
+  ledgerDevice.appWait = { status: "ready" };
   mockReclaimState();
   vi.mocked(getReclaimPreview).mockResolvedValue({
     reclaimableSats: 33_000n,
@@ -159,6 +191,80 @@ describe("ReclaimModal", () => {
     fireEvent.click(screen.getByText(COPY.reclaim.alreadySettled.doneButton));
 
     expect(onBroadcast).not.toHaveBeenCalled();
+  });
+
+  it("shows the app wait during a held reclaim and lets the modal close by ending the wait", async () => {
+    ledgerDevice.appWait = {
+      status: "awaiting-app",
+      expectedAppName: "Babylon Vault Testnet",
+    };
+    mockReclaimState({ reclaiming: true });
+    const onClose = vi.fn();
+    renderModal(vi.fn(), onClose);
+
+    expect(
+      await screen.findByText(
+        COPY.deposit.ledger.waitingForApp.title("Babylon Vault Testnet"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "close-modal" }));
+
+    expect(ledgerDevice.cancelAppWait).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the modal open while a reclaim signs with no app wait held", async () => {
+    mockReclaimState({ reclaiming: true });
+    renderModal();
+
+    await screen.findByText(COPY.reclaim.review.heading);
+
+    expect(
+      screen.queryByRole("button", { name: "close-modal" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reconnects the device before retrying after a lost session", async () => {
+    const handleReclaim = vi.fn(async () => {});
+    mockReclaimState({
+      error: COPY.deposit.errors.deviceDisconnected.body,
+      deviceDisconnected: true,
+      handleReclaim,
+    });
+    renderModal();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: COPY.deposit.ledger.reconnectButton,
+      }),
+    );
+
+    await waitFor(() => expect(handleReclaim).toHaveBeenCalledTimes(1));
+    expect(ledgerDevice.reconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the reconnect failed and does not reclaim when the reconnect fails", async () => {
+    const handleReclaim = vi.fn(async () => {});
+    ledgerDevice.reconnect.mockRejectedValueOnce(
+      new Error("No selected device"),
+    );
+    mockReclaimState({
+      error: COPY.deposit.errors.deviceDisconnected.body,
+      deviceDisconnected: true,
+      handleReclaim,
+    });
+    renderModal();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: COPY.deposit.ledger.reconnectButton,
+      }),
+    );
+
+    expect(
+      await screen.findByText(COPY.deposit.ledger.reconnectFailed),
+    ).toBeInTheDocument();
+    expect(handleReclaim).not.toHaveBeenCalled();
   });
 
   it("surfaces a preview failure on the review screen rather than blocking it", async () => {

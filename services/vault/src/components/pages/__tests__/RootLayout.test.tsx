@@ -15,6 +15,7 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
+import { getDeploymentKind } from "@/config";
 import { COPY } from "@/copy";
 
 const featureFlagsMock = vi.hoisted(() => ({
@@ -29,6 +30,7 @@ vi.mock("@/config", () => ({
   FeatureFlags: featureFlagsMock,
   getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
   getBTCNetwork: () => networkMock.value,
+  getDeploymentKind: vi.fn(() => "test"),
 }));
 
 // `@/context/geofencing`'s own module (GeoFencingProvider.tsx, which also
@@ -141,8 +143,8 @@ beforeEach(() => {
 });
 
 describe("RootLayout — header wiring", () => {
-  it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
-    networkMock.value = "mainnet";
+  it("hides the badge for a production deployment", () => {
+    vi.mocked(getDeploymentKind).mockReturnValue("production");
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
 
@@ -152,14 +154,14 @@ describe("RootLayout — header wiring", () => {
     expect(heading).toHaveTextContent(COPY.nav.overview);
     // The logo slot is the page title, not the BrandLockup wordmark.
     expect(screen.queryByRole("img", { name: "Aave" })).not.toBeInTheDocument();
-    // Mainnet: NetworkBadge renders null.
+    // Production: NetworkBadge renders null.
     expect(
       screen.queryByText(COPY.header.networkBadge),
     ).not.toBeInTheDocument();
   });
 
-  it("signet: shows the page-title h1 and the NetworkBadge", () => {
-    networkMock.value = "signet";
+  it("shows the Testnet badge for a test deployment", () => {
+    vi.mocked(getDeploymentKind).mockReturnValue("test");
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
 

@@ -1,7 +1,7 @@
 /**
  * Playwright route handlers for the network surfaces the vault dApp
  * hits at runtime: mempool.space, the vault-provider proxy
- * (`NEXT_PUBLIC_TBV_VP_PROXY_URL`), and the eth RPC
+ * (the profile's `vpProxyUrl`), and the eth RPC
  * (`NEXT_PUBLIC_ETH_RPC_URL`). Centralising them keeps tests free of
  * URL literals and ensures the route patterns track playwright config.
  *

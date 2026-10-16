@@ -1,4 +1,12 @@
-import { NonceTooLowError, RpcRequestError } from "viem";
+import {
+  createWalletClient,
+  custom,
+  InternalRpcError,
+  NonceTooLowError,
+  RpcRequestError,
+} from "viem";
+import { sepolia } from "viem/chains";
+import { getContractError, getTransactionError } from "viem/utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockGetTransactionCount, mockGetTransactionReceipt, mockWarn } =
@@ -17,6 +25,8 @@ vi.mock("viem/actions", () => ({
 vi.mock("@/infrastructure", () => ({
   logger: { warn: mockWarn, error: vi.fn(), info: vi.fn(), event: vi.fn() },
 }));
+
+import { SendOutcomeUnknownError } from "@/utils/errors";
 
 import {
   sendWithStaleNonceRetry,
@@ -45,8 +55,11 @@ function nodeError(message: string): NonceTooLowError {
   });
 }
 
+/** The refusal as MetaMask passes geth's text on. */
 function staleNonceError(): NonceTooLowError {
-  return nodeError("nonce too low: next nonce 788, tx nonce 787");
+  return nodeError(
+    "RPC 0xaa36a7 Infura eth_sendRawTransaction: nonce too low: next nonce 788, tx nonce 787",
+  );
 }
 
 /** A read that never answers, like a wallet holding a request. */
@@ -433,7 +446,126 @@ describe("sendWithStaleNonceRetry", () => {
     ]);
   });
 
-  it("does not retry when the account's count moved during the send, since the rejected transaction may have mined", async () => {
+  it("does not retry, and reports the outcome as unknown, when the rejected nonce is the one the account was at before the send, since the rejected transaction may have mined", async () => {
+    countsBy({ app: async () => 788, wallet: async () => 788 });
+    const rejection = nodeError("nonce too low: next nonce 789, tx nonce 788");
+    const send = vi.fn().mockRejectedValue(rejection);
+    const prepare = vi.fn();
+
+    const thrown = await sendWithStaleNonceRetry({
+      walletClient,
+      publicClient,
+      account: ACCOUNT,
+      send,
+      prepare,
+    }).catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(SendOutcomeUnknownError);
+    expect((thrown as SendOutcomeUnknownError).cause).toBe(rejection);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(mockGetTransactionCount).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps viem from sending the call again as wallet_sendTransaction after the wallet's refusal", async () => {
+    countsBy({ app: async () => 788, wallet: async () => 788 });
+    // A wallet that passes the node's -32000 on and also serves
+    // wallet_sendTransaction, which viem tries next inside the one send.
+    const submissions: string[] = [];
+    const wallet = createWalletClient({
+      account: ACCOUNT_LOWERCASE,
+      chain: sepolia,
+      transport: custom(
+        {
+          async request({ method }: { method: string }) {
+            if (method === "eth_chainId") return `0x${sepolia.id.toString(16)}`;
+            submissions.push(method);
+            if (method === "eth_sendTransaction")
+              throw Object.assign(
+                new Error("nonce too low: next nonce 789, tx nonce 788"),
+                { code: -32000 },
+              );
+            return HASH;
+          },
+        },
+        { retryCount: 0 },
+      ),
+    });
+
+    await expect(
+      sendWithStaleNonceRetry({
+        walletClient: wallet,
+        publicClient,
+        account: ACCOUNT_LOWERCASE,
+        send: (submissionClient) =>
+          submissionClient.sendTransaction({
+            to: OTHER_SENDER,
+            data: "0x1234",
+            chain: sepolia,
+            account: submissionClient.account!,
+          }),
+        prepare: vi.fn(),
+      }),
+    ).rejects.toBeInstanceOf(SendOutcomeUnknownError);
+    expect(submissions).toEqual(["eth_sendTransaction"]);
+  });
+
+  it("does not retry, and reports the outcome as unknown, when the rejection does not name the transaction's nonce", async () => {
+    countsBy({ app: async () => 788, wallet: async () => 788 });
+    const rejection = nodeError("nonce too low");
+    const send = vi.fn().mockRejectedValue(rejection);
+    const prepare = vi.fn();
+
+    await expect(
+      sendWithStaleNonceRetry({
+        walletClient,
+        publicClient,
+        account: ACCOUNT,
+        send,
+        prepare,
+      }),
+    ).rejects.toBeInstanceOf(SendOutcomeUnknownError);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
+  it("reads the rejected nonce from a contract write's error, where viem keeps the node's text only as the revert reason", async () => {
+    countsBy({ app: async () => 788, wallet: async () => 788 });
+    // writeContract's shape for MetaMask's -32603: no NonceTooLowError frame.
+    const rejection = getContractError(
+      getTransactionError(
+        new InternalRpcError(
+          Object.assign(
+            new Error(
+              "RPC 0xaa36a7 Infura eth_sendRawTransaction: nonce too low: next nonce 788, tx nonce 787",
+            ),
+            { code: InternalRpcError.code },
+          ),
+        ),
+        { account: { address: ACCOUNT, type: "json-rpc" } },
+      ),
+      { abi: [], functionName: "approve", args: [] },
+    );
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(rejection)
+      .mockResolvedValueOnce(HASH);
+    const prepare = vi.fn();
+
+    await expect(
+      sendWithStaleNonceRetry({
+        walletClient,
+        publicClient,
+        account: ACCOUNT,
+        send,
+        prepare,
+      }),
+    ).resolves.toBe(HASH);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry when the account's count moved during the send, since the account sent something the app's read did not see", async () => {
     const appCounts = [788, 789];
     countsBy({
       app: async () => appCounts.shift()!,
@@ -456,7 +588,7 @@ describe("sendWithStaleNonceRetry", () => {
     expect(prepare).not.toHaveBeenCalled();
   });
 
-  it("does not retry when the account's count could not be read before the send", async () => {
+  it("does not retry, and reports the outcome as unknown, when the account's count could not be read before the send", async () => {
     const appCounts: (() => Promise<number>)[] = [
       async () => {
         throw new Error("rpc down");
@@ -475,35 +607,11 @@ describe("sendWithStaleNonceRetry", () => {
         send,
         prepare: vi.fn(),
       }),
-    ).rejects.toBe(rejection);
+    ).rejects.toBeInstanceOf(SendOutcomeUnknownError);
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("does not retry when the account's count cannot be read before or after the send", async () => {
-    countsBy({
-      app: async () => {
-        throw new Error("rpc down");
-      },
-      wallet: async () => 788,
-    });
-    const rejection = staleNonceError();
-    const send = vi.fn().mockRejectedValue(rejection);
-    const prepare = vi.fn();
-
-    await expect(
-      sendWithStaleNonceRetry({
-        walletClient,
-        publicClient,
-        account: ACCOUNT,
-        send,
-        prepare,
-      }),
-    ).rejects.toBe(rejection);
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(prepare).not.toHaveBeenCalled();
-  });
-
-  it("does not retry when the wallet already counts more than the app's RPC, since the app's read may have missed this transaction", async () => {
+  it("does not retry when the wallet already counts more than the app's RPC, since the account sent something the app's read did not see", async () => {
     countsBy({ app: async () => 788, wallet: async () => 789 });
     const rejection = staleNonceError();
     const send = vi.fn().mockRejectedValue(rejection);
@@ -603,6 +711,31 @@ describe("sendWithStaleNonceRetry", () => {
       }),
     ).rejects.toBe(simulationError);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the outcome as unknown when the transaction sent once more is refused for its own nonce, and sends no third", async () => {
+    countsBy({ app: async () => 788, wallet: async () => 788 });
+    const retryRejection = nodeError(
+      "nonce too low: next nonce 789, tx nonce 788",
+    );
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(staleNonceError())
+      .mockRejectedValueOnce(retryRejection);
+    const prepare = vi.fn();
+
+    const thrown = await sendWithStaleNonceRetry({
+      walletClient,
+      publicClient,
+      account: ACCOUNT,
+      send,
+      prepare,
+    }).catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(SendOutcomeUnknownError);
+    expect((thrown as SendOutcomeUnknownError).cause).toBe(retryRejection);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(prepare).toHaveBeenCalledTimes(1);
   });
 
   it("lets a second stale nonce propagate", async () => {

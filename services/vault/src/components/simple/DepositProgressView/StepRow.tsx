@@ -5,7 +5,13 @@ import { twMerge } from "tailwind-merge";
 
 import { COPY } from "@/copy";
 
-export type StepRowState = "completed" | "active" | "pending" | "error";
+export type StepRowState =
+  | "completed"
+  | "active"
+  | "pending"
+  | "error"
+  // Stopped with an outcome the app cannot tell: neither running nor failed.
+  | "unknown";
 
 function StepCircle({
   state,
@@ -30,6 +36,14 @@ function StepCircle({
         size={16}
         className="shrink-0 text-error-main"
         aria-label={COPY.deposit.a11y.stepFailed(ariaNumber ?? number)}
+      />
+    );
+  }
+  if (state === "unknown") {
+    return (
+      <span
+        className="block h-4 w-4 shrink-0 rounded-full border border-warning-main"
+        aria-label={COPY.deposit.a11y.stepUnknown(ariaNumber ?? number)}
       />
     );
   }
@@ -94,7 +108,7 @@ export function StepRow({
             className={
               state === "error"
                 ? "font-medium text-error-main"
-                : isActive
+                : isActive || state === "unknown"
                   ? "font-medium text-accent-primary"
                   : "text-accent-secondary"
             }

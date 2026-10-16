@@ -28,7 +28,6 @@ import {
 import {
   primeVpTokenRegistry,
   VpResponseValidationError,
-  vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -73,6 +72,7 @@ import {
   resolveFundingInputCap,
 } from "@/services/deposit/fundingInputCap";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import { assertPositionAcceptsBatch } from "@/services/vault/assertResumePositionCapacity";
 import {
   assertBuildConfigMatchesForm,
   isBuildConfigDriftError,
@@ -378,8 +378,10 @@ export function useDepositFlow(
   // the start of the next executeDeposit run.
   const deviceCancelSettledRef = useRef(false);
   // Set when the LAST runCancellableSign settled successfully with a cancel
-  // request still pending (the late-cancel race). Only the broadcast wrapper
-  // consults it — everywhere else the successful sign deliberately proceeds.
+  // request still pending (the late-cancel race). The broadcast and payout
+  // wrappers consult it via throwIfLateCancel: a late cancel stops the signed
+  // Pre-PegIn from being broadcast and the payout signatures from reaching the
+  // vault provider or the next device prompt; other signs proceed.
   const lastSignSettledWithCancelPendingRef = useRef(false);
   // Provider that STARTED the in-flight sign. Cancellation binds to it so a
   // wallet swapped in mid-prompt cannot orphan the original ceremony.
@@ -393,14 +395,15 @@ export function useDepositFlow(
       lastSignSettledWithCancelPendingRef.current = false;
       try {
         const signed = await sign();
-        // Captured before the finally consumes the request — the broadcast
-        // wrapper reads it to withhold pushTx on a late cancel.
+        // Captured before the finally consumes the request — throwIfLateCancel
+        // reads it in the broadcast and payout wrappers.
         lastSignSettledWithCancelPendingRef.current =
           deviceCancelRequestedRef.current;
         return signed;
       } catch (error) {
         // The requested cancel took effect (a late cancel that still signed
-        // successfully deliberately does NOT stick — the flow proceeds).
+        // is handled by throwIfLateCancel at the broadcast and payout sites;
+        // elsewhere the flow proceeds).
         if (deviceCancelRequestedRef.current && isUserCancellation(error)) {
           deviceCancelSettledRef.current = true;
         }
@@ -417,6 +420,14 @@ export function useDepositFlow(
     },
     [],
   );
+
+  const throwIfLateCancel = useCallback((message: string) => {
+    if (!lastSignSettledWithCancelPendingRef.current) return;
+    deviceCancelSettledRef.current = true;
+    throw Object.assign(new Error(message), {
+      code: WALLET_CONNECTION_REJECTED_CODE,
+    });
+  }, []);
 
   // Abort controller for cancelling the flow
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -450,10 +461,11 @@ export function useDepositFlow(
   const { findProvider } = useVaultProviders(selectedApplication);
   // Nothing the Pre-PegIn commits to comes from this context. Those values are
   // re-read inside `executeDeposit`, pinned to one block: the cached copy is
-  // refreshed on nothing and is additionally frozen at the render that started
-  // the flow. In particular the peg-in and refund timelocks live on the same
-  // cached object and go straight into the PegIn output and the HTLC refund
-  // leaf, so they must come from the pinned read like everything else.
+  // refreshed only on `staleTime` expiry or a drift abort, and is additionally
+  // frozen at the render that started the flow. In particular the peg-in and
+  // refund timelocks live on the same cached object and go straight into the
+  // PegIn output and the HTLC refund leaf, so they must come from the pinned
+  // read like everything else.
   //
   // `config` is still taken, for one purpose: it is the snapshot this page
   // gated and sized against, and the build asserts the pinned read agrees with
@@ -488,10 +500,6 @@ export function useDepositFlow(
         warnings.push(warning);
         setLastWarnings([...warnings]);
       };
-
-      // Track registry entries we primed so we can release them on
-      // user-cancel (bound `authAnchorHex` lifetime to the flow).
-      const primedRegistryTxids: string[] = [];
 
       // Set once the ETH batch registration is mined: a later cancel gets the
       // after-registration copy, a later device failure gets the in-modal resume.
@@ -719,17 +727,20 @@ export function useDepositFlow(
         } catch (driftError) {
           // Both aborts tell the depositor to start again, and the only way to
           // do that is to close and reopen the form, which reads the cached
-          // configuration — five minute `staleTime`, nothing invalidates it. So
-          // a restart would hand back the same snapshot that just caused this
-          // and fail identically. Overwrite it with the pinned read.
+          // configuration — five minute `staleTime`, nothing else refreshes it.
+          // So a restart would hand back the same snapshot that just caused
+          // this and fail identically. Seed it with the pinned read, then
+          // invalidate it.
           //
           // The justification is NOT that the pinned read is fresher: it is
           // `head - 2`, and `resolvePinnedReadBlock` says freshness is
           // explicitly not its goal, so a cache entry refilled at `latest`
           // moments ago can legitimately be newer. It is that this particular
           // value is the one the build just proved the cache disagrees with, on
-          // the axis that failed. Overwriting rather than invalidating avoids a
-          // refetch race where the form renders the stale bounds first.
+          // the axis that failed. The seed stops a restarted form rendering the
+          // stale bounds first; the invalidate then refetches at `latest`, so a
+          // cache entry newer than the pinned block comes back within one round
+          // trip, and any read already in flight is cancelled.
           //
           // Gated on the drift predicates, not on reaching the catch at all: an
           // unrelated throw from either assert must not rewrite a cache the
@@ -742,6 +753,9 @@ export function useDepositFlow(
               pegInConfigQueryOptions().queryKey,
               buildConfig,
             );
+            void queryClient.invalidateQueries({
+              queryKey: pegInConfigQueryOptions().queryKey,
+            });
           }
           throw driftError;
         }
@@ -785,8 +799,9 @@ export function useDepositFlow(
         // commit pass drives the wallet popup(s).
         setPeginSigningProgress({ completed: 0, total: vaultAmounts.length });
 
-        // Approval (policy) wallets dictate the change address (BIP-86 change
-        // branch); software wallets keep change on the connected address.
+        // Approval (policy) wallets dictate the change address (the Ledger
+        // vault app takes it only at the depositor's own address); software
+        // wallets keep change on the connected address.
         const prePeginChangeAddress = supportsDepositApproval(
           phaseTrackingBtcWallet,
         )
@@ -1138,6 +1153,17 @@ export function useDepositFlow(
           offchainParamsVersion: buildConfig.offchainParamsVersion,
         });
 
+        // Position capacity, live. The submit gate read a cached cap; a cap
+        // lowered or a slot filled since then would let activation redeem the
+        // locked BTC instead (same check as the resume path).
+        await assertPositionAcceptsBatch({
+          vaultId: batchRegistration.vaults[0].vaultId as Hex,
+          applicationEntryPoint: selectedApplication as Address,
+          depositor: confirmedEthAddress,
+          vaultCount: vaultAmounts.length,
+          amount: vaultAmounts.reduce((sum, a) => sum + a, 0n),
+        });
+
         // A flow abandoned during the minutes-long gate must not raise an
         // unlock prompt or signing popup (same rule as the resume path).
         signal.throwIfAborted();
@@ -1176,17 +1202,10 @@ export function useDepositFlow(
                 confirmedBtcWallet,
                 () => confirmedBtcWallet.signPsbt(psbtHex),
               );
-              // A late cancel that still signed successfully proceeds
-              // elsewhere — but here the next step is the irreversible
-              // pushTx, so honor the cancel: throw before the tx leaves,
-              // keeping the records PENDING and resumable (Broadcast CTA).
-              if (lastSignSettledWithCancelPendingRef.current) {
-                deviceCancelSettledRef.current = true;
-                throw Object.assign(
-                  new Error(COPY.deposit.errors.prePeginSigningCanceled),
-                  { code: WALLET_CONNECTION_REJECTED_CODE },
-                );
-              }
+              // The next step is the irreversible pushTx, so a late cancel
+              // throws before the tx leaves, keeping the records PENDING and
+              // resumable (Broadcast CTA).
+              throwIfLateCancel(COPY.deposit.errors.prePeginSigningCanceled);
               return signedPsbtHex;
             },
             deriveContextHash: (appName: string, context: string) =>
@@ -1263,7 +1282,6 @@ export function useDepositFlow(
                 refreshVpJsonRpcPinnedPubkey(vpAddress),
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
-            primedRegistryTxids.push(peginTxid);
           }
         } catch (err) {
           logger.warn("Failed to fetch VP pubkey for registry priming", {
@@ -1337,6 +1355,7 @@ export function useDepositFlow(
               const signed = await runCancellableSign(confirmedBtcWallet, () =>
                 confirmedBtcWallet.signPsbt(psbtHex, opts),
               );
+              throwIfLateCancel(COPY.deposit.errors.payoutSigningCanceled);
               if (isGraph) {
                 setPayoutSigningProgress({
                   phase: "graph",
@@ -1373,6 +1392,9 @@ export function useDepositFlow(
                     const signed = await runCancellableSign(
                       confirmedBtcWallet,
                       () => confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+                    );
+                    throwIfLateCancel(
+                      COPY.deposit.errors.payoutSigningCanceled,
                     );
                     if (phase === "graph") {
                       setPayoutSigningProgress({
@@ -1556,10 +1578,11 @@ export function useDepositFlow(
           signal.throwIfAborted();
 
           // A settled user cancel stops the loop: the next iteration would
-          // re-run the full device ceremony (requireFreshDeviceCeremony)
-          // seconds after the user asked to stop. Remaining vaults are left
-          // unattempted (no warning), not failed. Backstop only: the settle
-          // rejects into the catch below, whose break is the operative stop.
+          // prompt the device again (its presign resumes the held approval,
+          // or re-runs the ceremony) seconds after the user asked to stop.
+          // Remaining vaults are left unattempted (no warning), not failed.
+          // Backstop only: the settle rejects into the catch below, whose
+          // break is the operative stop.
           if (deviceCancelSettledRef.current) break;
 
           // Skip vaults whose WOTS key submission failed — the VP won't have
@@ -1729,15 +1752,12 @@ export function useDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        // On user-cancel, release any registry entries we primed so
-        // `authAnchorHex` doesn't outlive the abandoned flow. On other
-        // errors keep the entries — the user may retry, in which case
-        // the cache hit avoids a second wallet popup.
-        if (signal.aborted) {
-          for (const peginTxid of primedRegistryTxids) {
-            vpTokenRegistry.release(peginTxid);
-          }
-        }
+        // The primed registry entries stay on every exit, a cancel included:
+        // the depositor may close the flow during the long deposit wait and
+        // finish from the dashboard, and only the cached login lets that
+        // presign reuse the approval the device still holds. A fresh login
+        // derives on the device, which clears it. The cache is in memory
+        // only, so a reload or a closed tab drops it; activation releases it.
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
@@ -1808,6 +1828,7 @@ export function useDepositFlow(
     }, [
       advanceStep,
       runCancellableSign,
+      throwIfLateCancel,
       gate,
       vaultAmounts,
       depositAmountSats,

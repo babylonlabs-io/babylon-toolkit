@@ -38,12 +38,28 @@ Resolve participant keys **before** this call. The arrays must be sorted RFC-006
 
 **3. Build and broadcast the refund** — `toRefundInputs`, then the ordinary `buildAndBroadcastRefund`.
 
+Before the wallet signs, read the Pre-PegIn and its HTLC output in parallel. Abort if either call throws `MempoolNotFoundError` (the API returned 404) or the output is `spent`. The mempool calls take the txid without the `0x` prefix. `apiUrl` is the mempool API base URL.
+
+```ts
+import { calculateBtcTxHash, stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  getOutspend,
+  getTxInfo,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients/mempool";
+
+const prePeginTxid = stripHexPrefix(calculateBtcTxHash(fundedPrePeginTxHex));
+const [, htlcOutspend] = await Promise.all([
+  getTxInfo(prePeginTxid, apiUrl),
+  getOutspend(prePeginTxid, htlcVout, apiUrl),
+]);
+if (htlcOutspend.spent) throw new Error("HTLC output is already spent");
+```
+
 `buildAndBroadcastRefund` takes its two reads as injected callbacks, so recovery supplies them from the verified reconstruction instead of from the row that no longer exists:
 
 ```ts
 const { vault, context } = toRefundInputs(result, {
-  htlcVout, depositorBtcPubkey, applicationEntryPoint,
-  fundedPrePeginTxHex, hashlocks, network,
+  htlcVout, depositorBtcPubkey, applicationEntryPoint, hashlocks, network,
 });
 
 await buildAndBroadcastRefund({
@@ -54,7 +70,7 @@ await buildAndBroadcastRefund({
 });
 ```
 
-There is deliberately no separate refund implementation for recovery: the fee cap, the abort checks, the `htlcVout` contiguity invariant and the bitcoind error classification stay in one place for both paths. `applicationEntryPoint` is the one field not carried by the reconstruction — take it from the vault-provider registry row, which is address-keyed and survives.
+There is deliberately no separate refund implementation for recovery: the fee cap, the abort checks, the `htlcVout` contiguity invariant and the bitcoind error classification stay in one place for both paths. `applicationEntryPoint` is the one field not carried by the reconstruction — take it from the vault-provider registry row, which is address-keyed and survives. The Pre-PegIn transaction comes from the reconstruction result, not from the caller, so the refund always spends the transaction that was verified.
 
 A test asserts that a refund PSBT built from recovered parameters is **byte-identical** to one built from the parameters the deposit was actually made with. `broadcastTx` is an injected callback, so the whole path can be rehearsed with a capturing broadcaster that never touches the network — which is what the `recover` action does (`services/vault/e2e/real/actions/recover.ts`, via `pnpm --filter vault run e2e:cli --action=recover`). Run it before you need it.
 
@@ -70,6 +86,8 @@ If the log is unavailable, step 2 becomes a search: enumerate the version-keyed 
 | `PeginParamsAmbiguousError` | Matches disagree on the projected terms. | Genuinely unknowable from the transaction. Take the version stamps from the log rather than searching. |
 | `PeginParamsIncompleteSpaceError` | Something matched, but the space had holes. | **Do not trust the match.** Resolve the named gaps and re-run. A look-alike sharing the matched `timelockRefund` and participants is indistinguishable from the truth. |
 | `PeginSizingIntegrityError` | WASM returned a value no valid parameter set can produce. | Stop. This indicts the build, not the deposit. |
+| `RefundBroadcastRejectedError`, `code` -25 | Bitcoin rejected the transaction with a general error. The usual cause is a missing or already spent HTLC output. | Read `getOutspend` again. If it throws `MempoolNotFoundError`, the output is missing. If it is spent, find who spent it and do not sign again. If it is not spent, read `cause.message`. |
+| `RefundBroadcastRejectedError`, `code` -27 | This refund is already in the chain. | Treat the refund as done. Its txid is `calculateBtcTxHash(signedTxHex)`. |
 
 `unresolvedVersions` is required, and `[]` is a positive claim that the enumeration was complete — so a caller cannot reach a trusted answer by failing to mention its own gaps.
 
