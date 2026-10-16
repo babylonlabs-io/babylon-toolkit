@@ -50,7 +50,9 @@ export function ReorderVaultItem({
     focusAfterMove.current = null;
     const pressed = direction === "up" ? moveUpRef : moveDownRef;
     const other = direction === "up" ? moveDownRef : moveUpRef;
-    (pressed.current?.disabled ? other : pressed).current?.focus();
+    const target = (pressed.current?.disabled ? other : pressed).current;
+    target?.focus();
+    target?.scrollIntoView({ block: "nearest" });
   }, [position]);
 
   const handleMove = (direction: MoveDirection) => {
@@ -88,7 +90,7 @@ export function ReorderVaultItem({
           type="button"
           size="small"
           className="[@media(pointer:coarse)]:size-11"
-          aria-label={COPY.reorder.moveUp}
+          aria-label={COPY.reorder.moveUp(formatOrdinal(position))}
           disabled={disabled || isFirst}
           onClick={() => handleMove("up")}
         >
@@ -99,7 +101,7 @@ export function ReorderVaultItem({
           type="button"
           size="small"
           className="[@media(pointer:coarse)]:size-11"
-          aria-label={COPY.reorder.moveDown}
+          aria-label={COPY.reorder.moveDown(formatOrdinal(position))}
           disabled={disabled || isLast}
           onClick={() => handleMove("down")}
         >
