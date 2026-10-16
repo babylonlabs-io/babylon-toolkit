@@ -117,7 +117,8 @@ export type PeginSpendProof =
  * malformed signed PegIn in the registry throws rather than reading as
  * unproven; the registered Pre-PegIn txid is a `bytes32`, so it is always a
  * well-formed txid, and a fetch that fails for either transaction reads as
- * unavailable.
+ * unavailable — once both fetches have settled, so a proof never returns with
+ * a read still in flight.
  */
 export async function provePeginSpendsHtlc(
   vault: PeginProofSource,
@@ -127,19 +128,21 @@ export async function provePeginSpendsHtlc(
     calculateBtcTxHash(vault.depositorSignedPeginTx),
   );
   const prePeginTxid = stripHexPrefix(vault.prePeginTxHash);
-  let peginTxHex: string;
-  let prePeginTxHex: string;
-  try {
-    [peginTxHex, prePeginTxHex] = await Promise.all([
-      getTxHex(peginTxid, apiUrl),
-      getTxHex(prePeginTxid, apiUrl),
-    ]);
-  } catch (cause) {
-    return { status: "unavailable", cause };
+  // Settle both reads before answering: a caller that caps concurrent proofs
+  // must not start the next one while this one still has a read in flight.
+  const [pegin, prePegin] = await Promise.allSettled([
+    getTxHex(peginTxid, apiUrl),
+    getTxHex(prePeginTxid, apiUrl),
+  ]);
+  if (pegin.status === "rejected") {
+    return { status: "unavailable", cause: pegin.reason };
+  }
+  if (prePegin.status === "rejected") {
+    return { status: "unavailable", cause: prePegin.reason };
   }
   const verdict = verifyPeginHashlockSpend({
-    peginTxHex,
-    prePeginTxHex,
+    peginTxHex: pegin.value,
+    prePeginTxHex: prePegin.value,
     peginTxid,
     prePeginTxid,
     htlcVout: vault.htlcVout,

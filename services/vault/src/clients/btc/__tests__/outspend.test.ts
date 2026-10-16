@@ -144,6 +144,34 @@ describe("provePeginSpendsHtlc", () => {
     ).resolves.toMatchObject({ status: "unavailable" });
     expect(mockVerifyPeginHashlockSpend).not.toHaveBeenCalled();
   });
+
+  it("answers a failed PegIn fetch only once the Pre-PegIn read has settled too", async () => {
+    let servePrePegin: (hex: string) => void = () => {};
+    mockGetTxHex.mockImplementation((txid: string) =>
+      txid === PRE_PEGIN_TXID
+        ? new Promise<string>((resolve) => {
+            servePrePegin = resolve;
+          })
+        : Promise.reject(new Error("Mempool API error (404)")),
+    );
+    let answered = false;
+    const proof = provePeginSpendsHtlc(onChainRecord, API_URL).then(
+      (result) => {
+        answered = true;
+        return result;
+      },
+    );
+
+    // Let the PegIn's rejection propagate as far as it can.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(answered).toBe(false);
+
+    servePrePegin(PRE_PEGIN_HEX);
+    await expect(proof).resolves.toEqual({
+      status: "unavailable",
+      cause: new Error("Mempool API error (404)"),
+    });
+  });
 });
 
 describe("provePeginSpendsHtlc with the real verifier, on a real signet PegIn", () => {
