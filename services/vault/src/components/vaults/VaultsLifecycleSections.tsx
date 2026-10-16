@@ -401,7 +401,7 @@ function PendingRow({
           onClick={() => onDismiss(activity.id)}
           aria-label={COPY.vaults.dismissPending.rowLabel}
           data-testid="pending-deposit-dismiss-button"
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125 max-md:ml-auto"
         >
           <IoClose size={DISMISS_ICON_SIZE} />
         </button>
@@ -600,7 +600,9 @@ function InactiveRow({
 
       {/* Reserved even when neither action is available nor blocked, so an
           actionless row still aligns with the rows that carry a button. */}
-      <div className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full`}>
+      <div
+        className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full max-md:empty:hidden`}
+      >
         {isRefundAvailable && (
           <button
             type="button"
