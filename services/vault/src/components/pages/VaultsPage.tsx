@@ -43,6 +43,7 @@ import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { useDepositOverride } from "@/overrides/deposits";
 import type { ArtifactDownloadParams } from "@/utils/artifactDownloadParams";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
+import { selectReturnedRedeemedActivities } from "@/utils/returnedVaults";
 
 export default function VaultsPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -54,14 +55,6 @@ export default function VaultsPage() {
   // hook and the lifecycle sections so the broadcast/refund modal state pair
   // is instantiated once.
   const deposits = usePendingDeposits();
-  const {
-    isLoading,
-    isEmpty,
-    hasError,
-    hasPartialError,
-    hasNonIndexerError,
-    storageOnlyError,
-  } = useVaultsPageEmptiness(deposits);
   const { vaults: aaveVaults } = useAaveVaults(
     isConnected ? address : undefined,
   );
@@ -71,6 +64,7 @@ export default function VaultsPage() {
     summary,
     displayVaults,
     rawCollateralVaults,
+    isPositionLoading,
     indexerError,
     collateralBtc,
     collateralValueUsd,
@@ -80,6 +74,38 @@ export default function VaultsPage() {
   // toggle is on). Routes the page to the populated layout even while
   // disconnected, so the sections can be exercised without a wallet.
   const demo = useDepositOverride();
+
+  // Redeemed vaults with no collateral row, listed in Inactive Vaults
+  // (`utils/returnedVaults`). The id set is every row the Active Vaults
+  // section can render — demo-free, cached data included, whatever the
+  // lifecycle — so no vault appears in both; null until the first position
+  // read lands. Computed once here and handed to the sections and the
+  // emptiness predicate, so the rows rendered and the count the page is
+  // judged empty by cannot drift.
+  const collateralVaultIds = useMemo(
+    () =>
+      isPositionLoading
+        ? null
+        : new Set(rawCollateralVaults.map((v) => v.vaultId.toLowerCase())),
+    [isPositionLoading, rawCollateralVaults],
+  );
+  const returnedRedeemedActivities = useMemo(
+    () =>
+      selectReturnedRedeemedActivities(
+        deposits.allActivities,
+        collateralVaultIds,
+        demo,
+      ),
+    [deposits.allActivities, collateralVaultIds, demo],
+  );
+  const {
+    isLoading,
+    isEmpty,
+    hasError,
+    hasPartialError,
+    hasNonIndexerError,
+    storageOnlyError,
+  } = useVaultsPageEmptiness(deposits, returnedRedeemedActivities);
 
   // Withdraw flow, opened per-row with that vault preselected. Only the
   // demo-free list ever reaches it; its optimistic activating entries are
@@ -158,7 +184,10 @@ export default function VaultsPage() {
       />
       {/* Section order is Pending → Active → Inactive: the lifecycle
           component renders its children between its two lists. */}
-      <VaultsLifecycleSections deposits={deposits}>
+      <VaultsLifecycleSections
+        deposits={deposits}
+        returnedRedeemedActivities={returnedRedeemedActivities}
+      >
         <VaultsActiveSection
           vaults={displayVaults}
           onWithdraw={handleWithdrawRow}

@@ -3,7 +3,8 @@
  *
  * Owns two sections sharing one polling tree: "Pending Deposit" (one row per
  * in-flight deposit, with live step progress and the state's primary action)
- * and "Inactive Vaults" (expired deposits and their refunds, plus settled
+ * and "Inactive Vaults" (expired deposits and their refunds, redeemed vaults
+ * that never became collateral and are waiting for their payout, plus settled
  * vaults with a reserve to reclaim).
  * `children` (the Active Vaults section) renders between them, giving the
  * page's Pending → Active → Inactive order. Polling state comes from the app's
@@ -62,8 +63,11 @@ import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import { useRedeemClaimTxids } from "@/hooks/useRedeemClaimTxids";
+import { logger } from "@/infrastructure";
 import {
   canPerformAction,
+  ContractStatus,
   getPeginProgressStep,
   hasActionableStep,
   isRefundInFlightOrSettled,
@@ -77,6 +81,7 @@ import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
 import { getBatchSiblings } from "@/utils/batchedPegin";
+import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatDurationShort, formatSats } from "@/utils/formatting";
 
@@ -98,6 +103,43 @@ const RECLAIM_BUTTON_TEST_ID = "vault-reclaim-button";
 const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
 
 const DISMISS_ICON_SIZE = 20;
+
+const PHONE_FULL_CLASS = "max-md:w-full";
+const PHONE_FULL_HINT_CLASS = `${PHONE_FULL_CLASS} max-md:[&>span]:w-full`;
+const PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS = `${PRIMARY_ROW_BUTTON_CLASS} ${PHONE_FULL_CLASS}`;
+const PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS = `${NEUTRAL_ROW_BUTTON_CLASS} ${PHONE_FULL_CLASS}`;
+
+/**
+ * Payout scriptPubKeys that failed to decode, keyed `${vaultId}:${hex}`, so a
+ * malformed value is reported once rather than on every poll tick or render.
+ * A backend fix that changes the hex is reported again if it still fails.
+ */
+const loggedPayoutDecodeFailures = new Set<string>();
+
+/**
+ * The address a redeemed vault's payout goes to, from the indexer's raw
+ * scriptPubKey. Undefined when the indexer carries none or it does not decode:
+ * the row then shows no destination rather than a wrong one.
+ */
+function decodePayoutAddress(activity: VaultActivity): string | undefined {
+  const scriptPubKey = activity.depositorPayoutBtcAddress;
+  if (!scriptPubKey) return undefined;
+  try {
+    return scriptPubKeyHexToBtcAddress(scriptPubKey);
+  } catch (error) {
+    const key = `${activity.id}:${scriptPubKey}`;
+    if (!loggedPayoutDecodeFailures.has(key)) {
+      loggedPayoutDecodeFailures.add(key);
+      logger.error(error, {
+        data: {
+          context: "Decode payout scriptPubKey for the redeemed vault row",
+          vaultId: activity.id,
+        },
+      });
+    }
+    return undefined;
+  }
+}
 
 /** Dot color per display variant. Danger keeps the error red explicitly —
  *  there is no "no dot" state in this compact row layout (v2's cards swap in
@@ -150,7 +192,7 @@ function PendingRow({
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
-  onOpenDetails: (depositId: string) => void;
+  onOpenDetails: (depositId: string, action: PeginAction | null) => void;
   onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
   onEmergencyWithdraw: (depositId: string) => void;
@@ -211,7 +253,7 @@ function PendingRow({
       onEmergencyWithdraw(activity.id);
       return;
     }
-    onOpenDetails(activity.id);
+    onOpenDetails(activity.id, action);
   };
 
   // Pre-PegIn first: while a deposit is in flight the Pre-PegIn tx exists
@@ -314,7 +356,7 @@ function PendingRow({
           produce ("Broadcast Pre-Pegin"), which is what the slot's fixed basis
           is sized to — routing them through it keeps this row's columns level
           with the Active and Inactive rows. */}
-      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+      <div className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full`}>
         {actionStatus.type === "available" ? (
           // This control's data-testid is a real-wallet E2E hook
           // (e2e/real/actions/resume.ts) — carry it over if you move or rename
@@ -322,7 +364,7 @@ function PendingRow({
           <button
             type="button"
             onClick={() => routeAction(actionStatus.action.action)}
-            className={PRIMARY_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
             data-testid="pending-deposit-resume-cta"
           >
             {actionStatus.action.label}
@@ -330,18 +372,23 @@ function PendingRow({
         ) : actionStatus.type === "disabled" ? (
           <Hint
             tooltip={actionStatus.tooltip}
+            className={PHONE_FULL_HINT_CLASS}
             attachToChildren
             touchFallback="text"
           >
-            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+            <button
+              type="button"
+              disabled
+              className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
+            >
               {actionStatus.action?.label ?? COPY.vaults.actions.viewDetails}
             </button>
           </Hint>
         ) : (
           <button
             type="button"
-            onClick={() => onOpenDetails(activity.id)}
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            onClick={() => onOpenDetails(activity.id, null)}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.viewDetails}
           </button>
@@ -354,7 +401,7 @@ function PendingRow({
           onClick={() => onDismiss(activity.id)}
           aria-label={COPY.vaults.dismissPending.rowLabel}
           data-testid="pending-deposit-dismiss-button"
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125 max-md:ml-auto"
         >
           <IoClose size={DISMISS_ICON_SIZE} />
         </button>
@@ -370,6 +417,7 @@ function InactiveRow({
   onClaimExpired,
   onReclaim,
   reclaimAction,
+  claimTxid,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
@@ -377,6 +425,8 @@ function InactiveRow({
   onClaimExpired: (depositId: string) => void;
   onReclaim: (depositId: string) => void;
   reclaimAction: ReclaimRowAction | undefined;
+  /** The vault provider's BTC claim of a redeemed vault, once broadcast. */
+  claimTxid: string | undefined;
 }) {
   const result = useDepositPollingResult(activity.id);
   const provider = findProvider(vaultProviders, activity.providers[0]?.id);
@@ -394,8 +444,8 @@ function InactiveRow({
   const isClaimExpiredAvailable = useClaimExpiredRowAction(activity.id);
   // Refund and reclaim are mutually exclusive by contract status — refund
   // applies to EXPIRED vaults (no PegIn was ever broadcast), reclaim to
-  // DEPOSITOR_WITHDRAWN ones (the PegIn confirmed and the peg-out settled). A
-  // row therefore never carries both actions.
+  // DEPOSITOR_WITHDRAWN and NON_DEPOSITOR_SPEND ones (the PegIn confirmed and
+  // its vault output was spent). A row therefore never carries both actions.
   const {
     available: isReclaimAvailable,
     reclaiming: isReclaiming,
@@ -413,10 +463,40 @@ function InactiveRow({
     ? COPY.reclaim.rowStatusReclaiming
     : peginState?.displayLabel;
 
+  // A redeemed vault's sub-line names the payout destination; every other
+  // row keeps its state's own text. The address is truncated for the cell
+  // and carried whole as the title.
+  const payoutAddress = useMemo(
+    () =>
+      activity.contractStatus === ContractStatus.REDEEMED
+        ? decodePayoutAddress(activity)
+        : undefined,
+    [activity],
+  );
+  const subtext = payoutAddress
+    ? COPY.vaults.payoutTo(truncateHash(payoutAddress))
+    : (peginState?.inlineSubtext ?? "");
+  const subtextTitle = payoutAddress
+    ? COPY.vaults.payoutTo(payoutAddress)
+    : peginState?.inlineSubtext;
+
+  // The transaction cell shows the refund once one exists, the vault
+  // provider's claim once it is broadcast, and the Pre-PegIn otherwise. The
+  // first two never meet: a refund belongs to an EXPIRED vault, a claim to a
+  // REDEEMED one. Both link directly; the Pre-PegIn link is gated on its
+  // broadcast (`getRowExplorerUrl`).
   const hasRefund = peginState && isRefundInFlightOrSettled(peginState);
+  const hasClaim = claimTxid !== undefined;
   const hash = hasRefund
     ? result?.refundTxId
-    : (activity.prePeginTxHash ?? activity.peginTxHash);
+    : hasClaim
+      ? claimTxid
+      : (activity.prePeginTxHash ?? activity.peginTxHash);
+  const hashLabel = hasRefund
+    ? COPY.vaults.refundTransactionLabel
+    : hasClaim
+      ? COPY.vaults.claimTransactionLabel
+      : undefined;
 
   return (
     <ListRowCard className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}>
@@ -435,10 +515,10 @@ function InactiveRow({
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
           <span
-            title={peginState?.inlineSubtext}
+            title={subtextTitle}
             className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
           >
-            {peginState?.inlineSubtext ?? ""}
+            {subtext}
           </span>
         </div>
       </div>
@@ -484,17 +564,15 @@ function InactiveRow({
       <div
         className={`flex flex-col items-start [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
       >
-        {hasRefund && hash && (
-          <span className="text-xs text-accent-secondary">
-            {COPY.vaults.refundTransactionLabel}
-          </span>
+        {hashLabel && hash && (
+          <span className="text-xs text-accent-secondary">{hashLabel}</span>
         )}
         {hash && (
           <CopyableHash
             hash={hash}
             chain="BTC"
             explorerUrl={
-              hasRefund
+              hasRefund || hasClaim
                 ? getBtcExplorerTxUrl(hash)
                 : getRowExplorerUrl(activity, peginState)
             }
@@ -520,21 +598,33 @@ function InactiveRow({
         )}
       </div>
 
-      {/* Reserved even when neither action is available nor blocked, so an
-          actionless row still aligns with the rows that carry a button. */}
-      <div className={LIST_ROW_ACTION_SLOT_CLASS}>
+      {/* From md up, reserved even when neither action is available nor
+          blocked, so an actionless row still aligns with the rows that carry a
+          button. On a phone an empty slot is hidden. */}
+      <div
+        className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full max-md:empty:hidden`}
+      >
         {isRefundAvailable && (
           <button
             type="button"
             onClick={() => onRefund(activity.id)}
-            className={PRIMARY_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.withdraw}
           </button>
         )}
         {blockedTooltip && (
-          <Hint tooltip={blockedTooltip} attachToChildren touchFallback="text">
-            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+          <Hint
+            tooltip={blockedTooltip}
+            className={PHONE_FULL_HINT_CLASS}
+            attachToChildren
+            touchFallback="text"
+          >
+            <button
+              type="button"
+              disabled
+              className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
+            >
               {COPY.vaults.actions.withdraw}
             </button>
           </Hint>
@@ -543,7 +633,7 @@ function InactiveRow({
           <button
             type="button"
             onClick={() => onClaimExpired(activity.id)}
-            className={PRIMARY_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
           >
             {COPY.vaults.actions.redeem}
           </button>
@@ -555,7 +645,7 @@ function InactiveRow({
           <button
             type="button"
             onClick={() => onReclaim(activity.id)}
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
             data-testid={RECLAIM_BUTTON_TEST_ID}
           >
             {COPY.reclaim.rowButton}
@@ -565,7 +655,7 @@ function InactiveRow({
           <button
             type="button"
             onClick={requireBtcWallet}
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
           >
             {COPY.wallet.btcAction.connect}
           </button>
@@ -577,7 +667,7 @@ function InactiveRow({
           <button
             type="button"
             disabled
-            className={NEUTRAL_ROW_BUTTON_CLASS}
+            className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
             data-testid={RECLAIM_BUTTON_TEST_ID}
           >
             {COPY.reclaim.rowButton}
@@ -586,10 +676,15 @@ function InactiveRow({
         {reclaimBlockedTooltip && (
           <Hint
             tooltip={reclaimBlockedTooltip}
+            className={PHONE_FULL_HINT_CLASS}
             attachToChildren
             touchFallback="text"
           >
-            <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
+            <button
+              type="button"
+              disabled
+              className={PHONE_FULL_NEUTRAL_ROW_BUTTON_CLASS}
+            >
               {COPY.reclaim.rowButton}
             </button>
           </Hint>
@@ -601,19 +696,30 @@ function InactiveRow({
 
 /**
  * The batch the multistepper view modal opened on. A real batch keeps its
- * vaults as listed then; a demo batch keeps ids only, as its vaults are never
- * in the real list.
+ * vaults as listed then, and the row action that opened it (null for View
+ * Details); a demo batch keeps ids only, as its vaults are never in the real
+ * list.
  */
 type ViewingBatch =
-  | { kind: "real"; batchAtOpen: VaultActivity[] }
+  | {
+      kind: "real";
+      batchAtOpen: VaultActivity[];
+      requestedAction: PeginAction | null;
+    }
   | { kind: "demo"; vaultIds: Hex[] };
 
 export function VaultsLifecycleSections({
   deposits,
+  returnedRedeemedActivities,
   children,
 }: {
   /** The page's single `usePendingDeposits` result, shared with the emptiness hook. */
   deposits: ReturnType<typeof usePendingDeposits>;
+  /**
+   * Redeemed vaults with no collateral row (`utils/returnedVaults`), selected
+   * once by the page and shared with the emptiness hook.
+   */
+  returnedRedeemedActivities: VaultActivity[];
   children?: ReactNode;
 }) {
   // The batch whose multistepper view modal is open — the full batch for a
@@ -647,15 +753,20 @@ export function VaultsLifecycleSections({
 
   const { candidates: actionableReclaims, actions: reclaimActions } =
     useActionableReclaims(reclaimableCandidates, reclaimModal.inFlightVaultIds);
+  const claimTxids = useRedeemClaimTxids(returnedRedeemedActivities);
   const inactiveActivities: VaultActivity[] = useMemo(
-    () => [...expiredActivities, ...actionableReclaims],
-    [expiredActivities, actionableReclaims],
+    () => [
+      ...expiredActivities,
+      ...returnedRedeemedActivities,
+      ...actionableReclaims,
+    ],
+    [expiredActivities, returnedRedeemedActivities, actionableReclaims],
   );
 
   const rows = [...pendingActivities, ...inactiveActivities];
 
   const handleOpenDetails = useCallback(
-    (depositId: string) => {
+    (depositId: string, requestedAction: PeginAction | null) => {
       const activity = allActivities.find((a) => a.id === depositId);
       if (!activity) {
         // God-mode: an owned flow-state demo card opens the multistepper so
@@ -668,6 +779,7 @@ export function VaultsLifecycleSections({
       setViewingBatch({
         kind: "real",
         batchAtOpen: getBatchSiblings(allActivities, activity),
+        requestedAction,
       });
     },
     [allActivities, demo],
@@ -682,7 +794,7 @@ export function VaultsLifecycleSections({
         broadcastModal.handleBroadcastClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, broadcastModal, handleOpenDetails],
   );
@@ -692,7 +804,7 @@ export function VaultsLifecycleSections({
         refundModal.handleRefundClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, refundModal, handleOpenDetails],
   );
@@ -702,7 +814,7 @@ export function VaultsLifecycleSections({
         reclaimModal.handleReclaimClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, reclaimModal, handleOpenDetails],
   );
@@ -712,7 +824,7 @@ export function VaultsLifecycleSections({
         claimExpiredModal.handleClaimClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, claimExpiredModal, handleOpenDetails],
   );
@@ -722,7 +834,7 @@ export function VaultsLifecycleSections({
         emergencyWithdrawModal.handleWithdrawClick(depositId);
         return;
       }
-      handleOpenDetails(depositId);
+      handleOpenDetails(depositId, null);
     },
     [allActivities, emergencyWithdrawModal, handleOpenDetails],
   );
@@ -927,6 +1039,7 @@ export function VaultsLifecycleSections({
                 onClaimExpired={handleClaimExpired}
                 onReclaim={handleReclaim}
                 reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
+                claimTxid={claimTxids.get(activity.id)}
               />
             ))}
           </div>
@@ -956,6 +1069,11 @@ export function VaultsLifecycleSections({
             <PostDepositContinuationContent
               vaultIds={viewingVaultIds}
               depositorEthAddress={ethAddress as Address}
+              autoStartAction={
+                viewingBatch?.kind === "real"
+                  ? viewingBatch.requestedAction
+                  : null
+              }
               onClose={handleViewingClose}
             />
           </div>

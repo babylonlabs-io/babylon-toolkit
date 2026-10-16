@@ -42,6 +42,7 @@ function renderConfirm() {
       withdrawing={false}
       error={null}
       errorTerminal={false}
+      errorOutcomeUnknown={false}
       onConfirm={vi.fn()}
       onCancel={vi.fn()}
     />,
@@ -122,6 +123,60 @@ describe("EmergencyWithdrawConfirmContent — application-status gate", () => {
     expect(
       screen.queryByText(COPY.pegin.activateAndRedeemPaused),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows a withdraw that may have been broadcast as a status-unknown warning with the action disabled and no Retry", () => {
+    render(
+      <EmergencyWithdrawConfirmContent
+        vaultId={VAULT_ID}
+        withdrawing={false}
+        error={COPY.common.classifiedErrors.sendOutcomeUnknown}
+        errorTerminal={false}
+        errorOutcomeUnknown={true}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    acknowledge();
+
+    expect(
+      screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.title),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.body),
+    ).toBeInTheDocument();
+    // Callout gives the error variant role alert; the warning is a status.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const button = screen.getByTestId("emergency-withdraw-button");
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent(
+      COPY.deposit.emergencyWithdraw.confirmButton,
+    );
+  });
+
+  it("offers Retry after a withdraw that failed", () => {
+    render(
+      <EmergencyWithdrawConfirmContent
+        vaultId={VAULT_ID}
+        withdrawing={false}
+        error="Transaction reverted"
+        errorTerminal={false}
+        errorOutcomeUnknown={false}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    acknowledge();
+
+    expect(
+      screen.queryByText(COPY.deposit.errors.sendOutcomeUnknown.title),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Transaction reverted");
+    const button = screen.getByTestId("emergency-withdraw-button");
+    expect(button).toBeEnabled();
+    expect(button).toHaveTextContent(
+      COPY.deposit.emergencyWithdraw.retryButton,
+    );
   });
 
   it("is not affected by an application-scope pause", () => {

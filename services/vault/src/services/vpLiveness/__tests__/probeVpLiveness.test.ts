@@ -170,13 +170,15 @@ describe("probeVpLiveness", () => {
     );
   });
 
-  it("rethrows when no proxy URL can be built, without touching /health", async () => {
+  it("rethrows when the provider address is malformed, without touching /health", async () => {
     createVpClient.mockImplementation(() => {
-      throw new Error("VP_PROXY_URL is not configured");
+      throw new Error(
+        'Invalid vault provider address: "0xbad". Expected a 20-byte hex address starting with 0x.',
+      );
     });
 
     await expect(probeVpLiveness(PROVIDER, VAULT_ID)).rejects.toThrow(
-      "VP_PROXY_URL is not configured",
+      "Invalid vault provider address",
     );
     expect(getPeginStatusByVaultId).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();

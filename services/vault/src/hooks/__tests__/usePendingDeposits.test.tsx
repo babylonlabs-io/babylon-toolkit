@@ -171,6 +171,30 @@ describe("usePendingDeposits", () => {
     expect(useVaultDeposits).toHaveBeenCalledWith("0xethtest");
   });
 
+  it("lists withdrawn and keeper-claimed vaults with a signed PegIn as reclaim candidates", () => {
+    mockActivities.mockReturnValue([
+      {
+        ...makeActivity("w1", ContractStatus.DEPOSITOR_WITHDRAWN),
+        depositorSignedPeginTx: "0200000001abcd",
+      },
+      {
+        ...makeActivity("k1", ContractStatus.NON_DEPOSITOR_SPEND),
+        depositorSignedPeginTx: "0200000001abcd",
+      },
+      // No indexer copy of the signed PegIn: nothing to probe on Bitcoin.
+      makeActivity("k2", ContractStatus.NON_DEPOSITOR_SPEND),
+      // Still redeeming: the vault output is unspent, so no reserve to sweep.
+      makeActivity("r1", ContractStatus.REDEEMED),
+    ]);
+
+    const { result } = renderHook(() => usePendingDeposits());
+
+    expect(result.current.reclaimableCandidates.map((a) => a.id)).toEqual([
+      "w1",
+      "k1",
+    ]);
+  });
+
   it("returns the broadcast modal handler", () => {
     const { result } = renderHook(() => usePendingDeposits());
 

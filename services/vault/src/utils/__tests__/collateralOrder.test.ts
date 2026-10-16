@@ -20,6 +20,7 @@ function entry(
     lifecycle: "active",
     vaultId,
     amountBtc: 1,
+    amountSats: 100_000_000n,
     addedAt: 0,
     inUse: true,
     providerAddress: "",

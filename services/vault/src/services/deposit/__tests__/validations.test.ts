@@ -331,15 +331,19 @@ describe("Deposit Validations", () => {
       canConnectBtcWallet: false,
       hasProvider: true,
       commissionUnavailable: false,
+      pegInFeeUnavailable: false,
+      isPegInFeeError: false,
       isFeeError: false,
       feeError: null,
       feeDisabled: false,
       ordinalsCheckPending: false,
       hasWalletConnectionError: false,
       isReconnectingWallet: false,
+      isWalletLocked: false,
       maxDepositSats: null,
       effectiveRemaining: null,
       capUnavailable: false,
+      isLiveVaultCapReached: false,
       minPeginFee: 500n,
       minPeginFeeError: null,
       depositorClaimValueError: null,
@@ -538,6 +542,30 @@ describe("Deposit Validations", () => {
         commissionUnavailable: true,
       });
       expect(result.label).toContain("Minimum");
+    });
+
+    it("blocks with 'Calculating fees...' while the pegin fee is unavailable", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        pegInFeeUnavailable: true,
+        isPegInFeeError: false,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Calculating fees...",
+      });
+    });
+
+    it("blocks with 'Fee estimate unavailable' when the pegin fee read failed", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        pegInFeeUnavailable: true,
+        isPegInFeeError: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Fee estimate unavailable",
+      });
     });
 
     it("returns fee error message when fee estimation fails", () => {
@@ -819,6 +847,83 @@ describe("Deposit Validations", () => {
         ordinalsCheckPending: true,
       });
       expect(result.label).toBe("Enter an amount");
+    });
+
+    it("disables with the protocol BTCVault limit label when no live-vault slot is free", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isLiveVaultCapReached: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.liveVaultCapReached.cta,
+      });
+    });
+
+    it("disables the Bitcoin wallet connect CTA when no live-vault slot is free", () => {
+      // The submit guard drops every click while no slot is free, so an
+      // enabled connect button would do nothing.
+      const result = getDepositCtaState({
+        ...readyParams,
+        isWalletConnected: false,
+        canConnectBtcWallet: true,
+        isLiveVaultCapReached: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.liveVaultCapReached.cta,
+      });
+    });
+
+    it("disables the reconnect CTA when no live-vault slot is free", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasWalletConnectionError: true,
+        isLiveVaultCapReached: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.liveVaultCapReached.cta,
+      });
+    });
+
+    it("keeps the live-vault label for a locked wallet when no live-vault slot is free", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasWalletConnectionError: true,
+        isWalletLocked: true,
+        isLiveVaultCapReached: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.liveVaultCapReached.cta,
+      });
+    });
+
+    it("offers the unlock action for a locked wallet", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasWalletConnectionError: true,
+        isWalletLocked: true,
+      });
+      expect(result).toEqual({
+        disabled: false,
+        label: COPY.wallet.locked.unlockToDepositButton,
+      });
+    });
+
+    it("keeps the wallet-not-eligible label ahead of the live-vault limit", () => {
+      // Waiting for a free slot cannot help a screened wallet, so its own
+      // reason must stay on the button.
+      const result = getDepositCtaState({
+        ...readyParams,
+        isAddressBlocked: true,
+        isLiveVaultCapReached: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.wallet.walletNotEligibleTooltip,
+      });
     });
 
     it("disables with cap-unavailable label when capUnavailable is true", () => {

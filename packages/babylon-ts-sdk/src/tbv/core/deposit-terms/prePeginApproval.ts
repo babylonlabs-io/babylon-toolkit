@@ -58,8 +58,9 @@ export interface EnsurePrePeginTermsApprovalParams {
  * app-babylon-vault `sign_psbt_validate.c` @ 73a57c50). A stale true fails
  * closed at the signature; the retry then re-runs the full ceremony.
  *
- * Otherwise always derives first — the host cannot read device state, so
- * this path never approves-only.
+ * Otherwise always derives first, so this path never approves-only: whether
+ * the device still holds the approval is the wallet's to answer, through
+ * `holdsApprovedDepositTerms`.
  *
  * @throws If approval-capable but no terms are provided, or the provided terms
  *   are for a different transaction.

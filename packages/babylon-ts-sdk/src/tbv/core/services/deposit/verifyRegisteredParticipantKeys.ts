@@ -22,9 +22,12 @@
 import type { Hex } from "viem";
 
 import type {
+  KeyEpochs,
+  OperationKeyQuery,
   OperationKeyReader,
   VaultRegistryReader,
 } from "../../clients/eth/types";
+import { assertStandardPayoutScript } from "../../primitives/psbt/standardPayoutScript";
 import { resolveParticipantKeysAtEpochs } from "../participants/resolveParticipantKeys";
 import type { ParticipantKeySet } from "../participants/types";
 
@@ -67,6 +70,30 @@ export function isParticipantKeyDriftError(
   );
 }
 
+/**
+ * An operator payout script registered for the vault is not a standard output
+ * type this app can verify.
+ *
+ * Raised before any Pre-PegIn broadcast. The script is frozen at the vault's
+ * key epochs, so a retry would refuse again. Callers must keep the pending
+ * record when they catch this, as they do for key drift.
+ */
+export class UnsupportedPayoutScriptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnsupportedPayoutScriptError";
+  }
+}
+
+export function isUnsupportedPayoutScriptError(
+  err: unknown,
+): err is UnsupportedPayoutScriptError {
+  return (
+    err instanceof UnsupportedPayoutScriptError ||
+    (err instanceof Error && err.name === "UnsupportedPayoutScriptError")
+  );
+}
+
 export interface VerifyRegisteredParticipantKeysParams {
   vaultRegistryReader: VaultRegistryReader;
   operationKeyReader: OperationKeyReader;
@@ -92,6 +119,63 @@ function diffKeys(
     return null;
   }
   return `${label} expected [${expected.join(", ")}], got [${actual.join(", ")}]`;
+}
+
+/**
+ * Mirror the check payout presigning runs on registry payout scripts, at the
+ * same frozen epochs, so a script the presign step would refuse is refused
+ * before the BTC is funded. Read failures propagate unchanged.
+ * Keeper scripts pair with `query.vaultKeepers` by roster index.
+ * Vaults that share the same query and frozen epochs share one read, so pass
+ * them together.
+ */
+export async function assertStandardPayoutScriptsAtEpochs(params: {
+  operationKeyReader: OperationKeyReader;
+  query: OperationKeyQuery;
+  epochs: KeyEpochs;
+  vaultIds: readonly Hex[];
+}): Promise<void> {
+  const { operationKeyReader, query, epochs, vaultIds } = params;
+  const scripts = await operationKeyReader.getPayoutScriptsAtEpochs(
+    query,
+    epochs,
+  );
+
+  if (scripts.vaultKeepers.length !== query.vaultKeepers.length) {
+    throw new Error(
+      `vaults ${vaultIds.join(", ")}: expected ${query.vaultKeepers.length} vault keeper ` +
+        `payout scripts, got ${scripts.vaultKeepers.length}`,
+    );
+  }
+
+  const failures: string[] = [];
+  const check = (script: Hex, label: string) => {
+    try {
+      assertStandardPayoutScript(script, label);
+    } catch (error) {
+      failures.push(
+        `vaults ${vaultIds.join(", ")}: ${(error as Error).message}`,
+      );
+    }
+  };
+
+  check(
+    scripts.vaultProvider,
+    `Vault provider ${query.vaultProviderEthAddress} commission payout script`,
+  );
+  for (const [i, keeper] of query.vaultKeepers.entries()) {
+    check(
+      scripts.vaultKeepers[i],
+      `Vault keeper ${keeper.ethAddress} payout script`,
+    );
+  }
+
+  if (failures.length > 0) {
+    throw new UnsupportedPayoutScriptError(
+      `Aborting Pre-PegIn broadcast: an operator payout script registered for this vault is not a standard output type this app can verify (${failures.join("; ")}). ` +
+        `The Pre-PegIn was not broadcast; the registered ETH vault will time out per protocol rules.`,
+    );
+  }
 }
 
 export async function verifyRegisteredParticipantKeys(
@@ -167,4 +251,28 @@ export async function verifyRegisteredParticipantKeys(
         `ETH vault will time out per protocol rules.`,
     );
   }
+
+  // After the drift check so key drift always wins. Payout presigning refuses
+  // a non-standard script only after broadcast; refuse it here instead.
+  // Vaults with the same frozen epochs share one script read.
+  const vaultIdsByEpochs = new Map<
+    string,
+    { epochs: KeyEpochs; vaultIds: Hex[] }
+  >();
+  for (const [i, epochs] of epochsPerVault.entries()) {
+    const key = `${epochs.vpKeyEpoch}:${epochs.appKeeperKeyEpoch}:${epochs.ucKeyEpoch}`;
+    const group = vaultIdsByEpochs.get(key);
+    if (group) group.vaultIds.push(vaultIds[i]);
+    else vaultIdsByEpochs.set(key, { epochs, vaultIds: [vaultIds[i]] });
+  }
+  await Promise.all(
+    [...vaultIdsByEpochs.values()].map(({ epochs, vaultIds: groupVaultIds }) =>
+      assertStandardPayoutScriptsAtEpochs({
+        operationKeyReader,
+        query,
+        epochs,
+        vaultIds: groupVaultIds,
+      }),
+    ),
+  );
 }

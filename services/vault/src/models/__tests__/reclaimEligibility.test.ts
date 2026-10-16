@@ -27,19 +27,30 @@ function makeInput(
     reserveSpend: { spent: false, confirmed: false },
     tipHeight: TIP_HEIGHT,
     isOwnedByWallet: true,
-    isLedgerWallet: false,
     isWithdrawBlocked: false,
     isReclaimInFlight: false,
     ...overrides,
   };
 }
 
+/**
+ * The row stays, with the action disabled, until the payout is deep enough:
+ * the indexer reports the vault withdrawn a few blocks before the gate holds,
+ * and hiding the row then would make the vault vanish for those blocks.
+ */
+const SETTLING = {
+  type: "blocked",
+  tooltip: COPY.reclaim.blocked.payoutSettling(
+    RECLAIM_MIN_PAYOUT_CONFIRMATIONS,
+  ),
+};
+
 describe("getReclaimEligibility", () => {
   it("offers the reclaim once the payout is deeply confirmed and the reserve is unspent", () => {
     expect(getReclaimEligibility(makeInput())).toEqual({ type: "available" });
   });
 
-  it("hides the reclaim when the contract says redeemed but the vault UTXO is unspent", () => {
+  it("keeps the action disabled when the contract says redeemed but the vault UTXO is unspent", () => {
     // The case an Ethereum-status-only gate would wrongly allow: the contract
     // sets Redeemed before any Bitcoin claim happens, so the depositor's claim
     // right — funded by this very reserve — still matters here.
@@ -47,18 +58,18 @@ describe("getReclaimEligibility", () => {
       makeInput({ payoutSpend: { spent: false, confirmed: false } }),
     );
 
-    expect(result).toEqual({ type: "absent" });
+    expect(result).toEqual(SETTLING);
   });
 
-  it("hides the reclaim while the payout spend is unconfirmed", () => {
+  it("keeps the action disabled while the payout spend is unconfirmed", () => {
     expect(
       getReclaimEligibility(
         makeInput({ payoutSpend: { spent: true, confirmed: false } }),
       ),
-    ).toEqual({ type: "absent" });
+    ).toEqual(SETTLING);
   });
 
-  it("hides the reclaim while the payout is confirmed but not deep enough", () => {
+  it("keeps the action disabled while the payout is confirmed but not deep enough", () => {
     expect(
       getReclaimEligibility(
         makeInput({
@@ -69,7 +80,23 @@ describe("getReclaimEligibility", () => {
           },
         }),
       ),
-    ).toEqual({ type: "absent" });
+    ).toEqual(SETTLING);
+  });
+
+  it("offers the reclaim at exactly the required depth and not one block before", () => {
+    // The depth the monitor flips the indexer status at is lower than this
+    // bar, so the block before it is the settling window's last block.
+    expect(
+      getReclaimEligibility(
+        makeInput({
+          payoutSpend: {
+            spent: true,
+            confirmed: true,
+            blockHeight: DEEP_PAYOUT_HEIGHT,
+          },
+        }),
+      ),
+    ).toEqual({ type: "available" });
   });
 
   it("treats a confirmed payout with no block height as a single confirmation", () => {
@@ -78,7 +105,7 @@ describe("getReclaimEligibility", () => {
       getReclaimEligibility(
         makeInput({ payoutSpend: { spent: true, confirmed: true } }),
       ),
-    ).toEqual({ type: "absent" });
+    ).toEqual(SETTLING);
   });
 
   // `getOutspend` returns the parsed response body verbatim, so the declared
@@ -96,7 +123,7 @@ describe("getReclaimEligibility", () => {
           },
         }),
       ),
-    ).toEqual({ type: "absent" });
+    ).toEqual(SETTLING);
   });
 
   it("treats a numeric-string block height as a single confirmation", () => {
@@ -110,7 +137,7 @@ describe("getReclaimEligibility", () => {
           },
         }),
       ),
-    ).toEqual({ type: "absent" });
+    ).toEqual(SETTLING);
   });
 
   it("treats a negative block height as a single confirmation", () => {
@@ -120,7 +147,7 @@ describe("getReclaimEligibility", () => {
           payoutSpend: { spent: true, confirmed: true, blockHeight: -1 },
         }),
       ),
-    ).toEqual({ type: "absent" });
+    ).toEqual(SETTLING);
   });
 
   it("keeps the row actionless once the reserve spend has confirmed", () => {
@@ -160,15 +187,21 @@ describe("getReclaimEligibility", () => {
     ).toEqual({ type: "absent" });
   });
 
-  it("ignores the in-session marker when the vault is not eligible anyway", () => {
+  it("reports reclaiming from the in-session marker when a later read shows the payout shallow again", () => {
+    // The sweep was signed only after the settlement check held; a node whose
+    // tip is behind, or a reorg, must not turn the row into a wait.
     expect(
       getReclaimEligibility(
         makeInput({
           isReclaimInFlight: true,
-          payoutSpend: { spent: false, confirmed: false },
+          payoutSpend: {
+            spent: true,
+            confirmed: true,
+            blockHeight: DEEP_PAYOUT_HEIGHT + 1,
+          },
         }),
       ),
-    ).toEqual({ type: "absent" });
+    ).toEqual({ type: "reclaiming" });
   });
 
   it("hides the reclaim for a vault that is not redeemed on chain", () => {
@@ -249,40 +282,20 @@ describe("getReclaimEligibility", () => {
     });
   });
 
-  it("blocks with an explanation on the Ledger vault wallet", () => {
-    // Blocked rather than hidden: the device firmware cannot sign this shape,
-    // and a silent absence would mean Ledger users never learn the reserve
-    // exists.
-    expect(getReclaimEligibility(makeInput({ isLedgerWallet: true }))).toEqual({
+  // A depositor who cannot reach `available` must not be told to wait for
+  // the settlement, so the standing block wins over it.
+  it("reports the paused protocol, not the settlement, while the payout is still shallow", () => {
+    expect(
+      getReclaimEligibility(
+        makeInput({
+          isWithdrawBlocked: true,
+          payoutSpend: { spent: true, confirmed: false },
+        }),
+      ),
+    ).toEqual({
       type: "blocked",
-      tooltip: COPY.reclaim.blocked.ledgerUnsupported,
+      tooltip: COPY.reclaim.blocked.protocolPaused,
     });
-  });
-
-  it("prefers the reclaiming state over the Ledger block once a sweep is in flight", () => {
-    // A sweep already broadcast (by a non-Ledger wallet holding the depositor
-    // key) is in flight regardless of what this session is connected with.
-    expect(
-      getReclaimEligibility(
-        makeInput({
-          isLedgerWallet: true,
-          reserveSpend: { spent: true, confirmed: false },
-        }),
-      ),
-    ).toEqual({ type: "reclaiming" });
-  });
-
-  it("hides rather than blocks on Ledger when the vault is not eligible anyway", () => {
-    // The wallet check sits behind the eligibility checks, so an ineligible
-    // vault never advertises a reclaim the depositor could not perform.
-    expect(
-      getReclaimEligibility(
-        makeInput({
-          isLedgerWallet: true,
-          reserveSpend: { spent: true, confirmed: true },
-        }),
-      ),
-    ).toEqual({ type: "absent" });
   });
 });
 

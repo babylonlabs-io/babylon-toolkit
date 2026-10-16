@@ -15,7 +15,6 @@ import type { Page } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { MOCK_ENV_VARS } from "../../playwright.config";
 import { VISUAL_OUTPUT_DIR } from "../../playwright.visual.config";
 import { expect } from "../fixtures";
 import type { PageWalletConfig } from "../fixtures/pageWallets";
@@ -27,6 +26,7 @@ import {
 import {
   RECORDED_DEPLOYMENT,
   RECORDED_DEPOSITOR,
+  RECORDED_ENDPOINTS,
 } from "../fixtures/replay/contracts";
 import type { RecordedBackend } from "../fixtures/replay/recording";
 
@@ -36,6 +36,7 @@ import {
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
   DEPOSIT_PROGRESS_STOPS,
+  DEPOSIT_SPLIT_MINIMUM_STOP,
   depositProgressStepStop,
   flowScreenshotFileName,
   HAS_CONNECT_GUIDE,
@@ -155,7 +156,7 @@ export function recordedPageWallets(): PageWalletConfig {
     btcPublicKeyHex: RECORDED_DEPOSITOR.BTC_PUBLIC_KEY,
     ethAddress: RECORDED_DEPOSITOR.ETH_ADDRESS,
     ethChainIdHex: `0x${Number(RECORDED_DEPLOYMENT.ETH_CHAIN_ID).toString(16)}`,
-    ethRpcUrl: MOCK_ENV_VARS.NEXT_PUBLIC_ETH_RPC_URL,
+    ethRpcUrl: RECORDED_ENDPOINTS.ETH_RPC_URL,
   };
 }
 
@@ -437,6 +438,7 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ...Object.values(VAULT_REFUND_STOPS),
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
+      DEPOSIT_SPLIT_MINIMUM_STOP,
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
       LIQUIDATION_CHART_STOP,
       ...(HAS_LIQUIDATION_TOUR ? Object.values(LIQUIDATION_TOUR_STOPS) : []),

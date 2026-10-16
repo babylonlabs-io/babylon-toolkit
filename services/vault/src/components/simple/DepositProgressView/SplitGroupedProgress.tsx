@@ -42,6 +42,8 @@ interface SplitGroupedProgressProps {
   rawStep: DepositFlowStep;
   /** When true, the current step failed — render it as an error, not active. */
   hasError?: boolean;
+  /** When true, the current step's outcome is unknown — neither running nor failed. */
+  outcomeUnknown?: boolean;
   /**
    * Resolves the detail panel for a given step. Called once per region with
    * that region's own step — the trunk with `rawStep`, each vault lane with
@@ -77,6 +79,7 @@ function VaultLane({
   steps,
   perVaultVisualStep,
   hasError,
+  outcomeUnknown,
   activeStepDetail,
 }: {
   vaultIndex: number;
@@ -87,6 +90,7 @@ function VaultLane({
   steps: StepperItem[];
   perVaultVisualStep: number;
   hasError: boolean;
+  outcomeUnknown: boolean;
   activeStepDetail?: ReactNode;
 }) {
   if (branchGroups.length === 0) return null;
@@ -109,6 +113,7 @@ function VaultLane({
             steps={steps}
             currentStep={perVaultVisualStep}
             hasError={hasError}
+            outcomeUnknown={outcomeUnknown}
             activeStepDetail={activeStepDetail}
           />
         ))}
@@ -124,6 +129,7 @@ export function SplitGroupedProgress({
   currentVaultIndex,
   rawStep,
   hasError = false,
+  outcomeUnknown = false,
   renderStepDetail,
   perVaultSteps,
   started = true,
@@ -153,6 +159,7 @@ export function SplitGroupedProgress({
           steps={steps}
           currentStep={currentStep}
           hasError={hasError}
+          outcomeUnknown={outcomeUnknown}
           activeStepDetail={renderStepDetail?.(rawStep)}
           preSignDetail={preSignDetail}
         />
@@ -199,6 +206,12 @@ export function SplitGroupedProgress({
               // sit on the same step while only the current vault was rejected.
               hasError={
                 hasError &&
+                vaultIndex === currentVaultIndex &&
+                perVaultVisualStep === currentStep
+              }
+              // Gated the same way: only the active vault's own lane is unknown.
+              outcomeUnknown={
+                outcomeUnknown &&
                 vaultIndex === currentVaultIndex &&
                 perVaultVisualStep === currentStep
               }

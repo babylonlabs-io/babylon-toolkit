@@ -35,7 +35,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
     // on the section and the column so a long value can truncate (#2428).
     <div
       id={card.id}
-      className="flex min-w-0 flex-1 items-center justify-between gap-4 xl:max-[1439px]:gap-2"
+      className="flex min-w-0 flex-1 items-center justify-between gap-4 max-md:flex-col max-md:items-stretch xl:max-[1439px]:gap-2"
     >
       <div className="flex min-w-0 items-center gap-3">
         {card.leading}
@@ -59,7 +59,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
             className="flex items-center gap-2 overflow-hidden text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap"
           >
             {card.valueNode ?? (
-              <span className="xl:truncate">{card.value}</span>
+              <span className="max-md:break-all xl:truncate">{card.value}</span>
             )}
           </span>
 
@@ -80,7 +80,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
           onClick={() => card.onAction?.()}
           disabled={card.actionDisabled}
           data-testid={card.actionTestId}
-          className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-secondary xl:max-[1439px]:w-[100px]"
+          className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-secondary max-md:w-full xl:max-[1439px]:w-[100px]"
         >
           {card.actionLabel}
         </button>

@@ -1,13 +1,10 @@
 /**
  * Shared network-contract resolution for the real-wallet E2E pre-flights (pegin + borrow).
  *
- * The contract addresses + endpoints are NOT hardcoded — they rotate (via `scripts/sync-env.mjs`) and
- * differ per network. We resolve them exactly as the app does at runtime: Vite's `loadEnv` for the
- * network's mode (devnet ⇒ `development`, testnet ⇒ `dev-testnet`), which layers `.env` (sync-env's
- * output) + `.env.local` + `.env.<mode>` with the same precedence Vite gives the running dapp.
- *
- * Extracted from peginParams.ts so the borrow pre-flight (borrowParams.ts) reuses the identical
- * resolution + Sepolia client + Core-Spoke read rather than duplicating (and drifting from) it.
+ * Contracts and endpoints come from the same committed profile the app inlines
+ * (services/vault/networks/<name>.json), so a `pnpm sync-env` rotation is picked up
+ * automatically. Only NEXT_PUBLIC_ETH_RPC_URL may be overridden, from the vault .env,
+ * exactly as the app allows.
  */
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { gql, GraphQLClient } from "graphql-request";
@@ -22,12 +19,14 @@ import {
 import { sepolia } from "viem/chains";
 import { loadEnv } from "vite";
 
+import { readResolvedNetworkProfile } from "../../scripts/lib/networkProfiles";
+
 import { NETWORKS, type NetworkName } from "./config";
 
 /** The immutable Core Spoke getter on the AaveIntegrationAdapter (read on-chain, never trusted from GraphQL). */
 const CORE_SPOKE_FN = "BTC_VAULT_CORE_SPOKE";
 
-/** The vault service root (holds .env / .env.local / .env.dev-testnet), relative to this file. */
+/** The vault service root (holds .env), relative to this file. */
 const VAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** Networks whose resolved env we've already surfaced, so we log it once per process (not per call). */
@@ -35,7 +34,7 @@ const loggedNetworks = new Set<NetworkName>();
 
 export interface NetworkContracts {
   registry: Address;
-  /** AaveIntegrationAdapter (app controller) — NEXT_PUBLIC_TBV_AAVE_ADAPTER. Also the Core-Spoke source. */
+  /** AaveIntegrationAdapter (app controller), from the profile's contracts.aaveAdapter. Also the Core-Spoke source. */
   appController: string;
   graphqlEndpoint: string;
   ethRpcUrl: string;
@@ -44,52 +43,34 @@ export interface NetworkContracts {
 }
 
 /**
- * Resolve the network's contract addresses + endpoints from the app's env, exactly as the running
- * dapp does — so a `sync-env.mjs` rotation is picked up automatically instead of going stale.
+ * Resolve the network's contract addresses + endpoints from its committed profile,
+ * with the RPC override the app also honours.
  */
 export function resolveNetworkContracts(
   network: NetworkName,
 ): NetworkContracts {
-  const env = loadEnv(NETWORKS[network].viteMode, VAULT_ROOT, "NEXT_PUBLIC_");
-  const registry = env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY;
-  const appController = env.NEXT_PUBLIC_TBV_AAVE_ADAPTER;
-  const graphqlEndpoint = env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT;
-  const ethRpcUrl = env.NEXT_PUBLIC_ETH_RPC_URL;
-  const aaveAdapterConfig = env.NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG;
-  if (
-    !registry ||
-    !appController ||
-    !graphqlEndpoint ||
-    !ethRpcUrl ||
-    !aaveAdapterConfig
-  )
-    throw new Error(
-      `Missing NEXT_PUBLIC_TBV_* env for ${network} (Vite mode "${NETWORKS[network].viteMode}", dir ${VAULT_ROOT}). Run 'pnpm --filter vault sync-env' or check .env / .env.dev-testnet.`,
-    );
+  const profile = readResolvedNetworkProfile(NETWORKS[network].profile);
+  const { NEXT_PUBLIC_ETH_RPC_URL } = loadEnv(
+    "development",
+    VAULT_ROOT,
+    "NEXT_PUBLIC_",
+  );
+  const ethRpcUrl = NEXT_PUBLIC_ETH_RPC_URL?.trim() || profile.ethRpcUrl;
 
-  // Surface which network's values were resolved (once per process), and warn loudly if they look
-  // like they came from another network — `loadEnv` merges shared `.env` under the mode file, so a key
-  // missing from `.env.<mode>` would silently inherit e.g. devnet's value. The endpoint host naming
-  // (…vault-devnet… / …testnet…) is a cheap cross-check for that footgun.
   if (!loggedNetworks.has(network)) {
     loggedNetworks.add(network);
     // eslint-disable-next-line no-console
     console.log(
-      `[network-contracts] ${network}: registry ${registry}, graphql ${graphqlEndpoint}`,
+      `[network-contracts] ${network} (profile ${profile.name}): registry ${profile.contracts.btcVaultRegistry}, graphql ${profile.indexerUrl}`,
     );
-    if (!graphqlEndpoint.includes(network))
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[network-contracts] ⚠️ ${network}: GraphQL endpoint "${graphqlEndpoint}" does not mention "${network}" — env may be resolving another network's values (a key missing from .env.${NETWORKS[network].viteMode}?).`,
-      );
   }
 
   return {
-    registry: registry as Address,
-    appController,
-    graphqlEndpoint,
+    registry: profile.contracts.btcVaultRegistry as Address,
+    appController: profile.contracts.aaveAdapter,
+    graphqlEndpoint: profile.indexerUrl,
     ethRpcUrl,
-    aaveAdapterConfig: aaveAdapterConfig as Address,
+    aaveAdapterConfig: profile.contracts.aaveAdapterConfig as Address,
   };
 }
 

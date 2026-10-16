@@ -35,6 +35,7 @@ beforeEach(async () => {
     "../../config/network/runtime"
   );
   configureBabylonConfig({
+    kind: "test",
     btcNetwork: "signet",
     ethChainId: 11155111,
     ethRpcUrl: "https://test.example/eth",
@@ -88,6 +89,7 @@ describe("scriptPubKeyHexToBtcAddress", () => {
         "../../config/network/runtime"
       );
       configureBabylonConfig({
+        kind: "production",
         btcNetwork: "mainnet",
         ethChainId: 1,
         ethRpcUrl: "https://test.example/eth",

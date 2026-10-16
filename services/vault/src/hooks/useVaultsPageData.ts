@@ -35,6 +35,7 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     healthFactorStatus,
     collateralVaults,
     indexerError,
+    isLoading: isPositionLoading,
   } = useDashboardState(connectedAddress);
 
   const demoCollateral = useCollateralOverride();
@@ -96,6 +97,12 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
      * per-row, reorder filters them out).
      */
     rawCollateralVaults: collateralVaults,
+    /**
+     * True until the position's first read lands. Cached data from an earlier
+     * read keeps it false through a failed refetch, so `rawCollateralVaults`
+     * is the list rendered whenever this is false.
+     */
+    isPositionLoading,
     /** Set when the indexed vault list can be incomplete. Blocks actions. */
     indexerError,
     collateralBtc,

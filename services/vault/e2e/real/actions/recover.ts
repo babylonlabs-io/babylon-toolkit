@@ -527,7 +527,6 @@ export const recoverAction: Action = {
       htlcVout: target.htlcVout,
       depositorBtcPubkey: walletPubkey,
       applicationEntryPoint: target.applicationEntryPoint as Address,
-      fundedPrePeginTxHex,
       hashlocks: derived.hashlocks,
       network: btcNetwork,
     });

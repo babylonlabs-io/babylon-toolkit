@@ -5,19 +5,21 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { parseUnits } from "viem";
-import { useAccount, useWalletClient } from "wagmi";
+import { parseUnits, type Address } from "viem";
 
 import { ERC20 } from "@/clients/eth-contract";
 import { ethClient } from "@/clients/eth-contract/client";
 import { assertNoTransactionInFlight } from "@/clients/eth-contract/transactionInFlight";
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { isBorrowBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   WalletError,
   isWriteNotice,
@@ -60,6 +62,11 @@ export interface UseBorrowTransactionResult {
   /** Whether transaction is currently processing */
   isProcessing: boolean;
   /**
+   * This form's own borrow is mined, and its outcome waits for it to be deep
+   * enough on the chain. Clears when the borrow ends.
+   */
+  isConfirming: boolean;
+  /**
    * The account's Aave write in progress, from this form or any other. Every
    * Aave action stays disabled while it is set.
    */
@@ -68,9 +75,9 @@ export interface UseBorrowTransactionResult {
   error: string | null;
   /**
    * Last outcome that is not a failure (null when none): a refusal before
-   * anything was signed, a wallet replacement that may have done the
-   * borrow, or another Aave form's write holding the lock. Shown without the
-   * failure title.
+   * anything was signed, a wallet replacement or a "nonce too low" for a
+   * broadcast send, either of which may have done the borrow, or another Aave
+   * form's write holding the lock. Shown without the failure title.
    */
   notice: string | null;
   /** Clear the last failure message and notice (e.g. when the borrow asset changes). */
@@ -86,14 +93,14 @@ export interface UseBorrowTransactionResult {
  */
 export function useBorrowTransaction(): UseBorrowTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+  const account = useETHWallet().address as Address | undefined;
   const queryClient = useQueryClient();
   const chain = getETHChain();
   const gate = useProtocolGateState();
-  const pendingWrite = usePendingAaveWrite(address);
+  const pendingWrite = usePendingAaveWrite(account);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -115,32 +122,27 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
     setError(null);
     setNotice(null);
     setIsProcessing(true);
+    // The button reads "Confirming" while the borrow gets deep enough on
+    // the chain.
+    const markIncluded = () => setIsConfirming(true);
     try {
-      // Validate wallet connection
-      if (!walletClient) {
+      if (!account) {
         throw new WalletError(
-          "Please connect your wallet to continue",
-          ErrorCode.WALLET_NOT_CONNECTED,
-        );
-      }
-
-      if (!address) {
-        throw new WalletError(
-          "Wallet address not available",
+          COPY.wallet.connectToContinue,
           ErrorCode.WALLET_NOT_CONNECTED,
         );
       }
 
       // The account's Aave lock covers the pre-sign checks too, so a second
       // call made while they run is refused instead of sent after this one.
-      const outcome = await runAaveWrite(address, async () => {
+      const outcome = await runAaveWrite(account, async () => {
         // A borrow this page did not see (sent before a reload, or from
         // another tab) may still be pending. Checked before the pre-sign
         // reads, so the health-factor recheck cannot pass on state that
         // pending borrow is about to change.
         await assertNoTransactionInFlight({
           publicClient: ethClient.getPublicClient(),
-          account: address,
+          account,
         });
 
         // Verify the indexer-supplied (reserveId, token.address) pair maps to
@@ -181,13 +183,19 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         }
 
         // Adapter resolves borrower's proxy from msg.sender
+        const walletClient = await getWalletClientOnExpectedChain(account);
         await borrow(
           walletClient,
           chain,
           reserve.reserveId,
           borrowAmountBigInt,
+          markIncluded,
         );
       });
+      // "Confirming" holds through the refresh only for a mined borrow: one
+      // the lock's watch found after the first wait gave up never reported
+      // its inclusion, and one the user stopped waiting on is not confirming.
+      setIsConfirming(outcome === "mined");
 
       // Invalidate position queries to refresh data, and the hub reads behind
       // the loan forms (liquidity, our spoke's borrow limit and hub state).
@@ -199,20 +207,27 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
 
       return outcome === "mined" ? "succeeded" : "unknown";
     } catch (error) {
-      // The wallet replaced the transaction. A speed-up may still have done
-      // the borrow, so the position must show the chain's answer before the user
-      // decides whether to try again.
-      if (error instanceof TransactionReplacedError) {
+      // The wallet replaced the transaction, or refused as "nonce too low" a
+      // send it may have broadcast. Either may still have done the borrow, so
+      // the position must show the chain's answer before the user decides
+      // whether to try again.
+      if (
+        error instanceof TransactionReplacedError ||
+        error instanceof SendOutcomeUnknownError
+      ) {
         await Promise.all([
           invalidateVaultQueries(queryClient),
           invalidateHubQueries(queryClient),
         ]);
       }
-      // Not a failure: a refusal before anything was signed, or a replacement
+      // Not a failure: a refusal before anything was signed, or an outcome
       // that may have done the borrow.
       if (isWriteNotice(error)) {
         setNotice(error.message);
-        return error instanceof TransactionReplacedError ? "unknown" : "failed";
+        return error instanceof TransactionReplacedError ||
+          error instanceof SendOutcomeUnknownError
+          ? "unknown"
+          : "failed";
       }
       // A pre-sign refusal for an unreadable cap shows its own sentence as
       // is: mapping it would prefix "Borrow failed:", and decoding would walk
@@ -243,6 +258,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       return "failed";
     } finally {
       setIsProcessing(false);
+      setIsConfirming(false);
     }
   };
 
@@ -254,6 +270,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
   return {
     executeBorrow,
     isProcessing,
+    isConfirming,
     pendingWrite,
     error,
     notice:

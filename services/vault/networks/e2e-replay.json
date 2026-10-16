@@ -1,0 +1,16 @@
+{
+  "name": "e2e-replay",
+  "kind": "test",
+  "registryCommit": null,
+  "btcNetwork": "signet",
+  "ethChainId": 11155111,
+  "ethRpcUrl": "http://localhost:9997/rpc",
+  "indexerUrl": "http://localhost:9999/graphql",
+  "vpProxyUrl": "http://localhost:9998",
+  "contracts": {
+    "btcVaultRegistry": "0xb331467c4db13dccc77fa66c2d185b74ed57ab80",
+    "aaveAdapter": "0x31bc43cab2d91b3016bee8e9fc1194d46d7b0590",
+    "aaveAdapterConfig": "0x93071eef9dd7f692f377a0085dbac120324f719e",
+    "btcPriceFeed": "0xA5c0105B71D9D2CaDC151A1875a5B71C85AbF8DB"
+  }
+}

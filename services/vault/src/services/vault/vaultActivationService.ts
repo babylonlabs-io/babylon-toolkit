@@ -8,45 +8,33 @@
  *
  * Protocol logic lives in the SDK (`activateVault`); this adapter wires
  * the vault's contract-write transport (`executeWrite`) into the SDK's
- * injected-writer interface so viem error decoding, simulation, and
- * receipt handling stay in the app tier.
+ * injected-writer interface so viem error decoding, simulation, gas
+ * planning, and receipt handling stay in the app tier.
  */
 
-import {
-  BTCVaultRegistryABI,
-  canonicalizeBtcPubkey,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   activateVault,
   activateVaultAndRedeem,
   claimExpiredVault,
   type EthContractWriter,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import {
-  isAddressEqual,
-  parseEventLogs,
-  type Hex,
-  type WalletClient,
-} from "viem";
+import type { Hex, WalletClient } from "viem";
 
+import { ethClient } from "@/clients/eth-contract/client";
 import {
   executeWrite,
+  requireWalletAccount,
   type TransactionResult,
 } from "@/clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "@/config/contracts";
 import { getETHChain } from "@/config/network";
 
-/** The Aave adapter event that records a vault as collateral. */
-const COLLATERAL_ADDED_EVENT_ABI = [
-  {
-    type: "event",
-    name: "CollateralAdded",
-    inputs: [
-      { indexed: true, name: "positionAccount", type: "address" },
-      { indexed: true, name: "vaultId", type: "bytes32" },
-    ],
-  },
-] as const;
+import {
+  assertActivationNotRedeemed,
+  logsAddCollateral,
+  logsRedeemForDepositor,
+  planActivationGasLimit,
+} from "./activationGasLimit";
 
 export interface ActivateVaultParams {
   /** Vault ID (bytes32, 0x-prefixed) */
@@ -56,7 +44,7 @@ export interface ActivateVaultParams {
   /**
    * Expected hashlock (bytes32, 0x-prefixed). The SDK re-checks
    * `sha256(secret) === hashlock` immediately before assembling calldata —
-   * last defense before the secret would enter `simulateContract`.
+   * last defense before the secret leaves the browser in a simulation.
    */
   hashlock: Hex;
   /** Ethereum wallet client for signing the transaction */
@@ -65,15 +53,41 @@ export interface ActivateVaultParams {
   signal?: AbortSignal;
 }
 
+export interface ActivateVaultWithSecretParams extends ActivateVaultParams {
+  /**
+   * The vault's depositor BTC key as the registry records it (x-only, `0x`
+   * optional). The gas plan reads the registry's redeem log for this key.
+   */
+  depositorBtcPubKey: string;
+}
+
 export async function activateVaultWithSecret(
-  params: ActivateVaultParams,
+  params: ActivateVaultWithSecretParams,
 ): Promise<TransactionResult> {
-  const { vaultId, secret, hashlock, walletClient, signal } = params;
+  const {
+    vaultId,
+    secret,
+    hashlock,
+    depositorBtcPubKey,
+    walletClient,
+    signal,
+  } = params;
 
   signal?.throwIfAborted();
 
-  const writer: EthContractWriter<TransactionResult> = (call) =>
-    executeWrite({
+  const writer: EthContractWriter<TransactionResult> = async (call) => {
+    // A wallet estimate can land on the registry's redeem path, so the limit
+    // comes from a simulation shown to activate (see activationGasLimit).
+    const simulation = {
+      publicClient: ethClient.getPublicClient(),
+      account: requireWalletAccount(walletClient).address,
+      call,
+      vaultId,
+      depositorBtcPubKey,
+      signal,
+    };
+    const gas = await planActivationGasLimit(simulation);
+    return executeWrite({
       walletClient,
       chain: getETHChain(),
       address: call.address,
@@ -81,7 +95,12 @@ export async function activateVaultWithSecret(
       functionName: call.functionName,
       args: call.args,
       errorContext: "vault activation",
+      gas,
+      // Checked again at that limit right before each send: an `eth_call`
+      // success says nothing here, since the redeem path succeeds too.
+      preflight: () => assertActivationNotRedeemed({ ...simulation, gas }),
     });
+  };
 
   return activateVault<TransactionResult>({
     btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
@@ -197,15 +216,7 @@ export function activationAddedCollateral(
   { receipt }: TransactionResult,
   vaultId: Hex,
 ): boolean {
-  return parseEventLogs({
-    abi: COLLATERAL_ADDED_EVENT_ABI,
-    logs: receipt.logs,
-    eventName: "CollateralAdded",
-  }).some(
-    (log) =>
-      isAddressEqual(log.address, CONTRACTS.AAVE_ADAPTER) &&
-      log.args.vaultId.toLowerCase() === vaultId.toLowerCase(),
-  );
+  return logsAddCollateral(receipt.logs, vaultId);
 }
 
 /**
@@ -242,6 +253,9 @@ export function activationAddedCollateral(
  * vault-contracts-aave-v4@06f46477:src/protocol/lib/types/Events.sol:41-50,
  * matched by the SDK registry ABI.
  *
+ * The activation gas plan reads the same log from its simulations before
+ * anything is sent ({@link logsRedeemForDepositor}).
+ *
  * @param depositorBtcPubKey - The vault's depositor BTC key as the registry
  *   records it (x-only, `0x` optional). Compared in canonical form, since the
  *   log's indexed `claimerPK` is the same bytes32 the registry stores.
@@ -251,15 +265,5 @@ export function activationRedeemedForDepositor(
   vaultId: Hex,
   depositorBtcPubKey: string,
 ): boolean {
-  const expectedClaimer = canonicalizeBtcPubkey(depositorBtcPubKey);
-  return parseEventLogs({
-    abi: BTCVaultRegistryABI,
-    logs: receipt.logs,
-    eventName: "VaultClaimableBy",
-  }).some(
-    (log) =>
-      isAddressEqual(log.address, CONTRACTS.BTC_VAULT_REGISTRY) &&
-      log.args.vaultId.toLowerCase() === vaultId.toLowerCase() &&
-      canonicalizeBtcPubkey(log.args.claimerPK) === expectedClaimer,
-  );
+  return logsRedeemForDepositor(receipt.logs, vaultId, depositorBtcPubKey);
 }

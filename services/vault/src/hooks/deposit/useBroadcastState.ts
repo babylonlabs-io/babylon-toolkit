@@ -80,9 +80,10 @@ export function useBroadcastState({
     // and key stamp, and a deposit keeps going when one record fails to save,
     // so a sibling's record stands in when the clicked vault has none. The
     // broadcast still compares its transaction with the clicked vault's.
-    const pendingPegin =
-      pendingPegins.find((p) => p.id === activity.id) ??
-      pendingPegins.find((p) => batchVaultIds.includes(p.id));
+    let pendingPegin = pendingPegins.find((p) => p.id === activity.id);
+    if (pendingPegin === undefined) {
+      pendingPegin = pendingPegins.find((p) => batchVaultIds.includes(p.id));
+    }
 
     setLocalBroadcasting(true);
     try {

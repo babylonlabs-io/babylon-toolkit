@@ -51,6 +51,7 @@ import type {
 import type { DepositPollingResult } from "@/types/peginPolling";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { getBatchSiblings } from "@/utils/batchedPegin";
+import { parseBtcToSatoshis, satoshiToBtcNumber } from "@/utils/btcConversion";
 
 /** Whether (and how) a scenario is expected to render the action CTA. */
 export type DemoCta = "primary" | "outlined" | "none";
@@ -929,7 +930,8 @@ function buildCollateralEntry(
     vaultId: id,
     peginTxHash: DEMO_PEGIN_TX,
     prePeginTxHash: DEMO_PREPEGIN_TX,
-    amountBtc: Number.parseFloat(amount) || 0,
+    amountBtc: satoshiToBtcNumber(parseBtcToSatoshis(amount)),
+    amountSats: parseBtcToSatoshis(amount),
     addedAt: DEMO_AT_SECONDS,
     inUse: scenario.inUse,
     lifecycle: scenario.lifecycle,

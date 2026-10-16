@@ -3,6 +3,11 @@
  *
  * These are optional utilities — callers can use their own implementations
  * of the VaultKeeperReader and UniversalChallengerReader interfaces.
+ *
+ * The rosters they return carry each member's *registration* key. A member
+ * can rotate its RFC-006 operation key without changing the roster, so a
+ * vault registered after a member had rotated commits to a key the roster
+ * does not list. Resolve operation keys with `ViemOperationKeyReader`.
  */
 
 import type { Address, Hex, PublicClient } from "viem";

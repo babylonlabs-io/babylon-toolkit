@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setDepositOverride } from "@/overrides/deposits";
 
 import featureFlags from "../../../config/featureFlags";
-import { STORAGE_KEY_PREFIX } from "../../../constants";
 import { COPY } from "../../../copy";
 import {
   ACTIVATED_SCENARIO_INDEX,
@@ -21,6 +20,7 @@ import {
   PEGIN_DISPLAY_LABELS,
   PeginAction,
 } from "../../../models/peginStateMachine";
+import { getPendingPeginsStorageKey } from "../../../storage/peginStorage";
 import { loadRefundedHtlcs } from "../../../storage/refundedHtlcCache";
 import { usePeginStorage } from "../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../types/activity";
@@ -526,7 +526,7 @@ describe("PeginPollingContext", () => {
     // record. This tab learns of it only through the storage event; its own
     // session store never saw the receipt (reset in beforeEach).
     const ETH_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
-    const storageKey = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const storageKey = getPendingPeginsStorageKey(ETH_ADDRESS);
     const STORED_VAULT_ID = `0x${"5".repeat(64)}` as Hex;
     const NO_CONFIRMED_PEGINS: VaultActivity[] = [];
     const record = {
@@ -599,7 +599,7 @@ describe("PeginPollingContext", () => {
     // Cleanup deletes the record once the indexer reports REDEEMED, and the
     // outcome must still be known for the rest of the session.
     const ETH_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
-    const storageKey = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const storageKey = getPendingPeginsStorageKey(ETH_ADDRESS);
     const STORED_VAULT_ID = `0x${"7".repeat(64)}` as Hex;
     localStorage.setItem(
       storageKey,

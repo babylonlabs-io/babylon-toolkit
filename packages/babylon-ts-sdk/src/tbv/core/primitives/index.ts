@@ -50,7 +50,7 @@
  * - {@link createPayoutScript} - Generate taproot payout script
  *
  * ### Challenger Counting
- * - {@link computeNumLocalChallengers} - Compute number of local challengers for a vault
+ * - {@link computeNumLocalChallengers} - Upper bound on a vault's local challengers, for UI estimates such as a deposit form's claim reserve
  *
  * ### WASM Functions
  * - {@link computeMinClaimValue} - Compute the minimum claim value accepted by the vault provider

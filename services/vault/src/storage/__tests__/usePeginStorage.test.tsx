@@ -13,8 +13,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
-import { STORAGE_KEY_PREFIX } from "../../constants";
-import { addPendingPegin, PendingPeginStorageReadError } from "../peginStorage";
+import {
+  addPendingPegin,
+  getPendingPeginsStorageKey,
+  PendingPeginStorageReadError,
+} from "../peginStorage";
 import {
   __resetReportedStorageReadErrorsForTests,
   usePeginStorage,
@@ -63,12 +66,29 @@ describe("usePeginStorage pending activity mapping", () => {
   });
 });
 
-// Keep the storage key derivation honest: the test seeds through the public
-// writer, so a change to the key shape breaks here rather than silently
-// reading an empty list and passing.
+// Keep the storage key derivation honest: the public writer must store under
+// the key the exported builder returns, which the cross-tab listener compares
+// against. A writer that drifted from the builder would read back an empty
+// list here and fail.
 describe("storage key", () => {
-  it("scopes pending peg-ins to the connected address", () => {
-    expect(`${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`).toContain(ETH_ADDRESS);
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("stores pending peg-ins under the key scoped to the connected address", () => {
+    addPendingPegin(ETH_ADDRESS, {
+      id: VAULT_ID,
+      peginTxHash: PEGIN_TXHASH,
+      unsignedTxHex: "0xdeadbeef",
+      buildOffchainParamsVersion: REGISTERED_VERSION,
+      buildAppVaultKeepersVersion: 3,
+      buildUniversalChallengersVersion: 5,
+      buildVaultCoreVersion: 1,
+    });
+
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
+    expect(key).toContain(ETH_ADDRESS);
+    expect(JSON.parse(localStorage.getItem(key) ?? "[]")).toHaveLength(1);
   });
 });
 
@@ -87,7 +107,7 @@ describe("usePeginStorage read failures", () => {
 
   it("exposes unreadable records on the first render and preserves them through cleanup", () => {
     const raw = '[{"id":';
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, raw);
     const removeItem = vi.spyOn(Storage.prototype, "removeItem");
     const { result } = renderHook(() =>
@@ -108,7 +128,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("reports a failed storage refresh and clears it after a readable refresh", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     const { result } = renderHook(() =>
       usePeginStorage({
         ethAddress: ETH_ADDRESS,
@@ -131,7 +151,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("raises one event for an address every mounted instance re-reads", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, '[{"id":');
 
     // The root polling provider and the Vaults page each mount one.
@@ -155,7 +175,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("raises a second event when a corrupt blob becomes blocked storage", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, '[{"id":');
 
     renderHook(() =>
@@ -178,7 +198,7 @@ describe("usePeginStorage read failures", () => {
   });
 
   it("raises a second event when an address goes unreadable again", () => {
-    const key = `${STORAGE_KEY_PREFIX}-${ETH_ADDRESS}`;
+    const key = getPendingPeginsStorageKey(ETH_ADDRESS);
     localStorage.setItem(key, '[{"id":');
 
     renderHook(() =>

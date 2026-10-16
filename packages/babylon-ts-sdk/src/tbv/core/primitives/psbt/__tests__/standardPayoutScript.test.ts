@@ -45,6 +45,12 @@ describe("assertStandardPayoutScript", () => {
     ).toThrow(/not a standard scriptPubKey/);
   });
 
+  it("rejects a P2TR whose output key is not on the curve", () => {
+    expect(() =>
+      assertStandardPayoutScript(`5120${"00".repeat(31)}05`, LABEL),
+    ).toThrow(/not a standard scriptPubKey/);
+  });
+
   it("rejects an unrecognised script shape", () => {
     expect(() =>
       assertStandardPayoutScript(`0099${"ab".repeat(20)}`, LABEL),

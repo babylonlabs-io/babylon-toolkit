@@ -111,8 +111,8 @@ export function SimulationToolbar({
       {/* Wrapping (rather than an external aria-label) is the only way to
           give the Slider's native input an accessible name without adding a
           prop core-ui doesn't expose. */}
-      <label className="flex min-w-[200px] flex-1 items-center gap-4">
-        <span className="shrink-0 text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
+      <label className="flex min-w-[200px] flex-1 items-center gap-4 max-md:flex-wrap">
+        <span className="shrink-0 text-base leading-[1.5] tracking-[0.15px] text-accent-primary max-md:basis-full">
           {COPY.liquidations.simulateLabel}
         </span>
 

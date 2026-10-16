@@ -56,8 +56,6 @@ export interface ToRefundInputsOptions {
    * survives the reorg untouched.
    */
   applicationEntryPoint: Address;
-  /** Funded Pre-PegIn transaction hex, `0x` optional. */
-  fundedPrePeginTxHex: string;
   /** Hashlocks indexed by `htlcVout`, as passed to the reconstruction. */
   hashlocks: readonly string[];
   /**
@@ -94,12 +92,11 @@ export function toRefundInputs(
     htlcVout,
     depositorBtcPubkey,
     applicationEntryPoint,
-    fundedPrePeginTxHex,
     hashlocks,
     network,
   } = options;
 
-  const { candidate, peginAmounts } = result;
+  const { candidate, peginAmounts, fundedPrePeginTxHex } = result;
   const { offchainParams, participants } = candidate;
 
   if (hashlocks.length !== peginAmounts.length) {

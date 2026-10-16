@@ -82,12 +82,29 @@ export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
  * still in the queue hands over to the watch instead of holding the lock in
  * its submitting phase, where "Stop waiting" is never offered. Repay's
  * approve uses it too; it has no watch, so a queued Safe approve fails after
- * one round and releases the lock.
+ * one round and releases the lock. It is also the budget for each wait for a
+ * receipt to reach AAVE_WRITE_CONFIRMATIONS, in `executeTx` and in the watch:
+ * a receipt that does not get there in time is held as unconfirmed, not
+ * reported. That budget is checked between re-reads, so an RPC read that
+ * hangs can overrun it by the read's own timeout.
  */
 export const RECEIPT_WAIT_ROUND_MS = 60 * 1000;
 
 /** Pause between rounds of that wait: one 12 s slot, the soonest a new block can change the answer. */
 export const RECEIPT_RETRY_DELAY_MS = 12 * 1000;
+
+/**
+ * How deep an Aave write's transaction must be, counting its own block, before
+ * its outcome is reported: success, a revert or a replacement. viem's receipt
+ * says nothing about a later reorganization, and a transaction mined again
+ * after one can end differently, so a borrow shown as failed could still have
+ * gone through, and a repay shown as done might not have. Ethereum
+ * reorganizations are almost always of the tip block alone (a late block the
+ * next proposer builds past), so two blocks cover those and the third is
+ * margin for a rarer deeper one, at about 24 s per write. The check re-reads
+ * the chain itself (`clients/eth-contract/canonicalReceipt.ts`).
+ */
+export const AAVE_WRITE_CONFIRMATIONS = 3;
 
 /**
  * When the "Stop waiting" action appears on an unconfirmed transaction (about

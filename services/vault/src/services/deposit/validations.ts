@@ -153,6 +153,15 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * available rather than letting the flow bind to an unquoted fresh read.
    */
   commissionUnavailable: boolean;
+  /**
+   * True when a provider is selected but its Ethereum registration (pegin)
+   * fee hasn't been quoted (still fetching or the read failed). Registration
+   * charges this fee from the ETH wallet only after the Bitcoin signing
+   * steps, so block until the depositor has seen the quote.
+   */
+  pegInFeeUnavailable: boolean;
+  /** True when the pegin fee read failed; selects the error label over the loading one. */
+  isPegInFeeError: boolean;
   isFeeError: boolean;
   feeError: string | null;
   feeDisabled: boolean;
@@ -166,6 +175,11 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   hasWalletConnectionError: boolean;
   /** True while a reconnect attempt is in flight. Forces the CTA disabled. */
   isReconnectingWallet: boolean;
+  /**
+   * True when the BTC wallet is locked. The reconnect CTA then reads "Unlock
+   * Wallet to Deposit", so the action matches the cause.
+   */
+  isWalletLocked: boolean;
   /**
    * Fee-adjusted maximum depositable amount in satoshis (balance minus the BTC
    * network fee, and the depositor claim value once a provider is selected).
@@ -186,6 +200,11 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * "Deposit" while clicks silently no-op.
    */
   capUnavailable: boolean;
+  /**
+   * True when no protocol-wide live-vault slot is free, so the registration
+   * would revert with `LiveVaultCapExceeded`.
+   */
+  isLiveVaultCapReached: boolean;
   /**
    * Exact per-HTLC PegIn (activation) tx fee in satoshis from the WASM
    * `computeMinPeginFee` query. Null while the query is still loading or
@@ -360,6 +379,13 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     };
   }
 
+  // Protocol capacity, so it comes after the lasting blocks above. It comes
+  // before the wallet branches: those keep the CTA clickable, and the submit
+  // guard drops every click while no live-vault slot is free.
+  if (params.isLiveVaultCapReached) {
+    return { disabled: true, label: COPY.deposit.liveVaultCapReached.cta };
+  }
+
   if (!params.isWalletConnected) {
     return params.canConnectBtcWallet
       ? { disabled: false, label: COPY.wallet.btcAction.connect }
@@ -368,8 +394,17 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
 
   // Promote wallet-liveness failure to the CTA so the user can recover in one
   // click. The button stays enabled (clicking triggers reconnection) unless a
-  // reconnect attempt is already running.
+  // reconnect attempt is already running. A locked wallet takes the same
+  // action, under an unlock label.
   if (params.hasWalletConnectionError) {
+    if (params.isWalletLocked) {
+      return {
+        disabled: params.isReconnectingWallet,
+        label: params.isReconnectingWallet
+          ? COPY.wallet.locked.unlocking
+          : COPY.wallet.locked.unlockToDepositButton,
+      };
+    }
     return {
       disabled: params.isReconnectingWallet,
       label: params.isReconnectingWallet
@@ -516,6 +551,15 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // "Minimum" isn't preempted by a transient commission load.
   if (params.commissionUnavailable) {
     return { disabled: true, label: "Loading commission..." };
+  }
+
+  if (params.pegInFeeUnavailable) {
+    return {
+      disabled: true,
+      label: params.isPegInFeeError
+        ? "Fee estimate unavailable"
+        : "Calculating fees...",
+    };
   }
 
   if (params.ordinalsCheckPending) {

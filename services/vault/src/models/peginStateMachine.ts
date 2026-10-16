@@ -313,7 +313,8 @@ export interface GetPeginStateOptions {
 /**
  * Contract statuses that agree with a returned activation, or have not caught
  * up with it: VERIFIED while the indexer lags behind the receipt, then
- * REDEEMED, then DEPOSITOR_WITHDRAWN once the payout lands. The mark, in the
+ * REDEEMED, then DEPOSITOR_WITHDRAWN once the payout lands, or
+ * NON_DEPOSITOR_SPEND when a vault keeper claimed the BTC instead. The mark, in the
  * session store or on the deposit record, is only written from the receipt's
  * proof that the registry redeemed the vault, a terminal transition, so no
  * other status should ever pair with it — ACTIVE in particular. Kept as a
@@ -325,6 +326,7 @@ const ACTIVATION_RETURNED_CONTRACT_STATUSES: ReadonlySet<ContractStatus> =
     ContractStatus.VERIFIED,
     ContractStatus.REDEEMED,
     ContractStatus.DEPOSITOR_WITHDRAWN,
+    ContractStatus.NON_DEPOSITOR_SPEND,
   ]);
 
 /**
@@ -1020,6 +1022,16 @@ function getDisplay(
     };
   }
 
+  // The vault output went to a vault keeper, not to the depositor's payout
+  // address: a loss the depositor has to be told about, not a completed redeem.
+  if (contractStatus === ContractStatus.NON_DEPOSITOR_SPEND) {
+    return {
+      displayLabel: PEGIN_DISPLAY_LABELS.CLAIMED_BY_KEEPER,
+      displayVariant: "danger",
+      message: COPY.pegin.messages.claimedByKeeper,
+    };
+  }
+
   return {
     displayLabel: PEGIN_DISPLAY_LABELS.UNKNOWN,
     displayVariant: "inactive",
@@ -1039,7 +1051,8 @@ function getSweptWhileExpiredDisplay(
 ): DisplayInfo {
   const claimWindow = options.claimExpiredWindow;
   // The redeem landed — confirmed by this session, or already reported by the
-  // chain while the indexer lags — so the vault provider is paying out.
+  // chain while the indexer lags — so the row reads as the redemption the
+  // indexer reports next.
   if (
     options.localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED ||
     claimWindow?.state === "redeemed"
@@ -1320,7 +1333,8 @@ export function isVaultPastActivation(state: PeginState | undefined): boolean {
     contractStatus === ContractStatus.ACTIVE ||
     contractStatus === ContractStatus.REDEEMED ||
     contractStatus === ContractStatus.LIQUIDATED ||
-    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN
+    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN ||
+    contractStatus === ContractStatus.NON_DEPOSITOR_SPEND
   );
 }
 
@@ -1387,6 +1401,7 @@ export function shouldRemoveFromLocalStorage(
     contractStatus === ContractStatus.LIQUIDATED ||
     contractStatus === ContractStatus.INVALID ||
     contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN ||
+    contractStatus === ContractStatus.NON_DEPOSITOR_SPEND ||
     contractStatus === ContractStatus.EXPIRED
   ) {
     return true;

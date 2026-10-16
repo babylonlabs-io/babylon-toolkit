@@ -29,12 +29,6 @@ export const TELEMETRY_EVENT = {
   DEPOSIT_COMPLETED: "deposit.completed",
   /** VP daemon reported a terminal drop (Expired / AmlRejected / ...) — the deposit leaves the funnel. */
   ACTIVATION_DAEMON_TERMINAL: "activation.daemon.terminal",
-  /** Redemption terminal success — the BTC payout tx is broadcast to the depositor. */
-  EXIT_REDEEM_PAYOUT_BROADCAST: "exit.redeem.payout_broadcast",
-  /** Redemption blocked terminal — claim/assert on-chain but the BTC payout is blocked. */
-  EXIT_REDEEM_PAYOUT_BLOCKED: "exit.redeem.payout_blocked",
-  /** Pegout polling gave up (consecutive failures / unknown status / provider not found). */
-  EXIT_REDEEM_PEGOUT_TIMEOUT: "exit.redeem.pegout_timeout",
   /** Recovery artifacts downloaded for the first time — the RETRIEVE_SECRET gate is passable. */
   ACTIVATION_ARTIFACTS_DOWNLOADED: "activation.artifacts.downloaded",
   /** The VP kept reporting "still processing" past the stall threshold — depositor is stuck waiting. */

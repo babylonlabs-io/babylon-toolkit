@@ -1,13 +1,13 @@
 /**
- * Position-capacity gate for a resumed Pre-PegIn broadcast.
+ * Position-capacity gate before a Pre-PegIn broadcast (fresh and resumed).
  *
  * Activation runs the adapter's size check once per vault and, on failure, the
  * registry redeems the vault instead of activating it
  * (vault-contracts-aave-v4@06f46477:src/protocol/BTCVaultRegistry.sol:751-760)
  * — after the BTC is locked, with the fees spent. A position that filled up,
- * or whose limits governance lowered, between registration and the resume
- * broadcast would hit exactly that. This asks the vault's own application
- * before this attempt broadcasts anything.
+ * or whose limits governance lowered, between registration and the broadcast
+ * would hit exactly that. This asks the vault's own application before any
+ * attempt, new or resumed, broadcasts anything.
  *
  * One `allowedToDeposit(depositor, batchSize, batchAmount)` read stands in for
  * every per-vault activation check
@@ -21,14 +21,11 @@
  * (vault-contracts-aave-v4@06f46477:src/applications/aave/AaveAdapter.sol:137;
  * `vaultActivationService.ts`).
  *
- * The batch is whatever the broadcast funds, so it comes from the transaction,
- * not from the listing: the hash-bound Pre-PegIn's HTLC outputs, each of which
- * must be held by exactly one of this depositor's vaults on chain. The listing
- * is the indexer's, and it is verified rather than filtered: every listed
- * vault must be registered on chain to this Pre-PegIn, depositor and
- * application, or the broadcast is refused. A sibling dropped silently would
- * otherwise be marked as confirmed by a broadcast that never funded it, and an
- * under-listed batch would ask about too few vaults and pass.
+ * The transaction's HTLC outputs define the resumed batch. Each listed vault
+ * must hold one output and be registered to this Pre-PegIn, depositor and
+ * application. Refuse an incomplete batch or a mismatched vault. Otherwise,
+ * success could mark an unfunded vault as confirmed. A new deposit passes
+ * `assertPositionAcceptsBatch` the batch it built and funded itself.
  *
  * Advisory, and fail closed. The read is a snapshot that reserves nothing: a
  * concurrent activation or a later parameter change can still fail activation,
@@ -227,6 +224,40 @@ function assertBatchCoversEveryHtlc(
 }
 
 /**
+ * Refuse unless the application would accept `vaultCount` more vaults
+ * totalling `amount` satoshis into the depositor's position. Fails closed.
+ *
+ * @throws {PositionCapacityExceededError} the application says the position
+ *   would exceed its BTCVault count or BTC limit.
+ * @throws {PositionCapacityUnavailableError} the read failed.
+ */
+export async function assertPositionAcceptsBatch({
+  vaultId,
+  applicationEntryPoint,
+  depositor,
+  vaultCount,
+  amount,
+}: {
+  vaultId: Hex;
+  applicationEntryPoint: Address;
+  depositor: Address;
+  vaultCount: number;
+  amount: bigint;
+}): Promise<void> {
+  const allowed = await readAllowedToDeposit({
+    applicationEntryPoint,
+    vaultReceiver: depositor,
+    nVaultsToDeposit: BigInt(vaultCount),
+    amountToDeposit: amount,
+  }).catch(
+    capacityUnavailable(vaultId, "read allowedToDeposit from the application"),
+  );
+  if (!allowed) {
+    throw new PositionCapacityExceededError({ vaultId, vaultCount, amount });
+  }
+}
+
+/**
  * Refuse unless the vault's application would accept the whole batch into the
  * depositor's position.
  *
@@ -235,6 +266,8 @@ function assertBatchCoversEveryHtlc(
  * transaction already reached Bitcoin from elsewhere, where over-counting can
  * only refuse a redundant rebroadcast.
  *
+ * @returns The ids of every vault this Pre-PegIn funds (the selected vault
+ *   first), as proven against the chain, the same set the broadcast funds.
  * @throws {PositionCapacityExceededError} the application says the position
  *   would exceed its BTCVault count or BTC limit.
  * @throws {BatchSiblingMismatchError} a listed vault is registered on chain
@@ -248,7 +281,7 @@ function assertBatchCoversEveryHtlc(
  */
 export async function assertResumePositionCapacity(
   params: AssertResumePositionCapacityParams,
-): Promise<void> {
+): Promise<readonly Hex[]> {
   const { vaultId, target, unsignedTxHex, batchVaultIds } = params;
 
   // Keyed by lowercase id so a listing that repeats a vault in another case
@@ -301,19 +334,12 @@ export async function assertResumePositionCapacity(
   assertBatchCoversEveryHtlc(vaultId, htlcCount, members);
 
   const amount = members.reduce((sum, member) => sum + member.amount, 0n);
-  const allowed = await readAllowedToDeposit({
+  await assertPositionAcceptsBatch({
+    vaultId,
     applicationEntryPoint: target.applicationEntryPoint,
-    vaultReceiver: target.depositor,
-    nVaultsToDeposit: BigInt(htlcCount),
-    amountToDeposit: amount,
-  }).catch(
-    capacityUnavailable(vaultId, "read allowedToDeposit from the application"),
-  );
-  if (!allowed) {
-    throw new PositionCapacityExceededError({
-      vaultId,
-      vaultCount: htlcCount,
-      amount,
-    });
-  }
+    depositor: target.depositor,
+    vaultCount: htlcCount,
+    amount,
+  });
+  return members.map((member) => member.vaultId);
 }

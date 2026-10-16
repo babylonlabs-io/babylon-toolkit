@@ -15,6 +15,7 @@ import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { ACTIVITIES_QUERY_KEY } from "@/services/activity";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
+import { parseBtcToSatoshis } from "@/utils/btcConversion";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { useVaultActions } from "./useVaultActions";
@@ -59,8 +60,13 @@ export interface UseActivationStateResult {
   outcome: ActivationOutcome | null;
   /** Error message if activation failed */
   error: string | null;
-  /** True when the error is terminal (activation deadline passed) — no Retry. */
+  /** True when no retry can change the error (a passed deadline, an EXPIRED vault, an endpoint that cannot run the activation check) — no Retry. */
   errorTerminal: boolean;
+  /**
+   * True when the wallet refused the reveal as "nonce too low" but may have
+   * broadcast it — shown as a warning, not a failure, and no Retry.
+   */
+  errorOutcomeUnknown: boolean;
   /** Handler to initiate activation with the user-entered secret */
   handleActivation: (secretHex: string) => Promise<void>;
 }
@@ -75,6 +81,7 @@ export function useActivationState({
     activating: vaultActivating,
     activationError,
     activationErrorTerminal,
+    activationOutcomeUnknown,
     handleActivation: vaultHandleActivation,
   } = useVaultActions();
   const [localActivating, setLocalActivating] = useState(false);
@@ -141,26 +148,20 @@ export function useActivationState({
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
             // Optimistically surface the just-activated vault in the dashboard
             // Collateral section while the Aave indexer catches up (~15s gap).
-            // Skip a bogus row if the amount can't be parsed to a positive BTC
-            // value — the indexer-driven row will still appear within seconds.
-            // Only when the receipt shows the adapter added the vault as
-            // collateral: the registry can confirm an activation and redeem the
-            // vault instead (a cap exceeded, or escape-hatch mode), and the
+            // Skip a bogus row if the amount does not parse to a positive
+            // satoshi value — the indexer-driven row will still appear within
+            // seconds. Only when the receipt shows the adapter added the vault
+            // as collateral: the registry can confirm an activation and redeem
+            // the vault instead (a cap exceeded, or escape-hatch mode), and the
             // indexer then never lists it to clear the row. Also ahead of the
             // guard: the row lives in the app-level provider in RootLayout,
             // not in this consumer.
-            const amountBtc = parseFloat(
-              activity.collateral.amount.replace(/,/g, ""),
-            );
-            if (
-              collateralAdded &&
-              Number.isFinite(amountBtc) &&
-              amountBtc > 0
-            ) {
+            const amountSats = parseBtcToSatoshis(activity.collateral.amount);
+            if (collateralAdded && amountSats > 0n) {
               addActivatingVault({
                 vaultId: activity.id,
                 depositorEthAddress,
-                amountBtc,
+                amountSats,
                 providerAddress: activity.providers[0]?.id,
               });
             }
@@ -199,6 +200,7 @@ export function useActivationState({
     outcome,
     error: activationError,
     errorTerminal: activationErrorTerminal,
+    errorOutcomeUnknown: activationOutcomeUnknown,
     handleActivation,
   };
 }

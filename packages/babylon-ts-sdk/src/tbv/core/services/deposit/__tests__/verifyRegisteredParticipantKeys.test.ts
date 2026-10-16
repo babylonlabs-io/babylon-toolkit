@@ -1,7 +1,12 @@
 import type { Hex } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
-import type { VaultRegistryReader } from "../../../clients/eth/types";
+import type {
+  KeyEpochs,
+  OperationKeyQuery,
+  RawPayoutScripts,
+  VaultRegistryReader,
+} from "../../../clients/eth/types";
 import {
   EPOCH_AFTER_ROTATION,
   EPOCH_GENESIS,
@@ -12,6 +17,7 @@ import {
 import { resolveParticipantKeysAtEpochs } from "../../participants/resolveParticipantKeys";
 import {
   isParticipantKeyDriftError,
+  isUnsupportedPayoutScriptError,
   verifyRegisteredParticipantKeys,
 } from "../verifyRegisteredParticipantKeys";
 import { isRegisteredVaultVersionMismatchError } from "../verifyRegisteredVaultVersions";
@@ -106,6 +112,35 @@ describe("verifyRegisteredParticipantKeys", () => {
         expected,
       }),
     ).rejects.toThrow(new RegExp(`vault ${VAULT_ID}: vault keeper keys`, "i"));
+  });
+
+  it("refuses a non-standard keeper payout script before broadcast", async () => {
+    const expected = await keySetAt(EPOCH_AFTER_ROTATION);
+    const nonStandardScript = `0x${"51".repeat(50)}` as Hex;
+
+    class NonStandardKeeperScriptReader extends FakeOperationKeyReader {
+      async getPayoutScriptsAtEpochs(
+        query: OperationKeyQuery,
+        epochs: KeyEpochs,
+      ): Promise<RawPayoutScripts> {
+        const scripts = await super.getPayoutScriptsAtEpochs(query, epochs);
+        return {
+          ...scripts,
+          vaultKeepers: [nonStandardScript, ...scripts.vaultKeepers.slice(1)],
+        };
+      }
+    }
+
+    const error = await verifyRegisteredParticipantKeys({
+      vaultRegistryReader: registryReaderReturning(EPOCH_AFTER_ROTATION),
+      operationKeyReader: new NonStandardKeeperScriptReader(),
+      vaultIds: [VAULT_ID],
+      expected,
+    }).catch((e: unknown) => e);
+
+    expect(isUnsupportedPayoutScriptError(error)).toBe(true);
+    expect(isParticipantKeyDriftError(error)).toBe(false);
+    expect((error as Error).message).toMatch(/was not broadcast/i);
   });
 
   it("does nothing for an empty vault list", async () => {

@@ -4,8 +4,10 @@
 
 Transport clients for the external systems the SDK talks to (Ethereum, Bitcoin mempool, vault provider RPC).
 
-Use the `eth` readers for authoritative vault / protocol / signer-set data at the version a vault pinned
-at registration — signing-critical values must not come from the indexer mirror.
+Use the `eth` readers for authoritative vault, protocol and signer-set data — signing-critical values
+must not come from the indexer mirror. Rosters at a vault's pinned membership versions hold registration
+keys; the keys a vault's scripts commit to are RFC-006 operation keys, read with `ViemOperationKeyReader`:
+current ones for a fresh deposit, and the ones at the vault's frozen epochs for any existing vault.
 
 ## Classes
 
@@ -126,7 +128,11 @@ Reads RFC-006 operation keys and payout scripts.
 Usage:
 ```ts
 const reader = new ViemOperationKeyReader(publicClient, contracts);
-const keys = await reader.getCurrentOperationKeys(query);
+// A fresh deposit: the keys current at the block the deposit is built at.
+const current = await reader.getCurrentOperationKeys(query, blockNumber);
+// An existing vault (refund, resume, payout, claim): the keys at its
+// frozen epochs, from `VaultRegistryReader.getVaultKeyEpochs(vaultId)`.
+const frozen = await reader.getOperationKeysAtEpochs(query, epochs);
 ```
 
 #### Implements
@@ -657,6 +663,12 @@ blockNumber?): Promise<AddressBTCKeyPair[]>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
 
+Read the keeper roster at a membership version. Each entry's `btcPubKey`
+is the keeper's registration key, not necessarily the key its scripts
+use: for an existing vault resolve the roster at the vault's frozen
+epochs (`readStampedParticipantKeys`); for a fresh deposit use
+`validateOnChainParticipantKeys`.
+
 ###### Parameters
 
 ###### appEntryPoint
@@ -810,6 +822,12 @@ getUniversalChallengersByVersion(version, blockNumber?): Promise<AddressBTCKeyPa
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
+
+Read the universal challenger roster at a membership version. Each
+entry's `btcPubKey` is the challenger's registration key, not necessarily
+the key its scripts use: for an existing vault resolve the roster at the
+vault's frozen epochs (`readStampedParticipantKeys`); for a fresh deposit
+use `validateOnChainParticipantKeys`.
 
 ###### Parameters
 
@@ -1892,8 +1910,10 @@ release(peginTxid): void;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
 Evict the entry for `peginTxid`. Idempotent. Called on terminal
-paths — activation success, user-cancel, or component unmount —
-so `authAnchorHex` doesn't outlive the deposit session.
+paths — activation success, or a resume screen that primed its own
+entry unmounting — so `authAnchorHex` doesn't outlive the deposit. A
+cancelled deposit flow keeps its entry, so finishing from the dashboard
+in the same tab can reuse it; the registry is in memory only.
 
 ###### Parameters
 
@@ -4114,6 +4134,11 @@ btcPubKey: `0x${string}`;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
+The member's *registration* (genesis) key as the roster lists it. Under
+RFC-006 a member can rotate its operation key without changing the
+roster, so this is not necessarily the key a Bitcoin script commits to:
+resolve operation keys with [OperationKeyReader](#operationkeyreader).
+
 ***
 
 ### VaultKeeperReader
@@ -4148,6 +4173,12 @@ blockNumber?): Promise<AddressBTCKeyPair[]>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read the keeper roster at a membership version. Each entry's `btcPubKey`
+is the keeper's registration key, not necessarily the key its scripts
+use: for an existing vault resolve the roster at the vault's frozen
+epochs (`readStampedParticipantKeys`); for a fresh deposit use
+`validateOnChainParticipantKeys`.
 
 ###### Parameters
 
@@ -4254,6 +4285,12 @@ getUniversalChallengersByVersion(version, blockNumber?): Promise<AddressBTCKeyPa
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read the universal challenger roster at a membership version. Each
+entry's `btcPubKey` is the challenger's registration key, not necessarily
+the key its scripts use: for an existing vault resolve the roster at the
+vault's frozen epochs (`readStampedParticipantKeys`); for a fresh deposit
+use `validateOnChainParticipantKeys`.
 
 ###### Parameters
 
@@ -8262,7 +8299,7 @@ Use this when consuming `status` from `getVaultBasicInfo` /
 
 Do NOT confuse with the app-side `ContractStatus` enum
 (`services/deposit/peginState.ts`) — that one is for the indexer and
-extends this with values 5-7, reassigning 4 to LIQUIDATED. Reading an
+extends this with values 5-8, reassigning 4 to LIQUIDATED. Reading an
 on-chain status through `ContractStatus[n]` for labels will mislabel
 Expired(4) as LIQUIDATED.
 

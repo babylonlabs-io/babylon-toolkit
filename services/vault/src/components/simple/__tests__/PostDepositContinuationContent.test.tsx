@@ -51,6 +51,7 @@ function renderContent() {
     <PostDepositContinuationContent
       vaultIds={[REAL_ID, DEMO_ID] as unknown as `0x${string}`[]}
       depositorEthAddress={"0xdepositor" as unknown as `0x${string}`}
+      autoStartAction={null}
       onClose={() => {}}
     />,
   );

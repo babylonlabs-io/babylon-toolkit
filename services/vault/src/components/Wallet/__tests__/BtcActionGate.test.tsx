@@ -133,4 +133,92 @@ describe("BtcActionGate", () => {
     expect(getByTestId("gated-child")).toBeInTheDocument();
     expect(queryByTestId("btc-action-unlock")).not.toBeInTheDocument();
   });
+
+  it("names the operation and mounts nothing when a ready wallet was not asked to start", () => {
+    wallet.state.connected = true;
+    wallet.state.confirmed = true;
+    wallet.state.loading = false;
+    const { getByText, getByTestId, queryByTestId } = render(
+      <BtcActionGate
+        onClose={vi.fn()}
+        autoStart={false}
+        start={{ heading: "Do the thing", body: "It does it.", button: "Go" }}
+      >
+        <div data-testid="gated-child" />
+      </BtcActionGate>,
+    );
+
+    expect(getByText("Do the thing")).toBeInTheDocument();
+    expect(getByText("It does it.")).toBeInTheDocument();
+    expect(getByTestId("btc-action-start")).toHaveTextContent("Go");
+    expect(getByTestId("btc-action-cancel")).toBeInTheDocument();
+    expect(queryByTestId("btc-action-retry")).not.toBeInTheDocument();
+    expect(queryByTestId("gated-child")).not.toBeInTheDocument();
+  });
+
+  it("mounts the children when the named start button is clicked", () => {
+    wallet.state.connected = true;
+    wallet.state.confirmed = true;
+    wallet.state.loading = false;
+    const { getByTestId } = render(
+      <BtcActionGate
+        onClose={vi.fn()}
+        autoStart={false}
+        start={{ heading: "Do the thing", body: "It does it.", button: "Go" }}
+      >
+        <div data-testid="gated-child" />
+      </BtcActionGate>,
+    );
+
+    fireEvent.click(getByTestId("btc-action-start"));
+
+    expect(getByTestId("gated-child")).toBeInTheDocument();
+  });
+
+  it("keeps the generic Retry screen when no start copy is given", () => {
+    wallet.state.connected = true;
+    wallet.state.confirmed = true;
+    wallet.state.loading = false;
+    const { getByText, getByTestId, queryByTestId } = render(
+      <BtcActionGate onClose={vi.fn()} autoStart={false}>
+        <div data-testid="gated-child" />
+      </BtcActionGate>,
+    );
+
+    expect(getByText(COPY.wallet.btcAction.heading)).toBeInTheDocument();
+    expect(getByTestId("btc-action-retry")).toBeInTheDocument();
+    expect(queryByTestId("btc-action-start")).not.toBeInTheDocument();
+    expect(queryByTestId("gated-child")).not.toBeInTheDocument();
+  });
+
+  it("lands on the named start card after an unlock when the flow was not asked to start", async () => {
+    wallet.state.connected = true;
+    wallet.state.confirmed = true;
+    wallet.state.loading = false;
+    wallet.state.locked = true;
+    const start = {
+      heading: "Do the thing",
+      body: "It does it.",
+      button: "Go",
+    };
+    const { getByTestId, getByText, queryByTestId, rerender } = render(
+      <BtcActionGate onClose={vi.fn()} autoStart={false} start={start}>
+        <div data-testid="gated-child" />
+      </BtcActionGate>,
+    );
+
+    await act(async () => {
+      fireEvent.click(getByTestId("btc-action-unlock"));
+    });
+    wallet.state.locked = false;
+    rerender(
+      <BtcActionGate onClose={vi.fn()} autoStart={false} start={start}>
+        <div data-testid="gated-child" />
+      </BtcActionGate>,
+    );
+
+    expect(getByText("Do the thing")).toBeInTheDocument();
+    expect(getByTestId("btc-action-start")).toBeInTheDocument();
+    expect(queryByTestId("gated-child")).not.toBeInTheDocument();
+  });
 });

@@ -703,6 +703,26 @@ describe("usePayoutSigningState", () => {
       });
       expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
     });
+
+    it("routes a wrong-app device from the liveness check to the payout error mapper, not the unresponsive copy", async () => {
+      // The mapper's wrong-app copy names the app to open.
+      mockVerifyBtcWalletLiveness.mockRejectedValueOnce(
+        Object.assign(new Error("Wrong app is open"), {
+          code: "DEVICE_WRONG_APP",
+        }),
+      );
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.error).toEqual({
+        title: "Sign Error",
+        message: "Wrong app is open",
+      });
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+    });
   });
 
   describe("unmount cleanup", () => {

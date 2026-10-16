@@ -1,5 +1,6 @@
 export {
   configureBabylonConfig,
+  getDeploymentKind,
   type BabylonConfigOptions,
   type BabylonConfigState,
   type EthChainId,

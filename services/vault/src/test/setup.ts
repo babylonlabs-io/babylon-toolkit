@@ -27,6 +27,7 @@ vi.mock("@/config", async () => {
       displayUSD: false,
     }),
     getBTCNetwork: () => "signet",
+    getDeploymentKind: () => "test",
     CONTRACTS: {}, // Mock other exports as needed
     ENV: {},
     FeatureFlags: {},
@@ -46,6 +47,7 @@ vi.mock("@/config/network", () => ({
     network: "signet",
   }),
   getBTCNetwork: () => "signet",
+  getDeploymentKind: () => "test",
   getNetworkConfigETH: () => ({
     name: "Ethereum Sepolia",
     chainId: 11155111,

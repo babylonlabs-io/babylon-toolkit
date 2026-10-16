@@ -99,8 +99,9 @@ export default {
    * DISABLE_VAULT_CAP feature flag
    *
    * Purpose: Kill-switch to hide the vault supply-cap UI (dashboard section
-   * and deposit-form remaining-capacity check). When enabled, the hook
-   * short-circuits without any on-chain CapPolicy reads.
+   * and deposit-form remaining-capacity check) and the deposit form's
+   * live-vault cap check. When enabled, the hooks short-circuit without any
+   * on-chain CapPolicy reads.
    * Why needed: Feature is on by default; this flag lets DevOps quickly
    * disable it per environment without a code change.
    * Default: false (vault cap is enabled unless explicitly set to "true")
@@ -117,8 +118,8 @@ export default {
    * different device app and a different transport stack from the legacy
    * `ledger_btc` / `ledger_btc_v2` staking adapters.
    * Why needed: the full deposit flow is implemented (intent ceremony, PoP,
-   * Pre-PegIn and payout signing) — reclaim of the depositor-claim reserve is
-   * not (#2375; see `models/reclaimEligibility.ts`) — but Ledger's
+   * Pre-PegIn and payout signing, and reclaim of the depositor-claim
+   * reserve), but Ledger's
    * firmware is still in review, so the wallet ships per environment: it must
    * stay invisible
    * everywhere by default while Ledger can switch it on in a test environment

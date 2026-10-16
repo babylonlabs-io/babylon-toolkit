@@ -41,9 +41,13 @@ import {
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
 import { supportsCancelSigning } from "../../../utils/cancelSigning";
-import { isDeviceDisconnectedError } from "../../../utils/errors/deviceErrors";
+import {
+  isDeviceDisconnectedError,
+  isDeviceWrongAppError,
+} from "../../../utils/errors/deviceErrors";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
+import { isWalletIncompatibleVersion } from "../../../utils/errors/walletIncompatibleVersion";
 import { observeSigningProgress } from "../../../utils/signingProgress";
 
 export interface SigningError {
@@ -245,16 +249,19 @@ export function usePayoutSigningState({
         });
       } catch (err) {
         if (controller.signal.aborted) return;
-        // A lost hardware-device session keeps its own copy, which the
-        // progress view recognises to offer a reconnect from the click.
-        if (isDeviceDisconnectedError(err)) {
+        // A lost hardware-device session or a device showing the wrong app
+        // keeps its own copy (reconnect, or open the vault app); the progress
+        // view recognises the disconnect to offer a reconnect from the click.
+        // An unsupported wallet version shows its own update message below.
+        if (isDeviceDisconnectedError(err) || isDeviceWrongAppError(err)) {
           setError(formatPayoutSignatureError(err));
           return;
         }
         setError({
           title: COPY.wallet.liveness.errorTitle,
           message:
-            err instanceof BtcWalletLivenessError
+            err instanceof BtcWalletLivenessError ||
+            (err instanceof Error && isWalletIncompatibleVersion(err))
               ? err.message
               : COPY.wallet.liveness.unresponsive,
         });

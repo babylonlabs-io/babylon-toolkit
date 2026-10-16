@@ -94,7 +94,7 @@ are in [`src/core/types.ts`](../src/core/types.ts).
 | `getAddress` | `() => Promise<string>` | Get BTC address. The depositor identity for vault deposits is a Taproot account (P2TR `bc1p…` / `tb1p…`). |
 | `getPublicKeyHex` | `() => Promise<string>` | Get public key hex. Taproot: x-only (32 bytes, 64 hex, no `0x`). Compressed (33 bytes) also accepted — SDK strips first byte. |
 | `signPsbt` | `(psbtHex: string, options?: SignPsbtOptions) => Promise<string>` | Sign a single PSBT. See [SignPsbtOptions](#signpsbtoptions). |
-| `signPsbts` | `(psbtsHexes: string[], options?: SignPsbtOptions[]) => Promise<string[]>` | Batch sign PSBTs in one prompt. Falls back to sequential `signPsbt()` if unavailable. |
+| `signPsbts` | `(psbtsHexes: string[], options?: SignPsbtOptions[]) => Promise<string[]>` | Sign several PSBTs in one call, ideally under one approval. Falls back to sequential `signPsbt()` if unavailable. A provider that runs one device ceremony per PSBT ticks `subscribeSigningProgress` after each committed ceremony. |
 | `signMessage` | `(message: string, type: "bip322-simple" \| "ecdsa") => Promise<string>` | Sign a message. TBV uses `"bip322-simple"` for PoP. See [PoP message format](#pop-message-format). |
 | `deriveContextHash` | `(appName: string, context: string) => Promise<string>` | Derive 32-byte value via HKDF-SHA-256. See [deriveContextHash](#derivecontexthash) and [the conformance vectors][vectors]. |
 | `getNetwork` | `() => Promise<Network>` | Get BTC network. Wallet must operate on the network the dApp is configured for (signet vs mainnet); mismatch must error. |

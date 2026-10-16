@@ -30,6 +30,12 @@ export interface CollateralVaultEntry {
   prePeginTxHash?: string;
   /** Vault amount in BTC (converted from satoshis) */
   amountBtc: number;
+  /**
+   * Raw vault amount in satoshis. On an indexed row this is the indexer's
+   * `amount`, which is never authoritative: the signing guards bind it to the
+   * `BTCVaultRegistry` amount before any transaction is signed.
+   */
+  amountSats: bigint;
   /** Unix timestamp in seconds when added as collateral */
   addedAt: number;
   /** Whether the vault is currently in use as collateral */

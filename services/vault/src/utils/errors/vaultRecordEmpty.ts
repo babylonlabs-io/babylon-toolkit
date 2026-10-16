@@ -1,7 +1,8 @@
 /**
  * Classifier for the registry reader's empty-vault-record error.
  *
- * The SDK reader (`getVaultData` / `getProtocolInfoBatch`) throws a bare
+ * The SDK reader (`getVaultData` / `getProtocolInfoBatch` /
+ * `getVaultKeyEpochs` / `getVaultKeyEpochsBatch`) throws a bare
  * `Error` when `depositorSignedPeginTx` reads back as `"0x"`. That state
  * conflates a genuinely absent vault with an RPC node that has not yet
  * indexed the registration's block — a lagging node answers HTTP 200 with a
@@ -14,7 +15,7 @@
 
 /**
  * Substring of the reader's throw. Kept narrow enough to be unambiguous and
- * wide enough to match both readers, whose messages differ in their prefix.
+ * wide enough to match every reader, whose messages differ in their prefix.
  */
 const EMPTY_VAULT_RECORD_MESSAGE = "not found on-chain";
 

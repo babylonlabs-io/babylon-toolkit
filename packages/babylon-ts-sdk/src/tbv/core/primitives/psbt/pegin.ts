@@ -56,11 +56,28 @@ export interface PrePeginParams {
   vaultCoreVersion: number;
   /** Depositor's BTC public key (x-only, 64-char hex without 0x prefix) */
   depositorPubkey: string;
-  /** Vault provider's BTC public key (x-only, 64-char hex) */
+  /**
+   * Vault provider's RFC-006 operation key (x-only, 64-char hex). A fresh
+   * deposit uses the current key, read at one pinned block; rebuilding an
+   * existing vault's Pre-PegIn (a refund) uses the key at the vault's frozen
+   * `vpKeyEpoch`. Never the registration key or the indexer's copy.
+   */
   vaultProviderPubkey: string;
-  /** Array of vault keeper BTC public keys (x-only, 64-char hex) */
+  /**
+   * Vault keepers' RFC-006 operation keys (x-only, 64-char hex): current for
+   * a fresh deposit, at the vault's frozen `appKeeperKeyEpoch` when
+   * rebuilding. The roster (`getVaultKeepersByVersion`) holds registration
+   * keys, which differ from these once a keeper has rotated before the
+   * deposit was built.
+   */
   vaultKeeperPubkeys: string[];
-  /** Array of universal challenger BTC public keys (x-only, 64-char hex) */
+  /**
+   * Universal challengers' RFC-006 operation keys (x-only, 64-char hex):
+   * current for a fresh deposit, at the vault's frozen `ucKeyEpoch` when
+   * rebuilding. The roster (`getUniversalChallengersByVersion`) holds
+   * registration keys, which differ from these once a challenger has rotated
+   * before the deposit was built.
+   */
   universalChallengerPubkeys: string[];
   /** SHA256 hash commitment(s) (64 hex chars = 32 bytes each) */
   hashlocks: readonly string[];
@@ -72,7 +89,12 @@ export interface PrePeginParams {
   feeRate: bigint;
   /** Minimum PegIn fee rate in sat/vB from contract offchain params; sizes the PegIn tx fee */
   minPeginFeeRate: bigint;
-  /** Number of local challengers (from contract params) */
+  /**
+   * Number of local challengers in the depositor's own claim graph, which this
+   * value sizes (through the depositor claim value): the vault keeper count.
+   * (A vault provider's or a keeper's claim graph uses a different rule: the
+   * vault provider and the keepers, minus the claimer.)
+   */
   numLocalChallengers: number;
   /** M in M-of-N council multisig (from contract params) */
   councilQuorum: number;

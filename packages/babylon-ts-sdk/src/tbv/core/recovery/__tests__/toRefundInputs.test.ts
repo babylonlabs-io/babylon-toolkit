@@ -199,7 +199,6 @@ describe("toRefundInputs", () => {
       htlcVout,
       depositorBtcPubkey: DEPOSITOR,
       applicationEntryPoint: APP_ENTRY_POINT,
-      fundedPrePeginTxHex: txHex,
       hashlocks: siblings.map((s) => s.hashlock),
       network: NETWORK,
     });
@@ -245,7 +244,6 @@ describe("toRefundInputs", () => {
       htlcVout: 0,
       depositorBtcPubkey: DEPOSITOR,
       applicationEntryPoint: APP_ENTRY_POINT,
-      fundedPrePeginTxHex: txHex,
       hashlocks: siblings.map((s) => s.hashlock),
       network: NETWORK,
     });
@@ -306,7 +304,6 @@ describe("toRefundInputs", () => {
       htlcVout: 0,
       depositorBtcPubkey: DEPOSITOR,
       applicationEntryPoint: APP_ENTRY_POINT,
-      fundedPrePeginTxHex: txHex,
       hashlocks: siblings.map((s) => s.hashlock),
       network: NETWORK,
     });
@@ -331,7 +328,6 @@ describe("toRefundInputs", () => {
       htlcVout: 1,
       depositorBtcPubkey: DEPOSITOR,
       applicationEntryPoint: APP_ENTRY_POINT,
-      fundedPrePeginTxHex: txHex,
       hashlocks: siblings.map((s) => s.hashlock),
       network: NETWORK,
     });
@@ -363,7 +359,6 @@ describe("toRefundInputs", () => {
       htlcVout: 0,
       depositorBtcPubkey: compressed,
       applicationEntryPoint: APP_ENTRY_POINT,
-      fundedPrePeginTxHex: txHex,
       hashlocks: siblings.map((s) => s.hashlock),
       network: NETWORK,
     });
@@ -383,7 +378,6 @@ describe("toRefundInputs", () => {
         htlcVout: 1,
         depositorBtcPubkey: DEPOSITOR,
         applicationEntryPoint: APP_ENTRY_POINT,
-        fundedPrePeginTxHex: txHex,
         hashlocks: siblings.map((s) => s.hashlock),
         network: NETWORK,
       }),
@@ -402,7 +396,6 @@ describe("toRefundInputs", () => {
         htlcVout: 0,
         depositorBtcPubkey: DEPOSITOR,
         applicationEntryPoint: APP_ENTRY_POINT,
-        fundedPrePeginTxHex: txHex,
         hashlocks: ["ab".repeat(32), "cd".repeat(32)],
         network: NETWORK,
       }),

@@ -27,6 +27,9 @@ export interface BorrowMarketRow {
 const MARKET_COLUMN_CLASS = "w-[180px] shrink-0";
 const HUB_COLUMN_CLASS = "w-[140px] shrink-0";
 const DATA_COLUMN_CLASS = "min-w-0 flex-1";
+const MOBILE_CELL_CLASS =
+  "max-md:flex max-md:w-full max-md:basis-full max-md:items-start max-md:justify-between max-md:gap-4";
+const MOBILE_LABEL_CLASS = "md:hidden";
 const HEADER_TEXT_CLASS =
   "text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary";
 const PRIMARY_VALUE_CLASS =
@@ -54,8 +57,8 @@ export function BorrowMarketsTable({ rows }: { rows: BorrowMarketRow[] }) {
       data-testid="borrow-markets-table"
     >
       <div className="w-full overflow-x-auto">
-        <div className="flex min-w-[1040px] flex-col gap-4">
-          <div className="flex items-center px-4">
+        <div className="flex flex-col gap-4 md:min-w-[1040px]">
+          <div className="flex items-center px-4 max-md:hidden">
             <div className={`${MARKET_COLUMN_CLASS} ${HEADER_TEXT_CLASS}`}>
               {columns.asset}
             </div>
@@ -88,7 +91,7 @@ export function BorrowMarketsTable({ rows }: { rows: BorrowMarketRow[] }) {
               {rows.map((row) => (
                 <div
                   key={row.reserveId}
-                  className="flex h-20 w-full items-center rounded-xl bg-background-secondary p-4"
+                  className="flex h-20 w-full items-center rounded-xl bg-background-secondary p-4 max-md:h-auto max-md:flex-wrap max-md:gap-y-2"
                   data-testid={`borrow-market-row-${row.reserveId}`}
                 >
                   <div
@@ -109,55 +112,91 @@ export function BorrowMarketsTable({ rows }: { rows: BorrowMarketRow[] }) {
                     </div>
                   </div>
 
-                  <div className={HUB_COLUMN_CLASS}>
+                  <div className={`${HUB_COLUMN_CLASS} ${MOBILE_CELL_CLASS}`}>
+                    <span
+                      className={`${HEADER_TEXT_CLASS} ${MOBILE_LABEL_CLASS}`}
+                    >
+                      {COPY.loans.hub.label}
+                    </span>
                     <HubLabel hub={row.hub} className={PRIMARY_VALUE_CLASS} />
                   </div>
 
-                  <div className={DATA_COLUMN_CLASS}>
+                  <div className={`${DATA_COLUMN_CLASS} ${MOBILE_CELL_CLASS}`}>
+                    <span
+                      className={`${HEADER_TEXT_CLASS} ${MOBILE_LABEL_CLASS}`}
+                    >
+                      {columns.borrowApr}
+                    </span>
                     <span className={PRIMARY_VALUE_CLASS}>{row.aprLabel}</span>
                   </div>
 
-                  <div className={DATA_COLUMN_CLASS}>
+                  <div className={`${DATA_COLUMN_CLASS} ${MOBILE_CELL_CLASS}`}>
+                    <span
+                      className={`${HEADER_TEXT_CLASS} ${MOBILE_LABEL_CLASS}`}
+                    >
+                      {columns.available}
+                    </span>
                     <span className={PRIMARY_VALUE_CLASS}>
                       {row.availableLabel}
                     </span>
                   </div>
 
-                  <div className={`${DATA_COLUMN_CLASS} flex flex-col gap-3`}>
-                    <span className={PRIMARY_VALUE_CLASS}>
-                      {row.utilizationLabel}
+                  <div className={`${DATA_COLUMN_CLASS} ${MOBILE_CELL_CLASS}`}>
+                    <span
+                      className={`${HEADER_TEXT_CLASS} ${MOBILE_LABEL_CLASS}`}
+                    >
+                      {columns.utilization}
                     </span>
-                    {row.utilizationRatio === null ? null : (
-                      <div
-                        role="presentation"
-                        className="h-1 w-20 overflow-hidden rounded-full bg-secondary-strokeLight dark:bg-secondary-strokeDark"
-                      >
+                    <div className="flex flex-col gap-3 max-md:items-end">
+                      <span className={PRIMARY_VALUE_CLASS}>
+                        {row.utilizationLabel}
+                      </span>
+                      {row.utilizationRatio === null ? null : (
                         <div
-                          className="h-full rounded-full bg-secondary-main"
-                          style={{
-                            width: `${clampUtilizationRatio(row.utilizationRatio) * UTILIZATION_PERCENT_MULTIPLIER}%`,
-                          }}
-                        />
-                      </div>
-                    )}
+                          role="presentation"
+                          className="h-1 w-20 overflow-hidden rounded-full bg-secondary-strokeLight dark:bg-secondary-strokeDark"
+                        >
+                          <div
+                            className="h-full rounded-full bg-secondary-main"
+                            style={{
+                              width: `${clampUtilizationRatio(row.utilizationRatio) * UTILIZATION_PERCENT_MULTIPLIER}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className={`${DATA_COLUMN_CLASS} flex min-w-0 flex-col`}>
-                    <span className={PRIMARY_VALUE_CLASS}>
-                      {row.borrowedUsdLabel}
+                  <div className={`${DATA_COLUMN_CLASS} ${MOBILE_CELL_CLASS}`}>
+                    <span
+                      className={`${HEADER_TEXT_CLASS} ${MOBILE_LABEL_CLASS}`}
+                    >
+                      {columns.borrowed}
                     </span>
-                    <span className={SECONDARY_VALUE_CLASS}>
-                      {row.borrowedTokenLabel}
-                    </span>
+                    <div className="flex min-w-0 flex-col max-md:items-end">
+                      <span className={PRIMARY_VALUE_CLASS}>
+                        {row.borrowedUsdLabel}
+                      </span>
+                      <span className={SECONDARY_VALUE_CLASS}>
+                        {row.borrowedTokenLabel}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className={`${DATA_COLUMN_CLASS} flex min-w-0 flex-col`}>
-                    <span className={PRIMARY_VALUE_CLASS}>
-                      {row.suppliedUsdLabel}
+                  <div className={`${DATA_COLUMN_CLASS} ${MOBILE_CELL_CLASS}`}>
+                    <span
+                      className={`${HEADER_TEXT_CLASS} ${MOBILE_LABEL_CLASS}`}
+                    >
+                      {columns.supplied}
                     </span>
-                    <span className={SECONDARY_VALUE_CLASS}>
-                      {row.suppliedTokenLabel}
-                    </span>
+                    <div className="flex min-w-0 flex-col max-md:items-end">
+                      <span className={PRIMARY_VALUE_CLASS}>
+                        {row.suppliedUsdLabel}
+                      </span>
+                      <span className={SECONDARY_VALUE_CLASS}>
+                        {row.suppliedTokenLabel}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}

@@ -7,18 +7,20 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import type { Hex } from "viem";
-import { useAccount, useWalletClient } from "wagmi";
+import type { Address, Hex } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
 import { assertNoTransactionInFlight } from "@/clients/eth-contract/transactionInFlight";
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
   ErrorCode,
+  SendOutcomeUnknownError,
   TransactionReplacedError,
   WalletError,
   isWriteNotice,
@@ -28,11 +30,15 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { getAaveAdapterAddress } from "../config";
 import {
+  CollateralAmountMismatchError,
+  CollateralRegistryReadError,
   PositionChangedError,
+  assertCollateralAmountsMatchOnChain,
   assertOptimalOrderMatchesOnChain,
   assertReorderBaseline,
   assertReorderMembership,
   reorderVaultOrder,
+  type CollateralAmountPair,
   type ReorderVerificationContext,
 } from "../services";
 import {
@@ -42,23 +48,44 @@ import {
 
 import { usePendingAaveWrite } from "./usePendingAaveWrite";
 
-export interface ExecuteReorderOptions {
-  /**
-   * Trusted calculator inputs from the auto-suggestion CTA. When provided,
-   * the hook re-runs the optimizer against on-chain amounts and refuses to
-   * sign if the result diverges from the submitted permutation. Manual
-   * drag-and-drop reorders omit this so users can pick non-optimal orders.
-   */
-  optimalOrderContext?: ReorderVerificationContext;
-  /**
-   * The on-chain vault ordering the caller observed at the time it built
-   * the submission (e.g. the modal-open snapshot). When provided, the hook
-   * refuses to sign if the live ordering has drifted from this baseline
-   * — closes the same-set/different-order race the on-chain
-   * `InvalidVaultsArray` check cannot catch.
-   */
-  expectedCurrentVaultIds?: readonly Hex[];
-}
+/**
+ * Which pre-sign guards a reorder runs, keyed by where the submission comes
+ * from. The literal `kind` is required: a structural union would accept a
+ * mixed literal and silently skip the amount check.
+ */
+export type ExecuteReorderOptions =
+  | {
+      /** The auto-suggestion banner CTA. */
+      kind: "optimal";
+      /**
+       * Trusted calculator inputs. The hook re-runs the optimizer against
+       * on-chain amounts and refuses to sign if the result diverges from the
+       * submitted permutation.
+       */
+      optimalOrderContext: ReorderVerificationContext;
+    }
+  | {
+      /** The drag-and-drop modal. */
+      kind: "manual";
+      /**
+       * The vaults and amounts the user reviewed at modal open, in the
+       * on-chain order observed then. The hook refuses to sign if the live
+       * ordering has drifted from this baseline (the same-set/different-order
+       * race the on-chain `InvalidVaultsArray` check cannot catch), or if any
+       * reviewed amount differs from the registry.
+       */
+      expectedCurrentVaults: readonly CollateralAmountPair[];
+    }
+  | {
+      /** The split-order repair card; its signed order is registry-derived. */
+      kind: "baseline";
+      /**
+       * The on-chain vault ordering the caller observed when it built the
+       * submission. The hook refuses to sign if the live ordering has drifted
+       * from it.
+       */
+      expectedCurrentVaultIds: readonly Hex[];
+    };
 
 export interface UseReorderVaultsResult {
   /**
@@ -68,7 +95,7 @@ export interface UseReorderVaultsResult {
    */
   executeReorder: (
     permutedVaultIds: Hex[],
-    options?: ExecuteReorderOptions,
+    options: ExecuteReorderOptions,
   ) => Promise<boolean>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
@@ -81,9 +108,9 @@ export interface UseReorderVaultsResult {
   error: string | null;
   /**
    * Last outcome that is not a failure (null when none): a refusal before
-   * anything was signed, a wallet replacement that may have done the
-   * reorder, or another Aave form's write holding the lock. Shown without the
-   * failure title.
+   * anything was signed, a wallet replacement or a "nonce too low" for a
+   * broadcast send, either of which may have done the reorder, or another Aave
+   * form's write holding the lock. Shown without the failure title.
    */
   notice: string | null;
   /** Clear the last failure message and notice (e.g. when the modal reopens). */
@@ -91,28 +118,49 @@ export interface UseReorderVaultsResult {
 }
 
 /**
+ * The message shown under the action for a failed reorder. A stale baseline
+ * or an amount the registry does not confirm is its own user-facing error so
+ * the user understands they need to refresh, not retry. Retry with the same
+ * stale input cannot help.
+ */
+function reorderErrorMessage(error: unknown): string {
+  if (error instanceof PositionChangedError) return error.message;
+  if (error instanceof CollateralAmountMismatchError) {
+    return COPY.reorder.collateralAmountsChanged;
+  }
+  if (error instanceof CollateralRegistryReadError) {
+    return COPY.reorder.collateralVerificationFailed;
+  }
+  if (error instanceof Error) {
+    return mapViemErrorToContractError(error, "Reorder Vaults").message;
+  }
+  return COPY.reorder.unexpectedError;
+}
+
+/**
  * Hook for executing vault reorder transactions.
  *
  * Handles:
  * 1. Wallet validation
- * 2. On-chain integrity guards (membership; optimal-order recompute when
- *    invoked from the auto-suggestion CTA)
+ * 2. On-chain integrity guards (membership; then, by `options.kind`, the
+ *    optimal-order recompute, the baseline check, or the baseline check
+ *    followed by the per-vault amount check)
  * 3. Reorder transaction execution
  *
  * After a success, cache invalidation is deferred to the success modal close
  * handler to give the indexer time to process the block. When the outcome is
- * unknown (the user stopped waiting, or the wallet replaced the transaction)
- * there is no success modal, so the hook refreshes the position itself.
+ * unknown (the user stopped waiting, the wallet replaced the transaction, or
+ * the wallet refused as "nonce too low" a send it may have broadcast) there is
+ * no success modal, so the hook refreshes the position itself.
  */
 export function useReorderVaults(): UseReorderVaultsResult {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+  const account = useETHWallet().address as Address | undefined;
   const queryClient = useQueryClient();
   const gate = useProtocolGateState();
-  const pendingWrite = usePendingAaveWrite(address);
+  const pendingWrite = usePendingAaveWrite(account);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -120,7 +168,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
   }, []);
 
   const executeReorder = useCallback(
-    async (permutedVaultIds: Hex[], options?: ExecuteReorderOptions) => {
+    async (permutedVaultIds: Hex[], options: ExecuteReorderOptions) => {
       // Reorder is an aave-scope entry action: Freeze or Pause blocks it. Guard
       // the shared execution chokepoint so neither the banner CTA nor the
       // reorder modal can broadcast while blocked, regardless of how the handler
@@ -132,54 +180,71 @@ export function useReorderVaults(): UseReorderVaultsResult {
       setNotice(null);
       setIsProcessing(true);
       try {
-        if (!walletClient) {
+        if (!account) {
           throw new WalletError(
             COPY.wallet.connectToContinue,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }
 
-        if (!address) {
-          throw new WalletError(
-            COPY.wallet.addressUnavailable,
-            ErrorCode.WALLET_NOT_CONNECTED,
-          );
-        }
-
         // The account's Aave lock covers the pre-sign checks too, so a second
         // call made while they run is refused instead of sent after this one.
-        const outcome = await runAaveWrite(address, async () => {
+        const outcome = await runAaveWrite(account, async () => {
           // A reorder this page did not see (sent before a reload, or from
           // another tab) may still be pending.
           await assertNoTransactionInFlight({
             publicClient: ethClient.getPublicClient(),
-            account: address,
+            account,
           });
 
           const adapterAddress = getAaveAdapterAddress();
 
           const currentVaultIds = await assertReorderMembership(
             adapterAddress,
-            address,
+            account,
             permutedVaultIds,
           );
 
-          if (options?.expectedCurrentVaultIds) {
-            assertReorderBaseline(
-              currentVaultIds,
-              options.expectedCurrentVaultIds,
-            );
+          // The baseline check is pure over Guard A's result, so it runs
+          // before any registry read.
+          switch (options.kind) {
+            case "optimal":
+              await assertOptimalOrderMatchesOnChain(
+                permutedVaultIds,
+                currentVaultIds,
+                adapterAddress,
+                options.optimalOrderContext,
+              );
+              break;
+            case "manual":
+              assertReorderBaseline(
+                currentVaultIds,
+                options.expectedCurrentVaults.map((vault) => vault.vaultId),
+              );
+              await assertCollateralAmountsMatchOnChain(
+                options.expectedCurrentVaults,
+                adapterAddress,
+              );
+              break;
+            case "baseline":
+              assertReorderBaseline(
+                currentVaultIds,
+                options.expectedCurrentVaultIds,
+              );
+              break;
+            default: {
+              // Exhaustive over `ExecuteReorderOptions`: a kind with no
+              // guards must refuse, never sign.
+              const unknownOptions: never = options;
+              throw new Error(
+                `Reorder options have no guards for kind ${String(
+                  (unknownOptions as { kind?: unknown }).kind,
+                )}`,
+              );
+            }
           }
 
-          if (options?.optimalOrderContext) {
-            await assertOptimalOrderMatchesOnChain(
-              permutedVaultIds,
-              currentVaultIds,
-              adapterAddress,
-              options.optimalOrderContext,
-            );
-          }
-
+          const walletClient = await getWalletClientOnExpectedChain(account);
           await reorderVaultOrder(
             walletClient,
             getETHChain(),
@@ -193,36 +258,30 @@ export function useReorderVaults(): UseReorderVaultsResult {
         await invalidateVaultQueries(queryClient);
         return false;
       } catch (error) {
-        // The wallet replaced the transaction. A speed-up may still have done
-        // the reorder, so the position must show the chain's order.
-        if (error instanceof TransactionReplacedError) {
+        // The wallet replaced the transaction, or refused as "nonce too low" a
+        // send it may have broadcast. Either may still have done the reorder,
+        // so the position must show the chain's order.
+        if (
+          error instanceof TransactionReplacedError ||
+          error instanceof SendOutcomeUnknownError
+        ) {
           await invalidateVaultQueries(queryClient);
         }
-        // Not a failure: a refusal before anything was signed, or a
-        // replacement that may have done the reorder.
+        // Not a failure: a refusal before anything was signed, or an outcome
+        // that may have done the reorder.
         if (isWriteNotice(error)) {
           setNotice(error.message);
           return false;
         }
         logger.error(error, { data: { context: "Reorder vaults failed" } });
-        // Surface a stale-baseline mismatch as its own user-facing error so
-        // the user understands they need to refresh, not retry. Retry with
-        // the same stale baseline cannot help.
-        const isPositionChanged = error instanceof PositionChangedError;
-        const mappedError = isPositionChanged
-          ? error
-          : error instanceof Error
-            ? mapViemErrorToContractError(error, "Reorder Vaults")
-            : new Error(COPY.reorder.unexpectedError);
-
-        setError(mappedError.message);
+        setError(reorderErrorMessage(error));
 
         return false;
       } finally {
         setIsProcessing(false);
       }
     },
-    [walletClient, address, queryClient, gate],
+    [account, queryClient, gate],
   );
 
   // Another Aave form's write holds the lock while it is signed or sent, so

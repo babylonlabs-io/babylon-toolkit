@@ -69,6 +69,8 @@ export async function ensureDevServer(
   log(`Starting vault dev server: pnpm run ${script} (cwd ${VAULT_DIR})`);
   const child = spawn("pnpm", ["run", script], {
     cwd: VAULT_DIR,
+    // Pin the profile so the app serves the same deployment the pre-flight read.
+    env: { ...process.env, NEXT_PUBLIC_TBV_NETWORK: NETWORKS[network].profile },
     detached: true,
     stdio: "ignore",
   });
