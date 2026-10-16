@@ -2134,6 +2134,8 @@ export const COPY = {
       // The claim -> challenge period -> payout path, in the words of
       // `pegin.messages.redemptionInProgress`: no promise and no day count.
       body: "Your withdrawal has been submitted. The vault provider claims the BTC on Bitcoin and, after a challenge period, pays it to your payout address, minus its commission.",
+      reserveReminder:
+        "Your deposit set aside BTC to fund a backup claim. If these funds are unused, you can reclaim them from Inactive Vaults after the payout has 6 confirmations on Bitcoin.",
       doneButton: "Done",
     },
   },

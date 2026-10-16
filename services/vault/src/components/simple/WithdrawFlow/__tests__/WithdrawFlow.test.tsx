@@ -381,6 +381,9 @@ describe("WithdrawFlow selection step", () => {
 
     expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
     expect(screen.getByText("0.8 sBTC")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.withdraw.initiated.reserveReminder),
+    ).not.toBeInTheDocument();
 
     await vi.waitFor(() =>
       expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
@@ -389,6 +392,12 @@ describe("WithdrawFlow selection step", () => {
 
     await vi.waitFor(() =>
       expect(executeWithdraw).toHaveBeenCalledWith([FIRST_VAULT, SECOND_VAULT]),
+    );
+    const reminder = await screen.findByText(
+      COPY.withdraw.initiated.reserveReminder,
+    );
+    expect(reminder.previousElementSibling).toHaveTextContent(
+      COPY.withdraw.initiated.body,
     );
   });
 });
