@@ -258,6 +258,7 @@ function SimpleDepositContent({
     isEffectiveSplit && vaultAmounts ? vaultAmounts.length : 1;
 
   const {
+    feeWei: protocolFeeWei,
     feeEthFormatted: protocolFeeAmount,
     feeUsdFormatted: protocolFeePrice,
     isError: protocolFeeIsError,
@@ -531,6 +532,7 @@ function SimpleDepositContent({
                   depositorClaimValue: totalDepositorClaimValue,
                   commissionBaseValues,
                   depositorClaimValueError,
+                  protocolFeeWei,
                   protocolFeeAmount,
                   protocolFeePrice,
                   protocolFeeIsError,
