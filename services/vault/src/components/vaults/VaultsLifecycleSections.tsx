@@ -598,8 +598,9 @@ function InactiveRow({
         )}
       </div>
 
-      {/* Reserved even when neither action is available nor blocked, so an
-          actionless row still aligns with the rows that carry a button. */}
+      {/* From md up, reserved even when neither action is available nor
+          blocked, so an actionless row still aligns with the rows that carry a
+          button. On a phone an empty slot is hidden. */}
       <div
         className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full max-md:empty:hidden`}
       >
