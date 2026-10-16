@@ -17,6 +17,7 @@ import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDep
 import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import {
+  ContractStatus,
   getPeginProgressStep,
   getWarningPeginDisplayStep,
   hasActionableStep,
@@ -167,14 +168,28 @@ export function PostDepositContinuationView({
     );
   };
 
+  // Only a PENDING vault is polled, so only its poll can still answer. A later
+  // status keeps the last PENDING tick's error for good; do not hold on it.
+  const isUnresolved = (id: string): boolean => {
+    const result = getPollingResult(id);
+    return (
+      !!result &&
+      isCandidateVault(result.peginState) &&
+      result.peginState.contractStatus === ContractStatus.PENDING &&
+      (result.loading || result.error !== null)
+    );
+  };
+
   // Prefer a vault with an available action over a waiting sibling.
-  // Keep that vault selected while its action remains available. A new action
-  // on a sibling must not unmount active signing. Progress still updates live.
+  // Keep that vault selected while its action remains available, or while its
+  // poll failed or has not answered yet. A new action on a sibling must not
+  // unmount active signing. Release on a resolved snapshot without an action.
   const [stickyVaultId, setStickyVaultId] = useState<string | null>(null);
+  const heldActionsRef = useRef<readonly PeginAction[]>([]);
   const heldVaultId =
     stickyVaultId !== null &&
     vaultIds.includes(stickyVaultId as Hex) &&
-    isActionable(stickyVaultId)
+    (isActionable(stickyVaultId) || isUnresolved(stickyVaultId))
       ? stickyVaultId
       : null;
   const actionableVaultId = heldVaultId ?? vaultIds.find(isActionable) ?? null;
@@ -194,6 +209,13 @@ export function PostDepositContinuationView({
   useEffect(() => {
     setStickyVaultId(actionableVaultId);
   }, [actionableVaultId]);
+
+  // A finished step must not stay held on a failing poll: release it so a
+  // sibling's action can show, then refresh.
+  const handleStepSuccess = useCallback(() => {
+    setStickyVaultId(null);
+    refetchRef.current();
+  }, []);
 
   const pollingResult = currentVaultId
     ? getPollingResult(currentVaultId)
@@ -340,7 +362,12 @@ export function PostDepositContinuationView({
     return <VaultActivatedView onGoToDashboard={handleGoToDashboard} />;
   }
 
-  const actions = peginState?.availableActions ?? [];
+  const liveActions = peginState?.availableActions ?? [];
+  // While the held vault's poll is unresolved, keep its last actions so the
+  // running step stays mounted.
+  const holdThrough = heldVaultId !== null && !isActionable(heldVaultId);
+  if (!holdThrough) heldActionsRef.current = liveActions;
+  const actions = holdThrough ? heldActionsRef.current : liveActions;
 
   // God-mode: a demo vault renders a SAFE view — never the real Resume*Content,
   // which, once started (auto-start or its Start card), fires wallet signing /
@@ -405,7 +432,7 @@ export function PostDepositContinuationView({
         batchVaultIds={siblingVaultIds}
         depositorEthAddress={depositorEthAddress}
         onClose={onClose}
-        onSuccess={refetch}
+        onSuccess={handleStepSuccess}
       />
     );
   }
@@ -418,7 +445,7 @@ export function PostDepositContinuationView({
         activity={activity}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}
-        onSuccess={refetch}
+        onSuccess={handleStepSuccess}
       />
     );
   }
@@ -438,7 +465,7 @@ export function PostDepositContinuationView({
         depositorEthAddress={depositorEthAddress}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}
-        onSuccess={refetch}
+        onSuccess={handleStepSuccess}
       />
     );
   }
