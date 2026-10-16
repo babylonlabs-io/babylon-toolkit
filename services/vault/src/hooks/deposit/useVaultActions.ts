@@ -97,7 +97,10 @@ import {
   activationRedeemedForDepositor,
 } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
-import { verifyResumeParticipantKeys } from "../../services/vault/verifyResumeParticipantKeys";
+import {
+  verifyResumeParticipantKeys,
+  verifyResumePayoutScripts,
+} from "../../services/vault/verifyResumeParticipantKeys";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import {
   shouldProbeWalletLiveness,
@@ -436,7 +439,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       // PENDING. The batch is sized from the hash-checked transaction's HTLC
       // outputs, so an under-listed batch cannot pass. Fails closed when the
       // check cannot be read or the batch is incomplete.
-      await assertResumePositionCapacity({
+      const fundedVaultIds = await assertResumePositionCapacity({
         vaultId,
         target: {
           depositor: finalBasicInfo.depositor,
@@ -448,6 +451,11 @@ export function useVaultActions(): UseVaultActionsReturn {
         unsignedTxHex,
         batchVaultIds,
       });
+      if (signal.aborted) return;
+
+      // Presign refuses a non-standard payout script only after broadcast, so
+      // check every funded vault here, in one batch.
+      await verifyResumePayoutScripts({ vaultIds: fundedVaultIds });
       if (signal.aborted) return;
 
       // Get BTC wallet provider

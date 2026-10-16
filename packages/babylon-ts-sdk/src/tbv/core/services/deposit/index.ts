@@ -68,7 +68,10 @@ export {
 } from "./validation";
 export {
   ParticipantKeyDriftError,
+  UnsupportedPayoutScriptError,
+  assertStandardPayoutScriptsAtEpochs,
   isParticipantKeyDriftError,
+  isUnsupportedPayoutScriptError,
   verifyRegisteredParticipantKeys,
   type VerifyRegisteredParticipantKeysParams,
 } from "./verifyRegisteredParticipantKeys";

@@ -80,6 +80,7 @@ import {
   isPeginRegistrationMissingError,
   isPeginRegistrationNotFinalError,
   isRegisteredVaultVersionMismatchError,
+  isUnsupportedPayoutScriptError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -419,6 +420,12 @@ export function mapDepositError(err: unknown): DepositErrorContent {
           ? `PeginFingerprintChanged expected=${err.expected} actual=${err.actual}`
           : "PeginFingerprintChanged (revert data carried no fingerprints)",
     };
+  }
+
+  // 3b''. Non-standard operator payout script, refused before broadcast. Frozen
+  // at the vault's epochs, so retry cannot help.
+  if (isUnsupportedPayoutScriptError(err)) {
+    return ERRORS.unsupportedPayoutScript;
   }
 
   // 3c. Ethereum registration finality gate. Both cases stop the flow BEFORE

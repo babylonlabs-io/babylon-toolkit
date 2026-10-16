@@ -62,6 +62,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   isRegisteredVaultVersionMismatchError: vi.fn(() => false),
   isApplicationEntryPointMismatchError: vi.fn(() => false),
   isParticipantKeyDriftError: vi.fn(() => false),
+  isUnsupportedPayoutScriptError: vi.fn(() => false),
   isPeginFingerprintChangedError: vi.fn(() => false),
   isPeginFingerprintInputError: vi.fn(() => false),
   isPeginRegistrationMissingError: vi.fn(() => false),
