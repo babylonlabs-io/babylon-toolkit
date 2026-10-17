@@ -10,9 +10,7 @@
  * same place. Below `md` that gutter would swallow a phone screen, so it drops
  * to the phone page gutter there.
  *
- * A margin, and deliberately not PAGE_CONTENT_CLASS: that class carries
- * `!w-auto` to undo a core-ui `container`, and on an ordinary element the
- * `!important` beats `w-full` and collapses the box to its content width.
+ * Uses margins so the top bar keeps this inset without the page width cap.
  */
 export const MODAL_TOP_BAR_GUTTER_CLASS = "mx-4 md:mx-[120px]";
 
@@ -21,13 +19,11 @@ export const MODAL_TOP_BAR_GUTTER_CLASS = "mx-4 md:mx-[120px]";
  * container; `!` overrides core-ui `<Container>`/`Header`'s default `container`
  * width so the navbar and body stay the same width.
  *
- * Fills the column beside the sidebar with a flat 40px gutter (16px on phone,
- * per Figma 12031:122516), as a margin rather than padding so the content
- * itself keeps the full width — `!w-auto` is what lets the margin shrink the
- * box, since `container` would otherwise hold it at `width: 100%` and overflow
- * by the gutter.
+ * Centers a full-width box capped at 1360px. The 40px inner gutters leave
+ * 1280px for content. The phone gutter is 16px, per Figma 12031:122516.
  */
-export const PAGE_CONTENT_CLASS = "!w-auto !max-w-none !px-0 mx-4 md:mx-10";
+export const PAGE_CONTENT_CLASS =
+  "!w-full !max-w-[1360px] !px-4 md:!px-10 mx-auto";
 
 /**
  * Content box of the entry screen, which hides the sidebar and so has no column
