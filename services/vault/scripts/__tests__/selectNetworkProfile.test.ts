@@ -62,7 +62,7 @@ describe("selectNetworkProfile", () => {
     expect(() =>
       selectNetworkProfile({ name: undefined, isCI: true, command: "build" }),
     ).toThrow(
-      "NEXT_PUBLIC_TBV_NETWORK is required in CI. Set it to one of: devnet, e2e-replay, staging, testnet-2",
+      "NEXT_PUBLIC_TBV_NETWORK is required in CI. Set it to one of: devnet, e2e-replay, staging, testnet, testnet-2",
     );
   });
 

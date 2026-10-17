@@ -877,10 +877,10 @@ roles have different review requirements. Satisfy both.
   prefixes. Off `main` its leg is then left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
   has not published it. It also has no immutable per-sha release manifest: that step stays
-  `vault-testnet` only. Its checksums exist only in the checksum bucket, where its own publish
-  role can write a newer version under the same key. That bucket is versioned with Object Lock,
-  so an earlier version is kept, but a plain read returns the newest and no integrity checker
-  watches this environment.
+  `vault-testnet` and `vault-testnet-3` only. Its checksums exist only in the checksum bucket,
+  where its own publish role can write a newer version under the same key. That bucket is
+  versioned with Object Lock, so an earlier version is kept, but a plain read returns the newest
+  and no integrity checker watches this environment.
   Each matrix entry names the profile it builds (`network`) and its `expected_kind`; the job
   checks the profile before the build and the bundle after it (see "Environment
   configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
