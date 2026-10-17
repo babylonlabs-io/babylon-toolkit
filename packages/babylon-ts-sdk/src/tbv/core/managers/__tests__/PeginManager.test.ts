@@ -151,7 +151,13 @@ const TEST_CHAIN: Chain = {
 // Mock public client passed into PeginManager config so tests don't
 // hit HTTP. Mirrors viem's PublicClient surface used by the manager.
 const TEST_PUBLIC_CLIENT = {
-  estimateGas: vi.fn().mockResolvedValue(100000n),
+  prepareTransactionRequest: vi.fn().mockResolvedValue({
+    gas: 100000n,
+    type: "eip1559",
+    maxFeePerGas: 3n,
+    maxPriorityFeePerGas: 1n,
+  }),
+  getBalance: vi.fn().mockResolvedValue(100000n * 3n),
   // Empty bytecode marks the connected wallet as an Externally Owned Account
   // (EOA — controlled by a single private key, e.g. MetaMask), so the
   // smart-account-aware receipt wait delegates directly to
@@ -1629,6 +1635,9 @@ describe("PeginManager", () => {
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
+      Object.assign(ethWallet, {
+        getAddresses: async () => [ethWallet.account.address],
+      });
       const manager = new PeginManager({
         btcNetwork: "signet",
         btcWallet,
@@ -1744,6 +1753,9 @@ describe("PeginManager", () => {
       });
       const ethWallet = new MockEthereumWallet({
         shouldFailOperations: true,
+      });
+      Object.assign(ethWallet, {
+        getAddresses: async () => [ethWallet.account.address],
       });
       const manager = new PeginManager({
         btcNetwork: "signet",
@@ -2066,6 +2078,9 @@ describe("PeginManager", () => {
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
+      Object.assign(ethWallet, {
+        getAddresses: async () => [ethWallet.account.address],
+      });
       const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
       const manager = new PeginManager({
         btcNetwork: "signet",

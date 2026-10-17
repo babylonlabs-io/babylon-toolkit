@@ -1,5 +1,7 @@
 import {
   encodeFunctionData,
+  InsufficientFundsError,
+  isAddress,
   isAddressEqual,
   zeroAddress,
   type Address,
@@ -26,6 +28,7 @@ export const NO_REFERRAL_CODE = 0;
 const UINT8_MAX = 255;
 // Match the prior vault-service timeout. A dropped transaction must not wait forever.
 const RECEIPT_TIMEOUT_MS = 120_000;
+const EIP_7702_DELEGATION_CODE = /^0xef0100[0-9a-f]{40}$/i;
 
 function ensureHex(value: string, label: string): Hex {
   const prefixed = value.startsWith("0x")
@@ -487,18 +490,70 @@ export class ViemPeginRegistrationClient {
     depositor: Address,
   ): Promise<Hex> {
     let account = this.assertEthAccount(depositor);
-    let gas: bigint;
-    try {
-      gas = await this.config.publicClient.estimateGas({
-        to: this.config.btcVaultRegistry,
-        data,
-        value,
-        account,
-      });
-    } catch (error) {
-      handleContractError(error);
-    }
+    const code = await this.config.publicClient.getCode({ address: account });
+    const isSmartAccount =
+      code !== undefined &&
+      code !== "0x" &&
+      !EIP_7702_DELEGATION_CODE.test(code);
+    let gasAndFees;
+    let requiredBalance = value;
+    if (!isSmartAccount) {
+      let request;
+      try {
+        request = await this.config.publicClient.prepareTransactionRequest({
+          to: this.config.btcVaultRegistry,
+          data,
+          value,
+          account,
+          chain: this.config.ethChain,
+          parameters: ["gas", "fees", "type"],
+        });
+      } catch (error) {
+        handleContractError(error);
+      }
 
+      const { gas, type, gasPrice, maxFeePerGas, maxPriorityFeePerGas } =
+        request;
+      const fees =
+        type === "eip1559" &&
+        typeof maxFeePerGas === "bigint" &&
+        typeof maxPriorityFeePerGas === "bigint" &&
+        maxPriorityFeePerGas >= 0n &&
+        maxFeePerGas >= maxPriorityFeePerGas
+          ? { type, maxFeePerGas, maxPriorityFeePerGas }
+          : type === "legacy" && typeof gasPrice === "bigint" && gasPrice >= 0n
+            ? { type, gasPrice }
+            : undefined;
+      if (typeof gas !== "bigint" || gas <= 0n || !fees) {
+        throw new Error(
+          "Failed to prepare registration gas and fees. Try again.",
+        );
+      }
+      gasAndFees = { gas, ...fees };
+      requiredBalance +=
+        gas * (fees.type === "eip1559" ? fees.maxFeePerGas : fees.gasPrice);
+    }
+    const balance = await this.config.publicClient.getBalance({
+      address: this.assertEthAccount(depositor),
+    });
+    if (typeof balance !== "bigint" || balance < 0n) {
+      throw new Error("Failed to read the Ethereum balance. Try again.");
+    }
+    if (balance < requiredBalance) {
+      throw new InsufficientFundsError();
+    }
+    const addresses = await this.config.ethWallet.getAddresses();
+    if (
+      !Array.isArray(addresses) ||
+      !addresses.every(
+        (address) => typeof address === "string" && isAddress(address),
+      ) ||
+      !addresses.some((address) => isAddressEqual(address, depositor))
+    ) {
+      throw new Error(
+        "The Ethereum wallet account is no longer available. Reconnect it and try again.",
+      );
+    }
     account = this.assertEthAccount(depositor);
     let submittedHash: Hex;
     try {
@@ -506,7 +561,7 @@ export class ViemPeginRegistrationClient {
         to: this.config.btcVaultRegistry,
         data,
         value,
-        gas,
+        ...gasAndFees,
         account,
         chain: this.config.ethChain,
       });

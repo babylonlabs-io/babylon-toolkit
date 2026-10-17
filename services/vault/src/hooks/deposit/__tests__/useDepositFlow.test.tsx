@@ -12,7 +12,14 @@ import type {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { Address, Hex } from "viem";
+import {
+  createWalletClient,
+  custom,
+  InsufficientFundsError,
+  type Address,
+  type Hex,
+  type WalletClient,
+} from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CONTRACTS } from "@/config/contracts";
@@ -140,7 +147,28 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  getSharedWagmiConfig: () => ({}),
   useChainConnector: vi.fn(),
+}));
+
+const ethFundsMocks = vi.hoisted(() => ({
+  getBalance: vi.fn(),
+  getPegInFeeFromChain: vi.fn(),
+  account: {
+    address: "0xEthAddress123" as Address,
+    chainId: 11155111,
+    connector: { uid: "deposit-connector" },
+  },
+}));
+vi.mock("wagmi", () => ({ useAccount: () => ethFundsMocks.account }));
+vi.mock("wagmi/actions", () => ({ getAccount: () => ethFundsMocks.account }));
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: () => ({ getBalance: ethFundsMocks.getBalance }),
+  },
+}));
+vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
+  getPegInFeeFromChain: ethFundsMocks.getPegInFeeFromChain,
 }));
 
 // The Ethereum finality gate polls the chain for ~1.6 min in production. It is
@@ -445,9 +473,19 @@ class PrototypeApprovalBtcWallet {
 }
 
 const MOCK_ETH_WALLET = {
-  account: { address: "0xEthAddress123" as Address },
-  chain: { id: 11155111 },
-};
+  ...createWalletClient({
+    account: "0xEthAddress123",
+    chain: getETHChain(),
+    transport: custom({
+      request: vi
+        .fn()
+        .mockRejectedValue(new Error("Unexpected wallet RPC request")),
+    }),
+  }),
+  sendTransaction: vi
+    .fn<() => Promise<Hex>>()
+    .mockResolvedValue("0xBatchEthTxHash"),
+} satisfies WalletClient;
 
 const MOCK_DEPOSITOR_PUBKEY = "ab".repeat(32);
 
@@ -554,6 +592,19 @@ function signingCanceledError() {
 }
 
 async function setupDefaultMocks() {
+  const { useChainConnector } = await import(
+    "@babylonlabs-io/wallet-connector"
+  );
+  vi.mocked(useChainConnector).mockReturnValue(null);
+  ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
+  ethFundsMocks.getPegInFeeFromChain.mockResolvedValue(
+    MOCK_DEPOSIT_TERMS.protocolFeeRate,
+  );
+  ethFundsMocks.account = {
+    address: MOCK_PARAMS.depositorEthAddress,
+    chainId: MOCK_ETH_WALLET.chain.id,
+    connector: { uid: "deposit-connector" },
+  };
   const { useBtcWalletState } = vi.mocked(await import("../useBtcWalletState"));
   const { useProtocolParamsContext } = vi.mocked(
     await import("@/context/ProtocolParamsContext"),
@@ -662,6 +713,473 @@ describe("useDepositFlow", () => {
     await setupDefaultMocks();
   });
 
+  describe("ETH registration payment check", () => {
+    it.each([0n, MOCK_DEPOSIT_TERMS.protocolFeeRate * 2n])(
+      "waits for an ETH top-up before signing with balance %s",
+      async (balance) => {
+        ethFundsMocks.getBalance.mockResolvedValue(balance);
+        const { preparePeginTransaction } = await import(
+          "@/services/vault/vaultTransactionService"
+        );
+        const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+        const pending = result.current.executeDeposit();
+        await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
+        expect(result.current.error).toEqual(
+          DEPOSIT_ERRORS.insufficientEthForGas,
+        );
+        expect(preparePeginTransaction).not.toHaveBeenCalled();
+        ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
+        await act(async () => {
+          result.current.retryDeposit?.();
+          await pending;
+        });
+        expect(result.current.error).toBeNull();
+        expect(preparePeginTransaction).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("retries registration with the same Bitcoin data after a top-up", async () => {
+      const { registerPeginBatchAndWait, signProofOfPossession } = await import(
+        "../depositFlowSteps"
+      );
+      const { preparePeginTransaction } = await import(
+        "@/services/vault/vaultTransactionService"
+      );
+      vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
+        new InsufficientFundsError(),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
+      expect(result.current.currentStep).toBe(DepositFlowStep.SUBMIT_PEGIN);
+      const retry = result.current.retryDeposit;
+      await act(async () => {
+        retry?.();
+        retry?.();
+        await pending;
+      });
+      expect(result.current.error).toBeNull();
+      expect(preparePeginTransaction).toHaveBeenCalledTimes(1);
+      expect(signProofOfPossession).toHaveBeenCalledTimes(1);
+      expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(registerPeginBatchAndWait).mock.calls[1][0]).toEqual(
+        vi.mocked(registerPeginBatchAndWait).mock.calls[0][0],
+      );
+    });
+
+    it("stops a paused registration when the modal closes", async () => {
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
+        new InsufficientFundsError(),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
+      const retry = result.current.retryDeposit;
+      await act(async () => {
+        result.current.abort();
+        retry?.();
+        await pending;
+      });
+      expect(result.current.retryDeposit).toBeNull();
+      expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses a registration retry after the Ethereum account changes", async () => {
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
+        new InsufficientFundsError(),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
+      ethFundsMocks.account.address = CONTRACTS.BTC_VAULT_REGISTRY;
+      await act(async () => {
+        result.current.retryDeposit?.();
+        await pending;
+      });
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+      expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers no registration retry after a send starts", async () => {
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
+        async ({ walletClient }) => {
+          await walletClient.sendTransaction({
+            to: CONTRACTS.BTC_VAULT_REGISTRY,
+            account: walletClient.account!,
+            chain: walletClient.chain,
+          });
+          throw new InsufficientFundsError();
+        },
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+      expect(result.current.retryDeposit).toBeNull();
+      expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
+    });
+
+    it("allows the same balance for one registration payment", async () => {
+      ethFundsMocks.getBalance.mockResolvedValue(
+        MOCK_DEPOSIT_TERMS.protocolFeeRate * 2n,
+      );
+      const { preparePeginTransaction } = await import(
+        "@/services/vault/vaultTransactionService"
+      );
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [MOCK_PARAMS.depositAmountSats],
+        }),
+      );
+      await executeDepositFlow(result);
+      expect(preparePeginTransaction).toHaveBeenCalled();
+      expect(ethFundsMocks.getBalance).toHaveBeenCalledWith({
+        address: MOCK_PARAMS.depositorEthAddress,
+      });
+    });
+
+    it.each(["getBalance", "getPegInFeeFromChain"] as const)(
+      "blocks signing when %s fails",
+      async (read) => {
+        ethFundsMocks[read].mockRejectedValue(new Error("RPC unavailable"));
+        const { preparePeginTransaction } = await import(
+          "@/services/vault/vaultTransactionService"
+        );
+        const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+        await executeDepositFlow(result);
+        expect(result.current.error).toEqual(
+          DEPOSIT_ERRORS.ethBalanceUnavailable,
+        );
+        expect(preparePeginTransaction).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["account", "network", "provider", "amount"])(
+      "stops signing when the %s changes during the balance read",
+      async (changed) => {
+        let finishBalance!: (balance: bigint) => void;
+        ethFundsMocks.getBalance.mockReturnValue(
+          new Promise<bigint>((resolve) => {
+            finishBalance = resolve;
+          }),
+        );
+        const { preparePeginTransaction } = await import(
+          "@/services/vault/vaultTransactionService"
+        );
+        const { result, rerender } = renderHook(
+          (props) => useDepositFlow(props),
+          { initialProps: MOCK_PARAMS },
+        );
+        let pending!: Promise<unknown>;
+        act(() => {
+          pending = result.current.executeDeposit();
+        });
+        await waitFor(() =>
+          expect(ethFundsMocks.getBalance).toHaveBeenCalled(),
+        );
+        if (changed === "account")
+          ethFundsMocks.account = {
+            ...ethFundsMocks.account,
+            address: MOCK_PARAMS.selectedProviders[0] as Address,
+          };
+        if (changed === "network")
+          ethFundsMocks.account = { ...ethFundsMocks.account, chainId: 1 };
+        rerender({
+          ...MOCK_PARAMS,
+          ...(changed === "provider"
+            ? { selectedProviders: [MOCK_PARAMS.selectedApplication] }
+            : {}),
+          ...(changed === "amount"
+            ? { vaultAmounts: [MOCK_PARAMS.depositAmountSats] }
+            : {}),
+        });
+        await act(async () => {
+          finishBalance(MOCK_BATCH_RESULT.fee);
+          await pending;
+        });
+        expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+        expect(preparePeginTransaction).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe("Deposit identity at signing boundaries", () => {
+    it("rejects a same-account connector switch while the wallet client loads", async () => {
+      let finishClient!: (client: WalletClient) => void;
+      const { getWalletClientOnExpectedChain } = await import(
+        "@/clients/eth-contract/walletChain"
+      );
+      vi.mocked(getWalletClientOnExpectedChain).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishClient = resolve;
+          }),
+      );
+      const { preparePeginTransaction } = await import(
+        "@/services/vault/vaultTransactionService"
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      let pending!: Promise<unknown>;
+      act(() => {
+        pending = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(getWalletClientOnExpectedChain).toHaveBeenCalled(),
+      );
+      ethFundsMocks.account = {
+        ...ethFundsMocks.account,
+        connector: { uid: `${ethFundsMocks.account.connector.uid}-changed` },
+      };
+      await act(async () => {
+        finishClient(MOCK_ETH_WALLET);
+        await pending;
+      });
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(MOCK_ETH_WALLET.sendTransaction).not.toHaveBeenCalled();
+    });
+
+    it("refuses to acquire a wallet client without a connector identity", async () => {
+      ethFundsMocks.account.connector.uid = "";
+      const { getWalletClientOnExpectedChain } = await import(
+        "@/clients/eth-contract/walletChain"
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+      expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
+    });
+
+    it("rejects a network change while protocol parameters load", async () => {
+      let finishProtocolRead!: () => void;
+      chainMocks.getPegInConfiguration.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishProtocolRead = () => resolve(chainMocks.peginConfig);
+          }),
+      );
+      const { preparePeginTransaction } = await import(
+        "@/services/vault/vaultTransactionService"
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      let pending!: Promise<unknown>;
+      act(() => {
+        pending = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(chainMocks.getPegInConfiguration).toHaveBeenCalled(),
+      );
+      ethFundsMocks.account = { ...ethFundsMocks.account, chainId: 1 };
+      await act(async () => {
+        finishProtocolRead();
+        await pending;
+      });
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+      expect(ethFundsMocks.getBalance).not.toHaveBeenCalled();
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("accepts the requested chain before React receives its updated state", async () => {
+      ethFundsMocks.account = { ...ethFundsMocks.account, chainId: 1 };
+      const { getWalletClientOnExpectedChain } = await import(
+        "@/clients/eth-contract/walletChain"
+      );
+      vi.mocked(getWalletClientOnExpectedChain).mockImplementationOnce(
+        async () => {
+          ethFundsMocks.account = {
+            ...ethFundsMocks.account,
+            chainId: MOCK_ETH_WALLET.chain.id,
+          };
+          return MOCK_ETH_WALLET;
+        },
+      );
+      const { preparePeginTransaction } = await import(
+        "@/services/vault/vaultTransactionService"
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+      expect(preparePeginTransaction).toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it.each(["derive", "build", "native batch"])(
+      "stops the actual BTC signing call when the account changes during %s",
+      async (phase) => {
+        let finishPreparation!: () => void;
+        const waiting = new Promise<void>((resolve) => {
+          finishPreparation = resolve;
+        });
+        const deriveContextHash = vi.fn(async () => {
+          await waiting;
+          return MOCK_BATCH_RESULT.htlcSecretHexes[0];
+        });
+        const signPsbts = vi.fn<BitcoinWallet["signPsbts"]>();
+        const wallet: BitcoinWallet = {
+          ...MOCK_BTC_WALLET,
+          deriveContextHash,
+          signPsbts,
+          signMessage: vi.fn<BitcoinWallet["signMessage"]>(),
+        };
+        const { preparePeginTransaction } = await import(
+          "@/services/vault/vaultTransactionService"
+        );
+        vi.mocked(preparePeginTransaction).mockImplementationOnce(
+          async (btcWallet) => {
+            if (phase === "derive")
+              await btcWallet.deriveContextHash(
+                "Vault",
+                MOCK_BATCH_RESULT.authAnchorHex,
+              );
+            else await waiting;
+            if (phase === "native batch")
+              await btcWallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
+            else await btcWallet.signPsbt("psbt0", {});
+            return MOCK_BATCH_RESULT;
+          },
+        );
+        const { signProofOfPossession, registerPeginBatchAndWait } =
+          await import("../depositFlowSteps");
+        const { result } = renderHook(() =>
+          useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet }),
+        );
+        let pending!: Promise<unknown>;
+        act(() => {
+          pending = result.current.executeDeposit();
+        });
+        await waitFor(() => expect(preparePeginTransaction).toHaveBeenCalled());
+        ethFundsMocks.account = {
+          ...ethFundsMocks.account,
+          address: MOCK_PARAMS.selectedProviders[0] as Address,
+        };
+        await act(async () => {
+          finishPreparation();
+          await pending;
+        });
+        expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+        expect(MOCK_BTC_WALLET.signPsbt).not.toHaveBeenCalled();
+        expect(signPsbts).not.toHaveBeenCalled();
+        expect(signProofOfPossession).not.toHaveBeenCalled();
+        expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      },
+    );
+
+    it("stops signing when the flow is aborted during derivation", async () => {
+      let finishDerive!: () => void;
+      const deriveContextHash = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            finishDerive = () => resolve(MOCK_BATCH_RESULT.htlcSecretHexes[0]);
+          }),
+      );
+      const { preparePeginTransaction } = await import(
+        "@/services/vault/vaultTransactionService"
+      );
+      vi.mocked(preparePeginTransaction).mockImplementationOnce(
+        async (wallet) => {
+          await wallet.deriveContextHash(
+            "Vault",
+            MOCK_BATCH_RESULT.authAnchorHex,
+          );
+          await wallet.signPsbt("psbt0", {});
+          return MOCK_BATCH_RESULT;
+        },
+      );
+      const wallet: BitcoinWallet = {
+        ...MOCK_BTC_WALLET,
+        deriveContextHash,
+        signPsbts: vi.fn<BitcoinWallet["signPsbts"]>(),
+        signMessage: vi.fn<BitcoinWallet["signMessage"]>(),
+      };
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet }),
+      );
+      let pending!: Promise<unknown>;
+      act(() => {
+        pending = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(deriveContextHash).toHaveBeenCalled());
+      await act(async () => {
+        result.current.abort();
+        finishDerive();
+        await pending;
+      });
+      expect(MOCK_BTC_WALLET.signPsbt).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it.each(["account", "provider", "network", "connector"])(
+      "stops the ETH send when the %s changes during the final preflight",
+      async (changed) => {
+        const originalSend = MOCK_ETH_WALLET.sendTransaction;
+        let finishPreflight!: () => void;
+        const waiting = new Promise<void>((resolve) => {
+          finishPreflight = resolve;
+        });
+        const { registerPeginBatchAndWait } = await import(
+          "../depositFlowSteps"
+        );
+        vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
+          async ({ walletClient }) => {
+            await waiting;
+            await walletClient.sendTransaction({
+              to: MOCK_PARAMS.depositorEthAddress,
+              account: MOCK_PARAMS.depositorEthAddress,
+              chain: getETHChain(),
+            });
+            throw new Error(
+              "The changed deposit must not reach the wallet send",
+            );
+          },
+        );
+        const { result, rerender } = renderHook(() =>
+          useDepositFlow(MOCK_PARAMS),
+        );
+        let pending!: Promise<unknown>;
+        act(() => {
+          pending = result.current.executeDeposit();
+        });
+        await waitFor(() =>
+          expect(registerPeginBatchAndWait).toHaveBeenCalled(),
+        );
+        if (changed === "account")
+          ethFundsMocks.account = {
+            ...ethFundsMocks.account,
+            address: MOCK_PARAMS.selectedProviders[0] as Address,
+          };
+        if (changed === "network")
+          ethFundsMocks.account = { ...ethFundsMocks.account, chainId: 1 };
+        if (changed === "connector")
+          ethFundsMocks.account = {
+            ...ethFundsMocks.account,
+            connector: {
+              uid: `${ethFundsMocks.account.connector.uid}-changed`,
+            },
+          };
+        if (changed === "provider") {
+          const { useChainConnector } = await import(
+            "@babylonlabs-io/wallet-connector"
+          );
+          vi.mocked(useChainConnector).mockReturnValue({
+            connectedWallet: { provider: {} },
+          } as unknown as ReturnType<typeof useChainConnector>);
+          rerender();
+        }
+        await act(async () => {
+          finishPreflight();
+          await pending;
+        });
+        expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+        expect(MOCK_ETH_WALLET.account.address).toBe(
+          MOCK_PARAMS.depositorEthAddress,
+        );
+        expect(MOCK_ETH_WALLET.sendTransaction).toBe(originalSend);
+        expect(originalSend).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   describe("Protocol pause gating", () => {
     it("aborts before any side effect when the protocol is frozen/paused", async () => {
       depositGateMock.value = { protocol: "paused", aave: null };
@@ -715,7 +1233,10 @@ describe("useDepositFlow", () => {
             getAddress: MOCK_BTC_WALLET.getAddress,
             getNetwork: MOCK_BTC_WALLET.getNetwork,
           }),
-          MOCK_ETH_WALLET,
+          expect.objectContaining({
+            account: MOCK_ETH_WALLET.account,
+            chain: MOCK_ETH_WALLET.chain,
+          }),
           expect.objectContaining({
             // Active version from ProtocolParams — a re-pinned constant here
             // would keep building v1 graphs after governance flips to v2.

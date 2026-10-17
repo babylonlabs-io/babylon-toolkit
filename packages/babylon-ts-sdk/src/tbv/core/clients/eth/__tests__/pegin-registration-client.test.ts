@@ -1,8 +1,14 @@
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { decodeFunctionData, zeroAddress, type Address, type Hex } from "viem";
+import {
+  decodeFunctionData,
+  InsufficientFundsError,
+  zeroAddress,
+  type Address,
+  type Hex,
+} from "viem";
 import { sepolia } from "viem/chains";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MockEthereumWallet } from "../../../../../testing/MockEthereumWallet";
 import { BTCVaultRegistryABI, EMPTY_REVERT_MESSAGE } from "../../../contracts";
@@ -15,6 +21,7 @@ import {
 const REGISTRY = "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as Address;
 const OTHER_ACCOUNT = "0x1111111111111111111111111111111111111111" as Address;
 const OTHER_PROVIDER = "0x2222222222222222222222222222222222222222" as Address;
+const DELEGATED_EOA_CODE = "0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b";
 const BTC_KEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 const COMPRESSED_BTC_KEY = `02${BTC_KEY}`;
@@ -38,14 +45,23 @@ function signedPeginTransaction(seed = 0xab): string {
 
 function setup(requireQuotedCommissionBps = false) {
   const ethWallet = new MockEthereumWallet();
+  const getAddresses = vi.fn(async () => [ethWallet.account.address]);
+  Object.assign(ethWallet, { getAddresses });
   const publicClient = {
+    chain: sepolia,
     readContract: vi.fn(({ functionName }: { functionName: string }) => {
       if (functionName === "getPegInFee") return Promise.resolve(3n);
       if (functionName === "getVaultProviderCommission")
         return Promise.resolve(100);
       return Promise.resolve({ depositor: zeroAddress as Address });
     }),
-    estimateGas: vi.fn().mockResolvedValue(250_000n),
+    prepareTransactionRequest: vi.fn().mockResolvedValue({
+      gas: 250_000n,
+      type: "eip1559",
+      maxFeePerGas: 3n,
+      maxPriorityFeePerGas: 1n,
+    }),
+    getBalance: vi.fn().mockResolvedValue(250_000n * 3n + 6n),
     getCode: vi.fn().mockResolvedValue("0x"),
     waitForTransactionReceipt: vi.fn(({ hash }: { hash: `0x${string}` }) =>
       Promise.resolve({ status: "success", transactionHash: hash }),
@@ -58,7 +74,7 @@ function setup(requireQuotedCommissionBps = false) {
     btcVaultRegistry: REGISTRY,
     requireQuotedCommissionBps,
   });
-  return { client, ethWallet, publicClient };
+  return { client, ethWallet, publicClient, getAddresses };
 }
 
 function singleParams(depositor: Address): RegisterPeginOnChainParams {
@@ -143,6 +159,7 @@ const INVALID_SINGLE_PARAMS: Array<
 ];
 
 describe("ViemPeginRegistrationClient", () => {
+  afterEach(() => vi.restoreAllMocks());
   it("registers prepared Bitcoin artifacts without a BTC wallet", async () => {
     const { client, ethWallet } = setup();
     const send = vi.spyOn(ethWallet, "sendTransaction");
@@ -163,7 +180,7 @@ describe("ViemPeginRegistrationClient", () => {
   it("reports an explicitly empty revert at gas estimation with the neutral message, sending nothing", async () => {
     const { client, ethWallet, publicClient } = setup();
     const send = vi.spyOn(ethWallet, "sendTransaction");
-    publicClient.estimateGas.mockRejectedValueOnce(
+    publicClient.prepareTransactionRequest.mockRejectedValueOnce(
       Object.assign(new Error("execution reverted"), { data: "0x" }),
     );
 
@@ -183,6 +200,158 @@ describe("ViemPeginRegistrationClient", () => {
       client.registerPeginOnChain(singleParams(ethWallet.account.address)),
     ).rejects.toThrow(EMPTY_REVERT_MESSAGE);
   });
+
+  it.each(["eip1559", "legacy"] as const)(
+    "submits at the exact total cost with the prepared %s fee cap",
+    async (type) => {
+      for (const code of ["0x", DELEGATED_EOA_CODE]) {
+        const { client, ethWallet, publicClient } = setup();
+        publicClient.getCode.mockResolvedValue(code);
+        const fees =
+          type === "eip1559"
+            ? { type, maxFeePerGas: 3n, maxPriorityFeePerGas: 1n }
+            : { type, gasPrice: 3n };
+        publicClient.prepareTransactionRequest.mockResolvedValueOnce({
+          gas: 250_000n,
+          ...fees,
+        });
+        publicClient.getBalance.mockResolvedValueOnce(250_000n * 3n + 3n);
+        const send = vi.spyOn(ethWallet, "sendTransaction");
+
+        await client.registerPeginOnChain(
+          singleParams(ethWallet.account.address),
+        );
+
+        expect(publicClient.getBalance).toHaveBeenCalledWith({
+          address: ethWallet.account.address,
+        });
+        expect(send).toHaveBeenCalledWith(
+          expect.objectContaining({ gas: 250_000n, ...fees }),
+        );
+        expect(send.mock.calls[0][0]).not.toHaveProperty("nonce");
+      }
+    },
+  );
+
+  it.each(["eip1559", "legacy"] as const)(
+    "refuses one wei below the total %s cost before the wallet prompt",
+    async (type) => {
+      for (const code of ["0x", DELEGATED_EOA_CODE]) {
+        const { client, ethWallet, publicClient } = setup();
+        publicClient.getCode.mockResolvedValue(code);
+        publicClient.prepareTransactionRequest.mockResolvedValueOnce({
+          gas: 250_000n,
+          ...(type === "eip1559"
+            ? { type, maxFeePerGas: 3n, maxPriorityFeePerGas: 1n }
+            : { type, gasPrice: 3n }),
+        });
+        publicClient.getBalance.mockResolvedValueOnce(250_000n * 3n + 3n - 1n);
+        const send = vi.spyOn(ethWallet, "sendTransaction");
+
+        await expect(
+          client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+        ).rejects.toBeInstanceOf(InsufficientFundsError);
+        expect(send).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each(["single", "batch"] as const)(
+    "submits a Safe %s proposal with exactly the registration value",
+    async (path) => {
+      const { client, ethWallet, publicClient } = setup();
+      publicClient.getCode.mockResolvedValue("0x60806040");
+      publicClient.getBalance.mockResolvedValueOnce(3n);
+      const transactionHash = `0x${"42".repeat(32)}` as Hex;
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ isExecuted: true, transactionHash })),
+      );
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      const result = await register(client, ethWallet.account.address, path);
+
+      expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalledWith({
+        to: REGISTRY,
+        data: expect.any(String),
+        value: 3n,
+        account: ethWallet.account.address,
+        chain: sepolia,
+      });
+      expect(result.ethTxHash).toBe(transactionHash);
+    },
+  );
+
+  it.each(["single", "batch"] as const)(
+    "refuses a Safe %s proposal one wei below the registration value",
+    async (path) => {
+      const { client, ethWallet, publicClient } = setup();
+      publicClient.getCode.mockResolvedValue("0x60806040");
+      publicClient.getBalance.mockResolvedValueOnce(2n);
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      await expect(
+        register(client, ethWallet.account.address, path),
+      ).rejects.toBeInstanceOf(InsufficientFundsError);
+      expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a two-vault batch when only one registration fee is covered", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    const params = batchParams(ethWallet.account.address);
+    params.requests.push({
+      ...params.requests[0],
+      depositorSignedPeginTx: signedPeginTransaction(0xac),
+      htlcVout: 1,
+    });
+    publicClient.getBalance.mockResolvedValueOnce(250_000n * 3n + 3n);
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await expect(
+      client.registerPeginBatchOnChain(params),
+    ).rejects.toBeInstanceOf(InsufficientFundsError);
+    expect(publicClient.prepareTransactionRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ value: 6n }),
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { type: "eip1559", maxFeePerGas: 3n, maxPriorityFeePerGas: 1n },
+    { gas: 250_000n, type: "eip1559", maxPriorityFeePerGas: 1n },
+    { gas: 250_000n, type: "eip1559", maxFeePerGas: 3n },
+    { gas: 250_000n, type: "legacy" },
+  ])(
+    "refuses incomplete gas or fee data before the wallet prompt",
+    async (request) => {
+      const { client, ethWallet, publicClient } = setup();
+      publicClient.prepareTransactionRequest.mockResolvedValueOnce(request);
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      await expect(
+        client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+      ).rejects.toThrow(/Failed to prepare registration gas and fees/);
+      expect(publicClient.getBalance).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["getCode", "prepareTransactionRequest", "getBalance"] as const)(
+    "stops before the wallet prompt when %s fails",
+    async (method) => {
+      const { client, ethWallet, publicClient } = setup();
+      const error = new Error("Ethereum RPC read failed");
+      publicClient[method].mockRejectedValueOnce(error);
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      await expect(
+        client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+      ).rejects.toBe(error);
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
 
   it("passes a wallet rejection at send through unchanged", async () => {
     const { client, ethWallet } = setup();
@@ -332,27 +501,122 @@ describe("ViemPeginRegistrationClient", () => {
       lookup.resolve({ depositor: zeroAddress });
 
       await expect(registration).rejects.toThrow(/Proof of possession/);
-      expect(publicClient.estimateGas).not.toHaveBeenCalled();
+      expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
       expect(send).not.toHaveBeenCalled();
     },
   );
 
-  it("rejects an account switch during gas estimation before submission", async () => {
+  it("rejects an account switch during gas and fee preparation before submission", async () => {
     const { client, ethWallet, publicClient } = setup();
-    const gasEstimate = defer<bigint>();
-    publicClient.estimateGas.mockImplementationOnce(() => gasEstimate.promise);
+    const gasEstimate = defer<{
+      gas: bigint;
+      type: string;
+      maxFeePerGas: bigint;
+      maxPriorityFeePerGas: bigint;
+    }>();
+    publicClient.prepareTransactionRequest.mockImplementationOnce(
+      () => gasEstimate.promise,
+    );
     const send = vi.spyOn(ethWallet, "sendTransaction");
 
     const registration = client.registerPeginOnChain(
       singleParams(ethWallet.account.address),
     );
     await vi.waitFor(() => {
-      expect(publicClient.estimateGas).toHaveBeenCalledTimes(1);
+      expect(publicClient.prepareTransactionRequest).toHaveBeenCalledTimes(1);
     });
     ethWallet.updateConfig({ address: OTHER_ACCOUNT });
-    gasEstimate.resolve(250_000n);
+    gasEstimate.resolve({
+      gas: 250_000n,
+      type: "eip1559",
+      maxFeePerGas: 3n,
+      maxPriorityFeePerGas: 1n,
+    });
 
     await expect(registration).rejects.toThrow(/Proof of possession/);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("rejects an account switch during the balance read before submission", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    const balance = defer<bigint>();
+    publicClient.getBalance.mockImplementationOnce(() => balance.promise);
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    const registration = client.registerPeginOnChain(
+      singleParams(ethWallet.account.address),
+    );
+    await vi.waitFor(() => {
+      expect(publicClient.getBalance).toHaveBeenCalledTimes(1);
+    });
+    ethWallet.updateConfig({ address: OTHER_ACCOUNT });
+    balance.resolve(250_000n * 3n + 3n);
+
+    await expect(registration).rejects.toThrow(
+      /Ethereum wallet account is no longer available/,
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it.each(["single", "batch"] as const)(
+    "refuses a revoked depositor with an unchanged wallet snapshot on the %s path",
+    async (path) => {
+      const { client, ethWallet, getAddresses } = setup();
+      const depositor = ethWallet.account.address;
+      getAddresses.mockResolvedValueOnce([OTHER_ACCOUNT]);
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      await expect(register(client, depositor, path)).rejects.toThrow(
+        /Ethereum wallet account is no longer available/,
+      );
+      expect(ethWallet.account.address).toBe(depositor);
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { addresses: [] },
+    { addresses: ["not-an-address"] },
+    { addresses: [REGISTRY, "not-an-address"] },
+    { addresses: null },
+  ])(
+    "refuses an empty or invalid live account response before submission",
+    async ({ addresses }) => {
+      const { client, ethWallet, getAddresses } = setup();
+      getAddresses.mockResolvedValueOnce(addresses as Address[]);
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      await expect(
+        client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+      ).rejects.toThrow(/Ethereum wallet account is no longer available/);
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
+  it("accepts the bound depositor as the second authorized account", async () => {
+    const { client, ethWallet, getAddresses } = setup();
+    getAddresses.mockResolvedValueOnce([
+      OTHER_ACCOUNT,
+      ethWallet.account.address,
+    ]);
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await client.registerPeginOnChain(singleParams(ethWallet.account.address));
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ account: ethWallet.account.address }),
+    );
+  });
+
+  it("stops before submission when the live account read fails", async () => {
+    const { client, ethWallet, getAddresses } = setup();
+    const error = new Error("Ethereum account read failed");
+    getAddresses.mockRejectedValueOnce(error);
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await expect(
+      client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+    ).rejects.toBe(error);
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -379,7 +643,7 @@ describe("ViemPeginRegistrationClient", () => {
     expect(publicClient.readContract).not.toHaveBeenCalledWith(
       expect.objectContaining({ functionName: "getPegInFee" }),
     );
-    expect(publicClient.estimateGas).not.toHaveBeenCalled();
+    expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -397,7 +661,7 @@ describe("ViemPeginRegistrationClient", () => {
         expectedError,
       );
       expect(publicClient.readContract).not.toHaveBeenCalled();
-      expect(publicClient.estimateGas).not.toHaveBeenCalled();
+      expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
       expect(publicClient.getCode).not.toHaveBeenCalled();
       expect(publicClient.waitForTransactionReceipt).not.toHaveBeenCalled();
       expect(send).not.toHaveBeenCalled();
