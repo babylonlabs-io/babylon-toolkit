@@ -2099,6 +2099,13 @@ export const COPY = {
   withdraw: {
     unexpectedError:
       "An unexpected error occurred while withdrawing collateral",
+    // A withdrawal refused before signing: the registry's amount, status or
+    // application for a selected BTCVault differs from what was reviewed.
+    integrityError:
+      "Collateral integrity check failed: the BTCVault details returned by the indexer don't match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
+    // The registry read behind that check failed, so nothing was verified.
+    verificationFailed:
+      "Could not verify your BTCVaults on-chain. Try again in a moment.",
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",

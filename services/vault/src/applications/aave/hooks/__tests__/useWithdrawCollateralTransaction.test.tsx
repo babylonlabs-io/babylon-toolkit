@@ -4,8 +4,29 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockWithdraw = vi.fn();
+const mockAssertAmounts = vi.fn();
+const { FakeCollateralAmountMismatchError, FakeCollateralRegistryReadError } =
+  vi.hoisted(() => {
+    class FakeCollateralAmountMismatchError extends Error {
+      readonly code = "COLLATERAL_AMOUNT_MISMATCH";
+    }
+    class FakeCollateralRegistryReadError extends Error {}
+    return {
+      FakeCollateralAmountMismatchError,
+      FakeCollateralRegistryReadError,
+    };
+  });
 vi.mock("../../services", () => ({
+  CollateralAmountMismatchError: FakeCollateralAmountMismatchError,
+  CollateralRegistryReadError: FakeCollateralRegistryReadError,
+  assertCollateralAmountsMatchOnChain: (...args: unknown[]) =>
+    mockAssertAmounts(...args),
   withdrawSelectedCollateral: (...args: unknown[]) => mockWithdraw(...args),
+}));
+
+const ADAPTER = "0x000000000000000000000000000000000000ada9";
+vi.mock("../../config", () => ({
+  getAaveAdapterAddress: () => ADAPTER,
 }));
 
 const mockMarkVaultsAsPending = vi.fn();
@@ -69,6 +90,10 @@ import { useWithdrawCollateralTransaction } from "../useWithdrawCollateralTransa
 
 const VAULT_ID =
   "0xaaaa000000000000000000000000000000000000000000000000000000000001";
+const SECOND_VAULT_ID =
+  "0xbbbb000000000000000000000000000000000000000000000000000000000002";
+
+const SELECTION = [{ vaultId: VAULT_ID, amountSats: 60_000_000n }] as const;
 
 const POSITION_KEY = [
   "aaveUserPosition",
@@ -94,6 +119,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockWithdraw.mockResolvedValue({ transactionHash: "0xtx", receipt: {} });
   mockAssertNoTransactionInFlight.mockResolvedValue(undefined);
+  mockAssertAmounts.mockResolvedValue(undefined);
 });
 
 describe("useWithdrawCollateralTransaction", () => {
@@ -101,7 +127,7 @@ describe("useWithdrawCollateralTransaction", () => {
     const { client, result } = setup();
 
     await act(async () => {
-      await result.current.executeWithdraw([VAULT_ID]);
+      await result.current.executeWithdraw(SELECTION);
     });
 
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
@@ -121,7 +147,7 @@ describe("useWithdrawCollateralTransaction", () => {
     const { result } = setup();
     let pending!: Promise<unknown>;
     act(() => {
-      pending = result.current.executeWithdraw([VAULT_ID]);
+      pending = result.current.executeWithdraw(SELECTION);
     });
     await waitFor(() => expect(result.current.isConfirming).toBe(true));
 
@@ -159,7 +185,7 @@ describe("useWithdrawCollateralTransaction", () => {
     vi.spyOn(client, "invalidateQueries").mockImplementation(() => refresh);
     let withdrawing!: Promise<string>;
     await act(async () => {
-      withdrawing = result.current.executeWithdraw([VAULT_ID]);
+      withdrawing = result.current.executeWithdraw(SELECTION);
     });
 
     await act(async () => {
@@ -191,7 +217,7 @@ describe("useWithdrawCollateralTransaction", () => {
     const { result } = setup();
 
     await act(async () => {
-      await result.current.executeWithdraw([VAULT_ID]);
+      await result.current.executeWithdraw(SELECTION);
     });
 
     expect(mockMarkVaultsAsPending).toHaveBeenCalledWith(
@@ -207,12 +233,78 @@ describe("useWithdrawCollateralTransaction", () => {
 
     let resolved: string | undefined;
     await act(async () => {
-      resolved = await result.current.executeWithdraw([VAULT_ID]);
+      resolved = await result.current.executeWithdraw(SELECTION);
     });
 
     expect(resolved).toBe("failed");
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(false);
     expect(mockMarkVaultsAsPending).not.toHaveBeenCalled();
+  });
+});
+
+describe("useWithdrawCollateralTransaction - on-chain amount guard", () => {
+  it("checks the reviewed amounts against the registry before sending", async () => {
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.executeWithdraw(SELECTION);
+    });
+
+    expect(mockAssertAmounts).toHaveBeenCalledWith(SELECTION, ADAPTER);
+    expect(mockAssertAmounts.mock.invocationCallOrder[0]).toBeLessThan(
+      mockWithdraw.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("refuses with the integrity message and sends nothing when a reviewed amount differs from the registry", async () => {
+    mockAssertAmounts.mockRejectedValue(
+      new FakeCollateralAmountMismatchError("amount mismatch"),
+    );
+    const { result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeWithdraw(SELECTION);
+    });
+
+    expect(resolved).toBe("failed");
+    expect(result.current.error).toBe(COPY.withdraw.integrityError);
+    expect(mockWithdraw).not.toHaveBeenCalled();
+    expect(mockMarkVaultsAsPending).not.toHaveBeenCalled();
+  });
+
+  it("shows the verification-failed message and sends nothing when the registry read fails", async () => {
+    mockAssertAmounts.mockRejectedValue(
+      new FakeCollateralRegistryReadError("rpc unavailable"),
+    );
+    const { result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeWithdraw(SELECTION);
+    });
+
+    expect(resolved).toBe("failed");
+    expect(result.current.error).toBe(COPY.withdraw.verificationFailed);
+    expect(mockWithdraw).not.toHaveBeenCalled();
+  });
+
+  it("sends only the selection's vault IDs, in review order", async () => {
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.executeWithdraw([
+        { vaultId: SECOND_VAULT_ID, amountSats: 20_000_000n },
+        { vaultId: VAULT_ID, amountSats: 60_000_000n },
+      ]);
+    });
+
+    expect(mockWithdraw).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      [SECOND_VAULT_ID, VAULT_ID],
+      expect.any(Function),
+    );
   });
 });
 
@@ -225,12 +317,13 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
 
     let resolved: string | undefined;
     await act(async () => {
-      resolved = await result.current.executeWithdraw([VAULT_ID]);
+      resolved = await result.current.executeWithdraw(SELECTION);
     });
 
     expect(resolved).toBe("failed");
     expect(result.current.notice).toBe(COPY.common.transactionInFlight);
     expect(result.current.error).toBeNull();
+    expect(mockAssertAmounts).not.toHaveBeenCalled();
     expect(mockWithdraw).not.toHaveBeenCalled();
     expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
   });
@@ -245,7 +338,7 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
 
     let resolved: string | undefined;
     await act(async () => {
-      resolved = await result.current.executeWithdraw([VAULT_ID]);
+      resolved = await result.current.executeWithdraw(SELECTION);
     });
 
     expect(resolved).toBe("unknown");
@@ -278,7 +371,7 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
 
       let withdrawing!: Promise<string>;
       await act(async () => {
-        withdrawing = result.current.executeWithdraw([VAULT_ID]);
+        withdrawing = result.current.executeWithdraw(SELECTION);
       });
       await act(async () => {
         await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);

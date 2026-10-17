@@ -373,7 +373,7 @@ describe("WithdrawFlow selection step", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("carries every selected vault into the review and the withdraw call", async () => {
+  it("carries every selected vault, bound to the amount the review showed, into the withdraw call", async () => {
     const { executeWithdraw } = renderFlow();
 
     fireEvent.click(rowCheckbox(SECOND_VAULT));
@@ -388,7 +388,10 @@ describe("WithdrawFlow selection step", () => {
     fireEvent.click(screen.getByTestId("withdraw-confirm-button"));
 
     await vi.waitFor(() =>
-      expect(executeWithdraw).toHaveBeenCalledWith([FIRST_VAULT, SECOND_VAULT]),
+      expect(executeWithdraw).toHaveBeenCalledWith([
+        { vaultId: FIRST_VAULT, amountSats: 60_000_000n },
+        { vaultId: SECOND_VAULT, amountSats: 20_000_000n },
+      ]),
     );
   });
 });

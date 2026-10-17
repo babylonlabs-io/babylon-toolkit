@@ -28,8 +28,15 @@ import {
 } from "@/utils/errors";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
+import { getAaveAdapterAddress } from "../config";
 import { usePendingVaults } from "../context";
-import { withdrawSelectedCollateral } from "../services";
+import {
+  CollateralAmountMismatchError,
+  CollateralRegistryReadError,
+  assertCollateralAmountsMatchOnChain,
+  withdrawSelectedCollateral,
+  type CollateralAmountPair,
+} from "../services";
 import {
   runAaveWrite,
   type AaveActionResult,
@@ -46,9 +53,12 @@ export interface UseWithdrawCollateralTransactionResult {
    * the user stopped waiting, the wallet replaced it with a transaction that
    * could not be read, or the wallet refused as "nonce too low" a send it may
    * have broadcast.
-   * @param vaultIds - IDs of vaults currently used as collateral (to mark as pending)
+   * @param selection - The reviewed vaults and amounts. Signing stops if the
+   *   registry does not match them.
    */
-  executeWithdraw: (vaultIds: string[]) => Promise<AaveActionResult>;
+  executeWithdraw: (
+    selection: readonly CollateralAmountPair[],
+  ) => Promise<AaveActionResult>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
   /**
@@ -101,13 +111,14 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   }, []);
 
   const executeWithdraw = useCallback(
-    async (vaultIds: string[]) => {
+    async (selection: readonly CollateralAmountPair[]) => {
       // Withdraw is an EXIT: blocked only when either scope is paused (Freeze
       // preserves exits). Guard the execution chokepoint so a pause that lands
       // mid-session can't broadcast even if a modal was already open; the menu
       // item is disabled too.
       if (isWithdrawBlocked(gate)) return "failed";
 
+      const vaultIds = selection.map((entry) => entry.vaultId);
       setError(null);
       setNotice(null);
       setIsProcessing(true);
@@ -131,6 +142,12 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
             publicClient: ethClient.getPublicClient(),
             account,
           });
+
+          // Check each reviewed amount, status and application before signing.
+          await assertCollateralAmountsMatchOnChain(
+            selection,
+            getAaveAdapterAddress(),
+          );
 
           const walletClient = await getWalletClientOnExpectedChain(account);
           await withdrawSelectedCollateral(
@@ -182,10 +199,17 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         logger.error(error, {
           data: { context: "Withdraw collateral failed" },
         });
+        // The guard's message is a diagnostic for the log. The user gets the
+        // copy, not a contract-error mapping: a retry against the same
+        // indexer data cannot help.
         const mappedError =
-          error instanceof Error
-            ? mapViemErrorToContractError(error, "Withdraw Collateral")
-            : new Error(COPY.withdraw.unexpectedError);
+          error instanceof CollateralAmountMismatchError
+            ? new Error(COPY.withdraw.integrityError)
+            : error instanceof CollateralRegistryReadError
+              ? new Error(COPY.withdraw.verificationFailed)
+              : error instanceof Error
+                ? mapViemErrorToContractError(error, "Withdraw Collateral")
+                : new Error(COPY.withdraw.unexpectedError);
 
         setError(mappedError.message);
 
