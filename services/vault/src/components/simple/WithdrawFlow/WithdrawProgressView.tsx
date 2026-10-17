@@ -34,6 +34,9 @@ export function WithdrawProgressView({
         <Text variant="body1" className="text-accent-primary">
           {copy.body}
         </Text>
+        <Text variant="body1" className="text-accent-primary">
+          {copy.reserveReminder}
+        </Text>
 
         {payoutAddresses.length > 0 && (
           <div className="flex items-center justify-between">
