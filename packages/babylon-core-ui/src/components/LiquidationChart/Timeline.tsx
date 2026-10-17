@@ -445,8 +445,7 @@ export function Timeline({
             <div
               className="bbn-liq-zoom"
               style={{
-                top: layout.plotTop + OVERLAY_INSET_PX,
-                right: layout.gutter + OVERLAY_INSET_PX,
+                marginRight: layout.gutter + OVERLAY_INSET_PX,
                 fontSize: layout.fontLabel,
               }}
             >
