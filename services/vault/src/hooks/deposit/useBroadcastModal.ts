@@ -21,7 +21,8 @@ interface OpenBroadcast {
  * A batched pegin shares one Pre-PegIn transaction across vaults, so a
  * broadcast commits the whole batch. The modal therefore tracks every
  * sibling: `broadcastingActivity` is the representative vault driving the
- * resume UI, `broadcastingBatchIds` are all vaults the broadcast confirms.
+ * resume UI, `broadcastingBatchIds` are all vaults grouped with it by the
+ * Pre-PegIn hex. The success amount counts only the vaults the chain confirmed.
  */
 export function useBroadcastModal(options: {
   allActivities: VaultActivity[];
@@ -76,16 +77,18 @@ export function useBroadcastModal(options: {
   }, []);
 
   // Handle broadcast success
-  const handleSuccess = useCallback(() => {
-    const totalBtc = (broadcastingBatch ?? []).reduce(
-      (sum, a) => sum + parseFloat(a.collateral.amount || "0"),
-      0,
-    );
-    setSuccessAmount(formatBtcValue(totalBtc));
-    setOpenBroadcast(null);
-    setSuccessOpen(true);
-    onSuccess();
-  }, [broadcastingBatch, onSuccess]);
+  const handleSuccess = useCallback(
+    (confirmedVaultIds: readonly string[]) => {
+      const totalBtc = (broadcastingBatch ?? [])
+        .filter((a) => confirmedVaultIds.includes(a.id))
+        .reduce((sum, a) => sum + parseFloat(a.collateral.amount || "0"), 0);
+      setSuccessAmount(formatBtcValue(totalBtc));
+      setOpenBroadcast(null);
+      setSuccessOpen(true);
+      onSuccess();
+    },
+    [broadcastingBatch, onSuccess],
+  );
 
   // Handle success modal close
   const handleSuccessClose = useCallback(() => {

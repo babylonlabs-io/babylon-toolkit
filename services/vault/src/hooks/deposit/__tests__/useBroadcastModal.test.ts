@@ -116,22 +116,24 @@ describe("useBroadcastModal", () => {
 
     act(() => result.current.handleBroadcastClick("0xa"));
     rerender({ allActivities: [a, b] });
-    act(() => result.current.handleSuccess());
+    act(() => result.current.handleSuccess(["0xa", "0xb"]));
 
     expect(result.current.successAmount).toBe("0.08");
   });
 
-  it("sums the batch amounts for the success modal", () => {
+  it("sums only the chain-confirmed batch amounts for the success modal", () => {
+    // "0xc" shares the hex but the chain did not confirm it.
     const onSuccess = vi.fn();
     const a = activity("0xa", "0xshared", "0.05");
     const b = activity("0xb", "0xshared", "0.03");
+    const c = activity("0xc", "0xshared", "0.10");
 
     const { result } = renderHook(() =>
-      useBroadcastModal({ allActivities: [a, b], onSuccess }),
+      useBroadcastModal({ allActivities: [a, b, c], onSuccess }),
     );
 
     act(() => result.current.handleBroadcastClick("0xa"));
-    act(() => result.current.handleSuccess());
+    act(() => result.current.handleSuccess(["0xa", "0xb"]));
 
     expect(result.current.successAmount).toBe("0.08");
     expect(result.current.successOpen).toBe(true);

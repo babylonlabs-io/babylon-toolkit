@@ -137,7 +137,8 @@ export interface BroadcastPrePeginParams {
    */
   removePendingPegin?: (vaultId: string) => void;
   onRefetchActivities: () => void;
-  onShowSuccessModal: () => void;
+  /** `confirmedVaultIds` is the chain-verified set the capacity check funded. */
+  onShowSuccessModal: (outcome: { confirmedVaultIds: readonly Hex[] }) => void;
 }
 
 export interface ActivateVaultParams {
@@ -643,13 +644,9 @@ export function useVaultActions(): UseVaultActionsReturn {
         updatePendingPeginStatus(vaultId, nextStatus);
       }
 
-      // The broadcast.succeeded milestone is emitted by the caller
-      // (useBroadcastState), which owns the full batchVaultIds set — one
-      // Pre-PegIn tx confirms every sibling, and this single-vault primitive
-      // cannot see them.
-
-      // Show success modal and refetch
-      onShowSuccessModal();
+      // The caller (useBroadcastState) marks siblings and emits the
+      // broadcast.succeeded milestone, but only for the chain-verified set.
+      onShowSuccessModal({ confirmedVaultIds: fundedVaultIds });
       onRefetchActivities();
 
       if (mountedRef.current) setBroadcasting(false);
