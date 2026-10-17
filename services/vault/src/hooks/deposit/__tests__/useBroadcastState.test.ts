@@ -10,6 +10,7 @@ import { useBroadcastState } from "../useBroadcastState";
 const mockVaultHandleBroadcast = vi.fn();
 const mockSetOptimisticStatus = vi.fn();
 const mockUpdatePendingPeginStatus = vi.fn();
+let mockPendingPegins: Array<{ id: string; unsignedTxHex: string }> = [];
 // Hoisted: referenced inside the hoisted vi.mock("@/infrastructure") factory,
 // which runs before this module's plain const initializers.
 const mockLoggerEvent = vi.hoisted(() => vi.fn());
@@ -28,7 +29,7 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
 
 vi.mock("@/storage/usePeginStorage", () => ({
   usePeginStorage: () => ({
-    pendingPegins: [],
+    pendingPegins: mockPendingPegins,
     updatePendingPeginStatus: mockUpdatePendingPeginStatus,
   }),
 }));
@@ -51,6 +52,54 @@ function activity(id: string): VaultActivity {
 describe("useBroadcastState — batched broadcast", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPendingPegins = [];
+  });
+
+  it("resumes with a sibling's local record when the clicked vault has none", async () => {
+    mockVaultHandleBroadcast.mockResolvedValue(undefined);
+    const siblingRecord = { id: "0xa", unsignedTxHex: "0xdeadbeef" };
+    mockPendingPegins = [siblingRecord];
+
+    const { result } = renderHook(() =>
+      useBroadcastState({
+        activity: activity("0xb"),
+        batchVaultIds: ["0xa", "0xb"],
+        depositorEthAddress: "0xdepositor",
+        onSuccess: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleBroadcast();
+    });
+
+    expect(mockVaultHandleBroadcast.mock.calls[0][0].vaultId).toBe("0xb");
+    expect(mockVaultHandleBroadcast.mock.calls[0][0].pendingPegin).toBe(
+      siblingRecord,
+    );
+  });
+
+  it("resumes with the clicked vault's own local record when it has one", async () => {
+    mockVaultHandleBroadcast.mockResolvedValue(undefined);
+    const ownRecord = { id: "0xb", unsignedTxHex: "0xdeadbeef" };
+    mockPendingPegins = [{ id: "0xa", unsignedTxHex: "0xdeadbeef" }, ownRecord];
+
+    const { result } = renderHook(() =>
+      useBroadcastState({
+        activity: activity("0xb"),
+        batchVaultIds: ["0xa", "0xb"],
+        depositorEthAddress: "0xdepositor",
+        onSuccess: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleBroadcast();
+    });
+
+    expect(mockVaultHandleBroadcast.mock.calls[0][0].pendingPegin).toBe(
+      ownRecord,
+    );
   });
 
   it("marks every batch sibling CONFIRMING after a successful broadcast", async () => {
