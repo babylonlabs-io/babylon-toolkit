@@ -289,6 +289,24 @@ describe("verifyPeginHashlockSpend — a real signet PegIn", () => {
     });
   });
 
+  it("refuses a PegIn spending the HTLC index of a transaction other than the registered Pre-PegIn", () => {
+    // Only the input's previous txid changes; the registered Pre-PegIn and its
+    // txid stay, so the leaf still commits to the registered HTLC output.
+    const tx = Transaction.fromHex(SIGNET_PEGIN_TX_HEX);
+    tx.ins[0].hash = Buffer.alloc(32, 0x5a);
+
+    expect(
+      verifyPeginHashlockSpend({
+        ...SIGNET_PARAMS,
+        peginTxHex: tx.toHex(),
+        peginTxid: tx.getId(),
+      }),
+    ).toEqual({
+      valid: false,
+      reason: "the PegIn does not spend the vault's HTLC output",
+    });
+  });
+
   it("refuses an HTLC index the registered Pre-PegIn has no output at", () => {
     const missingVout = 9;
     const tx = Transaction.fromHex(SIGNET_PEGIN_TX_HEX);

@@ -2071,7 +2071,17 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       });
     });
 
+    expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
     expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [err, ctx] = mockLoggerError.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe(
+      COPY.deposit.emergencyWithdraw.errors.peginProofFailed,
+    );
+    expect(err.cause).toEqual(
+      new Error("the depositor's signature does not verify"),
+    );
+    expect(ctx.tags.funnelStage).toBe("activation.reveal");
   });
 
   it("does not run the Bitcoin proof for a normal activation", async () => {
