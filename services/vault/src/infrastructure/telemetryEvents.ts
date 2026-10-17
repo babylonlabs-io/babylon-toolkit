@@ -35,6 +35,8 @@ export const TELEMETRY_EVENT = {
   ACTIVATION_ARTIFACTS_STALLED: "activation.artifacts.stalled",
   /** The activation modal's probe did not get a result from the deposit's vault provider (outcome in tags). */
   ACTIVATION_PROVIDER_UNCONFIRMED: "activation.provider.unconfirmed",
+  /** A Verified BTCVault's HTLC was reported spent by its PegIn, but the PegIn did not prove the spend, so the escape hatch stays hidden (once per vault while the polling provider stays mounted). */
+  ACTIVATION_STUCK_PROOF_REFUSED: "activation.stuck_proof.refused",
   /** Every vault provider was filtered out of the deposit picker — deposits blocked at the top of the funnel. */
   ONBOARDING_PROVIDERS_EMPTY: "onboarding.providers.empty",
   /** A broadcast borrow, repay, withdraw or reorder outlived its receipt wait; its form stays locked while it is watched. */

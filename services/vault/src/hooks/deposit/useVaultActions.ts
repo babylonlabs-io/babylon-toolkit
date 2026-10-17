@@ -30,6 +30,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
+import { getMempoolApiUrl } from "@/clients/btc/config";
+import { provePeginSpendsHtlc } from "@/clients/btc/outspend";
 import {
   composeGateState,
   isActivateAndRedeemBlocked,
@@ -148,9 +150,11 @@ export interface ActivateVaultParams {
   /**
    * Escape hatch mode: call `activateVaultWithSecretAndRedeem` instead of
    * `activateVaultWithSecret`, revealing the secret and immediately redeeming
-   * the vault for the depositor without application activation. Shares every
-   * pre-reveal gate with the normal flow except the pause gate, which checks
-   * only the protocol scope — an aave-scope pause is what this mode escapes.
+   * the vault for the depositor without application activation. The pause
+   * gate checks only the protocol scope — an aave-scope pause is what this
+   * mode escapes. The construction-order, deadline-margin and floor gates are
+   * skipped; in their place the PegIn fetched from Bitcoin must be proven a
+   * valid spend of the HTLC, or nothing is revealed.
    */
   redeemImmediately?: boolean;
   /**
@@ -748,8 +752,10 @@ export function useVaultActions(): UseVaultActionsReturn {
       // contract may refuse.
       //
       // The redeem path needs none of them. It is exempt from the floor on
-      // chain, and it runs only after the PegIn swept the HTLC, whose witness
-      // already published the secret on Bitcoin — so the deadline margin
+      // chain, and below it runs only once the PegIn is proven a valid spend
+      // of the HTLC — fetched by its on-chain txid with a witness Bitcoin
+      // would accept, which holds the secret, so whoever served it already
+      // has the secret; refused without that proof — so the deadline margin
       // protects nothing there and would only block the one recovery left.
       const deadlineGateEnabled = !redeemImmediately;
       const floorEnabled = deadlineGateEnabled;
@@ -1005,6 +1011,36 @@ export function useVaultActions(): UseVaultActionsReturn {
               ),
             );
           }
+        }
+      }
+
+      // The redeem's own gate, in place of the ones it skips above. The stuck
+      // state that offered it rests on the mempool API's report that the
+      // PegIn spent the HTLC, and the API can name the PegIn's public txid
+      // for a healthy vault. Only the PegIn itself — fetched by the txid of
+      // the on-chain signed PegIn, spending the on-chain HTLC outpoint with
+      // the preimage of the on-chain hashlock and every participant's valid
+      // signature — is a valid spend of the HTLC, so whoever served it already
+      // holds the secret. Checked before the Ethereum wallet is touched;
+      // retryable, since a lagging or wrong
+      // API is not a final state, and captured, since the row ran the same
+      // proof to offer this action.
+      if (redeemImmediately) {
+        const proof = await provePeginSpendsHtlc(
+          protocolInfo,
+          getMempoolApiUrl(),
+        );
+        if (proof.status === "unavailable") {
+          throw new Error(
+            COPY.deposit.emergencyWithdraw.errors.peginProofUnavailable,
+            { cause: proof.cause },
+          );
+        }
+        if (proof.status !== "proven") {
+          throw new Error(
+            COPY.deposit.emergencyWithdraw.errors.peginProofFailed,
+            { cause: new Error(proof.reason) },
+          );
         }
       }
 

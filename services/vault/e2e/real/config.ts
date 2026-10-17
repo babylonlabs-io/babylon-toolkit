@@ -57,7 +57,8 @@ export type ActionId =
   | "withdraw"
   | "resume"
   | "recover"
-  | "reclaim";
+  | "reclaim"
+  | "forged-stuck";
 
 /** Maps our lowercase wallet ids to the connector's SupportedWallet keys. */
 export const BTC_WALLET_TO_CONNECTOR: Record<BtcWalletId, SupportedWallet> = {
@@ -171,6 +172,12 @@ export const ACTIONS: ActionOption[] = [
     label: "Reclaim (sweep the depositor-claim reserve of a settled vault)",
     enabled: true,
   },
+  {
+    id: "forged-stuck",
+    label:
+      "Forged stuck (a mempool API reporting a Verified vault swept must not offer Withdraw)",
+    enabled: true,
+  },
 ];
 
 /** A fully-resolved run: what the user chose (interactively or via flags). */
@@ -199,6 +206,8 @@ export interface RunConfig {
   /**
    * Borrow only: peg in first (`--pegin-first`), then borrow against the fresh collateral in the same
    * run. When set, the pegin extras above (`peginAmountBtc`/`peginProvider`/`split`) drive that pegin.
+   * Forged-stuck reads it too: peg in a fresh single-vault deposit and stop at its Activate gate, so the
+   * forgery runs against a deposit that is Verified and not yet activated.
    */
   peginFirst?: boolean;
   /**
@@ -288,6 +297,17 @@ export interface RunConfig {
    * irreversible, so this is the safe way to rehearse it.
    */
   reclaimDryRun?: boolean;
+  /**
+   * Forged-stuck only: the Pre-PegIn txid (`--txid`) of a Verified, not yet activated deposit whose HTLC
+   * spend the run forges in the page's mempool answers. Exactly one of this and `peginFirst` is set: with
+   * `--pegin-first` the run pegs in its own deposit instead.
+   */
+  forgedStuckTxid?: string;
+  /**
+   * Forged-stuck only: after the row has held under the forgery, activate the deposit normally with the
+   * forgery still installed (`--activate`). Spends Sepolia gas and consumes the deposit's Verified state.
+   */
+  forgedStuckActivate?: boolean;
   /**
    * Borrow only: answer the borrow send with "nonce too low" (`--inject-nonce-too-low`) — `stale` (an
    * earlier transaction used the nonce, so the app must send once more), `already-sent` (the

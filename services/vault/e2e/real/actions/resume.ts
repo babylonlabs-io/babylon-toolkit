@@ -78,7 +78,7 @@ function normalizeTxid(txid: string | undefined): string | undefined {
  * also waits for the menu's Bitcoin icon, and throws if only Ethereum came back. Neither appearing is
  * left to the pending-row wait to surface a clearer error.
  */
-async function ensureConnected(ctx: ActionContext): Promise<void> {
+export async function ensureConnected(ctx: ActionContext): Promise<void> {
   const { page, context, log } = ctx;
   const walletMenu = page.locator(WALLET_MENU_TRIGGER_TESTID).first();
   const connect = page.locator(CONNECT_BUTTON_TESTID).first();

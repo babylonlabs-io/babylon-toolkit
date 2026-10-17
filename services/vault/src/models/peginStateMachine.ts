@@ -220,8 +220,12 @@ export interface GetPeginStateOptions {
    *
    * The deriver proves the spender (`spendingTxid` equals the PegIn txid)
    * before setting this — a bare spend can equally be the depositor's own
-   * CSV refund, which must keep the normal flow. Fail-safe default: false
-   * (missing or ambiguous probe data keeps the normal flow).
+   * CSV refund, which must keep the normal flow. That match is only the
+   * mempool API's word, so the deriver also requires the PegIn, fetched from
+   * Bitcoin, to spend the HTLC with a witness Bitcoin would accept
+   * (`useStuckVaultChainConfirm`).
+   * Fail-safe default: false (missing, ambiguous or unproven probe data keeps
+   * the normal flow).
    */
   htlcSpentByPeginTx?: boolean;
   /**

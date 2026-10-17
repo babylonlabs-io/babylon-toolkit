@@ -262,6 +262,13 @@ export async function walkStepMachine(
   log: (m: string) => void,
   expectedVaults: number,
   onStep: (step: string) => void,
+  options: {
+    /**
+     * Return at the first Activate gate instead of clicking it: the deposit is then Verified and not
+     * yet activated (forged-stuck `--pegin-first`). Nothing past the gate is driven.
+     */
+    stopAtActivationGate?: boolean;
+  } = {},
 ): Promise<string | undefined> {
   const deadline = Date.now() + PEGIN_STEP_MACHINE_BUDGET_MS;
   let lastStep = "";
@@ -346,6 +353,13 @@ export async function walkStepMachine(
         .first()
         .isVisible()
         .catch(() => false));
+    if (activateVisible && options.stopAtActivationGate) {
+      prePeginTxid ??= await readPrePeginTxid(page);
+      log(
+        "Reached the Activate gate — stopping before activation (the deposit is Verified).",
+      );
+      return prePeginTxid;
+    }
     if (activateVisible) {
       if (!activateClickedThisModal) {
         activateClickedThisModal = await handleActivateConfirmation(page, log);

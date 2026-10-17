@@ -126,11 +126,18 @@ export interface DepositPollingInputs {
    */
   activationDeadlinePassed: boolean;
   /**
-   * VERIFIED only: the chain CONFIRMS this vault is still unactivated, so the
-   * BTC-side stuck evidence can be trusted. Defaults false (fail-safe) when the
-   * read has not returned, failed, or the chain already reports the vault
+   * VERIFIED only: the chain CONFIRMS this vault is still unactivated, and its
+   * PegIn, fetched from Bitcoin, validly spends the HTLC — the secret and every
+   * participant's signature in its witness — so the escape hatch reveals no
+   * secret that is not already out. Defaults false (fail-safe) when the
+   * reads have not returned or failed, when the chain already reports the vault
    * ACTIVE — the indexer-lag case, where the deposit is healthy and must render
-   * normally. See `useStuckVaultChainConfirm`.
+   * normally — or when the PegIn does not prove the spend, as with a mempool
+   * API that names the public PegIn txid for a healthy vault. One exception: a
+   * vault an earlier poll of the same suspect set proved stays true through a
+   * poll where the PegIn or the Pre-PegIn cannot be fetched, while the chain
+   * still reports it Verified, since a valid witness cannot stop being valid.
+   * See `useStuckVaultChainConfirm`.
    */
   stuckStateConfirmedOnChain: boolean;
   /**
@@ -399,7 +406,10 @@ export function computeDepositPollingResult(
   // indistinguishable from the stuck case, because the VP's sweep is what
   // activation looks like on the BTC side. Trusting the indexer alone raised a
   // false "Activation incomplete" (and a signing prompt) on any device that had
-  // not written the local reveal marker.
+  // not written the local reveal marker. It also carries the Bitcoin proof:
+  // the `spendingTxid` match above is only the mempool API's word, and the
+  // PegIn's txid is public, so the confirmation also requires the PegIn itself
+  // to spend the HTLC with a witness Bitcoin would accept.
   const htlcSpentByPeginTx =
     contractStatus === ContractStatus.VERIFIED &&
     stuckStateConfirmedOnChain &&

@@ -14,7 +14,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAccount } from "wagmi/actions";
+import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
 import { getVaultFromChainWithGrace } from "@/clients/eth-contract/btc-vault-registry/query";
 import {
@@ -135,6 +135,22 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
       this.name = "UtxoNotAvailableError";
     }
   },
+}));
+
+// The escape hatch's Bitcoin proof. Proven by default so the escape-hatch
+// tests reach what follows it; tests of the refusal override it once. The
+// proof is tested in clients/btc and its verifier on real transactions in the
+// SDK.
+const mockProvePeginSpendsHtlc = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ status: "proven" }),
+);
+vi.mock("@/clients/btc/outspend", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/clients/btc/outspend")>()),
+  provePeginSpendsHtlc: mockProvePeginSpendsHtlc,
+}));
+const MEMPOOL_API_URL = "https://mempool.test/api";
+vi.mock("@/clients/btc/config", () => ({
+  getMempoolApiUrl: () => "https://mempool.test/api",
 }));
 
 vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
@@ -1940,6 +1956,152 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     );
   });
 
+  it("proves the PegIn a valid spend of the HTLC from the on-chain record before activate-and-redeem", async () => {
+    const prePeginTxHash = `0x${"c".repeat(64)}`;
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+      prePeginTxHash,
+      htlcVout: 2,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockProvePeginSpendsHtlc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        depositorSignedPeginTx: "0xdeadbeef",
+        prePeginTxHash,
+        htlcVout: 2,
+        hashlock: ON_CHAIN_HASHLOCK,
+      }),
+      MEMPOOL_API_URL,
+    );
+    expect(mockProvePeginSpendsHtlc.mock.invocationCallOrder[0]).toBeLessThan(
+      mockActivateVaultWithSecretAndRedeem.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("refuses activate-and-redeem, retryably and before any wallet prompt, when the PegIn is not a valid spend of the HTLC", async () => {
+    // A mempool API that names the public PegIn txid for a healthy vault, and
+    // serves a PegIn whose witness Bitcoin would reject.
+    mockProvePeginSpendsHtlc.mockResolvedValueOnce({
+      status: "unproven",
+      reason: "the depositor's signature does not verify",
+    });
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
+    expect(switchChain).not.toHaveBeenCalled();
+    expect(getWalletClient).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.deposit.emergencyWithdraw.errors.peginProofFailed,
+    );
+    expect(result.current.activationErrorTerminal).toBe(false);
+  });
+
+  it("refuses activate-and-redeem, retryably, when the PegIn cannot be read from Bitcoin", async () => {
+    mockProvePeginSpendsHtlc.mockResolvedValueOnce({
+      status: "unavailable",
+      cause: new Error("Mempool API error (404)"),
+    });
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.deposit.emergencyWithdraw.errors.peginProofUnavailable,
+    );
+    expect(result.current.activationErrorTerminal).toBe(false);
+  });
+
+  it("reports an unproven PegIn on the activate-and-redeem path to telemetry", async () => {
+    mockProvePeginSpendsHtlc.mockResolvedValueOnce({
+      status: "unproven",
+      reason: "the depositor's signature does not verify",
+    });
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [err, ctx] = mockLoggerError.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe(
+      COPY.deposit.emergencyWithdraw.errors.peginProofFailed,
+    );
+    expect(err.cause).toEqual(
+      new Error("the depositor's signature does not verify"),
+    );
+    expect(ctx.tags.funnelStage).toBe("activation.reveal");
+  });
+
+  it("does not run the Bitcoin proof for a normal activation", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
+    expect(mockProvePeginSpendsHtlc).not.toHaveBeenCalled();
+  });
+
   it("refuses index 1 before index 0 is active without revealing the secret", async () => {
     const sacrificialId = `0x${"1".repeat(64)}` as Hex;
     const protectedId = `0x${"2".repeat(64)}` as Hex;
@@ -3189,10 +3351,10 @@ describe("useVaultActions — activation deadline margin", () => {
   });
 
   it("does not apply the margin to the activate-and-redeem path", async () => {
-    // That path runs only after the PegIn swept the HTLC, so its witness has
-    // already published the secret on Bitcoin. The margin would protect
-    // nothing and block the one recovery left; the contract still refuses a
-    // call past the deadline.
+    // That path runs only once the PegIn is proven a valid spend of the HTLC
+    // (stubbed proven here), whose witness holds the secret.
+    // The margin would protect nothing and block the one recovery left; the
+    // contract still refuses a call past the deadline.
     mockGetBlockNumber.mockResolvedValue(1_090n);
 
     const { result } = renderHook(() => useVaultActions());

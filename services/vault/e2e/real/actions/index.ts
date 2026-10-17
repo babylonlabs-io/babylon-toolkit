@@ -1,11 +1,12 @@
 /**
  * Registry of implemented actions: connect, observe, wallet-config, pegin, sign-conformance, borrow,
- * repay, multi-hub, repay-all, withdraw, resume, recover, and reclaim.
+ * repay, multi-hub, repay-all, withdraw, resume, recover, reclaim, and forged-stuck.
  */
 import type { ActionId } from "../config";
 
 import { borrowAction } from "./borrow";
 import { connectAction } from "./connect";
+import { forgedStuckAction } from "./forgedStuck";
 import { multiHubAction } from "./multiHub";
 import { observeAction } from "./observe";
 import { peginAction } from "./pegin";
@@ -33,4 +34,5 @@ export const ACTIONS_BY_ID: Partial<Record<ActionId, Action>> = {
   resume: resumeAction,
   recover: recoverAction,
   reclaim: reclaimAction,
+  "forged-stuck": forgedStuckAction,
 };

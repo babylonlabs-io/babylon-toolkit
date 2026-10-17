@@ -9,7 +9,8 @@
  * from the BTC wallet (`deriveHtlcSecretHex`, on-chain inputs only, buffers
  * zero-wiped) and submitted via the activation state machine in
  * `redeemImmediately` mode, which re-validates `sha256(secret) === hashlock`
- * against the on-chain registry before any calldata is assembled.
+ * against the on-chain registry before any calldata is assembled, and refuses
+ * unless the PegIn on Bitcoin validly spends the HTLC.
  *
  * On a Ledger the derivation and the submission are two clicks: the
  * secret is retrieved on the Babylon Vault app and held

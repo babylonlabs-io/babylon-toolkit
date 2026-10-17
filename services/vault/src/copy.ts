@@ -83,6 +83,15 @@ const NOTHING_SIGNED_OR_SPENT = "Nothing was signed and no funds were spent";
 // reserve tooltip opens with.
 const RESERVE_PURPOSE =
   "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction.";
+// The two refusals of the PegIn proof, shared by the redeems that reveal the
+// HTLC secret after the peg-in swept the deposit (stuck-state withdraw and
+// expired-BTCVault redeem). Both are retryable: a lagging or wrong mempool API
+// is not a final state. The first covers a failed read of either transaction
+// the proof needs — the peg-in or the Pre-Pegin.
+const PEGIN_PROOF_UNAVAILABLE =
+  "This deposit's Bitcoin transactions could not be read to confirm the peg-in transaction already revealed your HTLC secret. Nothing was submitted — please try again.";
+const PEGIN_PROOF_FAILED =
+  "Bitcoin data did not confirm that the peg-in transaction already revealed your HTLC secret, so it was not revealed here. Nothing was submitted — please try again later.";
 // Shared between the resume WOTS error string and the mapped callout body so
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
@@ -799,8 +808,11 @@ export const COPY = {
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
     // the BTCVault in one transaction, skipping application activation.
-    // Reached only when the stuck state was detected on-chain — the peg-in
-    // was swept while the vault is still Verified.
+    // Reached only when the stuck state is proven: the chain still reports the
+    // BTCVault Verified, and the peg-in transaction, fetched from Bitcoin,
+    // validly spends the deposit — the HTLC secret and every participant's
+    // signature in its witness. The confirm re-runs that proof before the
+    // secret is used.
     emergencyWithdraw: {
       title: "Withdraw without activating",
       // Reassurance first: the stuck state looks like lost funds but is
@@ -830,6 +842,8 @@ export const COPY = {
         btcWalletNotConnected: "BTC wallet is not connected",
         ethWalletNotConnected: "ETH wallet is not connected",
         withdrawFailed: "Failed to withdraw BTCVault",
+        peginProofUnavailable: PEGIN_PROOF_UNAVAILABLE,
+        peginProofFailed: PEGIN_PROOF_FAILED,
       },
       success: {
         heading: "Withdrawal submitted",
@@ -895,10 +909,8 @@ export const COPY = {
           "The grace window to redeem this BTCVault has closed. Nothing was submitted.",
         windowUnavailable:
           "The grace window could not be checked against the current Ethereum block. Nothing was submitted — please try again.",
-        peginProofUnavailable:
-          "The peg-in transaction could not be read from Bitcoin to confirm it already revealed your HTLC secret. Nothing was submitted — please try again.",
-        peginProofFailed:
-          "Bitcoin data did not confirm that the peg-in transaction already revealed your HTLC secret, so it was not revealed here. Nothing was submitted — please try again later.",
+        peginProofUnavailable: PEGIN_PROOF_UNAVAILABLE,
+        peginProofFailed: PEGIN_PROOF_FAILED,
         // The only exit after the peg-in spends the deposit, and the wrong one
         // before: revealing the secret while the deposit is unspent lets anyone
         // broadcast the peg-in ahead of the depositor's own refund.

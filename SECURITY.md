@@ -422,6 +422,41 @@ Preserve that placement: a check performed earlier in the flow proves nothing ab
 actually ships. **Derive the secret only from the source that generated it; never infer it from UI or
 storage state.**
 
+Two redeems reveal the secret once the mempool API reports that the PegIn spent the HTLC. One is
+activate-and-redeem, the escape hatch for a vault the chain still reports Verified. The other is the
+expired-vault redeem. Both skip the activation deadline margin on the premise that a valid PegIn
+witness, which holds the secret, already exists. That premise is proven, not taken from the mempool
+API. The API's `outspend` answer can name the vault's public PegIn txid as the HTLC's spender for a
+healthy vault, which would hide normal activation and offer only the irreversible redeem. So
+`provePeginSpendsHtlc` (`services/vault/src/clients/btc/outspend.ts`) fetches the PegIn by the txid
+of the on-chain signed PegIn, and the Pre-PegIn by its registered txid. The SDK's
+`verifyPeginHashlockSpend` then checks the PegIn's witness the way Bitcoin would:
+
+- the leaf script and control block commit to the registered HTLC output;
+- the leaf is the hashlock leaf;
+- the preimage opens the registered hashlock;
+- every signature the leaf requires verifies against the PegIn's script-path sighash.
+
+A preimage with garbage signatures fails the proof, and so does the signed PegIn stored on
+Ethereum, which has the same txid but no preimage. The participants' PegIn input signatures are
+public: the registry serves them (`getPeginInputSignaturesForVault`), and the depositor's is in the
+signed PegIn. The secret is therefore the only ingredient of a valid witness that is not public.
+Until the secret is public, no API can pass the proof for a vault whose PegIn was never broadcast.
+
+The row offers activate-and-redeem only on that proof, and fails open to normal activation. Both
+confirms re-run it, fail closed, before the secret check and the Ethereum wallet prompt. The secret
+is derived from the BTC wallet, or on a Ledger, before the confirm runs, so a refused confirm still
+costs that derivation.
+
+Residual: the proof shows a valid PegIn, not that one was broadcast, nor that the HTLC is still
+unspent. Once the secret is public, for example in a reverted activation's calldata, anyone can
+assemble a valid PegIn from public data. An API can then show the stuck state, and hide normal
+activation, for a PegIn that has not been broadcast. While the HTLC is unspent, the same party can
+broadcast that PegIn and sweep the HTLC for real, so an independent source would not prevent it.
+If the depositor's refund already spent the HTLC, the PegIn can never be broadcast, but the BTC is
+already back with the depositor. Whether a swept vault that is still Verified should keep normal
+activation alongside the escape hatch is a separate product decision.
+
 ### Claimer artifacts — recovery material with partial validation
 
 `services/vault/src/services/artifacts/artifactDownloadService.ts` fetches the BaBe Decryptor
@@ -925,6 +960,12 @@ only repository-local safeguards.
     `preparePegin` refuses the root unless `getPublicKeyHex()` still matches the depositor
     snapshot. An unobserved switch away and back is a known gap until the wallet attests the key it
     derived under.
+17. **A redeem that skips the activation deadline margin reveals the secret only after Bitcoin data
+    proves the PegIn is a valid spend of the HTLC**: the PegIn, fetched by the on-chain signed
+    PegIn's txid, spends the on-chain HTLC outpoint with a witness Bitcoin would accept — the
+    preimage of the on-chain hashlock and every signature the leaf requires. The proof shows a valid
+    spend, not that it was broadcast or that the HTLC is unspent. A mempool API's spend report alone
+    never offers or submits activate-and-redeem.
 
 ## Attack scenarios matrix
 
@@ -943,6 +984,7 @@ only repository-local safeguards.
 | Vault secrets       | F/G       | `VAULT_WASM_COMMIT` bump rotates expander output                                  | **Permanent loss of access for every in-flight deposit**                | Frozen API; JS + Rust golden-vector gates on every bump                                                         | `vault-secrets/__tests__/expand.test.ts`, `golden_vectors_pinned` |
 | Activation          | —         | Wrong preimage submitted to `activateVaultWithSecret`                             | Funds permanently locked                                                | SDK pre-check when `hashlock` is supplied; the vault app always supplies it                                     | SDK `activateVault` tests                                         |
 | Activation          | —/C       | The wallet's gas estimate lands on the registry's catch-and-redeem path, so the activation transaction succeeds but redeems the vault instead of activating it | Position never opened; the BTC returns through the VP payout with the secret public in calldata | `planActivationGasLimit` searches the limit with `eth_simulateV1` and refuses a limit at which the registry emits the depositor-key `VaultClaimableBy`; the chosen limit is re-checked as the send's pre-flight and passed to the wallet | `activationGasLimit.test.ts`, `vaultActivationService.test.ts` |
+| Activation          | C         | A mempool API reports a healthy Verified BTCVault's HTLC as spent by its PegIn (an `outspend` naming the public PegIn txid, served with a fabricated witness), so the app shows "Activation incomplete", hides Activate and offers only activate-and-redeem | The depositor redeems a BTCVault that could have activated: the secret is revealed, the position never opens, and the BTC returns through the VP payout minus commission | The stuck state also requires the PegIn, fetched by the on-chain signed PegIn's txid, to spend the registered HTLC outpoint with a witness Bitcoin would accept: leaf committed to the HTLC output of the registered Pre-PegIn, preimage of the registered hashlock, every required signature valid (`verifyPeginHashlockSpend`); the row fails open to normal activation, and the confirm re-runs the proof before the secret check and the Ethereum wallet prompt and refuses without it. **Residual:** the participants' PegIn signatures are public (`getPeginInputSignaturesForVault`), so once the secret is public (e.g. a reverted activation's calldata) anyone can assemble a valid PegIn and show the stuck state without broadcasting it — and, while the HTLC is unspent, could equally broadcast it and sweep the HTLC for real | SDK `verifyPeginHashlockSpend.test.ts` (incl. a real signet PegIn), `outspend.test.ts`, `useStuckVaultChainConfirm.test.ts`, `useVaultActions.test.ts`, `useClaimExpiredVault.test.tsx` |
 | Artifacts           | A         | VP returns a valid JSON-RPC envelope wrapping a corrupt ~1 GB artifact body       | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — only the envelope prefix is validated for large payloads                                        | close with end-to-end body validation                             |
 | VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 identity pinned per subject to the live or frozen-epoch on-chain operation key; bounded live-key refresh; 2h ephemeral-key lifetime cap | `serverIdentity.test.ts`, `tokenRegistry.test.ts`                  |
 | VP responses        | A         | Malformed or hostile VP response is cast without inspection                       | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                    | `validators.test.ts`, `json-rpc-client.test.ts`                   |

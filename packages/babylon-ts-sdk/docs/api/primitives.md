@@ -47,6 +47,9 @@ the managers module instead (PeginManager and PayoutManager).
 - [buildNoPayoutPsbt](#buildnopayoutpsbt) - Create NoPayout PSBT per challenger (depositor-as-claimer path)
 - [buildChallengeAssertPsbt](#buildchallengeassertpsbt) - Create ChallengeAssert PSBT (tooling only; not claimer-signed)
 
+### Transaction Verification
+- [verifyPeginHashlockSpend](#verifypeginhashlockspend) - Check a served PegIn spends its vault's HTLC with a witness Bitcoin would accept
+
 ### Script Generators
 - [createPayoutScript](#createpayoutscript) - Generate taproot payout script
 
@@ -1701,6 +1704,76 @@ PSBT the wallet returned after signing.
 
 ***
 
+### VerifyPeginHashlockSpendParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+The on-chain facts a served PegIn and Pre-PegIn are checked against.
+
+#### Properties
+
+##### peginTxHex
+
+```ts
+peginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+The PegIn as a Bitcoin API served it, witness included.
+
+##### prePeginTxHex
+
+```ts
+prePeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+The vault's Pre-PegIn as a Bitcoin API served it; authenticated by its txid.
+
+##### peginTxid
+
+```ts
+peginTxid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+Txid of the vault's on-chain signed PegIn.
+
+##### prePeginTxid
+
+```ts
+prePeginTxid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+The vault's registered Pre-PegIn txid.
+
+##### htlcVout
+
+```ts
+htlcVout: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+The vault's registered HTLC output index in the Pre-PegIn.
+
+##### hashlock
+
+```ts
+hashlock: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+The vault's registered hashlock, `sha256(secret)`.
+
+***
+
 ### VerifyScriptPathSchnorrSignatureParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyScriptPathSchnorrSignature.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyScriptPathSchnorrSignature.ts)
@@ -1993,6 +2066,25 @@ On-chain vault identifier used by BTCVaultRegistry contract.
 
 Type alias for documentation — not branded.
 Derive with `deriveVaultId(peginTxHash, depositorAddress)`.
+
+***
+
+### PeginHashlockSpendVerdict
+
+```ts
+type PeginHashlockSpendVerdict = 
+  | {
+  valid: true;
+}
+  | {
+  valid: false;
+  reason: string;
+};
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+Whether the PegIn validly spends the HTLC; a refusal names its reason.
 
 ## Functions
 
@@ -2797,6 +2889,30 @@ If the input counts differ, an input is neither key-path P2TR nor
         P2WPKH, an eligible input carries no signature, a finalized witness
         disagrees with its `tapKeySig`/`partialSig`, or any signature does
         not verify.
+
+***
+
+### verifyPeginHashlockSpend()
+
+```ts
+function verifyPeginHashlockSpend(params): PeginHashlockSpendVerdict;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/verifyPeginHashlockSpend.ts)
+
+Verify a served PegIn spends the vault's HTLC through the hashlock leaf with
+a witness Bitcoin would accept. Never throws on malformed input: anything that
+is not such a spend is a refusal.
+
+#### Parameters
+
+##### params
+
+[`VerifyPeginHashlockSpendParams`](#verifypeginhashlockspendparams)
+
+#### Returns
+
+[`PeginHashlockSpendVerdict`](#peginhashlockspendverdict)
 
 ***
 
