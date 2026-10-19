@@ -976,7 +976,7 @@ describe("PostDepositContinuationView", () => {
     expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault0");
   });
 
-  it("keeps the signing vault on screen when its poll errors and a sibling becomes actionable", () => {
+  it("keeps the signing vault on screen when its poll errors or drops it and a sibling becomes actionable", () => {
     // User is mid-signing vault 1; one VP poll fails while vault 0 turns actionable.
     const states = new Map<string, ReturnType<typeof resultWith>>([
       [
@@ -1031,6 +1031,24 @@ describe("PostDepositContinuationView", () => {
     );
 
     // The errored poll must neither release the hold nor drop the signing step.
+    expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
+    expect(queryByTestId("activate")).toBeNull();
+
+    // A tick that drops vault 1 from the deposit list (so it has no polling
+    // result either) must hold the same mounted step on its last snapshot.
+    const payoutNode = getByTestId("payout");
+    states.delete("0xvault1");
+    rerender(
+      <PostDepositContinuationView
+        vaultIds={props.vaultIds}
+        activities={[activityWithId("0xvault0")]}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        autoStartAction={null}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(getByTestId("payout")).toBe(payoutNode);
     expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
     expect(queryByTestId("activate")).toBeNull();
   });

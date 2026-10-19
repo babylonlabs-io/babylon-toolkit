@@ -170,10 +170,11 @@ export function PostDepositContinuationView({
 
   // Only a PENDING vault is polled, so only its poll can still answer. A later
   // status keeps the last PENDING tick's error for good; do not hold on it.
+  // A vault missing from a tick has not answered either.
   const isUnresolved = (id: string): boolean => {
     const result = getPollingResult(id);
+    if (!result) return true;
     return (
-      !!result &&
       isCandidateVault(result.peginState) &&
       result.peginState.contractStatus === ContractStatus.PENDING &&
       (result.loading || result.error !== null)
@@ -186,6 +187,8 @@ export function PostDepositContinuationView({
   // unmount active signing. Release on a resolved snapshot without an action.
   const [stickyVaultId, setStickyVaultId] = useState<string | null>(null);
   const heldActionsRef = useRef<readonly PeginAction[]>([]);
+  const heldActivityRef = useRef<VaultActivity | undefined>(undefined);
+  const heldDepositorBtcPubkeyRef = useRef<string | undefined>(undefined);
   const heldVaultId =
     stickyVaultId !== null &&
     vaultIds.includes(stickyVaultId as Hex) &&
@@ -220,9 +223,25 @@ export function PostDepositContinuationView({
   const pollingResult = currentVaultId
     ? getPollingResult(currentVaultId)
     : undefined;
-  const activity = currentVaultId
+  const liveActivity = currentVaultId
     ? activities.find((a) => a.id === currentVaultId)
     : undefined;
+  const liveActions = pollingResult?.peginState.availableActions ?? [];
+  // While the held vault's poll is unresolved, keep its last actions, and its
+  // last activity and key for a tick that drops it, so the step stays mounted.
+  const holdThrough = heldVaultId !== null && !isActionable(heldVaultId);
+  if (!holdThrough) {
+    heldActionsRef.current = liveActions;
+    heldActivityRef.current = liveActivity;
+    heldDepositorBtcPubkeyRef.current = pollingResult?.depositorBtcPubkey;
+  }
+  const actions = holdThrough ? heldActionsRef.current : liveActions;
+  const activity = holdThrough
+    ? (liveActivity ?? heldActivityRef.current)
+    : liveActivity;
+  const depositorBtcPubkey = holdThrough
+    ? (pollingResult?.depositorBtcPubkey ?? heldDepositorBtcPubkeyRef.current)
+    : pollingResult?.depositorBtcPubkey;
 
   // Hoisted above the early returns to satisfy Rules of Hooks. When no
   // vault is selected, showBtcDepthPanel is false and the hook no-ops.
@@ -362,13 +381,6 @@ export function PostDepositContinuationView({
     return <VaultActivatedView onGoToDashboard={handleGoToDashboard} />;
   }
 
-  const liveActions = peginState?.availableActions ?? [];
-  // While the held vault's poll is unresolved, keep its last actions so the
-  // running step stays mounted.
-  const holdThrough = heldVaultId !== null && !isActionable(heldVaultId);
-  if (!holdThrough) heldActionsRef.current = liveActions;
-  const actions = holdThrough ? heldActionsRef.current : liveActions;
-
   // God-mode: a demo vault renders a SAFE view — never the real Resume*Content,
   // which, once started (auto-start or its Start card), fires wallet signing /
   // vault-registry reads / on-chain submission. Activation is the one interactive simulated walk;
@@ -453,7 +465,7 @@ export function PostDepositContinuationView({
   // The wait fallback must also require the on-chain depositor key.
   if (
     activity &&
-    pollingResult?.depositorBtcPubkey &&
+    depositorBtcPubkey &&
     actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)
   ) {
     return (
