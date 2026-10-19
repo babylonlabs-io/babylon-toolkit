@@ -100,8 +100,6 @@ If the log is unavailable, step 2 becomes a search: enumerate the version-keyed 
 
 ## Before anyone needs this
 
-It has been rehearsed, on signet, against a real wallet. The `recover` action reconstructs a known vault blind, diffs every recovered field against the live row, signs the refund with the wallet and stops at the broadcast seam. Two runs are recorded: a single-vault deposit whose HTLC is unspent and matured, and a two-vault deposit exercising the sibling path.
+The `recover` action is the rehearsal. It reconstructs a known signet vault blind, diffs every recovered field against the live row, signs the refund with a real wallet and stops at the broadcast seam. No dated run is recorded in this repository. After the next run, replace this paragraph with the toolkit commit, the date, the network, the wallet, and the vault shape it covered (single-vault, and two-vault for the sibling path).
 
-That run is worth more than any of the text above, and it earned its keep immediately: it found that `deriveHashlocksFromPrePegin` could not accept the 33-byte compressed pubkey every wallet returns, while every unit test passed by feeding x-only hex.
-
-Rehearse again after any change to the derivation, the verifier or the refund projection — and note what the rehearsal still does **not** cover: reading the version stamps at a historical block height, which a real incident needs and a rehearsal against a current vault cannot exercise.
+Rehearse after any change to the derivation, the verifier or the refund projection — and note what the rehearsal still does **not** cover: reading the version stamps at a historical block height, which a real incident needs and a rehearsal against a current vault cannot exercise.
