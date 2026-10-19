@@ -34,8 +34,7 @@ export function BorrowLimitNotice({ mode, limit }: BorrowLimitNoticeProps) {
   const touchFirst = useIsTouchFirst();
   const { assetNoticeTitle, assetNoticeBody, hubNoticeTitle, hubNoticeBody } =
     COPY.loans.borrowLimit;
-  const title =
-    mode === "hub" ? hubNoticeTitle(limit) : assetNoticeTitle(limit);
+  const title = mode === "hub" ? hubNoticeTitle(limit) : assetNoticeTitle;
   const body = mode === "hub" ? hubNoticeBody(limit) : assetNoticeBody(limit);
 
   return (
