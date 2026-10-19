@@ -868,8 +868,9 @@ roles have different review requirements. Satisfy both.
   `required_approving_review_count: 2` — CODEOWNERS alone cannot express it, as the comment in
   `.github/CODEOWNERS` notes. Verify that ruleset exists; the file cannot.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
-  bundle to S3. Note `continue-on-error` is set for the production environment in multi-env runs so
-  a prod OIDC failure cannot block devnet — deliberate, and worth knowing when reading a green run.
+  bundle to S3. Note `continue-on-error` is set for the `prod: true` environments (`vault-testnet`,
+  `vault-testnet-3`) in multi-env runs so a prod OIDC failure cannot block devnet — deliberate, and
+  worth knowing when reading a green run.
   `vault-real-money-devnet` is out of the matrix until `services/vault/networks/real-money-devnet.json`
   exists; its matrix entry and `ENVIRONMENT` dispatch option come back from git history with the
   profile. Once present, it publishes with its own role, which trusts this workflow on
@@ -877,10 +878,10 @@ roles have different review requirements. Satisfy both.
   prefixes. Off `main` its leg is then left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
   has not published it. It also has no immutable per-sha release manifest: that step stays
-  `vault-testnet` only. Its checksums exist only in the checksum bucket, where its own publish
-  role can write a newer version under the same key. That bucket is versioned with Object Lock,
-  so an earlier version is kept, but a plain read returns the newest and no integrity checker
-  watches this environment.
+  `vault-testnet` and `vault-testnet-3` only. Its checksums exist only in the checksum bucket,
+  where its own publish role can write a newer version under the same key. That bucket is
+  versioned with Object Lock, so an earlier version is kept, but a plain read returns the newest
+  and no integrity checker watches this environment.
   Each matrix entry names the profile it builds (`network`) and its `expected_kind`; the job
   checks the profile before the build and the bundle after it (see "Environment
   configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
