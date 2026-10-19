@@ -11,15 +11,24 @@ import type { OnChainBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type Address, type Hex, isAddressEqual } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 
 export interface ResolvedVpAuthPins {
-  /** JSON-RPC bootstrap issuer: the provider's live operation key. */
+  /**
+   * JSON-RPC bootstrap issuer: the provider's live operation key, or the
+   * vault's frozen key when HTTP artifact downloads are on.
+   */
   pinnedServerPubkey: OnChainBtcPubkey;
   /** gRPC bootstrap issuer: the operation key frozen into this vault. */
   grpcPinnedServerPubkey: OnChainBtcPubkey;
   /** Epoch that selected `grpcPinnedServerPubkey`. */
   grpcKeyEpoch: bigint;
+  /**
+   * Re-reads the live JSON-RPC issuer after an identity mismatch. Absent
+   * when the JSON-RPC issuer is the frozen key, which must never move.
+   */
+  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
 }
 
 /**
@@ -28,10 +37,11 @@ export interface ResolvedVpAuthPins {
  * Throws when `vpAddress` is not the on-chain provider of `vaultId`. Call it
  * before the auth anchor can leave the browser.
  *
- * `auth_createDepositorToken` proves the provider's current server identity,
- * while `auth_createDepositorTokenGrpc` is issued under the vault's frozen VP
- * epoch. They are equal before the first rotation and intentionally diverge
- * for a pre-rotation vault afterwards.
+ * `auth_createDepositorTokenGrpc` is issued under the vault's frozen VP epoch.
+ * A VP with HTTP artifact downloads also issues `auth_createDepositorToken`
+ * under that frozen key; an older VP issues it under its current key. The
+ * keys are equal before the first rotation and diverge for a pre-rotation
+ * vault afterwards.
  */
 export async function resolveVpAuthPins(
   vpAddress: Address,
@@ -48,28 +58,22 @@ export async function resolveVpAuthPins(
       ),
     );
   }
-  const [pinnedServerPubkey, epochs] = await Promise.all([
-    reader.getCurrentVaultProviderOperationBtcKey(vpAddress),
-    reader.getVaultKeyEpochs(vaultId),
-  ]);
+  const epochs = await reader.getVaultKeyEpochs(vaultId);
   const grpcPinnedServerPubkey =
     await reader.getVaultProviderOperationBtcKeyAtEpoch(
       vpAddress,
       epochs.vpKeyEpoch,
     );
+  const pins = { grpcPinnedServerPubkey, grpcKeyEpoch: epochs.vpKeyEpoch };
 
+  if (featureFlags.isHttpArtifactDownloadsEnabled) {
+    return { ...pins, pinnedServerPubkey: grpcPinnedServerPubkey };
+  }
+  const readLiveKey = () =>
+    reader.getCurrentVaultProviderOperationBtcKey(vpAddress);
   return {
-    pinnedServerPubkey,
-    grpcPinnedServerPubkey,
-    grpcKeyEpoch: epochs.vpKeyEpoch,
+    ...pins,
+    pinnedServerPubkey: await readLiveKey(),
+    refreshJsonRpcPinnedServerPubkey: readLiveKey,
   };
-}
-
-/** Re-read the live JSON-RPC issuer after a bounded identity-mismatch retry. */
-export function refreshVpJsonRpcPinnedPubkey(
-  vpAddress: Address,
-): Promise<OnChainBtcPubkey> {
-  return getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(
-    vpAddress,
-  );
 }

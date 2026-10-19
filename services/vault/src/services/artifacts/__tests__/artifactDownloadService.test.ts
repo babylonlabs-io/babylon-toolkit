@@ -12,7 +12,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/utils/rpc", () => ({
   getVpProxyUrl: (address: string) => `https://proxy.example.com/vp/${address}`,
+  getVpArtifactsProxyUrl: (address: string) =>
+    `https://proxy.example.com/artifacts/${address}`,
 }));
+
+const featureFlagsMock = vi.hoisted(() => ({
+  isHttpArtifactDownloadsEnabled: false,
+}));
+vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 import {
   PresignFingerprintUnavailableError,
@@ -388,6 +395,61 @@ describe("fetchAndDownloadArtifacts", () => {
       );
 
       expect(commit).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("HTTP downloads", () => {
+    afterEach(() => {
+      featureFlagsMock.isHttpArtifactDownloadsEnabled = false;
+    });
+
+    it("saves the same payload from the manifest and CBOR sessions", async () => {
+      featureFlagsMock.isHttpArtifactDownloadsEnabled = true;
+      const session = new Uint8Array(MIN_DECRYPTOR_HEX_CHARS / 2).fill(0xcd);
+      const base = `https://proxy.example.com/artifacts/${PROVIDER_ADDRESS}/${PEGIN_TXID}`;
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              tx_graph_json: VALID_ARTIFACT_RESULT.tx_graph_json,
+              verifying_key_hex: VALID_ARTIFACT_RESULT.verifying_key_hex,
+              babe_sessions: {
+                [CHALLENGER_PUBKEY]: {
+                  download_path: `/v1/depositor-artifacts/${PEGIN_TXID}/sessions/${CHALLENGER_PUBKEY}`,
+                  byte_length: session.byteLength,
+                },
+              },
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(session, {
+            status: 200,
+            headers: {
+              etag: `"${bytesToHex(sha256(session))}"`,
+              "content-length": String(session.byteLength),
+            },
+          }),
+        );
+      const { target, commit, savedBytes } = fakeSaveTarget();
+
+      await fetchAndDownloadArtifacts(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
+        target,
+      );
+
+      expect(new TextDecoder().decode(savedBytes())).toBe(
+        expectedSavedPayload(),
+      );
+      expect(commit).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
+        `${base}/manifest`,
+        `${base}/sessions/${CHALLENGER_PUBKEY}`,
+      ]);
     });
   });
 

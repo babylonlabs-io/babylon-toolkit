@@ -32,6 +32,7 @@ import {
   ArtifactDownloadTooLargeError,
   ArtifactFileAccessError,
   type ArtifactSaveTarget,
+  ArtifactsNotReadyError,
   fetchAndDownloadArtifacts,
   type FetchArtifactsOptions,
   openArtifactSaveTarget,
@@ -601,7 +602,10 @@ export function useArtifactDownload(options?: {
             return;
           }
 
-          if (isPreDepositorSignaturesError(err)) {
+          if (
+            isPreDepositorSignaturesError(err) ||
+            err instanceof ArtifactsNotReadyError
+          ) {
             stillProcessingAttempts += 1;
             if (
               !stallEventEmitted &&
