@@ -1,6 +1,11 @@
 # Default owners
 * @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 
+# Recovery path. Owned like the refund builder it feeds, but not a CRITICAL
+# PATH, so it stays out of the inventory below.
+/packages/babylon-ts-sdk/src/tbv/core/recovery/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/services/vault/e2e/real/actions/recover.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+
 # -----------------------------------------------------------------------------
 # CRITICAL PATHS (see CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED")
 # These entries designate owners for the files/directories that handle

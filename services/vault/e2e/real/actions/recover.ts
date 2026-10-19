@@ -411,6 +411,7 @@ export const recoverAction: Action = {
       chain: sepolia,
       transport: http(ethRpcUrl),
     });
+    const blockNumber = await publicClient.getBlockNumber();
     const addresses = await resolveProtocolAddresses(publicClient, registry);
     const protocolReader = new ViemProtocolParamsReader(
       publicClient,
@@ -438,12 +439,15 @@ export const recoverAction: Action = {
         keeperReader.getVaultKeepersByVersion(
           target.applicationEntryPoint as Address,
           target.appVaultKeepersVersion,
+          blockNumber,
         ),
         challengerReader.getUniversalChallengersByVersion(
           target.universalChallengersVersion,
+          blockNumber,
         ),
         registryReader.getVaultProviderGenesisBtcPubKey(
           target.vaultProvider as Address,
+          blockNumber,
         ),
       ]);
 
@@ -459,6 +463,7 @@ export const recoverAction: Action = {
         vaultKeepers: keepers,
         universalChallengers: challengers,
       },
+      blockNumber,
     });
 
     const candidates = buildPeginParamsCandidates({
