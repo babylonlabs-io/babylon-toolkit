@@ -131,11 +131,13 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
     })),
     getVaultProviderOperationBtcKeyAtEpoch: vi.fn(async () => "ab".repeat(32)),
   })),
-  getVaultKeeperReader: vi.fn(async () => ({})),
-  getUniversalChallengerReader: vi.fn(async () => ({})),
-  getOperationKeyReader: vi.fn(async () => ({})),
-  getProtocolParamsReader: vi.fn(async () => ({
-    getPegInConfiguration: chainMocks.getPegInConfiguration,
+  getReadersAtBlock: vi.fn(async () => ({
+    vaultKeeperReader: {},
+    universalChallengerReader: {},
+    operationKeyReader: {},
+    protocolParamsReader: {
+      getPegInConfiguration: chainMocks.getPegInConfiguration,
+    },
   })),
 }));
 
@@ -1233,6 +1235,13 @@ describe("useDepositFlow", () => {
         await import("@/clients/eth-contract/pinnedReadBlock"),
       );
       expect(resolvePinnedReadBlock).toHaveBeenCalledTimes(1);
+
+      // The readers come from registry pointers read at the same block.
+      const { getReadersAtBlock } = vi.mocked(
+        await import("@/clients/eth-contract/sdk-readers"),
+      );
+      expect(getReadersAtBlock).toHaveBeenCalledTimes(1);
+      expect(getReadersAtBlock).toHaveBeenCalledWith(chainMocks.pinnedBlock);
     });
 
     it("builds from the pinned snapshot, not the cached one, for every parameter the lock commits to", async () => {

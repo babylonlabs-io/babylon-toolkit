@@ -26,13 +26,17 @@ export interface ProtocolAddresses {
  *
  * @param publicClient - viem PublicClient instance
  * @param btcVaultRegistryAddress - Address of the BTCVaultRegistry contract
+ * @param blockNumber - Block to read the pointers at; omit for `latest`. Pin it
+ *   to the block the readers will serve.
  * @returns Resolved contract addresses
  */
 export async function resolveProtocolAddresses(
   publicClient: PublicClient,
   btcVaultRegistryAddress: Address,
+  blockNumber?: bigint,
 ): Promise<ProtocolAddresses> {
   const [protocolParams, applicationRegistry] = await publicClient.multicall({
+    blockNumber,
     contracts: [
       {
         address: btcVaultRegistryAddress,

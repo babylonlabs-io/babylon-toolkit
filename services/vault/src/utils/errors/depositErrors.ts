@@ -328,8 +328,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3a''-stale. The protocol contract addresses could not be re-read from the
-  // registry and the cached ones are past their maximum age, so the build
-  // refused them. Mapped for the same reason as 3a'': the message names
+  // registry and the cached ones are past their maximum age, so the reader
+  // cache refused them. Mapped for the same reason as 3a'': the message names
   // internals and would otherwise become the callout body.
   if (isStaleProtocolAddressesError(err)) {
     return {

@@ -12,6 +12,7 @@
  */
 
 import {
+  type ProtocolAddresses,
   resolveProtocolAddresses,
   ViemOperationKeyReader,
   ViemProtocolParamsReader,
@@ -19,6 +20,7 @@ import {
   ViemVaultKeeperReader,
   ViemVaultRegistryReader,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import type { PublicClient } from "viem";
 
 import { StaleProtocolAddressesError } from "@/utils/errors/staleProtocolAddresses";
 
@@ -45,15 +47,47 @@ const READER_CACHE_TTL_MS = 5 * 60 * 1000;
  */
 const READER_CACHE_MAX_STALE_MS = 2 * READER_CACHE_TTL_MS;
 
-interface ResolvedReaders {
+interface ProtocolReaders {
   protocolParamsReader: ViemProtocolParamsReader;
   vaultKeeperReader: ViemVaultKeeperReader;
   universalChallengerReader: ViemUniversalChallengerReader;
   operationKeyReader: ViemOperationKeyReader;
+}
+
+interface ResolvedReaders extends ProtocolReaders {
   /** Last successful address resolve. Set only on success. */
   resolvedAt: number;
   /** Last refresh attempt, successful or not. Gates the TTL. */
   refreshedAt: number;
+}
+
+function buildReaders(
+  publicClient: PublicClient,
+  addresses: ProtocolAddresses,
+): ProtocolReaders {
+  return {
+    protocolParamsReader: new ViemProtocolParamsReader(
+      publicClient,
+      addresses.protocolParams,
+    ),
+    vaultKeeperReader: new ViemVaultKeeperReader(
+      publicClient,
+      addresses.applicationRegistry,
+    ),
+    universalChallengerReader: new ViemUniversalChallengerReader(
+      publicClient,
+      addresses.protocolParams,
+    ),
+    // RFC-006 operation-key resolution spans all three registries, so it
+    // is built here alongside the others rather than constructed ad hoc —
+    // it needs the same resolved ProtocolParams / ApplicationRegistry
+    // addresses.
+    operationKeyReader: new ViemOperationKeyReader(publicClient, {
+      btcVaultRegistry: CONTRACTS.BTC_VAULT_REGISTRY,
+      applicationRegistry: addresses.applicationRegistry,
+      protocolParams: addresses.protocolParams,
+    }),
+  };
 }
 
 /**
@@ -101,27 +135,7 @@ async function getResolvedReaders(): Promise<ResolvedReaders> {
 
       const resolvedNow = Date.now();
       const resolved: ResolvedReaders = {
-        protocolParamsReader: new ViemProtocolParamsReader(
-          publicClient,
-          addresses.protocolParams,
-        ),
-        vaultKeeperReader: new ViemVaultKeeperReader(
-          publicClient,
-          addresses.applicationRegistry,
-        ),
-        universalChallengerReader: new ViemUniversalChallengerReader(
-          publicClient,
-          addresses.protocolParams,
-        ),
-        // RFC-006 operation-key resolution spans all three registries, so it
-        // is built here alongside the others rather than constructed ad hoc —
-        // it needs the same resolved ProtocolParams / ApplicationRegistry
-        // addresses.
-        operationKeyReader: new ViemOperationKeyReader(publicClient, {
-          btcVaultRegistry: CONTRACTS.BTC_VAULT_REGISTRY,
-          applicationRegistry: addresses.applicationRegistry,
-          protocolParams: addresses.protocolParams,
-        }),
+        ...buildReaders(publicClient, addresses),
         resolvedAt: resolvedNow,
         refreshedAt: resolvedNow,
       };
@@ -198,6 +212,22 @@ export async function getUniversalChallengerReader(): Promise<ViemUniversalChall
  */
 export async function getOperationKeyReader(): Promise<ViemOperationKeyReader> {
   return (await getResolvedReaders()).operationKeyReader;
+}
+
+/**
+ * Readers built from the registry pointers at `blockNumber`. Uncached with no
+ * fallback, so a pinned build never reads through `latest`-resolved addresses.
+ */
+export async function getReadersAtBlock(
+  blockNumber: bigint,
+): Promise<ProtocolReaders> {
+  const publicClient = ethClient.getPublicClient();
+  const addresses = await resolveProtocolAddresses(
+    publicClient,
+    CONTRACTS.BTC_VAULT_REGISTRY,
+    blockNumber,
+  );
+  return buildReaders(publicClient, addresses);
 }
 
 /**
