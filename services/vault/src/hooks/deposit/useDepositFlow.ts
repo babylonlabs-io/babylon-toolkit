@@ -39,10 +39,7 @@ import type { Address, Hex } from "viem";
 
 import { resolvePinnedReadBlock } from "@/clients/eth-contract/pinnedReadBlock";
 import {
-  getOperationKeyReader,
-  getProtocolParamsReader,
-  getUniversalChallengerReader,
-  getVaultKeeperReader,
+  getReadersAtBlock,
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
@@ -682,20 +679,9 @@ export function useDepositFlow(
         // — both register, only one Pre-PegIn can broadcast, the other
         // strands until expiry.
 
-        const [
-          vaultKeeperReader,
-          universalChallengerReader,
-          operationKeyReader,
-          protocolParamsReader,
-        ] = await Promise.all([
-          getVaultKeeperReader(),
-          getUniversalChallengerReader(),
-          getOperationKeyReader(),
-          getProtocolParamsReader(),
-        ]);
-
         // Everything the Pre-PegIn commits to is read against this one block:
-        // the participant keys below and the peg-in configuration beside them.
+        // the registry pointers the readers come from, the participant keys
+        // below and the peg-in configuration beside them.
         // Unpinned, these are several successive `latest` observations, and the
         // params in particular would otherwise come from the React Query cache
         // that backs the UI — a snapshot taken when the modal opened and never
@@ -705,6 +691,12 @@ export function useDepositFlow(
         // they can only catch it if the baseline they compare against was
         // internally consistent to begin with.
         const pinnedBlock = await resolvePinnedReadBlock();
+        const {
+          vaultKeeperReader,
+          universalChallengerReader,
+          operationKeyReader,
+          protocolParamsReader,
+        } = await getReadersAtBlock(pinnedBlock);
         const buildConfig =
           await protocolParamsReader.getPegInConfiguration(pinnedBlock);
 

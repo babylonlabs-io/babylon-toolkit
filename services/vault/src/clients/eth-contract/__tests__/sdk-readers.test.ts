@@ -86,6 +86,7 @@ vi.mock("../../../config/contracts", () => ({
 import {
   _resetSdkReadersCacheForTests,
   getProtocolParamsReader,
+  getReadersAtBlock,
   getVaultRegistryReader,
 } from "../sdk-readers";
 
@@ -212,6 +213,32 @@ describe("sdk-readers", () => {
       mockResolveProtocolAddresses.mockRejectedValueOnce(new Error("rpc down"));
 
       await expect(getProtocolParamsReader()).rejects.toThrow("rpc down");
+    });
+  });
+
+  describe("getReadersAtBlock (uncached, pinned)", () => {
+    it("resolves the registry pointers at the given block and leaves the latest cache untouched", async () => {
+      const cachedReader = await getProtocolParamsReader();
+
+      mockResolveProtocolAddresses.mockResolvedValueOnce(ADDRESSES_B);
+      const pinned = await getReadersAtBlock(123n);
+
+      expect(mockResolveProtocolAddresses).toHaveBeenCalledTimes(2);
+      expect(mockResolveProtocolAddresses).toHaveBeenNthCalledWith(
+        2,
+        mockPublicClient,
+        "0x000000000000000000000000000000000000beef",
+        123n,
+      );
+      expect(mockProtocolParamsReaderCtor).toHaveBeenNthCalledWith(
+        2,
+        mockPublicClient,
+        ADDRESSES_B.protocolParams,
+      );
+      expect(pinned.protocolParamsReader).not.toBe(cachedReader);
+
+      expect(await getProtocolParamsReader()).toBe(cachedReader);
+      expect(mockResolveProtocolAddresses).toHaveBeenCalledTimes(2);
     });
   });
 

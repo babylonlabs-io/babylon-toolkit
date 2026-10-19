@@ -7420,7 +7420,10 @@ Matches `instanceof` OR the documented `name` (dual module instances).
 ### resolveProtocolAddresses()
 
 ```ts
-function resolveProtocolAddresses(publicClient, btcVaultRegistryAddress): Promise<ProtocolAddresses>;
+function resolveProtocolAddresses(
+   publicClient, 
+   btcVaultRegistryAddress, 
+blockNumber?): Promise<ProtocolAddresses>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/contract-address-resolver.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/contract-address-resolver.ts)
@@ -7440,6 +7443,13 @@ viem PublicClient instance
 `` `0x${string}` ``
 
 Address of the BTCVaultRegistry contract
+
+##### blockNumber?
+
+`bigint`
+
+Block to read the pointers at; omit for `latest`. Pin it
+  to the block the readers will serve.
 
 #### Returns
 
