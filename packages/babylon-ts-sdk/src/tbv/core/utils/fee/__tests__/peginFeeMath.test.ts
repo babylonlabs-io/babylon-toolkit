@@ -16,12 +16,16 @@
  *   LOW_RATE_ESTIMATION_BUFFER = 30 (when feeRate ≤ 2)
  */
 
-import { describe, expect, it } from "vitest";
+import { computeMinPeginFee } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import { beforeAll, describe, expect, it } from "vitest";
 
+import { initializeWasmForTests } from "../../../primitives/psbt/__tests__/helpers";
+import { PEGIN_VAULT_CORE_VERSION } from "../../../primitives/psbt/constants";
 import {
   applyChangeOutputPolicy,
   computeChangeOutputFeeSats,
   computeMaxDeposit,
+  computeMinPeginFeeSats,
   computePeginBaseFeeSats,
 } from "../peginFeeMath";
 
@@ -338,5 +342,95 @@ describe("computeMaxDeposit", () => {
       feeRate: 5,
     });
     expect(max).toBe(10_000n - baseFee);
+  });
+});
+
+// The formula changes slope only at the OP_N 16->17 boundary and at the
+// script-length varint (N+M 4->5); these counts straddle every such point.
+const SIGNER_COUNT_BREAKPOINTS = [1, 2, 3, 4, 5, 15, 16, 17, 18, 98, 99];
+const MAX_SIGNER_COUNT = 99;
+const MAX_RANDOM_RATE = 1000;
+const RANDOM_CASE_COUNT = 20;
+const DIFFERENTIAL_SEED = 0x5bc96f5c;
+
+function seededU32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state;
+  };
+}
+
+describe("computeMinPeginFeeSats", () => {
+  beforeAll(async () => {
+    await initializeWasmForTests();
+  });
+
+  it("matches PegInTx::estimate_vsize at btc-vault 5bc96f5c", () => {
+    const vsizeByVkUc: [number, number, bigint][] = [
+      [1, 1, 286n],
+      [2, 1, 311n],
+      [3, 1, 335n],
+      [3, 2, 361n],
+      [5, 3, 435n],
+      [10, 4, 583n],
+      [16, 16, 1029n],
+      [17, 1, 683n],
+      [20, 20, 1227n],
+      [99, 99, 5138n],
+    ];
+    for (const [vks, ucs, vsize] of vsizeByVkUc) {
+      for (const rate of [1n, 7n]) {
+        expect(computeMinPeginFeeSats(vks, ucs, rate), `${vks}/${ucs}`).toBe(
+          vsize * rate,
+        );
+      }
+    }
+  });
+
+  it("equals the WASM computeMinPeginFee across every formula breakpoint", async () => {
+    const expectSameAsWasm = async (vks: number, ucs: number, rate: bigint) => {
+      const wasm = await computeMinPeginFee(
+        PEGIN_VAULT_CORE_VERSION,
+        vks,
+        ucs,
+        rate,
+      );
+      expect(
+        computeMinPeginFeeSats(vks, ucs, rate),
+        `vaultKeepers=${vks} universalChallengers=${ucs} rate=${rate}`,
+      ).toBe(wasm);
+    };
+
+    for (const vks of SIGNER_COUNT_BREAKPOINTS) {
+      for (const ucs of SIGNER_COUNT_BREAKPOINTS) {
+        await expectSameAsWasm(vks, ucs, 1n);
+      }
+    }
+
+    const next = seededU32(DIFFERENTIAL_SEED);
+    for (let i = 0; i < RANDOM_CASE_COUNT; i++) {
+      await expectSameAsWasm(
+        1 + (next() % MAX_SIGNER_COUNT),
+        1 + (next() % MAX_SIGNER_COUNT),
+        1n + BigInt(next() % MAX_RANDOM_RATE),
+      );
+    }
+  });
+
+  it("rejects signer counts outside 1..99 and non-positive rates", () => {
+    for (const count of [0, 100, -1, 1.5, Number.NaN]) {
+      expect(() => computeMinPeginFeeSats(count, 1, 1n)).toThrow(
+        /numVaultKeepers must be an integer from 1 to 99/,
+      );
+      expect(() => computeMinPeginFeeSats(1, count, 1n)).toThrow(
+        /numUniversalChallengers must be an integer from 1 to 99/,
+      );
+    }
+    for (const rate of [0n, -1n]) {
+      expect(() => computeMinPeginFeeSats(1, 1, rate)).toThrow(
+        /minPeginFeeRate must be positive/,
+      );
+    }
   });
 });

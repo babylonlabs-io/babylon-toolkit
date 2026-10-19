@@ -70,7 +70,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files:
   - `packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts` - shared transaction sizing and safety limits
   - `packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts` — UTXO selection with iterative fee recalculation
-  - `packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts` — shared Pre-PegIn vsize/fee model
+  - `packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts` — shared Pre-PegIn vsize/fee model, and the TypeScript PegIn fee model (`computeMinPeginFeeSats`) that bounds each HTLC's PegIn reserve independently of WASM
   - `services/vault/src/hooks/deposit/useEstimatedBtcFee.ts` — dApp-side estimate (delegates to the SDK model)
 - Both systems must agree before broadcast. A mismatch underfunds the transaction.
 - **Rule:** When changing either, re-verify the other produces the same fee for a representative fixture. Cross-check assertions belong at the broadcast site, not only at the estimator.

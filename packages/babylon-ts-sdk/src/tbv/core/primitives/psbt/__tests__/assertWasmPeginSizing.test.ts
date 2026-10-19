@@ -12,24 +12,17 @@ import type {
 import { Buffer } from "buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  computeMinClaimValueMock,
-  computeMinPeginFeeMock,
-  createPrePeginTransactionMock,
-  peginP2aAnchorOutputMock,
-} = vi.hoisted(() => ({
-  computeMinClaimValueMock: vi.fn(),
-  computeMinPeginFeeMock: vi.fn(),
-  createPrePeginTransactionMock: vi.fn(),
-  peginP2aAnchorOutputMock: vi.fn(),
-}));
+const { computeMinClaimValueMock, createPrePeginTransactionMock } = vi.hoisted(
+  () => ({
+    computeMinClaimValueMock: vi.fn(),
+    createPrePeginTransactionMock: vi.fn(),
+  }),
+);
 
 vi.mock("../../../wasm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../wasm")>()),
   computeMinClaimValue: computeMinClaimValueMock,
-  computeMinPeginFee: computeMinPeginFeeMock,
   createPrePeginTransaction: createPrePeginTransactionMock,
-  peginP2aAnchorOutput: peginP2aAnchorOutputMock,
 }));
 
 import {
@@ -43,14 +36,12 @@ import { TEST_KEYS } from "./helpers";
 
 const CLAIM_VALUE = 5_000n;
 const PEGIN_AMOUNT = 100_000n;
-const PEGIN_FEE = 1_000n;
+// TypeScript fee model for 1 vault keeper + 1 universal challenger at
+// makeParams' minPeginFeeRate of 10 sat/vB: 286 vB x 10.
+const PEGIN_FEE = 2_860n;
 const DEPOSITOR =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
-// P2A anchor value returned by the mocked WASM facade.
 const ANCHOR_VALUE = 240n;
-// makeParams uses minPeginFeeRate = 10n. The independent cap is
-// 10 x MAX_REASONABLE_PEGIN_VBYTES (100,000), or 1,000,000 sats.
-const RESERVE_PLAUSIBILITY_CAP = 1_000_000n;
 
 type EncodedOutput = { value: number; script: Buffer };
 type OutputMutation = (
@@ -99,18 +90,10 @@ function makeResult(overrides?: Partial<PrePeginResult>): PrePeginResult {
 beforeEach(() => {
   computeMinClaimValueMock.mockReset();
   computeMinClaimValueMock.mockResolvedValue(CLAIM_VALUE);
-  computeMinPeginFeeMock.mockReset();
-  computeMinPeginFeeMock.mockResolvedValue(PEGIN_FEE);
   createPrePeginTransactionMock.mockReset();
   createPrePeginTransactionMock.mockImplementation(
     async (params: WasmPrePeginParams) => makeWasmResult(params),
   );
-  peginP2aAnchorOutputMock.mockReset();
-  peginP2aAnchorOutputMock.mockResolvedValue({
-    value: ANCHOR_VALUE,
-    vout: 2,
-    scriptPubKey: "51024e73",
-  });
   outputMutation = undefined;
   htlcScriptOverride = undefined;
   unfundedTxVersion = 2;
@@ -189,33 +172,11 @@ describe("assertWasmPeginSizing", () => {
     await expect(
       assertWasmPeginSizing(
         // implied reserve == 0: fee/anchor budget missing entirely. This
-        // must trip the binary-independent floor, not just the
-        // WASM-vs-WASM identity.
+        // must trip the strict-positivity floor, not just the exact identity.
         makeResult({ htlcValues: [PEGIN_AMOUNT + CLAIM_VALUE] }),
         makeParams(),
       ),
     ).rejects.toThrow(/does not strictly cover/);
-  });
-
-  it("throws the independent plausibility cap even when the WASM reference agrees", async () => {
-    // A consistently doctored binary: the builder AND computeMinPeginFee
-    // both report the same grossly inflated reserve, so the exact identity
-    // holds — only the pure-JS cap can reject it.
-    computeMinPeginFeeMock.mockResolvedValue(RESERVE_PLAUSIBILITY_CAP + 1n);
-    await expect(
-      assertWasmPeginSizing(
-        makeResult({
-          htlcValues: [
-            PEGIN_AMOUNT +
-              CLAIM_VALUE +
-              RESERVE_PLAUSIBILITY_CAP +
-              1n +
-              ANCHOR_VALUE,
-          ],
-        }),
-        makeParams(),
-      ),
-    ).rejects.toThrow(/exceeds the plausibility cap/);
   });
 
   it("throws when the reserve exceeds the exact minPeginFee (inflated htlcValue)", async () => {
@@ -461,12 +422,12 @@ describe("buildPrePeginPsbt encoded output checks", () => {
     ],
     [
       "a wrong HTLC value",
-      replaceOutput(1, output(256_239, SCRIPT_B)),
-      /HTLC output\[1\] value 256239 does not match.*256240/s,
+      replaceOutput(1, output(258_099, SCRIPT_B)),
+      /HTLC output\[1\] value 258099 does not match.*258100/s,
     ],
     [
       "a wrong HTLC script",
-      replaceOutput(0, output(106_240, SCRIPT_B)),
+      replaceOutput(0, output(108_100, SCRIPT_B)),
       /HTLC output\[0\] scriptPubKey .* does not match/s,
     ],
     [

@@ -4,7 +4,8 @@
  * Takes plain chain-derived data (the app orchestrator does the chain reads +
  * sibling discovery) and: (1) asserts sibling completeness against the funded
  * tx's auth-anchor OP_RETURN, (2) recomputes the amount-independent sizing
- * (depositorClaimValue, peginMaxFee, anchor) via WASM, (3) byte-matches each
+ * (depositorClaimValue via WASM; peginMaxFee and the P2A anchor from the
+ * TypeScript fee model and constants), (3) byte-matches each
  * HTLC output's value + scriptPubKey against the funded tx (Gate 1), then (4)
  * projects into DepositTerms. No chain access, no browser state — unit-testable.
  *
@@ -12,18 +13,14 @@
  * `derive_challengers_for`).
  */
 
-import {
-  computeMinClaimValue,
-  computeMinPeginFee,
-  getPrePeginHtlcConnectorInfo,
-  peginP2aAnchorOutput,
-} from "../wasm";
+import { computeMinClaimValue, getPrePeginHtlcConnectorInfo } from "../wasm";
 import { Transaction } from "bitcoinjs-lib";
 
 import { findAuthAnchorOpReturn } from "../managers/pegin/assertAuthAnchorOpReturn";
 import { assertEncodedHtlcOutputsMatch } from "../primitives/psbt/assertWasmPeginSizing";
+import { PEGIN_P2A_ANCHOR_VALUE_SATS } from "../primitives/psbt/constants";
 import { stripHexPrefix } from "../primitives/utils/bitcoin";
-import { MAX_REASONABLE_PEGIN_VBYTES } from "../utils/fee/constants";
+import { computeMinPeginFeeSats } from "../utils/fee/peginFeeMath";
 import { calculateBtcTxHash } from "../utils/transaction/btcTxHash";
 
 import { buildDepositTerms } from "./buildDepositTerms";
@@ -141,45 +138,17 @@ export async function rebuildDepositTermsCore(
     input.councilSize,
     input.protocolFeeRate,
   );
-  const peginMaxFee = await computeMinPeginFee(
-    input.vaultCoreVersion,
+  const peginMaxFee = computeMinPeginFeeSats(
     numVks,
     numUcs,
     input.minPeginFeeRate,
   );
-  const { value: anchorValue } = await peginP2aAnchorOutput(
-    input.vaultCoreVersion,
-  );
+  const anchorValue = PEGIN_P2A_ANCHOR_VALUE_SATS;
 
-  // Independent bounds on the WASM outputs (mirrors assertWasmPeginSizing):
-  // Gate 1 only proves the DCV+fee+anchor SUM — these constrain the
-  // decomposition the device is shown.
   if (depositorClaimValue <= 0n) {
     throw new Error(
       `WASM returned non-positive depositorClaimValue ${depositorClaimValue}; ` +
         `expected > 0. Resume refused.`,
-    );
-  }
-  if (peginMaxFee <= 0n) {
-    throw new Error(
-      `WASM returned non-positive peginMaxFee ${peginMaxFee}; expected > 0. ` +
-        `Resume refused.`,
-    );
-  }
-  // Explicit anchor check: the sum bound alone would let a negative anchor
-  // offset an inflated peginMaxFee (kept local, not inherited from the facade).
-  if (anchorValue < 0n) {
-    throw new Error(
-      `WASM returned negative P2A anchor value ${anchorValue}. Resume refused.`,
-    );
-  }
-  const impliedReserve = peginMaxFee + anchorValue;
-  const maxImpliedReserve = input.minPeginFeeRate * MAX_REASONABLE_PEGIN_VBYTES;
-  if (impliedReserve <= 0n || impliedReserve > maxImpliedReserve) {
-    throw new Error(
-      `WASM implied PegIn reserve ${impliedReserve} sat is outside ` +
-        `(0, ${maxImpliedReserve}] (minPeginFeeRate=${input.minPeginFeeRate} × ` +
-        `${MAX_REASONABLE_PEGIN_VBYTES} vbytes). Resume refused.`,
     );
   }
 

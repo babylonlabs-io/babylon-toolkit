@@ -218,7 +218,10 @@ without adding guards of its own — the facade's guards still apply.
 The Pre-PegIn path adds an independent TypeScript check. It derives every canonical HTLC output and
 the Taproot signing data before it creates a PSBT. It rejects a WASM transaction or signing field
 that does not match. The canonical transaction constants for this check are in
-`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts`.
+`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts`. The PegIn fee reserve in each
+HTLC is bounded by the TypeScript fee model `computeMinPeginFeeSats`
+(`packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts`), so the WASM is no longer its own
+oracle for that fee.
 
 `packages/babylon-tbv-rust-wasm/src/challengeAssertOutputConnector.ts`, spread into both entries,
 returns the scriptPubKey of the ChallengeAssert output connector. It range-checks the timelock and

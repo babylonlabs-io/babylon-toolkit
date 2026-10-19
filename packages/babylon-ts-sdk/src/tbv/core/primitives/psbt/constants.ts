@@ -135,6 +135,18 @@ export const PEGIN_TX_VERSION = 3;
  */
 export const PEGIN_OUTPUT_COUNT = 3;
 
+/** PegIn P2A anchor output index (vout 2 of {@link PEGIN_OUTPUT_COUNT}). */
+export const PEGIN_P2A_ANCHOR_VOUT = 2;
+
+/**
+ * PegIn P2A anchor value in sats (btc-vault `P2A_ANCHOR_VALUE`,
+ * `crates/vault/src/lib.rs:248` @ 5bc96f5c).
+ */
+export const PEGIN_P2A_ANCHOR_VALUE_SATS = 240n;
+
+/** PegIn P2A anchor scriptPubKey: BIP-433 pay-to-anchor (`OP_1 <0x4e73>`). */
+export const PEGIN_P2A_ANCHOR_SCRIPT_HEX = "51024e73";
+
 /** PegIn locktime from `PegInTx::new_from_prepegin` (`LockTime::ZERO`). */
 export const PEGIN_TX_LOCKTIME = 0;
 

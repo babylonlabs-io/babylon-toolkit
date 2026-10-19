@@ -27,12 +27,10 @@ import {
   processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../primitives/utils/bitcoin";
+import { PEGIN_P2A_ANCHOR_VALUE_SATS } from "../primitives/psbt/constants";
+import { computeMinPeginFeeSats } from "../utils/fee/peginFeeMath";
 import { calculateBtcTxHash } from "../utils/transaction/btcTxHash";
-import {
-  computeMinClaimValue,
-  computeMinPeginFee,
-  peginP2aAnchorOutput,
-} from "../wasm";
+import { computeMinClaimValue } from "../wasm";
 
 import {
   describePeginParamsCandidate,
@@ -169,16 +167,13 @@ function sizingCacheKey(candidate: PeginParamsCandidate): string {
 }
 
 /**
- * Compute the amount-independent reserve for one candidate, asserting the WASM
- * outputs before they are consumed (CLAUDE.md critical path 1).
+ * Compute the amount-independent reserve for one candidate (CLAUDE.md critical
+ * path 1). The PegIn fee and P2A anchor come from the TypeScript model and
+ * constants; only the WASM claim value is asserted before it is consumed.
  *
- * Only binary-integrity invariants are asserted here — a claim value or fee of
- * zero, or a negative anchor, is impossible for ANY valid parameter set, so it
+ * A claim value of zero is impossible for ANY valid parameter set, so it
  * indicts the binary rather than the candidate and must escape the search loop
- * instead of being counted as a rejection. The plausibility band on the implied
- * reserve is deliberately NOT duplicated: it depends on the candidate's own
- * `minPeginFeeRate`, so a candidate can legitimately fail it, and the verifier
- * applies it where it belongs — as a candidate filter.
+ * instead of being counted as a rejection.
  */
 async function computePeginSizing(
   candidate: PeginParamsCandidate,
@@ -188,38 +183,24 @@ async function computePeginSizing(
   // (the vault provider is excluded) — btc-vault graph.rs derive_challengers_for.
   const numVks = participants.vaultKeeperBtcPubkeys.length;
   const numUcs = participants.universalChallengerBtcPubkeys.length;
-  const [depositorClaimValue, peginMaxFee, anchorOutput] = await Promise.all([
-    computeMinClaimValue(
-      candidate.vaultCoreVersion,
-      numVks,
-      numUcs,
-      params.councilQuorum,
-      params.councilSize,
-      params.protocolFeeRate,
-    ),
-    computeMinPeginFee(
-      candidate.vaultCoreVersion,
-      numVks,
-      numUcs,
-      params.minPeginFeeRate,
-    ),
-    peginP2aAnchorOutput(candidate.vaultCoreVersion),
-  ]);
-  const p2aAnchorValue = anchorOutput.value;
+  const depositorClaimValue = await computeMinClaimValue(
+    candidate.vaultCoreVersion,
+    numVks,
+    numUcs,
+    params.councilQuorum,
+    params.councilSize,
+    params.protocolFeeRate,
+  );
+  const peginMaxFee = computeMinPeginFeeSats(
+    numVks,
+    numUcs,
+    params.minPeginFeeRate,
+  );
+  const p2aAnchorValue = PEGIN_P2A_ANCHOR_VALUE_SATS;
 
   if (depositorClaimValue <= 0n) {
     throw new PeginSizingIntegrityError(
       `WASM returned non-positive depositorClaimValue ${depositorClaimValue} for graph version ${candidate.vaultCoreVersion}`,
-    );
-  }
-  if (peginMaxFee <= 0n) {
-    throw new PeginSizingIntegrityError(
-      `WASM returned non-positive peginMaxFee ${peginMaxFee} for graph version ${candidate.vaultCoreVersion}`,
-    );
-  }
-  if (p2aAnchorValue < 0n) {
-    throw new PeginSizingIntegrityError(
-      `WASM returned negative P2A anchor value ${p2aAnchorValue} for graph version ${candidate.vaultCoreVersion}`,
     );
   }
 
