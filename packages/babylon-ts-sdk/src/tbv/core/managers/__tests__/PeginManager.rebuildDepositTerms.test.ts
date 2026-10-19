@@ -38,11 +38,7 @@ vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
     await importOriginal<typeof import("../../primitives/psbt/peginInput")>();
   return {
     ...actual,
-    buildPeginInputPsbt: vi.fn().mockResolvedValue({ psbtHex: "deadbeef" }),
     extractPeginInputSignature: vi.fn().mockReturnValue("a".repeat(128)),
-    finalizePeginInputPsbt: vi
-      .fn()
-      .mockReturnValue("mock-depositor-signed-pegin-tx"),
   };
 });
 vi.mock(

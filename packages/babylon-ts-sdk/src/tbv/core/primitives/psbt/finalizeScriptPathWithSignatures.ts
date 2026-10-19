@@ -11,10 +11,12 @@
  * bitcoinjs-lib checks key-spend first (`src/psbt.js`, `_finalizeTaprootInput`:
  * "Check key spend first. Increased privacy and reduced block space."), so a
  * returned `tapKeySig` wins outright and `tapScriptSig` is never consulted.
- * Every output the depositor-claim reserve and the HTLC refund spend from uses
- * a NUMS internal key, so the resulting key-path witness cannot satisfy the
- * script — the transaction is rejected at broadcast, after a wallet prompt the
- * depositor cannot make sense of.
+ * Every output the depositor-claim reserve, the HTLC refund and the depositor's
+ * PegIn spend from uses a NUMS internal key, so the resulting key-path witness
+ * cannot satisfy the script — the transaction is rejected at broadcast, after a
+ * wallet prompt the depositor cannot make sense of. For the PegIn, whose signed
+ * bytes are registered on Ethereum rather than broadcast by the depositor, the
+ * vault would be registered with a witness that cannot be used.
  *
  * Verifying and then discarding the wallet's PSBT closes that off structurally
  * rather than detecting it afterwards, and it makes the code match what

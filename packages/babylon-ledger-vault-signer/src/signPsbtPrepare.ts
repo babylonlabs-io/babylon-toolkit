@@ -149,10 +149,10 @@ function assertNoConflictingSignatures(mergeTarget: BitcoinjsPsbt, table: Expect
     const input = mergeTarget.data.inputs[inputIndex];
     // A finalized input is silently signable: bip174 has no finalized guard, so
     // the merge writes the partial sig ALONGSIDE the final witness instead of
-    // throwing — and nothing downstream notices: extraction reads the merged
-    // tapScriptSig fine (`peginInput.ts`) and `finalizePeginInputPsbt`'s
-    // allFinalized fallback then ships the STALE
-    // witness. Reject here, where a throw still costs zero device I/O.
+    // throwing. The SDK finalizes its script-path spends from the PSBT it built,
+    // so the stale witness never reaches those transactions, but the user would
+    // still have approved a signature for an input whose witness is already
+    // decided. Reject here, where a throw still costs zero device I/O.
     if (input.finalScriptWitness || input.finalScriptSig) {
       throw new LedgerSignPsbtProtocolError(
         `input ${inputIndex} is already finalized and this round signs it — pass an unsigned PSBT`,

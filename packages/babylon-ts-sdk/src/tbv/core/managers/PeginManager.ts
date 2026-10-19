@@ -67,7 +67,7 @@ import {
   buildPeginTxFromFundedPrePegin,
   buildPrePeginPsbt,
   extractPeginInputSignature,
-  finalizePeginInputPsbt,
+  finalizeScriptPathWithSignatures,
   type Network,
   type PrePeginParams,
 } from "../primitives";
@@ -1148,7 +1148,32 @@ export class PeginManager {
         inputIndex: 0,
       });
 
-      const depositorSignedPeginTxHex = finalizePeginInputPsbt(signedPsbts[i]);
+      // Finalize the PSBT we built, not the one the wallet returned: only the
+      // verified signature above crosses over. See the primitive's header for
+      // what finalizing the wallet's copy would let through.
+      const depositorSignedPeginTxHex = finalizeScriptPathWithSignatures({
+        requestedPsbtHex: psbtsToSign[i],
+        signaturesHex: [peginInputSignature],
+        signerXOnlyPubkeyHex: depositorBtcPubkey,
+      });
+
+      // Registration derives the vault id from the txid of these bytes, while
+      // callers track the vault by peginTxid: both must name the PegIn built
+      // for this HTLC output.
+      const depositorSignedPeginTxid = Transaction.fromHex(
+        depositorSignedPeginTxHex,
+      ).getId();
+      const expectedPeginTxid = stripHexPrefix(
+        peginTxResults[i].txid,
+      ).toLowerCase();
+      if (depositorSignedPeginTxid !== expectedPeginTxid) {
+        throw new Error(
+          `Depositor-signed PegIn for HTLC output ${i} has txid ` +
+            `${depositorSignedPeginTxid}, but the PegIn built for it has txid ` +
+            `${expectedPeginTxid}; refusing to register a PegIn the vault is ` +
+            `not tracked under.`,
+        );
+      }
 
       perVault.push({
         htlcVout: i,

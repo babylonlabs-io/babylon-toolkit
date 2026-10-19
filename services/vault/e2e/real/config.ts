@@ -325,6 +325,13 @@ export interface RunConfig {
    * `--borrow-first` applies it to the repay only.
    */
   injectReorg?: ReorgInjection;
+  /**
+   * Pegin only: make UniSat answer the PegIn signing request with a key-path signature, its own final
+   * witness, a scriptSig and a relabelled leaf hash beside its genuine signature
+   * (`--inject-pegin-psbt-extras`). The deposit must still activate, and the PegIn it registers must
+   * still be the depositor's script-path spend the dApp built.
+   */
+  injectPeginPsbtExtras?: boolean;
 }
 
 /** Resolve the target URL a run should open. */
