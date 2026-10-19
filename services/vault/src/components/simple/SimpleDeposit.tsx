@@ -66,13 +66,13 @@ type ResumeBroadcastProps = SimpleDepositBaseProps & {
   resumeMode: "broadcast_btc";
   activity: VaultActivity;
   /**
-   * Every vault ID sharing this Pre-PegIn transaction (batched pegin).
-   * Includes `activity.id`; a standalone deposit is a single-element list.
-   * The broadcast confirms all of them.
+   * Every vault ID believed to share this Pre-PegIn transaction (batched
+   * pegin). Includes `activity.id`; a standalone deposit is a single-element
+   * list. Only chain-verified ids are marked broadcast.
    */
   batchVaultIds: string[];
   depositorEthAddress: string;
-  onResumeSuccess: () => void;
+  onResumeSuccess: (confirmedVaultIds: readonly string[]) => void;
 };
 
 // The post-broadcast resume actions (submit WOTS key, sign payouts, activate)

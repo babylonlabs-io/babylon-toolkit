@@ -260,13 +260,13 @@ export interface ResumeBroadcastContentProps {
   activity: VaultActivity;
   autoStart?: boolean;
   /**
-   * Every vault ID sharing this Pre-PegIn transaction (batched pegin).
-   * Includes `activity.id`. The broadcast confirms all of them.
+   * Every vault ID believed to share this Pre-PegIn transaction (batched
+   * pegin). Includes `activity.id`. Only chain-verified ids are marked broadcast.
    */
   batchVaultIds: string[];
   depositorEthAddress: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (confirmedVaultIds: readonly string[]) => void;
 }
 
 export function ResumeBroadcastContent(props: ResumeBroadcastContentProps) {
