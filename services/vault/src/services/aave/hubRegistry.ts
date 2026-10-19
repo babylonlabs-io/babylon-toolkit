@@ -29,9 +29,14 @@ export const HUBS_BY_DEPLOYMENT: Record<string, DeploymentHubs> = {
     "0xb3283508a0E96F80CF79DC2a1135F10dA170138D": "Babylon Hub",
     "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca": "Core Hub",
   },
-  // Testnet (single hub; lists the vaultBTC reserve, like devnet's Babylon Hub)
-  testnet: {
+  // Testnet-2 (single hub; lists the vaultBTC reserve, like devnet's Babylon Hub)
+  "testnet-2": {
     "0x6ca0d39f8bD5Cf226878DA80BC073227d6E52C34": "Babylon Hub",
+  },
+  // Testnet (testnet-3): aaveHub lists the vaultBTC reserve, aaveHubStables the stablecoins
+  testnet: {
+    "0xc551Cc801aCB95F9131A26081E495AEf960a2f37": "Babylon Hub",
+    "0xf5960351a45633821CD6Fc4A1da2d0f066Dd06Fc": "Core Hub",
   },
 };
 
