@@ -1022,6 +1022,8 @@ export const COPY = {
       reauthenticating: "Re-authenticating with vault provider...",
       waitingForSignatures:
         "Waiting for vault provider to process signatures...",
+      notAvailable:
+        "The vault provider still does not serve the artifacts. Check the vault status, then try again.",
       // Error fallbacks shown when a thrown error carries no usable message.
       authenticationFailed: "Authentication failed",
       reauthenticationFailed: "Re-authentication failed",

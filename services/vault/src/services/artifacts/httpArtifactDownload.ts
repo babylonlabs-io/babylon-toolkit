@@ -25,11 +25,23 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 /** Largest original session the VP serves. */
 const MAX_SESSION_BYTES = 256 * 1024 * 1024;
 
-/** Attempts per file, shared by retries and resumes. */
+/** Largest manifest the VP serves (its `MAX_MANIFEST_BYTES`). */
+const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
+
+/** Transfer attempts per file: network failures and broken bodies. */
 const MAX_ATTEMPTS = 8;
 
 /** Upper bound for one wait between attempts. */
 const MAX_RETRY_DELAY_MS = 30_000;
+
+/**
+ * Total wait per file for busy or failing responses. These do not use
+ * transfer attempts, so normal VP or proxy contention does not end a download.
+ */
+const MAX_BUSY_WAIT_MS = 5 * 60_000;
+
+/** Responses that a later request can succeed after. */
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
 /** Bytes hex-encoded at once, so one session never becomes one huge string. */
 const HEX_SLICE_BYTES = 1024 * 1024;
@@ -46,9 +58,17 @@ const CONTENT_RANGE_RE = /^bytes (\d+)-(\d+)\/(\d+)$/;
  * are not finished. The download hook waits and retries on this error.
  */
 export class ArtifactsNotReadyError extends Error {
-  constructor() {
+  /**
+   * True for `INVALID_STATE`: the peg-in is not `PendingActivation` or
+   * `Activated`. The VP does not say which status it is, so this also covers
+   * a terminal status, and the hook bounds the wait.
+   */
+  readonly invalidState: boolean;
+
+  constructor(invalidState: boolean) {
     super("Vault provider artifacts are not ready yet");
     this.name = "ArtifactsNotReadyError";
+    this.invalidState = invalidState;
   }
 }
 
@@ -85,6 +105,12 @@ export async function fetchHttpArtifactsResponse(
     baseUrl,
     txid,
   );
+  // Cancelling the body also stops a session download that is in progress,
+  // so it does not keep a VP download slot.
+  const cancelled = new AbortController();
+  const downloadSignal = signal
+    ? AbortSignal.any([signal, cancelled.signal])
+    : cancelled.signal;
 
   const encoder = new TextEncoder();
   const head = encoder.encode(
@@ -112,7 +138,7 @@ export async function fetchHttpArtifactsResponse(
     yield head;
     let index = 0;
     for (const [key, session] of manifest.sessions) {
-      const chunks = await downloadSession(session, getToken, signal);
+      const chunks = await downloadSession(session, getToken, downloadSignal);
       yield sessionOpen(key, index++);
       for (const chunk of chunks) {
         for (let i = 0; i < chunk.byteLength; i += HEX_SLICE_BYTES) {
@@ -134,6 +160,7 @@ export async function fetchHttpArtifactsResponse(
       else controller.enqueue(next.value);
     },
     async cancel() {
+      cancelled.abort();
       await iterator.return(undefined);
     },
   });
@@ -151,24 +178,27 @@ async function fetchManifest(
   getToken: () => Promise<string | null>,
   signal: AbortSignal | undefined,
 ): Promise<unknown> {
-  for (let attempt = 0; ; attempt++) {
+  const busy = { retries: 0, waitedMs: 0 };
+  for (let attempt = 0; ; ) {
     let response: Response;
     try {
       response = await fetchWithToken(url, getToken, {}, signal);
     } catch (err) {
-      if (!isNetworkError(err, signal) || attempt + 1 >= MAX_ATTEMPTS) {
+      if (!isNetworkError(err, signal) || ++attempt >= MAX_ATTEMPTS) {
         throw err;
       }
-      await sleep(backoffMs(attempt), signal);
+      await sleep(backoffMs(attempt - 1), signal);
       continue;
     }
-    const delay = retryDelayMs(response, attempt);
-    if (delay !== null) {
-      await response.body?.cancel();
-      await sleep(delay, signal);
-      continue;
-    }
+    if (await waitIfBusy(response, busy, signal)) continue;
     if (response.status !== 200) throw await httpError(response);
+    const length = Number(response.headers.get("content-length"));
+    if (!(length > 0 && length <= MAX_MANIFEST_BYTES)) {
+      await response.body?.cancel();
+      throw new VpResponseValidationError(
+        "Artifact manifest has no valid Content-Length",
+      );
+    }
     try {
       return await response.json();
     } catch {
@@ -239,8 +269,14 @@ async function downloadSession(
   let etag: string | null = null;
   let hasher = sha256.create();
   let lastError: unknown = null;
+  const busy = { retries: 0, waitedMs: 0 };
+  let attempt = 0;
+  // Wait before the next transfer attempt, but not after the last one.
+  const nextAttempt = async () => {
+    if (++attempt < MAX_ATTEMPTS) await sleep(backoffMs(attempt - 1), signal);
+  };
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+  while (attempt < MAX_ATTEMPTS) {
     const headers: Record<string, string> =
       etag !== null && received > 0
         ? { Range: `bytes=${received}-`, "If-Range": etag }
@@ -251,21 +287,16 @@ async function downloadSession(
     } catch (err) {
       if (!isNetworkError(err, signal)) throw err;
       lastError = err;
-      await sleep(backoffMs(attempt), signal);
+      await nextAttempt();
       continue;
     }
 
-    const delay = retryDelayMs(response, attempt);
-    if (delay !== null) {
-      await response.body?.cancel();
-      await sleep(delay, signal);
-      continue;
-    }
+    if (await waitIfBusy(response, busy, signal)) continue;
 
     const current = response.headers.get("etag");
     if (current === null || !SHA256_ETAG_RE.test(current)) {
-      await response.body?.cancel();
       if (response.status === 200 || response.status === 206) {
+        await response.body?.cancel();
         throw new VpResponseValidationError(
           "Artifact session has no SHA-256 ETag",
         );
@@ -285,18 +316,20 @@ async function downloadSession(
       const range = CONTENT_RANGE_RE.exec(
         response.headers.get("content-range") ?? "",
       );
+      end = range ? Number(range[2]) + 1 : 0;
       if (
         current !== etag ||
         !range ||
         Number(range[1]) !== received ||
-        Number(range[3]) !== session.byteLength
+        Number(range[3]) !== session.byteLength ||
+        end <= received ||
+        end > session.byteLength
       ) {
         await response.body?.cancel();
         throw new VpResponseValidationError(
           "Resumed artifact session does not match the first response",
         );
       }
-      end = Number(range[2]) + 1;
     } else {
       await response.body?.cancel();
       throw new VpResponseValidationError(
@@ -337,8 +370,10 @@ async function downloadSession(
       }
       return chunks;
     }
+    await nextAttempt();
   }
-  throw new VpResponseValidationError(
+  // A transport failure, not a validation failure: the bytes were never wrong.
+  throw new Error(
     `Artifact session download failed after ${MAX_ATTEMPTS} attempts` +
       (lastError ? `: ${String(lastError)}` : ""),
   );
@@ -378,14 +413,28 @@ async function* readChunks(response: Response): AsyncGenerator<Uint8Array> {
   }
 }
 
-/** Delay before a retry of a busy (429) or timed-out (504) response. */
-function retryDelayMs(response: Response, attempt: number): number | null {
-  if (response.status !== 429 && response.status !== 504) return null;
-  if (attempt + 1 >= MAX_ATTEMPTS) return null;
+/**
+ * Wait after a busy or failing response (408, 429, 5xx) and return true, so
+ * the caller asks again. Return false when the status is not retryable or
+ * the file's wait budget is spent.
+ */
+async function waitIfBusy(
+  response: Response,
+  busy: { retries: number; waitedMs: number },
+  signal: AbortSignal | undefined,
+): Promise<boolean> {
+  if (!RETRYABLE_STATUSES.has(response.status)) return false;
   const seconds = Number(response.headers.get("retry-after"));
-  return Number.isFinite(seconds) && seconds > 0
-    ? Math.min(seconds * 1000, MAX_RETRY_DELAY_MS)
-    : backoffMs(attempt);
+  const delay =
+    Number.isFinite(seconds) && seconds > 0
+      ? Math.min(seconds * 1000, MAX_RETRY_DELAY_MS)
+      : backoffMs(busy.retries);
+  if (busy.waitedMs + delay > MAX_BUSY_WAIT_MS) return false;
+  await response.body?.cancel();
+  await sleep(delay, signal);
+  busy.retries += 1;
+  busy.waitedMs += delay;
+  return true;
 }
 
 function backoffMs(attempt: number): number {
@@ -396,16 +445,23 @@ async function httpError(response: Response): Promise<Error> {
   let name = "";
   try {
     const data = (await response.json()) as { error_name?: unknown };
-    if (typeof data.error_name === "string") name = ` ${data.error_name}`;
+    if (typeof data.error_name === "string") name = data.error_name;
   } catch {
     // The body is optional diagnostics.
   }
-  const message = `Artifact download failed: HTTP ${response.status}${name}`;
+  const message =
+    `Artifact download failed: HTTP ${response.status}` +
+    (name ? ` ${name}` : "");
   // A rejected bearer takes the same re-auth path as a JSON-RPC rejection.
   if (response.status === 401) {
     return new JsonRpcError(AUTH_REJECTED_RPC_CODE, message, "wire");
   }
-  if (response.status === 409) return new ArtifactsNotReadyError();
+  if (response.status === 409 && name === "ARTIFACTS_NOT_READY") {
+    return new ArtifactsNotReadyError(false);
+  }
+  if (response.status === 409 && name === "INVALID_STATE") {
+    return new ArtifactsNotReadyError(true);
+  }
   return new Error(message);
 }
 

@@ -407,21 +407,22 @@ describe("fetchAndDownloadArtifacts", () => {
       featureFlagsMock.isHttpArtifactDownloadsEnabled = true;
       const session = new Uint8Array(MIN_DECRYPTOR_HEX_CHARS / 2).fill(0xcd);
       const base = `https://proxy.example.com/artifacts/${PROVIDER_ADDRESS}/${PEGIN_TXID}`;
+      const manifest = JSON.stringify({
+        tx_graph_json: VALID_ARTIFACT_RESULT.tx_graph_json,
+        verifying_key_hex: VALID_ARTIFACT_RESULT.verifying_key_hex,
+        babe_sessions: {
+          [CHALLENGER_PUBKEY]: {
+            download_path: `/v1/depositor-artifacts/${PEGIN_TXID}/sessions/${CHALLENGER_PUBKEY}`,
+            byte_length: session.byteLength,
+          },
+        },
+      });
       vi.mocked(fetch)
         .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              tx_graph_json: VALID_ARTIFACT_RESULT.tx_graph_json,
-              verifying_key_hex: VALID_ARTIFACT_RESULT.verifying_key_hex,
-              babe_sessions: {
-                [CHALLENGER_PUBKEY]: {
-                  download_path: `/v1/depositor-artifacts/${PEGIN_TXID}/sessions/${CHALLENGER_PUBKEY}`,
-                  byte_length: session.byteLength,
-                },
-              },
-            }),
-            { status: 200 },
-          ),
+          new Response(manifest, {
+            status: 200,
+            headers: { "content-length": String(manifest.length) },
+          }),
         )
         .mockResolvedValueOnce(
           new Response(session, {
