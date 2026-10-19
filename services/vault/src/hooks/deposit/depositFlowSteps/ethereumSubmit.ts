@@ -46,6 +46,7 @@ export async function registerPeginBatchAndWait(
     requests,
     popSignature,
     quotedCommissionBps,
+    quotedPeginFeeWei,
     expectedFingerprint,
   } = params;
 
@@ -58,6 +59,7 @@ export async function registerPeginBatchAndWait(
       requests,
       popSignature,
       quotedCommissionBps,
+      quotedPeginFeeWei,
       expectedFingerprint,
     },
   );

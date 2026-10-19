@@ -1629,6 +1629,14 @@ export const COPY = {
         title: "Commission unavailable",
         body: "We couldn't confirm the vault provider's commission. Please refresh and try again before depositing.",
       },
+      peginFeeChanged: {
+        title: "Deposit fee changed",
+        body: "The Ethereum deposit fee increased since it was quoted. Please refresh to see the new fee and start the deposit again.",
+      },
+      peginFeeUnavailable: {
+        title: "Deposit fee unavailable",
+        body: "We couldn't confirm the Ethereum deposit fee. Please refresh and try again before depositing.",
+      },
       // Device-envelope rejection of the deposit terms. Can be terminal for
       // this deposit (terms outside the signing device's acceptable range can
       // never be approved), so no "try again" — support and, once BTC has

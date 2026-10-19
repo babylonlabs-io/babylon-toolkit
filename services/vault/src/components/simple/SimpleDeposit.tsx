@@ -125,6 +125,7 @@ function SimpleDepositContent({
     selectedApplication,
     selectedProviders,
     quotedCommissionBps,
+    quotedPeginFeeWei,
     feeRate,
     btcWalletProvider,
     ethAddress,
@@ -523,6 +524,7 @@ function SimpleDepositContent({
       effectiveSelectedApplication,
       [formData.selectedProvider],
       selectedProviderCommissionBps,
+      protocolFeeWei,
     );
     setFeeRate(estimatedFeeRate);
     setIsSplitDeposit(shouldSplit);
@@ -677,6 +679,7 @@ function SimpleDepositContent({
               selectedApplication={selectedApplication}
               selectedProviders={selectedProviders}
               quotedCommissionBps={quotedCommissionBps}
+              quotedPeginFeeWei={quotedPeginFeeWei}
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}

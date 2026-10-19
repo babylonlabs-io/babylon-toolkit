@@ -2444,6 +2444,17 @@ optional quotedCommissionBps: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
 
+##### quotedPeginFeeWei?
+
+```ts
+optional quotedPeginFeeWei: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+Total ETH fee (wei) shown to the depositor; registration throws if the chain now requires more.
+Optional; when omitted the chain-current fee is sent unchecked.
+
 ##### expectedFingerprint
 
 ```ts
@@ -2601,6 +2612,16 @@ optional quotedCommissionBps: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+##### quotedPeginFeeWei?
+
+```ts
+optional quotedPeginFeeWei: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+See [RegisterPeginOnChainParams.quotedPeginFeeWei](#quotedpeginfeewei): the total for every request in the batch.
 
 ##### expectedFingerprint
 

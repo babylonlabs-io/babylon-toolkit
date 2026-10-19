@@ -93,6 +93,7 @@ function singleParams(depositor: Address): RegisterPeginOnChainParams {
     htlcVout: 0,
     depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
     quotedCommissionBps: 100,
+    quotedPeginFeeWei: 3n,
     expectedFingerprint: FINGERPRINT,
   };
 }
@@ -105,6 +106,7 @@ function batchParams(depositor: Address): RegisterPeginBatchOnChainParams {
     popSignature: single.popSignature,
     depositorBtcPubkeyRaw: single.depositorBtcPubkeyRaw,
     quotedCommissionBps: single.quotedCommissionBps,
+    quotedPeginFeeWei: single.quotedPeginFeeWei,
     expectedFingerprint: single.expectedFingerprint,
     requests: [
       {
@@ -358,6 +360,7 @@ describe("ViemPeginRegistrationClient", () => {
       depositorSignedPeginTx: signedPeginTransaction(0xac),
       htlcVout: 1,
     });
+    params.quotedPeginFeeWei = 6n;
     publicClient.getBalance.mockResolvedValueOnce(250_000n * 3n + 3n);
     const send = vi.spyOn(ethWallet, "sendTransaction");
 
@@ -556,6 +559,68 @@ describe("ViemPeginRegistrationClient", () => {
         args: [REGISTRY],
       }),
     );
+  });
+
+  it.each(["single", "batch"] as const)(
+    "rejects the %s path when the pegin fee rose above the quote",
+    async (path) => {
+      const { client, ethWallet, publicClient } = setup();
+      publicClient.readContract.mockImplementation(
+        ({ functionName }: { functionName: string }) => {
+          if (functionName === "getPegInFee") return Promise.resolve(4n);
+          if (functionName === "getVaultProviderCommission")
+            return Promise.resolve(100);
+          return Promise.resolve({ depositor: zeroAddress as Address });
+        },
+      );
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      await expect(
+        register(client, ethWallet.account.address, path),
+      ).rejects.toThrow(/Pegin fee changed since quote/);
+      expect(publicClient.estimateGas).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sends the chain fee for every request in a batch when it is below the quote", async () => {
+    const { client, ethWallet } = setup();
+    const params = batchParams(ethWallet.account.address);
+    params.requests.push({
+      ...params.requests[0],
+      depositorSignedPeginTx: signedPeginTransaction(0xac),
+    });
+    params.quotedPeginFeeWei = 7n;
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await client.registerPeginBatchOnChain(params);
+
+    expect(send.mock.calls[0][0].value).toBe(6n);
+  });
+
+  it("rejects a batch whose total pegin fee rose above the quote", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    publicClient.readContract.mockImplementation(
+      ({ functionName }: { functionName: string }) => {
+        if (functionName === "getPegInFee") return Promise.resolve(4n);
+        if (functionName === "getVaultProviderCommission")
+          return Promise.resolve(100);
+        return Promise.resolve({ depositor: zeroAddress as Address });
+      },
+    );
+    const params = batchParams(ethWallet.account.address);
+    params.requests.push({
+      ...params.requests[0],
+      depositorSignedPeginTx: signedPeginTransaction(0xac),
+    });
+    params.quotedPeginFeeWei = 7n;
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await expect(client.registerPeginBatchOnChain(params)).rejects.toThrow(
+      /Pegin fee changed since quote/,
+    );
+    expect(publicClient.estimateGas).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 
   it.each(["single", "batch"] as const)(

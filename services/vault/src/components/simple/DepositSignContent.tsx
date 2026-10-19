@@ -34,6 +34,8 @@ interface DepositSignContentProps {
   selectedProviders: string[];
   /** VP commission (bps) shown to the depositor for the primary provider. */
   quotedCommissionBps: number | undefined;
+  /** Total registration fee (wei) shown on the form; `null` if it never loaded. */
+  quotedPeginFeeWei: bigint | null;
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];

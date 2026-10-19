@@ -122,6 +122,7 @@ import {
   isResumableDepositError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
+  PEGIN_FEE_UNAVAILABLE_ERROR,
   postRegistrationWalletErrorMessage,
   type DepositErrorContent,
 } from "@/utils/errors";
@@ -148,6 +149,7 @@ import {
 } from "./depositFlowSteps";
 import type { DepositWarning } from "./depositWarnings";
 import { useBtcWalletState } from "./useBtcWalletState";
+import { DEPOSIT_PEGIN_FEE_QUERY_KEY } from "./useDepositPeginFee";
 import { useVaultProviders } from "./useVaultProviders";
 
 // ============================================================================
@@ -179,6 +181,8 @@ export interface UseDepositFlowParams {
    * in that state rather than binding to an unquoted value.
    */
   quotedCommissionBps: number | undefined;
+  /** Total Ethereum registration fee (wei) shown on the form; `null` blocks submit rather than paying an unquoted fee. */
+  quotedPeginFeeWei: bigint | null;
   /** Vault provider BTC public key (x-only, 64 hex chars) */
   vaultProviderBtcPubkey: string;
   /** Vault keeper BTC public keys */
@@ -312,6 +316,7 @@ export function useDepositFlow(
     selectedApplication,
     selectedProviders,
     quotedCommissionBps,
+    quotedPeginFeeWei,
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
@@ -664,6 +669,9 @@ export function useDepositFlow(
         // fresh read — that is the silent-overcharge path TRV-032 describes.
         if (quotedCommissionBps === undefined) {
           throw new Error(COMMISSION_UNAVAILABLE_ERROR);
+        }
+        if (quotedPeginFeeWei === null) {
+          throw new Error(PEGIN_FEE_UNAVAILABLE_ERROR);
         }
 
         const depositAmountTotal = vaultAmounts.reduce((sum, a) => sum + a, 0n);
@@ -1094,6 +1102,7 @@ export function useDepositFlow(
               requests: batchRequests,
               popSignature,
               quotedCommissionBps,
+              quotedPeginFeeWei,
               expectedFingerprint,
             });
             break;
@@ -1996,6 +2005,11 @@ export function useDepositFlow(
             : registeredVaultIds !== null
               ? mapDepositErrorAfterRegistration(err)
               : mapDepositError(err);
+          if (content === COPY.deposit.errors.peginFeeChanged) {
+            void queryClient.invalidateQueries({
+              queryKey: [DEPOSIT_PEGIN_FEE_QUERY_KEY],
+            });
+          }
           // Post-registration the vaults are on-chain, so a self-cancel, a
           // mapped resumable bucket (device trouble, wallet reject, sign
           // failure), a wallet that locked during the gate or a UTXO re-check
@@ -2050,6 +2064,7 @@ export function useDepositFlow(
       selectedApplication,
       selectedProviders,
       quotedCommissionBps,
+      quotedPeginFeeWei,
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,

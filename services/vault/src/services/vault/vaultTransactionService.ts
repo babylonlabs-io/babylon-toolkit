@@ -154,6 +154,8 @@ export interface RegisterPeginBatchOnChainParams {
    * `PeginManager.resolveMaxAcceptableCommissionBps`.
    */
   quotedCommissionBps: number;
+  /** Total registration fee (wei) shown to the depositor; caps the ETH sent. */
+  quotedPeginFeeWei: bigint;
   /**
    * Peg-in configuration fingerprint over the block-pinned protocol state the
    * Pre-Pegin was built from. The registry re-derives it at inclusion and
@@ -275,6 +277,7 @@ export async function registerPeginBatchOnChain(
     requests: params.requests,
     popSignature: params.popSignature,
     quotedCommissionBps: params.quotedCommissionBps,
+    quotedPeginFeeWei: params.quotedPeginFeeWei,
     expectedFingerprint: params.expectedFingerprint,
   });
 

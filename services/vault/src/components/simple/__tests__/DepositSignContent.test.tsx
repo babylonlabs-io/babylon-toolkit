@@ -156,6 +156,7 @@ function contentElement(
       selectedApplication="0xapp"
       selectedProviders={["0xprovider"]}
       quotedCommissionBps={250}
+      quotedPeginFeeWei={3n}
       vaultProviderBtcPubkey="0xvp"
       vaultKeeperBtcPubkeys={["0xkeeper"]}
       universalChallengerBtcPubkeys={["0xchallenger"]}

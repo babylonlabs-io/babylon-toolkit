@@ -116,6 +116,8 @@ export interface PeginBatchRegisterParams {
    * commission drifted upward beyond the SDK's headroom since the quote.
    */
   quotedCommissionBps: number;
+  /** Total Ethereum registration fee (wei) shown to the depositor; the SDK refuses to pay more. */
+  quotedPeginFeeWei: bigint;
   /**
    * Peg-in configuration fingerprint over the block-pinned protocol state the
    * Pre-Pegin was built from, from `computeBuildPeginFingerprint`. The registry
