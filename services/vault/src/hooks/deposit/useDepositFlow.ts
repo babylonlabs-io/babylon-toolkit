@@ -1411,6 +1411,7 @@ export function useDepositFlow(
               throwIfLateCancel(COPY.deposit.errors.prePeginSigningCanceled);
               return signedPsbtHex;
             },
+            getPublicKeyHex: () => confirmedBtcWallet.getPublicKeyHex(),
             deriveContextHash: async (appName: string, context: string) => {
               assertDepositIdentity();
               const root = await confirmedBtcWallet.deriveContextHash(
@@ -1426,6 +1427,7 @@ export function useDepositFlow(
           depositorBtcPubkey: batchResult.depositorBtcPubkey,
           expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
           depositTerms: batchResult.depositTerms,
+          vaultId: batchRegistration.vaults[0].vaultId as Hex,
         });
 
         // Broadcast succeeded — update pending pegins from PENDING to CONFIRMING

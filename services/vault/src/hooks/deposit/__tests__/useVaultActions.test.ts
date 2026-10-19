@@ -1380,29 +1380,6 @@ describe("useVaultActions — handleBroadcast depositor wallet binding", () => {
     );
   });
 
-  it("refuses to sign when the BTC wallet switches after the broadcast starts", async () => {
-    mockBroadcastPrePeginTransaction.mockImplementationOnce(
-      async ({ btcWalletProvider }) => {
-        mockGetPublicKeyHex.mockResolvedValue(OTHER_BTC_KEY);
-        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
-      },
-    );
-
-    const { result } = renderHook(() => useVaultActions());
-    await act(() => result.current.handleBroadcast(baseBroadcastParams));
-
-    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-    expect(mockSignPsbt).not.toHaveBeenCalled();
-    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toEqual(
-      COPY.deposit.errors.wrongDepositorBtcWallet,
-    );
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      expect.any(DepositorBtcKeyMismatchError),
-      expect.anything(),
-    );
-  });
-
   it("refuses to sign when the ETH wallet disconnects after the broadcast starts", async () => {
     mockBroadcastPrePeginTransaction.mockImplementationOnce(
       async ({ btcWalletProvider }) => {

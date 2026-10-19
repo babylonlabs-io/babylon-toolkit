@@ -487,9 +487,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       }
       const expectedDepositorBtcPubkey =
         canonicalizeBtcPubkey(depositorBtcPubkey);
-      const assertDepositorWallet = async () => {
-        signal.throwIfAborted();
-        const walletPubkey = await btcWalletProvider.getPublicKeyHex();
+      const assertDepositorEthWallet = () => {
         signal.throwIfAborted();
         const connectedDepositor = getAccount(getSharedWagmiConfig()).address;
         if (!connectedDepositor) {
@@ -506,6 +504,11 @@ export function useVaultActions(): UseVaultActionsReturn {
             connectedDepositor,
           });
         }
+      };
+      const assertDepositorWallet = async () => {
+        signal.throwIfAborted();
+        const walletPubkey = await btcWalletProvider.getPublicKeyHex();
+        assertDepositorEthWallet();
         const connectedBtcPubkey = canonicalizeBtcPubkey(walletPubkey);
         if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
           throw new DepositorBtcKeyMismatchError({
@@ -634,15 +637,18 @@ export function useVaultActions(): UseVaultActionsReturn {
         btcWalletProvider: {
           ...forwardDeriveContextHash(btcWalletProvider),
           ...forwardDepositApproval(btcWalletProvider),
+          getPublicKeyHex: () => btcWalletProvider.getPublicKeyHex(),
           signPsbt: async (psbtHex: string) => {
-            // Input resolution can wait on the network. Check again at signing.
-            await assertDepositorWallet();
+            // Input resolution can wait on the network. The service re-reads
+            // the Bitcoin key; re-check the Ethereum account here.
+            await assertDepositorEthWallet();
             return btcWalletProvider.signPsbt(psbtHex);
           },
         },
         depositorBtcPubkey,
         expectedUtxos,
         ...(depositTerms && { depositTerms }),
+        vaultId,
       });
 
       const nextStatus = getNextLocalStatus(
