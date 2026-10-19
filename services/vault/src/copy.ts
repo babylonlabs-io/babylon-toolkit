@@ -2244,17 +2244,9 @@ export const COPY = {
     // Aave caps how many reserves one position may borrow. Both pickers say so
     // before the choice is made, phrased from the cap the spoke reports.
     borrowLimit: {
-      assetNoticeTitle: (limit: number) =>
-        limit === 1
-          ? "Only one asset can be borrowed per position"
-          : `Only ${limit} assets can be borrowed per position`,
-      // Figma 13839:7442 verbatim at a cap of one, the case the design draws.
-      // Above one it scales: repaying in full frees the slot either way, since
-      // the Spoke clears the borrowing flag once drawn shares reach zero.
+      assetNoticeTitle: "Select the asset you want to borrow",
       assetNoticeBody: (limit: number) =>
-        limit === 1
-          ? "To switch to another asset, you must fully repay your current loan first. Once it's fully repaid, you can choose a different asset."
-          : `This position can borrow ${limit} assets at a time. Repay one in full to free its slot and choose another.`,
+        `Please note, each position can borrow at most ${limit} different ${limit === 1 ? "asset" : "assets"}. To borrow any extra asset, please clear your debt of an existing asset first.`,
       // Figma I13786:66896;7899:81189 / 81191 verbatim at a cap of one.
       hubNoticeTitle: (limit: number) =>
         limit === 1

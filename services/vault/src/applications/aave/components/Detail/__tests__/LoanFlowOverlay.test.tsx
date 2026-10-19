@@ -247,7 +247,7 @@ describe("LoanFlowOverlay", () => {
       screen.getByText(COPY.loans.assetSelection.loading),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(COPY.loans.borrowLimit.assetNoticeTitle(2)),
+      screen.getByText(COPY.loans.borrowLimit.assetNoticeTitle),
     ).toBeInTheDocument();
     expect(
       screen.getByText(COPY.loans.borrowLimit.assetNoticeBody(2), {
