@@ -5,13 +5,9 @@
  * Reclaim sweeps the depositor's claim reserve (PegIn output 1) back to
  * P2TR(D). The device signs it standalone, with or without a loaded intent,
  * and tells it apart from Claim by output count alone: same 34-byte
- * `<D> OP_CHECKSIG` leaf, 1 output instead of 2 (dispatch
- * `fw:sign_psbt_validate.c:3781-3783`). It requires ONE TAP_BIP32_DERIVATION
- * entry keyed by D on input 0 (`:2609-2647`); output 0 needs none — the
- * device derives P2TR(D) itself.
- *
- * Firmware citations: `fw:` = LedgerHQ/app-babylon-vault-dev @ `b89dd580`
- * (`develop`, app 0.11.0). Validator: `fw:sign_psbt_validate.c:2524-2708`.
+ * `<D> OP_CHECKSIG` leaf, 1 output instead of 2. It requires ONE
+ * TAP_BIP32_DERIVATION entry keyed by D on input 0; output 0 needs none, the
+ * device derives P2TR(D) itself (`_validate_display_reclaim`).
  *
  * Deliberately NOT a validator: the device checks the sequence, sighash,
  * control block, output and fee itself, and a rejection costs no loaded intent.
@@ -26,19 +22,19 @@ import { assertBip86Path, bip86PathToString } from "./bip86Path";
 const X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
 const MASTER_FINGERPRINT_HEX_RE = /^[0-9a-f]{8}$/;
 
-/** BIP-341 tapscript leaf version — the only one the device streams (`fw:sign_psbt_validate.c:313`). */
+/** BIP-341 tapscript leaf version, the only one the device accepts. */
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
 const X_ONLY_KEY_BYTES = 32;
 const OP_PUSHBYTES_32 = 0x20;
 const OP_CHECKSIG = 0xac;
 const LEAF_KEY_OFFSET = 1;
 const LEAF_AFTER_KEY_OFFSET = LEAF_KEY_OFFSET + X_ONLY_KEY_BYTES;
-/** `OP_PUSHBYTES_32 ‖ D ‖ OP_CHECKSIG` (`fw:sign_psbt_validate_helpers.c:244`). */
+/** `OP_PUSHBYTES_32 ‖ D ‖ OP_CHECKSIG`: `VAULT_DEPOSITOR_CLAIM_LEAF_LEN`. */
 const RECLAIM_LEAF_LEN = LEAF_AFTER_KEY_OFFSET + 1;
 
 const MIN_TX_VERSION = 2;
 const TX_LOCKTIME = 0;
-/** The device signs one reserve per Reclaim (`fw:sign_psbt_validate.c:2525`). */
+/** The device signs one reserve per Reclaim. */
 const RECLAIM_INPUT_COUNT = 1;
 const RECLAIM_OUTPUT_COUNT = 1;
 const RECLAIM_SIGN_INPUT_INDEX = 0;

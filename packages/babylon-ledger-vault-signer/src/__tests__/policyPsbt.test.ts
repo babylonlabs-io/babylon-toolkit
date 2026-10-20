@@ -1,8 +1,8 @@
 /**
  * Policy-mode PSBT shaping. The base app marks inputs internal only from
- * TAP_BIP32_DERIVATION (`preprocess_inputs.c` @ 78243239), and `_validate_prepegin`
- * needs every input internal; change pays the depositor's own `/0/0` address and
- * carries no derivation (`sign_psbt_validate.c:571-661` @ b89dd580).
+ * TAP_BIP32_DERIVATION, and `_validate_prepegin` needs every input internal;
+ * change pays the depositor's own `/0/0` address and carries no derivation
+ * (`_validate_prepegin_outputs`).
  * Vectors: BIP-86 published test vectors.
  */
 

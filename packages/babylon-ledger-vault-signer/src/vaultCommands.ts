@@ -2,8 +2,9 @@
  * The three APDU instructions the vault app adds over the Bitcoin base app,
  * and the ceremony that sequences them. Everything else — notably SIGN_PSBT —
  * falls through to the base app. Framing verified against Ledger's reference
- * client (`tests/vault_client.py`); GET_VAULT_STATE against `docs/apdu.md`
- * §INS 0x82 @ app-babylon-vault-dev `b89dd580`.
+ * client (`derive_context_hash`, `approve_vault_intent` and `get_vault_state`
+ * in `tests/vault_client.py`; the TLV payloads come from `build_intent_tlv`
+ * and `build_group_tlv`) and `docs/apdu.md`.
  *
  * @module ledger-vault-signer/vaultCommands
  */
@@ -23,9 +24,10 @@ import {
 import type { Apdu } from "./rawApdu";
 
 /**
- * The ONE class byte for the whole app: the base app's dispatcher gates every
- * instruction — GET_EXTENDED_PUBKEY and the vault's 0x80-0x82 alike — on this
- * CLA (`apdu_handler.c:19`). derivation.ts imports it for the base-app read.
+ * The ONE class byte for the whole app: the vault's `custom_apdu_handler`
+ * takes 0x80-0x82 only under this CLA, and the base app's dispatcher matches
+ * GET_EXTENDED_PUBKEY against its command table under the same one.
+ * derivation.ts imports it for the base-app read.
  */
 export const CLA_APP = 0xe1;
 const INS_APPROVE_VAULT_INTENT = 0x80;
@@ -53,13 +55,20 @@ const CONTEXT_MAX_BYTES = 1024;
 const DERIVATION_PATH_MAX_LEVELS = 10;
 const ROOT_BYTES = 32;
 
-/** GET_VAULT_STATE takes P1 = P2 = 0x00 and no data (`fw:src/handler/get_vault_state.c:8-15`). */
+/**
+ * GET_VAULT_STATE takes P1 = P2 = 0x00 and no data: `handler_get_vault_state`
+ * rejects other P1/P2 with `SW_WRONG_P1P2` and any data with
+ * `SW_WRONG_DATA_LENGTH`.
+ */
 const P1_NONE = 0x00;
 const P2_NONE = 0x00;
-/** A fingerprint is the last 4 bytes of a SHA-256 digest (`fw:src/vault_context.h:14`). */
+/** A fingerprint is the last 4 bytes of a SHA-256 digest (`vault_fingerprint`). */
 const VAULT_FINGERPRINT_BYTES = 4;
 const SHA256_BYTES = 32;
-/** One length byte per fingerprint, then the fingerprint when that byte is non-zero. */
+/**
+ * One length byte per fingerprint, then the fingerprint when that byte is
+ * non-zero; intent first, then context (`vault_context_encode_state`).
+ */
 const STATE_LENGTH_BYTE = 1;
 
 /** Transport seam: send one APDU, return the response data or throw on error SW. */
@@ -184,7 +193,7 @@ function encodeIntentApdus({ scalars, groups, keeperPubkeys, challengerPubkeys }
 /**
  * The fingerprint GET_VAULT_STATE reports once this intent is approved:
  * last 4 bytes of SHA-256 over the CData of every APDU {@link approveVaultIntent}
- * sends, in order (`fw:docs/apdu.md` §Fingerprint definitions). Pure — no I/O.
+ * sends, in order (`docs/apdu.md`, fingerprint definitions). Pure, no I/O.
  */
 export function intentFingerprint(params: ApproveVaultIntentParams): Uint8Array {
   const apdus = encodeIntentApdus(params);
@@ -233,7 +242,7 @@ export async function approveVaultIntent(send: ApduSender, params: ApproveVaultI
 }
 
 /**
- * What the device's vault session holds (`fw:docs/apdu.md` §INS 0x82): nothing,
+ * What the device's vault session holds (`docs/apdu.md`, INS 0x82): nothing,
  * a derived context root, or an approved intent over that root.
  */
 export type VaultSessionState =
@@ -282,6 +291,7 @@ export async function getVaultState(send: ApduSender): Promise<VaultSessionState
     return { phase: "intent-loaded", intentFingerprint: intent.fingerprint, contextFingerprint: context.fingerprint };
   }
   // The device reports the context fingerprint whenever it reports an intent
-  // (`fw:src/vault_context.h:255-257`), so an intent alone is not a device answer.
+  // (`vault_state_fingerprints`: INTENT_LOADED sets both), so an intent alone
+  // is not a device answer.
   throw new Error("GET_VAULT_STATE reported an intent without a context root");
 }

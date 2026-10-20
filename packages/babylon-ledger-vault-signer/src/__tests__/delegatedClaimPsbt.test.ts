@@ -1,7 +1,7 @@
 /**
  * Delegated-claim PSBT classification and augmentation (#2111).
  *
- * Firmware citations: `fw:` = LedgerHQ/app-babylon-vault @ `b0c0ac4d`. The
+ * The
  * accept vectors reproduce the shapes the firmware's own Python builders
  * emit (`tests/test_screen4_claim.py:_build_claim_psbt`,
  * `tests/test_screen6_wc.py:_build_wc_psbt`,
@@ -111,8 +111,8 @@ describe("parsePayoutLeafScript (firmware-grammar mirror)", () => {
   });
 
   // The firmware tries the 2-byte branch first and, when that value is out of
-  // band, falls through to the 1-byte branch instead of rejecting
-  // (`fw:sign_psbt_validate_helpers.c:200-216`). Raised as KB Q22; mirrored so
+  // band, falls through to the 1-byte branch instead of rejecting. Raised as
+  // KB Q22; mirrored so
   // the host predicts device acceptance exactly. Harmless in practice —
   // nSequence 90 can never satisfy the real CSV of 23041.
   it("reproduces the firmware's 2-byte-to-1-byte fall-through: a tail 02 01 5a b2 is accepted and yields the leaf key", () => {
@@ -125,7 +125,7 @@ describe("parsePayoutLeafScript (firmware-grammar mirror)", () => {
   });
 
   // A 1-byte push of 200 has the sign bit set, so CScriptNum reads it negative;
-  // the firmware's `t2 <= 127` guard (`fw:sign_psbt_validate_helpers.c:213`) is
+  // the firmware's `t2 <= 127` guard is
   // the only thing rejecting it, since 200 is inside the band.
   it("rejects an in-band t2 pushed as one byte with the sign bit set (tail 01 c8 b2)", () => {
     const canonical = payoutLeaf(DEPOSITOR_XONLY, 200);

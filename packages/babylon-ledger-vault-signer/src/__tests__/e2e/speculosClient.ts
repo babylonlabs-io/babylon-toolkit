@@ -39,8 +39,9 @@ const IDLE_SCREEN_TEXT = "app is ready";
 
 /**
  * SPECULOS_URL, or "" when unset — the value the e2e files' `skipIf` gates on.
- * Under SPECULOS_REQUIRED (CI) an empty URL throws at module load instead, so
- * a missing emulator fails the run rather than silently skipping it.
+ * Under SPECULOS_REQUIRED an empty URL throws at module load instead, so a
+ * missing emulator fails the run rather than silently skipping it (no CI job
+ * sets it today; the suite runs by hand).
  */
 export function readSpeculosUrl(): string {
   const url = process.env.SPECULOS_URL ?? "";

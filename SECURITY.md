@@ -352,7 +352,7 @@ it wrong defeats the device. Encodings cite firmware/reference-client sources an
 golden-vector tests; payload bytes are never logged. The golden vectors are generated from
 Ledger's pinned reference client over pinned firmware fixtures — review of vector changes is
 by whole-tree re-derivation and byte-identity (see the vendor README), and the generators in
-`packages/babylon-ledger-vault-signer/scripts/` are treated as critical source.
+`packages/babylon-ledger-vault-signer/scripts/` are treated as critical source, as is `packages/babylon-ledger-vault-signer/FIRMWARE.md`, the firmware pin those sources are checked against.
 
 ### Non-standard wallet signing flags
 

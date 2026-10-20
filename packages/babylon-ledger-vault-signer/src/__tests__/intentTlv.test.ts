@@ -3,7 +3,7 @@
  *
  * The golden vectors are not hand-written: they were produced by running
  * Ledger's own reference host encoder,
- * `app-babylon-vault/tests/vault_client.py` @ `d74bf278`
+ * `tests/vault_client.py` at the commit recorded in `FIRMWARE.md`
  * (`build_intent_tlv`, `build_group_tlv`, `_ktlv`), against the inputs below.
  * A byte difference here means we would be talking to the device in a dialect
  * its parser does not accept.

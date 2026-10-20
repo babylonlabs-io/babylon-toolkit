@@ -207,17 +207,17 @@ def unique_trees(reg):
 
 
 def leaf_proof_request(root: bytes, tree_size: int, leaf_index: int) -> bytes:
-    # layout: base get_merkle_leaf_hash.c:26-39 (wire-spec §4)
+    # layout: base app `get_merkle_leaf_hash` (wire-spec §4)
     return bytes([ClientCommandCode.GET_MERKLE_LEAF_PROOF]) + root + write_varint(tree_size) + write_varint(leaf_index)
 
 
 def leaf_index_request(root: bytes, leaf_hash: bytes) -> bytes:
-    # layout: base get_merkle_leaf_index.c:15-22 (wire-spec §4)
+    # layout: base app `call_get_merkle_leaf_index` (wire-spec §4)
     return bytes([ClientCommandCode.GET_MERKLE_LEAF_INDEX]) + root + leaf_hash
 
 
 def preimage_request(image_hash: bytes) -> bytes:
-    # layout: base get_preimage.c:16-21 — first byte is a hash-type, always 0
+    # layout: base app `get_preimage` — first byte is a hash-type, always 0
     return bytes([ClientCommandCode.GET_PREIMAGE, 0x00]) + image_hash
 
 
@@ -326,7 +326,7 @@ def trace_preimages(runner: TraceRun, g, ins, outs, input_commitments, output_co
 
 
 def trace_yield(runner: TraceRun, vec_id: str, flow: str):
-    # Shape per wire-spec §5 (sign_input.c:47-87): varint(input_index) | len=0x40 |
+    # Shape per wire-spec §5 (base app yield_signature): varint(input_index) | len=0x40 |
     # x-only pubkey(32) | tapleaf_hash(32) | 64-byte schnorr sig. Bytes are
     # deterministic placeholders — only a device produces real ones; the oracle
     # behavior under test is the empty response + yielded capture.

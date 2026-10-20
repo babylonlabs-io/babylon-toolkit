@@ -3,13 +3,9 @@
  *
  * Everything is computed before the first APDU: after prepare, each loop round
  * is Map/Set lookups plus vendored interpreter arithmetic only — the device
- * arms a 50-tick (~5 s) continue deadline (`base:io_ext.h:28`), so nothing in
+ * arms a 50-tick (~5 s) continue deadline, so nothing in
  * a round may wait on anything but the transport. Any throw here means zero
  * device I/O.
- *
- * Every `base:` citation resolves at `LedgerHQ/app-bitcoin` branch `baseapp`
- * @ `e400d8d8`, the `bitcoin_app_base` rev `app-babylon-vault` pins — earlier
- * revs of that branch differ (`has_no_wallet_policy` is absent at `132d911`).
  *
  * @module ledger-vault-signer/signPsbtPrepare
  */
@@ -34,33 +30,29 @@ import { PsbtV2 } from "./vendor/ledger-bitcoin/psbtv2";
 import { createVarint } from "./vendor/ledger-bitcoin/varint";
 import type { DefaultTaprootWalletPolicy } from "./walletPolicy";
 
-/** Base app SIGN_PSBT instruction (`base:commands.h`). */
+/** Base app SIGN_PSBT instruction (`commands.h`). */
 const INS_SIGN_PSBT = 0x04;
 const P1_SIGN_PSBT = 0x00;
 /**
- * Protocol v1 (`base:constants.h:25`) — the YIELD augmented-pubkey block the
- * collector asserts on exists only under v1 (`base:sign_input.c:68-76`).
+ * Protocol v1: the YIELD augmented-pubkey block the collector asserts on
+ * exists only under v1.
  */
 const P2_PROTOCOL_V1 = 0x01;
 
-/** `wallet_id` and `wallet_hmac` are each 32 bytes (`base:init_global_state.c:63-114`). */
+/** `wallet_id` and `wallet_hmac` are each 32 bytes. */
 const WALLET_FIELD_BYTES = 32;
 /**
  * No-policy mode: an all-zero `wallet_id` routes into the vault validators
- * (`has_no_wallet_policy`, `base:init_global_state.c:192-198`), which treat
- * every input/output as external — nothing is marked internal because both
- * preprocess passes return early on that flag (`base:preprocess_inputs.c:66-68`,
- * `base:preprocess_outputs.c:54-56`). A non-zero id without the policy preimages
- * seeded would make the device ask for an unknown preimage mid-loop — policy
- * mode seeds them.
+ * (`has_no_wallet_policy`), which treat every input/output as external:
+ * nothing is marked internal because both preprocess passes return early on
+ * that flag. A non-zero id without the policy preimages seeded would make the
+ * device ask for an unknown preimage mid-loop; policy mode seeds them.
  */
 const NO_WALLET_POLICY_ID = new Uint8Array(WALLET_FIELD_BYTES);
 /**
  * Derived apps have no registered policies, so all-zero is the only sendable
- * hmac: a non-zero one is refused with SW_NOT_SUPPORTED
- * (`base:init_global_state.c:184-187`), REGISTER_WALLET is a stub
- * (`base:register_wallet.c:27-33`), and the app declares no SLIP-21 policy
- * path (`base:Makefile:58-81`).
+ * hmac: a non-zero one is refused with SW_NOT_SUPPORTED, REGISTER_WALLET is a
+ * stub, and the app declares no SLIP-21 policy path.
  */
 const NO_WALLET_POLICY_HMAC = new Uint8Array(WALLET_FIELD_BYTES);
 
@@ -90,15 +82,15 @@ export interface SignPsbtInterpreter {
 }
 
 /**
- * SIGN_PSBT client data, parsed by the device in this exact order
- * (`base:init_global_state.c:63-114`):
+ * SIGN_PSBT client data, parsed by the device in this exact order:
  * `globalCommitment ‖ varint(nIn) ‖ inputsRoot(32) ‖ varint(nOut) ‖
- * outputsRoot(32) ‖ walletId(32) ‖ walletHmac(32)`.
+ * outputsRoot(32) ‖ walletId(32) ‖ walletHmac(32)`, as built by the JS
+ * `AppClient.signPsbt` and Python `BitcoinCommandBuilder.sign_psbt`.
  * Built from parts — never assert a fixed length (varints grow past 252).
  */
 function buildSignPsbtCdata(merkelized: SignPsbtCommitments, walletId: Uint8Array): Uint8Array {
-  // Outer trees hash each per-map COMMITMENT as a 0x00-prefixed leaf
-  // (`js:appClient.ts:317-325`; consumed at `base:get_merkleized_map.c:20-39`).
+  // Outer trees hash each per-map COMMITMENT as a 0x00-prefixed leaf, as
+  // `AppClient.signPsbt` does (`hashLeaf`).
   const inputsRoot = new Merkle(merkelized.inputMapCommitments.map((commitment) => hashLeaf(commitment))).getRoot();
   const outputsRoot = new Merkle(merkelized.outputMapCommitments.map((commitment) => hashLeaf(commitment))).getRoot();
   return Uint8Array.from(
@@ -110,13 +102,17 @@ function buildSignPsbtCdata(merkelized: SignPsbtCommitments, walletId: Uint8Arra
       outputsRoot,
       Buffer.from(walletId),
       // Derived apps have no registered policies: the hmac is all-zero for the
-      // default policy too (`base:init_global_state.c:184-187`).
+      // default policy too.
       Buffer.from(NO_WALLET_POLICY_HMAC),
     ]),
   );
 }
 
-/** The initial SIGN_PSBT APDU: `E1 04 00 01 ‖ cdata` (`js:appClient.ts:85-92`). */
+/**
+ * The initial SIGN_PSBT APDU: header `E1 04 00 01` plus `cdata` (the transport
+ * adds `Lc`), as `AppClient.makeRequest` sends it (P1 0, P2
+ * `CURRENT_PROTOCOL_VERSION`).
+ */
 export function buildSignPsbtApdu(cdata: Uint8Array): Apdu {
   return { cla: CLA_APP, ins: INS_SIGN_PSBT, p1: P1_SIGN_PSBT, p2: P2_PROTOCOL_V1, data: cdata };
 }
@@ -126,8 +122,8 @@ const SIGHASH_DEFAULT = 0;
 
 /**
  * An explicit non-default PSBT_IN_SIGHASH_TYPE on an input this round signs
- * would make the device sign it and append the sighash byte
- * (`base:sign_input.c:197-201`) — the 65-byte yield then dies at the
+ * would make the device sign it and append the sighash byte; the 65-byte
+ * yield then dies at the
  * collector's length check AFTER the user approved. Reject before any I/O.
  */
 function assertDefaultSighashTypes(mergeTarget: BitcoinjsPsbt, table: ExpectedSignatureTable): void {
@@ -154,8 +150,8 @@ function assertNoConflictingSignatures(mergeTarget: BitcoinjsPsbt, table: Expect
     // A finalized input is silently signable: bip174 has no finalized guard, so
     // the merge writes the partial sig ALONGSIDE the final witness instead of
     // throwing — and nothing downstream notices: extraction reads the merged
-    // tapScriptSig fine (`peginInput.ts:233-240`) and `finalizePeginInputPsbt`'s
-    // allFinalized fallback (`peginInput.ts:272-292`) then ships the STALE
+    // tapScriptSig fine (`peginInput.ts`) and `finalizePeginInputPsbt`'s
+    // allFinalized fallback then ships the STALE
     // witness. Reject here, where a throw still costs zero device I/O.
     if (input.finalScriptWitness || input.finalScriptSig) {
       throw new LedgerSignPsbtProtocolError(
@@ -206,9 +202,8 @@ export interface PrepareSignPsbtParams {
    * Wallet-policy mode: the SIGN_PSBT wallet_id becomes the policy id and the
    * interpreter serves the policy preimages. Required for key-path signing
    * (PoP, Pre-PegIn): without a policy the base app skips `sign_internal_inputs`
-   * (`base:sign_psbt.c:142-148`) and the device answers SW_OK with no yield
-   * (`app-babylon-vault/src/sign_custom_inputs.c:101-115` @ b0c0ac4d). Omit for
-   * the no-policy tapscript flows; `signPreparedVaultPsbt` enforces the
+   * and the device answers SW_OK with no yield. Omit for the no-policy
+   * tapscript flows; `signPreparedVaultPsbt` enforces the
    * requirement before any device I/O.
    */
   readonly walletPolicy?: DefaultTaprootWalletPolicy;
@@ -344,7 +339,7 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   interpreter.addKnownList(merkelized.outputMapCommitments);
 
   // Policy mode: the device fetches the policy serialization, then walks the
-  // key-info tree and the template (`base:sign_psbt.c` wallet header checks)
+  // key-info tree and the template (the base app's wallet header checks)
   // before signing internal inputs. Seed all three preimages (vendored
   // `addKnownWalletPolicy`); no-policy mode seeds nothing and keeps wallet_id zero.
   const walletId = walletPolicy ? Buffer.from(walletPolicy.walletIdHex, "hex") : NO_WALLET_POLICY_ID;

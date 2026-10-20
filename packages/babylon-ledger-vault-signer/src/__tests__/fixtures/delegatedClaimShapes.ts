@@ -1,21 +1,21 @@
 /**
  * PSBT and leaf builders reproducing the firmware test suite's delegated-claim
- * shapes byte-for-byte (`LedgerHQ/app-babylon-vault` @ `b0c0ac4d`):
- * `tests/test_screen4_claim.py:54-104` (`_build_claim_psbt`),
- * `tests/test_screen6_wc.py:56-121` (`_build_wc_leaf`, `_build_wc_psbt`),
- * `tests/test_sign_psbt_validate.py:1000-1086` (`_payout_leaf`,
- * `_build_payout_finalize_psbt`), `tests/test_screen5_assert.py:85-168`
+ * shapes byte-for-byte:
+ * `tests/test_screen4_claim.py` (`_build_claim_psbt`),
+ * `tests/test_screen6_wc.py` (`_build_wc_leaf`, `_build_wc_psbt`),
+ * `tests/test_sign_psbt_validate.py` (`_payout_leaf`,
+ * `_build_payout_finalize_psbt`), `tests/test_screen5_assert.py`
  * (`_assert_signer_prefix`, `_build_assert_psbt`). Values, prevouts, sequences and output
  * scripts follow the Python builders. Three fields do not: the master
  * fingerprint (the suite reads the emulator's, this file uses the provider
  * tests' fixture), the two challenger keys (this file uses the
  * refundPsbt.wasmGrammar roster, not the suite's `TEST_VALID_KEYS`), and the
  * `wasm` derivation shape, which follows btc-vault's builder
- * (`crates/vault/src/psbt.rs:65-75` @ `ac4954e7`) rather than the suite's —
+ * (`crates/vault/src/psbt.rs`) rather than the suite's —
  * that is the shape the host actually receives. A fourth: every leaf input
  * carries `tapInternalKey: NUMS`, as btc-vault's builder writes it
- * (`psbt.rs:54`); the suite sets it only in two places, and the device reads
- * the control block instead (`fw:sign_psbt_validate.c:762-771`).
+ * (`psbt.rs`); the suite sets it only in two places, and the device reads
+ * the control block instead.
  */
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, payments, Psbt } from "bitcoinjs-lib";
@@ -29,7 +29,7 @@ initEccLib(ecc);
 /** BIP-86 test-vector depositor key (same as refundPsbt.test.ts and the provider tests). */
 export const DEPOSITOR_XONLY = "dc8d2f9eff0c4f4dbde070a48e330efc908b62a766568d91e658f284b324b878";
 export const FOREIGN_XONLY = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
-/** `VAULT_NUMS_XONLY` (`tests/test_sign_psbt_validate.py:85-87`) — the unspendable internal key. */
+/** `VAULT_NUMS_XONLY` (`tests/test_sign_psbt_validate.py`) — the unspendable internal key. */
 const NUMS_XONLY = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
 /** Challenger keys for the payout leaf's two 1-of-1 groups (refundPsbt.wasmGrammar.test.ts roster). */
 export const KEEPER_XONLY = "25d1dff95105f5253c4022f628a996ad3a0d95fbf21d468a1b33f8c160d8f517";
@@ -50,17 +50,17 @@ const OP_1 = 0x51;
 const OP_NUMEQUALVERIFY = 0x9d;
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
 
-/** `_PAYOUT_TIMELOCK` (`test_sign_psbt_validate.py:134`). */
+/** `_PAYOUT_TIMELOCK` (`test_sign_psbt_validate.py`). */
 export const PAYOUT_TIMELOCK = 200;
-/** `_OUTPUT_LABEL_HASH` (`test_screen6_wc.py:53`). */
+/** `_OUTPUT_LABEL_HASH` (`test_screen6_wc.py`). */
 export const WC_OUTPUT_LABEL_HASH = Buffer.alloc(32, 0xcc);
 
-/** `<D> OP_CHECKSIG` — `test_screen4_claim.py:69`. */
+/** `<D> OP_CHECKSIG` — `test_screen4_claim.py`. */
 export function claimLeaf(keyHex: string): Buffer {
   return Buffer.concat([Buffer.from([OP_PUSHBYTES_32]), Buffer.from(keyHex, "hex"), Buffer.from([OP_CHECKSIG])]);
 }
 
-/** The 73-byte WC leaf — `test_screen6_wc.py:56-74`. */
+/** The 73-byte WC leaf — `test_screen6_wc.py`. */
 export function wcLeaf(keyHex: string, labelHash: Buffer = WC_OUTPUT_LABEL_HASH): Buffer {
   return Buffer.concat([
     Buffer.from([OP_PUSHBYTES_32]),
@@ -73,7 +73,7 @@ export function wcLeaf(keyHex: string, labelHash: Buffer = WC_OUTPUT_LABEL_HASH)
 
 /**
  * Minimal positive CScriptNum push, as `_encode_script_num` emits it ABOVE the
- * OP_N range (`test_sign_psbt_validate.py:99-100` emits a bare OP_N for 1..16,
+ * OP_N range (`test_sign_psbt_validate.py` emits a bare OP_N for 1..16,
  * which this does not; the t2 band starts at 90, so the divergence is
  * unreachable here and refused rather than silently wrong).
  */
@@ -89,7 +89,7 @@ export function scriptNumPush(value: number): Buffer {
   return Buffer.from([bytes.length, ...bytes]);
 }
 
-/** `<D> OP_CHECKSIGVERIFY <AppChal 1-of-1> <UnivChal 1-of-1> <t2> OP_CSV` — `test_sign_psbt_validate.py:1000-1011`. */
+/** `<D> OP_CHECKSIGVERIFY <AppChal 1-of-1> <UnivChal 1-of-1> <t2> OP_CSV` — `test_sign_psbt_validate.py`. */
 export function payoutLeaf(
   keyHex: string,
   t2: number = PAYOUT_TIMELOCK,
@@ -115,7 +115,7 @@ export function payoutLeaf(
 
 /**
  * The synthetic 107-byte Assert leaf the firmware suite signs
- * (`test_screen5_assert.py:85-99, 130-135`): the real leaf's 106-byte signer
+ * (`test_screen5_assert.py`): the real leaf's 106-byte signer
  * prefix `<D> OP_CHECKSIGVERIFY <VK 1-of-1> <UC 1-of-1>` with the WOTS
  * verifier body replaced by its bare OP_TRUE terminator. Shape-identical to
  * what the dispatcher tests; the real 11-13 kB body is proven on Speculos.
@@ -165,24 +165,24 @@ export function bip86Spk(keyHex: string): Buffer {
   return output;
 }
 
-/** `SEQUENCE_FINAL` (`fw:vault_constants.h:136`). */
+/** `SEQUENCE_FINAL`. */
 const SEQUENCE_FINAL = 0xffffffff;
 /**
  * What the Python PayoutFinalize builder puts on the unsigned input 0
- * (`test_sign_psbt_validate.py:1028-1031`). btc-vault's builder writes the
- * PegIn CSV timelock there instead (`payout.rs:103-112` @ ac4954e7); neither
- * the device (`:3417-3419`) nor the host reads input 0's sequence.
+ * (`test_sign_psbt_validate.py`). btc-vault's builder writes the
+ * PegIn CSV timelock there instead (`payout.rs`); neither
+ * the device nor the host reads input 0's sequence.
  */
 const VAULT_INPUT_SEQUENCE = 0xfffffffe;
-/** `VAULT_DUST_LIMIT` (`fw:vault_constants.h:64`). */
+/** `VAULT_DUST_LIMIT`. */
 export const VAULT_DUST_LIMIT_SATS = 546;
-/** `_build_claim_psbt` defaults (`test_screen4_claim.py:58-59`). */
+/** `_build_claim_psbt` defaults (`test_screen4_claim.py`). */
 const CLAIM_INPUT_VALUE = 1_200_000;
 const CLAIM_CONNECTOR_VALUE = 600_000;
-/** `_build_wc_psbt` defaults (`test_screen6_wc.py:81-82`). */
+/** `_build_wc_psbt` defaults (`test_screen6_wc.py`). */
 const WC_INPUT_VALUE = 5_000_000;
 const WC_OUT_VALUE = 4_900_000;
-/** `_build_payout_finalize_psbt` defaults (`test_sign_psbt_validate.py:1021-1023`). */
+/** `_build_payout_finalize_psbt` defaults (`test_sign_psbt_validate.py`). */
 const PF_AMOUNT_RECEIVED = 1_234_567;
 const PF_VAULT_AMOUNT = 2_000_000;
 /** `bytes([0x51, 0x20]) + bytes(32)` — the builders' dummy P2TR scripts. */
@@ -203,7 +203,7 @@ export type DerivationShape = "wasm" | "none";
 
 /**
  * One zero-fingerprint entry per signing key, each carrying the leaf hash
- * (`btc-vault crates/vault/src/psbt.rs:65-75` @ `ac4954e7` — D alone on
+ * (btc-vault `crates/vault/src/psbt.rs`: D alone on
  * Claim/WC, D plus every challenger on the claimer Payout).
  */
 function derivationEntries(keysHex: readonly string[], shape: DerivationShape, leaf: Buffer) {
@@ -275,7 +275,7 @@ export function buildClaimShapedPsbt(o: ShapeOverrides = {}): string {
   return psbt.toHex();
 }
 
-/** `_build_assert_psbt` defaults (`test_screen5_assert.py:105-107`); the prevout is `_FAKE_CLAIM_TXID = bytes(range(32))`. */
+/** `_build_assert_psbt` defaults (`test_screen5_assert.py`); the prevout is `_FAKE_CLAIM_TXID = bytes(range(32))`. */
 const ASSERT_CLAIM_TXID = Buffer.from(Array.from({ length: 32 }, (_, i) => i));
 const ASSERT_AMOUNT_CARRIED = 5_000_000;
 const ASSERT_OUT_VALUE = 4_990_000;
@@ -329,7 +329,7 @@ export function buildWcShapedPsbt(o: ShapeOverrides & { extraInputValue?: number
     ...derivationEntries([keyHex], o.derivation ?? "wasm", leaf),
   });
   if (o.extraInputValue !== undefined) {
-    // "Wallet inputs for fees" — counted, not validated (`fw:sign_psbt_validate.c:2876-2878`).
+    // "Wallet inputs for fees" — counted, not validated.
     psbt.addInput({
       hash: Buffer.alloc(32, 0x33),
       index: 1,
@@ -391,7 +391,7 @@ export function buildPayoutShapedPsbt(o: PayoutShapeOverrides = {}): string {
     witnessUtxo: { script: output, value: VAULT_DUST_LIMIT_SATS },
     ...leafEntries(leaf, o),
     tapInternalKey: Buffer.from(NUMS_XONLY, "hex"),
-    // The claimer Payout's signing set is D plus every challenger (payout.rs:461-462 @ ac4954e7).
+    // The claimer Payout's signing set is D plus every challenger (btc-vault `payout.rs`).
     ...derivationEntries([keyHex, KEEPER_XONLY, CHALLENGER_XONLY], o.derivation ?? "wasm", leaf),
   });
   for (const out of o.outputs ?? [

@@ -1,18 +1,15 @@
 /**
  * Refund-PSBT classification and derivation-field augmentation (#2371).
  *
- * The device signs a standalone refund from ANY vault state — the intent
- * requirement is host-side only — but it demands two TAP_BIP32_DERIVATION
+ * The device signs a standalone refund from ANY vault state (the intent
+ * requirement is host-side only) but it demands two TAP_BIP32_DERIVATION
  * entries the SDK builder does not set, keyed ASYMMETRICALLY: input 0 by the
  * untweaked depositor key inside the refund leaf (derived and compared
- * directly), output 0 by the BIP-86 TWEAKED key — the scriptPubKey's witness
- * program (derived, tweaked, then compared).
- *
- * Firmware citations: `fw:` = LedgerHQ/app-babylon-vault @ `b0c0ac4d`
- * (`develop`, 2026-09-04). Leaf grammar: `fw:sign_psbt_validate_helpers.c:77-156`
- * (`parse_refund_leaf_script`); input entry: `fw:sign_psbt_validate.c:918-965`;
- * output entry: `fw:sign_psbt_validate.c:1025-1069`; both entries are REQUIRED —
- * a missing lookup rejects with SW_INCORRECT_DATA.
+ * directly), output 0 by the BIP-86 TWEAKED key, the scriptPubKey's witness
+ * program (derived, tweaked, then compared). Both entries are REQUIRED; a
+ * missing lookup rejects with SW_INCORRECT_DATA. The leaf grammar is the
+ * firmware's `parse_refund_leaf_script`; the checks are
+ * `_validate_display_refund`'s.
  *
  * @module ledger-vault-signer/refundPsbt
  */
@@ -30,8 +27,7 @@ const MASTER_FINGERPRINT_HEX_RE = /^[0-9a-f]{8}$/;
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
 const X_ONLY_KEY_BYTES = 32;
 
-// Script opcodes the firmware parser dispatches on
-// (`fw:sign_psbt_validate_helpers.c:101-134`).
+// Script opcodes the firmware parser dispatches on.
 const OP_0 = 0x00;
 const OP_PUSHBYTES_1 = 0x01;
 const OP_PUSHBYTES_32 = 0x20;
@@ -44,32 +40,31 @@ const OP_16 = 0x60;
 const OP_CHECKSIGVERIFY = 0xad;
 const OP_CHECKSEQUENCEVERIFY = 0xb2;
 
-/** CScriptNum caps, per the firmware (`fw:sign_psbt_validate_helpers.c:29-30`). */
+/** CScriptNum caps, per the firmware parser. */
 const SCRIPT_NUM_MAX_LEN = 4;
 const SCRIPT_NUM_SIGN_BIT = 0x80;
 
-/** `OP_PUSHBYTES_32 ‖ key(32) ‖ OP_CHECKSIGVERIFY ‖ push(1) ‖ OP_CSV` (`fw:…helpers.c:34`). */
+/** `OP_PUSHBYTES_32 ‖ key(32) ‖ OP_CHECKSIGVERIFY ‖ push(1) ‖ OP_CSV`: the firmware's `REFUND_SCRIPT_MIN_LEN`. */
 const REFUND_SCRIPT_MIN_LEN = 1 + X_ONLY_KEY_BYTES + 1 + 1 + 1;
 
 /** P2TR scriptPubKey: OP_1 ‖ push-32 ‖ witness program(32); program starts here. */
 const P2TR_WITNESS_PROGRAM_OFFSET = 2;
 /** The device requires the refund's witnessUtxo scriptPubKey to be exactly this
- * long — `VAULT_P2TR_SCRIPTPUBKEY_LEN` (`fw:sign_psbt_validate.c:850-863`). */
+ * long: `VAULT_P2TR_SCRIPTPUBKEY_LEN`. */
 const P2TR_SCRIPT_BYTES = 34;
 
-// BIP-68 sequence semantics the device pins on the refund input
-// (`fw:sign_psbt_validate.c:972-991`; values from `fw:vault_constants.h:126-128`).
+// BIP-68 sequence semantics the device pins on the refund input.
 const BIP68_DISABLE_FLAG = 0x80000000;
 const BIP68_TIME_BASED_FLAG = 0x00400000;
 const BIP68_SEQUENCE_MASK = 0x0000ffff;
 
-/** Refund transactions are v2 with locktime 0 (`fw:sign_psbt_validate.c:819`);
- * version 0 never even reaches refund dispatch — it routes to PoP (`:3578`). */
+/** Refund transactions are v2 with locktime 0; version 0 never even reaches
+ * refund dispatch, it routes to PoP. */
 const MIN_REFUND_TX_VERSION = 2;
 const REFUND_TX_LOCKTIME = 0;
 
-/** The only sighash the refund path admits when one is present — explicit
- * SIGHASH_ALL is rejected too (`fw:sign_psbt_validate.c:829-847`). */
+/** The only sighash the refund path admits when one is present; explicit
+ * SIGHASH_ALL is rejected too. */
 const SIGHASH_DEFAULT = 0;
 
 /** The terms a refund leaf commits to: signer key and CSV timelock. */
@@ -80,15 +75,15 @@ export interface RefundLeafTerms {
 }
 
 /**
- * Byte-for-byte mirror of the firmware's refund-leaf parser
- * (`fw:sign_psbt_validate_helpers.c:77-156`) — deliberately EXACTLY as loose:
+ * Byte-for-byte mirror of the firmware's `parse_refund_leaf_script`,
+ * deliberately EXACTLY as loose:
  * OP_PUSHDATA1 and a non-minimal positive CScriptNum are accepted, because a
  * host grammar stricter than the device's would strand a refund the device
  * would sign. Returns `undefined` where the firmware returns false.
  *
- * NOTE: the device's DISPATCH is looser still — it routes any conforming
- * prefix whose last byte is `OP_CSV` to the refund validator
- * (`fw:sign_psbt_validate.c:3554-3718`) and only then runs this grammar. Using
+ * NOTE: the device's DISPATCH is looser still: it routes any conforming
+ * prefix whose last byte is `OP_CSV` to the refund validator and only then
+ * runs this grammar. Using
  * the full grammar for host classification (see {@link classifyRefundPsbt}) is
  * the deliberate, fail-safe divergence: under-classification falls back to
  * requiring an approved intent.
@@ -125,7 +120,7 @@ export function parseRefundLeafScript(script: Uint8Array): RefundLeafTerms | und
     return undefined;
   }
   // Block-count refunds only: the operand must fit the 16-bit field, which also
-  // keeps the BIP-68 disable/time flags unsettable (`fw:…helpers.c:136-145`).
+  // keeps the BIP-68 disable/time flags unsettable, as the firmware parser does.
   if (csv === 0 || csv > BIP68_SEQUENCE_MASK) return undefined;
 
   if (pos >= script.length) return undefined;
@@ -138,9 +133,8 @@ export function parseRefundLeafScript(script: Uint8Array): RefundLeafTerms | und
 /** What {@link classifyRefundPsbt} pins: the leaf terms plus every transaction
  * field the device validates on the refund path. */
 export interface RefundPsbtClassification extends RefundLeafTerms {
-  /** Input 0's previous txid in INTERNAL byte order (lowercase hex) — the
-   * order the device compares against the loaded intent's `prepegin_txid`
-   * (`fw:sign_psbt_validate.c:1082-1094`). */
+  /** Input 0's previous txid in INTERNAL byte order (lowercase hex), the
+   * order the device compares against the loaded intent's `prepegin_txid`. */
   readonly inputTxidInternalHex: string;
   /** Input 0's nSequence as encoded in the unsigned transaction. */
   readonly sequence: number;
@@ -162,8 +156,8 @@ export interface RefundPsbtClassification extends RefundLeafTerms {
  * error precedence.
  *
  * DELIBERATELY a strict subset of the device's own routing: the firmware
- * dispatches on the leaf's shape prefix and terminal `OP_CSV` byte alone
- * (`fw:sign_psbt_validate.c:3554-3718`) and only then validates the full
+ * dispatches on the leaf's shape prefix and terminal `OP_CSV` byte alone and
+ * only then validates the full
  * grammar, version and locktime inside the refund validator. Host
  * under-classification is the fail-safe direction — an unrecognised PSBT
  * falls back to requiring an approved intent, so neither the intent gate nor
@@ -199,17 +193,15 @@ export function classifyRefundPsbt(psbtHex: string): RefundPsbtClassification | 
 }
 
 /**
- * Pure signability pins for a classified refund — every term the device
+ * Pure signability pins for a classified refund: every term the device
  * validates that needs NO device data, so a caller can reject before any
  * device I/O (not even a liveness probe). Mirrors, in order: the sighash pin
- * (`fw:sign_psbt_validate.c:829-847` — absent or SIGHASH_DEFAULT), the
- * witnessUtxo requirement (`:850-863`), the output-value cap (`:1075`),
- * destination ownership (the device derives, BIP-86-tweaks and compares —
- * `:1025-1069`; host-side the leaf key is the derivation anchor, so the output
- * must pay ITS BIP-86 address), the no-intent CSV floor (`:912`,
- * `vault_constants.h:103`), and the BIP-68 sequence pins (`:972-991` —
- * present, flags clear, equal to the CSV; compared unmasked because the leaf
- * parser already bounds the CSV to the block-count field).
+ * (absent or SIGHASH_DEFAULT), the witnessUtxo requirement, the output-value
+ * cap, destination ownership (the device derives, BIP-86-tweaks and
+ * compares; host-side the leaf key is the derivation anchor, so the output
+ * must pay ITS BIP-86 address), the no-intent CSV floor, and the BIP-68
+ * sequence pins (present, flags clear, equal to the CSV; compared unmasked
+ * because the leaf parser already bounds the CSV to the block-count field).
  */
 export function assertRefundPsbtSignable(refund: RefundPsbtClassification): void {
   if (refund.sighashType !== undefined && refund.sighashType !== SIGHASH_DEFAULT) {
@@ -262,8 +254,7 @@ export interface AugmentPsbtForRefundParams {
  * Re-classifies internally and requires the leaf key to be the depositor's —
  * augmenting anything that is not this device's refund is a caller bug, not a
  * shape to paper over. `leafHashes: []` is fine: the device's value parser
- * skips the hashes (`fw:sign_psbt_validate_helpers.c:59-60`). Never touches
- * the unsigned transaction.
+ * skips the hashes. Never touches the unsigned transaction.
  */
 export function augmentPsbtForRefund(params: AugmentPsbtForRefundParams): string {
   const { psbtHex, depositorXOnlyHex, masterFingerprintHex, depositorPath } = params;
@@ -301,9 +292,9 @@ export function augmentPsbtForRefund(params: AugmentPsbtForRefundParams): string
     tapBip32Derivation: [
       {
         masterFingerprint,
-        // The BIP-86 TWEAKED key, verbatim from the scriptPubKey — the device
+        // The BIP-86 TWEAKED key, verbatim from the scriptPubKey: the device
         // looks the entry up by these exact bytes, then derives at `path`,
-        // applies the BIP-86 tweak and compares (`fw:sign_psbt_validate.c:1025-1069`).
+        // applies the BIP-86 tweak and compares.
         // BIP-371 permits the output key as the map key ("It may be the output
         // key, the internal key, or a key present in a leaf script").
         pubkey: outScript.subarray(P2TR_WITNESS_PROGRAM_OFFSET),

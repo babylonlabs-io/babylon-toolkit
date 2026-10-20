@@ -227,7 +227,8 @@ export interface PayoutPsbtResult {
  * - Input 1: from Assert output0 (NOT signed by depositor)
  *
  * Both inputs carry their taproot script-path leaf. Input 1's is not signed
- * here — it is what a hardware signer reads to display the payout terms.
+ * here — the Ledger vault app reads it to identify the claimer and refuses to
+ * sign when it differs from the leaf it rebuilds from the approved intent.
  *
  * @param params - Payout parameters
  * @returns Unsigned PSBT ready for depositor to sign
@@ -382,10 +383,10 @@ interface AssertPayoutLeaf {
  * and assert it spends `assertPrevOut`.
  *
  * The depositor does not sign input 1, but the Ledger vault app reads this leaf
- * off the PSBT to display the payout terms
- * (`sign_psbt_validate.c::vault_read_payout_leaf_script`), so a leaf that
- * belonged to a different taptree would show the depositor terms the
- * transaction cannot actually enforce. Critical Path #3: derive, then bind to
+ * off the PSBT (`vault_read_payout_leaf_script`), rebuilds the expected leaf
+ * from the approved intent (`vault_build_assert0_payout_leaf`) and refuses to
+ * sign input 0 unless the two match byte for byte, so a leaf from a different
+ * taptree makes the device refuse the Payout. Critical Path #3: derive, then bind to
  * the real previous output — never forward VP-supplied bytes.
  *
  * @internal Helper invoked by {@link buildPayoutPsbt}.
@@ -512,7 +513,8 @@ function assemblePayoutPsbt(
   });
 
   // Input 1: from Assert — not signed by the depositor, but the Ledger vault
-  // app reads the payout leaf here to display the terms, so it must be present.
+  // app reads the payout leaf here to identify the claimer and check it against
+  // the approved intent, so it must be present.
   psbt.addInput({
     hash: input1.hash,
     index: input1.index,

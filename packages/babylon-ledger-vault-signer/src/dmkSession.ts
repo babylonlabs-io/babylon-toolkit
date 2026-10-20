@@ -20,7 +20,7 @@ import type {
  * The refresher injects `GET_APP_AND_VERSION` mid-ceremony, and whether that
  * disturbs a ceremony in flight is unconfirmed (#2110) — so it stays off for
  * the whole session. (Between ceremonies the read leaves a loaded intent in
- * place: Speculos e2e stage 4c @ b89dd580.) (DMK does offer a scoped `disableDeviceSessionRefresher`
+ * place: Speculos e2e stage 4c.) (DMK does offer a scoped `disableDeviceSessionRefresher`
  * window; deliberately not used until nullification is understood.)
  */
 const SESSION_REFRESHER_OPTIONS = { isRefresherDisabled: true } as const;
@@ -134,7 +134,7 @@ function getDmk(): Promise<DmkBuild> {
      * TransportService — so `close()` would CONSTRUCT this orphan's transport
      * (registering a WebHID listener pair) and then release nothing, since
      * `CloseSessionsUseCase` only iterates existing sessions and never calls
-     * `destroy()`. Same fact as wallet-connector `provider.ts:305-309`.
+     * `destroy()`. Same fact as the wallet-connector provider's disconnect path.
      */
     function publish(built: DmkBuild): DmkBuild {
       if (dmkPromise !== build) {

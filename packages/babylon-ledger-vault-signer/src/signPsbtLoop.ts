@@ -7,12 +7,7 @@
  * cap — the upstream client loops unbounded and the abort signal is the host's
  * liveness control, which is why the signal is a REQUIRED option rather than an
  * opt-in. No await sits inside a round other than the transport call (50-tick
- * ≈ 5 s device deadline, `base:io_ext.h:28`).
- *
- * `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`:
- * `io_ext.h` and `sw.h` live under `src/boilerplate/`,
- * `constants.h` under `src/`. The pin is load-bearing — the same paths on
- * `develop` describe different behaviour.
+ * ≈ 5 s device deadline).
  *
  * @module ledger-vault-signer/signPsbtLoop
  */
@@ -30,14 +25,14 @@ import type { CollectedYield } from "./expectedSignatures";
 import { classifyStatusWord, type Apdu, type AppIdentity, type RawApduSender } from "./rawApdu";
 import { buildSignPsbtApdu, getPreparedSignPsbtState, type PreparedSignPsbt } from "./signPsbtPrepare";
 
-/** Framework CLA / CONTINUE INS (`base:constants.h:15,20`). */
+/** Framework CLA / CONTINUE INS (base app `constants.h`). */
 const CLA_FRAMEWORK = 0xf8;
 const INS_CONTINUE = 0x01;
 const P1_CONTINUE = 0x00;
 const P2_CONTINUE = 0x00;
 
 const SW_OK = 0x9000;
-/** A client-command request follows in the response data (`base:sw.h:90`). */
+/** A client-command request follows in the response data (`SW_INTERRUPTED_EXECUTION`). */
 const SW_INTERRUPTED_EXECUTION = 0xe000;
 
 export interface SignPsbtProgress {

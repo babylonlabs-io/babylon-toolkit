@@ -54,8 +54,8 @@ export interface EnsurePrePeginTermsApprovalParams {
  *
  * Skip fast-path: when `holdsApprovedDepositTerms` reports the byte-equal
  * intent still live, the ceremony is skipped — it survives everything the
- * flow does in between (PoP/PegIn signing spend separate device state;
- * app-babylon-vault `sign_psbt_validate.c` @ 73a57c50). A stale true fails
+ * flow does in between (PoP and PegIn signing spend separate device state
+ * in the Ledger vault app). A stale true fails
  * closed at the signature; the retry then re-runs the full ceremony.
  *
  * Otherwise always derives first, so this path never approves-only: whether

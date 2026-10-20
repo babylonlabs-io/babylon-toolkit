@@ -7,7 +7,7 @@
  * the only coverage of the transport seam actually carrying APDUs.
  *
  * Runs against the same container as that suite, and is skipped unless
- * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure — CI):
+ * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure; no CI job sets either today):
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
  *
