@@ -89,13 +89,13 @@ const RESERVE_PURPOSE =
 // is not a final state. The first covers a failed read of either transaction
 // the proof needs — the peg-in or the Pre-Pegin.
 const PEGIN_PROOF_UNAVAILABLE =
-  "This deposit's Bitcoin transactions could not be read to confirm the peg-in transaction already revealed your HTLC secret. Nothing was submitted — please try again.";
+  "This deposit's Bitcoin transactions could not be read to confirm the peg-in transaction already revealed your HTLC secret. Nothing was submitted. Please try again.";
 const PEGIN_PROOF_FAILED =
-  "Bitcoin data did not confirm that the peg-in transaction already revealed your HTLC secret, so it was not revealed here. Nothing was submitted — please try again later.";
+  "Bitcoin data did not confirm that the peg-in transaction already revealed your HTLC secret, so it was not revealed here. Nothing was submitted. Please try again later.";
 // Shared between the resume WOTS error string and the mapped callout body so
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
-  "WOTS public key hash does not match the on-chain commitment — the wrong wallet is connected.";
+  "WOTS public key hash does not match the on-chain commitment. The wrong wallet is connected.";
 // Shared by formatPayoutSignatureError's Error and non-Error fallbacks so the
 // generic payout-signing title can't drift between the two.
 const PAYOUT_SIGNING_ERROR_TITLE = "Payout signing error";
@@ -206,11 +206,11 @@ export const COPY = {
     // as the activation error so the spinner clears and the user understands
     // it's a governance pause (not a failed secret). Activation resumes on unpause.
     activationPaused:
-      "Activation is paused by a protocol governance action. Your BTCVault stays safe — activation will resume once the pause is lifted.",
+      "Activation is paused by a protocol governance action. Your BTCVault stays safe. Activation will resume once the pause is lifted.",
     // Same shape for the activate-and-redeem escape hatch, which is gated only
     // by a protocol-scope pause (an application pause never blocks it).
     activateAndRedeemPaused:
-      "Withdrawal is paused by a protocol governance action. Your BTCVault stays safe — withdrawal will resume once the pause is lifted.",
+      "Withdrawal is paused by a protocol governance action. Your BTCVault stays safe. Withdrawal will resume once the pause is lifted.",
     // Same pause gate as activate-and-redeem, but the expired BTCVault's grace
     // window keeps running while paused, so the copy cannot promise the action
     // is still there afterwards — it says so, and asks for prompt action.
@@ -252,7 +252,7 @@ export const COPY = {
       // full sentence above is tooltip-only, and the /vaults pending row no
       // longer renders that tooltip.
       activationIncompleteSubtext:
-        "Your BTC is not lost — withdraw to receive it back.",
+        "Your BTC is not lost. Withdraw to receive it back.",
       // The expired counterpart. The refund is gone, but redeeming the
       // BTCVault (`claimExpiredVault`) recovers the BTC within the grace
       // window, so the copy leads with that, like the stuck state above.
@@ -264,12 +264,12 @@ export const COPY = {
       // Compact form under the amount. The remaining time is an estimate from
       // Ethereum slot time, rounded down so it never overstates the window.
       peginSweptWhileExpiredSubtext: (remaining: string) =>
-        `Refund unavailable — redeem within ${remaining}`,
+        `Refund unavailable: redeem within ${remaining}`,
       // The window could not be read. The action stays offered — the contract
       // enforces the window and the confirm step re-reads it — so the subtext
       // still asks for action rather than hiding the only exit.
       peginSweptWhileExpiredSubtextUnknown:
-        "Refund unavailable — redeem before the grace window closes",
+        "Refund unavailable: redeem before the grace window closes",
       peginSweptWindowClosed:
         "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, and the grace window to redeem it has closed. It can no longer be redeemed from here.",
       peginSweptWindowClosedSubtext: "Grace window to redeem has closed",
@@ -300,7 +300,7 @@ export const COPY = {
       // with "Your BTCVault is verified", which reads as a status line rather
       // than a failure when it lands in the red error callout after a click.
       activationWindowNotOpen: (blocks: number, minutes: number) =>
-        `Activation is not open yet — ${blocks} Ethereum ${
+        `Activation is not open yet: ${blocks} Ethereum ${
           blocks === 1 ? "block" : "blocks"
         } to go (~${minutes} min). You can try again once the window opens.`,
       // The closing end of the window. Activation puts the HTLC secret in
@@ -310,25 +310,25 @@ export const COPY = {
       // retry. It names the exit instead: the secret stays private, so the
       // BTCVault expires and the refund path opens once its timelock passes.
       activationWindowClosing:
-        "Too little time remains to activate this BTCVault safely. Nothing was submitted — activating now would reveal your secret without completing the deposit. Your secret stays private: once this BTCVault expires, you can refund your BTC.",
+        "Too little time remains to activate this BTCVault safely. Nothing was submitted. Activating now would reveal your secret without completing the deposit. Your secret stays private: once this BTCVault expires, you can refund your BTC.",
       // The window state could not be read at all. Distinct from the countdown
       // above: we cannot say how long, only that we will not reveal the secret
       // against an unverifiable gate.
       activationWindowUnavailable:
-        "Could not confirm the BTCVault activation window. Nothing was submitted — please try again in a moment.",
+        "Could not confirm the BTCVault activation window. Nothing was submitted. Please try again in a moment.",
       // Split-deposit activation order. The earlier (sacrificial) BTCVault must
       // join the liquidation queue before the later one.
       activationOrderWaiting:
         "This split deposit activates in order. Activate the earlier BTCVault first, so it is liquidated before this one.",
       activationOrderSubtext: "Activate the earlier BTCVault first",
       activationOrderBlocked:
-        "Activate the earlier BTCVault in this split deposit first. Nothing was submitted — the split's liquidation order must match its construction order.",
+        "Activate the earlier BTCVault in this split deposit first. Nothing was submitted. The split's liquidation order must match its construction order.",
       activationOrderUnavailable:
-        "Could not confirm this split deposit's activation order. Nothing was submitted — reload the page and try again.",
+        "Could not confirm this split deposit's activation order. Nothing was submitted. Reload the page and try again.",
       // Terminal: the registry data itself is inconsistent, so a retry reads
       // the same records and fails the same way.
       activationOrderInconsistent:
-        "This split deposit's on-chain records are inconsistent, so its activation order cannot be confirmed. Nothing was submitted — contact support.",
+        "This split deposit's on-chain records are inconsistent, so its activation order cannot be confirmed. Nothing was submitted. Contact support.",
       inUseCannotRedeem:
         "BTCVault is currently being used as collateral. Repay all debt before redeeming.",
       // Every REDEEMED BTCVault: the Aave withdrawal, the activation the
@@ -429,7 +429,7 @@ export const COPY = {
     },
     maxVaultsReached: {
       cta: "Maximum BTCVaults reached",
-      unavailableCta: "Unable to verify BTCVault count — please try again",
+      unavailableCta: "Unable to verify BTCVault count. Please try again",
       splitUnavailable: (used: number, cap: number) =>
         `${used} of ${cap} BTCVaults used. BTCVault split unavailable.`,
       // The protocol's own cap on BTCVaults per transaction, which is a
@@ -597,7 +597,7 @@ export const COPY = {
       // Cancelling is a request, not an immediate stop: the device settles the
       // in-flight signature only once the user acts on it.
       cancelRequestedNotice:
-        "Cancellation requested — finish or reject the request on your signing device to continue.",
+        "Cancellation requested. Finish or reject the request on your signing device to continue.",
     },
     btcConfirmation: {
       estRemaining: "Est. remaining",
@@ -665,14 +665,14 @@ export const COPY = {
       },
       reconnectButton: "Reconnect Ledger",
       reconnectFailed:
-        "Couldn't reconnect your Ledger. Plug it in, unlock it and open the Babylon Vault app — update the app in Ledger Wallet if it is out of date — then choose your Ledger when your browser asks and try again.",
+        "Couldn't reconnect your Ledger. Plug it in, unlock it and open the Babylon Vault app. Update the app in Ledger Wallet if it is out of date, then choose your Ledger when your browser asks and try again.",
       secretNotHeld:
         "The retrieved secret is no longer available. Try again to retrieve it from your Ledger.",
     },
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",
       body: (amount: string, symbol: string) =>
-        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your BTCVault is not active yet — this is just one step in the deposit lifecycle.`,
+        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your BTCVault is not active yet. This is just one step in the deposit lifecycle.`,
       footnote:
         "Once confirmed, you'll be asked to submit a WOTS key, sign payout authorizations, and activate your BTCVault.",
       doneButton: "Done",
@@ -706,7 +706,7 @@ export const COPY = {
       fallbackFeeWarning:
         "Could not fetch the mempool fee rate. The minimum relay fee may not get your refund confirmed. Set a fee rate above to continue.",
       dustError:
-        "Network fee is too high — your refund would be below the Bitcoin dust limit. Lower the fee rate to continue.",
+        "Network fee is too high: your refund would be below the Bitcoin dust limit. Lower the fee rate to continue.",
       feeRateCapError: (maxRateSatsVb: number) =>
         `Network fee rate exceeds the safety cap of ${maxRateSatsVb} sat/vB. Lower the fee rate to continue.`,
       // The cap is a percentage of the vault deposit (the SDK's basis), not of
@@ -826,7 +826,7 @@ export const COPY = {
       // — the real wait is the vault's `timelockAssert`, a protocol parameter
       // this screen does not resolve, and a hardcoded one would be a guess.
       bodyStuck:
-        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault — the vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
+        "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault. The vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
       // Shown when the vault's application is registered but not Active on
@@ -869,9 +869,9 @@ export const COPY = {
     // Retryable: a later probe can identify it.
     refundSpenderUnknown: {
       beforeSigning:
-        "This deposit was already spent on Bitcoin, but the spending transaction could not be identified. Nothing was signed — please try again in a moment.",
+        "This deposit was already spent on Bitcoin, but the spending transaction could not be identified. Nothing was signed. Please try again in a moment.",
       afterSigning:
-        "This deposit was spent on Bitcoin before your refund could be broadcast, but the spending transaction could not be identified. The signed refund was not broadcast — please try again in a moment.",
+        "This deposit was spent on Bitcoin before your refund could be broadcast, but the spending transaction could not be identified. The signed refund was not broadcast. Please try again in a moment.",
     },
     // Redeem an expired BTCVault whose deposit the peg-in transaction spent
     // (`claimExpiredVault`). No risk acknowledgment, unlike the stuck-state
@@ -885,7 +885,7 @@ export const COPY = {
       deadline: (remaining: string) =>
         `The grace window closes in ${remaining}. After that, this BTCVault can no longer be redeemed.`,
       deadlineUnknown:
-        "This BTCVault must be redeemed before its grace window closes. The deadline could not be loaded — it is checked again when you confirm.",
+        "This BTCVault must be redeemed before its grace window closes. The deadline could not be loaded. It is checked again when you confirm.",
       windowClosedNotice:
         "The grace window to redeem this BTCVault has closed, so it can no longer be redeemed.",
       confirmButton: "Redeem",
@@ -904,13 +904,13 @@ export const COPY = {
         notRedeemable:
           "This BTCVault cannot be redeemed in its current state. Nothing was submitted.",
         vaultRecordUnavailable:
-          "This BTCVault's record hasn't appeared on the node we're reading from yet. Nothing was submitted — please try again in a moment.",
+          "This BTCVault's record hasn't appeared on the node we're reading from yet. Nothing was submitted. Please try again in a moment.",
         notVerified:
           "Only a BTCVault that expired after verification can be redeemed. Nothing was submitted.",
         windowClosed:
           "The grace window to redeem this BTCVault has closed. Nothing was submitted.",
         windowUnavailable:
-          "The grace window could not be checked against the current Ethereum block. Nothing was submitted — please try again.",
+          "The grace window could not be checked against the current Ethereum block. Nothing was submitted. Please try again.",
         peginProofUnavailable: PEGIN_PROOF_UNAVAILABLE,
         peginProofFailed: PEGIN_PROOF_FAILED,
         // The only exit after the peg-in spends the deposit, and the wrong one
@@ -924,15 +924,15 @@ export const COPY = {
         // peg-in, and a spend whose transaction is not reported cannot be
         // attributed at all. Both leave Retry available.
         spentByOtherUnconfirmed:
-          "A transaction other than the peg-in is spending this deposit on Bitcoin and has not confirmed yet. Nothing was submitted — try again once it settles.",
+          "A transaction other than the peg-in is spending this deposit on Bitcoin and has not confirmed yet. Nothing was submitted. Try again once it settles.",
         spenderUnknown:
-          "This deposit was spent on Bitcoin, but the spending transaction could not be identified. Nothing was submitted — please try again in a moment.",
+          "This deposit was spent on Bitcoin, but the spending transaction could not be identified. Nothing was submitted. Please try again in a moment.",
         // The secret is derived from the BTC wallet, never typed, so the
         // realistic cause of a mismatch is the wrong wallet being connected.
         secretMismatch:
           "The secret derived from the connected BTC wallet does not match this BTCVault. Connect the BTC wallet you deposited with and try again. Nothing was submitted.",
         spendUnavailable:
-          "Could not confirm on Bitcoin that the peg-in transaction spent this deposit. Nothing was submitted — please try again in a moment.",
+          "Could not confirm on Bitcoin that the peg-in transaction spent this deposit. Nothing was submitted. Please try again in a moment.",
       },
       success: {
         heading: "Redemption submitted",
@@ -1273,11 +1273,13 @@ export const COPY = {
       // paused — aborted up front, before the on-chain registration and the BTC
       // broadcast, so no funds are locked and the user can retry once it resumes.
       protocolPaused:
-        "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
+        "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent. Please try again once it resumes.",
+      supplyCapUnavailable: "Unable to verify supply cap. Please try again",
+      supplyCapReached: "Supply cap reached. Deposits temporarily paused",
       capBelowMinimum: (remainingBtc: string, minBtc: string) =>
-        `Peg-in TVL cap reached — only ${remainingBtc} BTC remains, below the minimum deposit of ${minBtc} BTC`,
+        `Peg-in TVL cap reached: only ${remainingBtc} BTC remains, below the minimum deposit of ${minBtc} BTC`,
       exceedsCap: (remainingBtc: string) =>
-        `Peg-in TVL cap reached — only ${remainingBtc} BTC remains`,
+        `Peg-in TVL cap reached: only ${remainingBtc} BTC remains`,
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTCVault is in ${state} state. Activation is only valid when VERIFIED.`,
       // Must never contain the mapper's full broadcast-stage label
@@ -1304,7 +1306,7 @@ export const COPY = {
       // so a report carries the whole thing, not a screenshot of part of it.
       copyDiagnostics: "Copy error details",
       diagnosticsCopied: "Copied",
-      diagnosticsCopyFailed: "Couldn't copy — select and copy manually",
+      diagnosticsCopyFailed: "Couldn't copy. Select and copy manually",
       // A send the wallet may have broadcast despite refusing it: not a
       // failure, so it does not take the failure title. The deposit screens
       // show it without Retry, so the body says how to try again.
@@ -1336,7 +1338,7 @@ export const COPY = {
       // registered. See utils/errors/depositErrors.ts.
       vaultRegistrationNotYetVisible: {
         title: "Registration still confirming",
-        body: "Your Ethereum registration hasn't appeared on the node we're reading from yet. This usually settles within a minute. Resume this deposit from your dashboard shortly — nothing is at risk.",
+        body: "Your Ethereum registration hasn't appeared on the node we're reading from yet. This usually settles within a minute. Resume this deposit from your dashboard shortly. Nothing is at risk.",
       },
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
@@ -1357,7 +1359,7 @@ export const COPY = {
       // the defense-in-depth error mapping. No funds move.
       appVersionUnsupported: {
         title: "App update required",
-        body: "This deposit requires a newer version of the app. Please refresh the page and try again — if the issue persists, an updated release is on its way.",
+        body: "This deposit requires a newer version of the app. Please refresh the page and try again. If the issue persists, an updated release is on its way.",
       },
       activationDeadlinePassed: {
         title: "Activation deadline passed",
@@ -1383,7 +1385,7 @@ export const COPY = {
       // No Bitcoin has moved.
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
-        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard — otherwise the registration will expire on its own.",
+        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard. Otherwise the registration will expire on its own.",
       },
       // Also covers the integrity checks on the wallet's returned PSBT, so
       // the lock is offered as a possibility, not stated as the cause.
@@ -1450,7 +1452,7 @@ export const COPY = {
       // broadcast twin of `pegin.messages.activationWindowUnavailable`.
       broadcastAckWindowUnavailable: {
         title: "Couldn't check the deposit window",
-        body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast — please try again in a moment. If this keeps happening, check that this device's date and time are correct.",
+        body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast. Please try again in a moment. If this keeps happening, check that this device's date and time are correct.",
       },
       // Pre-Pegin broadcast refused, new or resumed, because the application
       // says the depositor's position cannot take this batch: activating would
@@ -1491,6 +1493,14 @@ export const COPY = {
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
       refundHashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting refund to prevent potential attack.`,
+      // The refund template places each sibling's HTLC by position, so a gap
+      // in the vout vector refuses the refund before anything is signed.
+      refundSiblingVectorNonContiguous: (
+        prePeginTxHash: string,
+        lastExpectedVout: number,
+        observedVouts: string,
+      ) =>
+        `Sibling BTCVault discovery produced a non-contiguous HTLC vector for prePeginTxHash ${prePeginTxHash}: expected vouts [0..${lastExpectedVout}], observed [${observedVouts}]. Refund refused. Sibling set incomplete or indexer out of sync.`,
       vaultProviderMismatch: (
         vaultId: string,
         requested: string,
@@ -1531,24 +1541,24 @@ export const COPY = {
       // the Ethereum fee, and this one has spent nothing on either chain.
       versionMismatchBeforeSigning: {
         title: "Protocol parameters changed",
-        body: `The protocol parameters changed while we were preparing your deposit. ${NOTHING_SIGNED_OR_SPENT} — please start the deposit again.`,
+        body: `The protocol parameters changed while we were preparing your deposit. ${NOTHING_SIGNED_OR_SPENT}. Please start the deposit again.`,
       },
       // Pre-signing, and specifically the deposit bounds moved, so the amount
       // itself is what needs to change. Reopening the form shows the new range.
       depositLimitsChanged: {
         title: "Deposit limits changed",
-        body: `The minimum or maximum deposit changed while we were preparing your deposit, and your amount is now outside the allowed range. ${NOTHING_SIGNED_OR_SPENT} — please start the deposit again with an amount in the new range.`,
+        body: `The minimum or maximum deposit changed while we were preparing your deposit, and your amount is now outside the allowed range. ${NOTHING_SIGNED_OR_SPENT}. Please start the deposit again with an amount in the new range.`,
       },
       // Pre-signing, and the cap on BTCVaults per transaction dropped below
       // what this deposit asked for. Splitting is the thing to change here, not
       // the amount, so this cannot share the copy above.
       vaultCountLimitChanged: {
         title: "BTCVault limit changed",
-        body: `The number of BTCVaults allowed in a single transaction changed while we were preparing your deposit, and this deposit asks for more than the new limit. ${NOTHING_SIGNED_OR_SPENT} — please start the deposit again without splitting across BTCVaults.`,
+        body: `The number of BTCVaults allowed in a single transaction changed while we were preparing your deposit, and this deposit asks for more than the new limit. ${NOTHING_SIGNED_OR_SPENT}. Please start the deposit again without splitting across BTCVaults.`,
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",
-        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered BTCVault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own — please start a new deposit.",
+        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered BTCVault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own. Please start a new deposit.",
       },
       // Refused before broadcast, and terminal: the payout script is frozen at
       // the vault's key epochs, so a retry would refuse again.
@@ -1576,7 +1586,7 @@ export const COPY = {
       // The two fingerprints go to diagnostics, never to the depositor.
       peginFingerprintChanged: {
         title: "Protocol configuration changed",
-        body: "The protocol configuration changed while your deposit was being prepared, so the contract rejected the registration. Your Pre-Pegin has not been broadcast and no Bitcoin was spent — but the signatures you just approved no longer match the protocol and cannot be reused. Please start the deposit again.",
+        body: "The protocol configuration changed while your deposit was being prepared, so the contract rejected the registration. Your Pre-Pegin has not been broadcast and no Bitcoin was spent, but the signatures you just approved no longer match the protocol and cannot be reused. Please start the deposit again.",
       },
       wrongWalletAccount: {
         title: "Wrong wallet account",
@@ -1887,7 +1897,7 @@ export const COPY = {
     // `common` rather than `deposit`.
     classifiedErrors: {
       userRejection:
-        "Transaction rejected in your wallet. No changes were made — try again when you're ready.",
+        "Transaction rejected in your wallet. No changes were made. Try again when you're ready.",
       insufficientFunds:
         "Not enough ETH to cover the network gas fee. Add ETH to your wallet and try again.",
       walletDisconnected:
@@ -1907,7 +1917,7 @@ export const COPY = {
         "Your wallet hadn't caught up with your last transaction yet. Check your wallet's activity, then try again.",
       sendOutcomeUnknown: SEND_OUTCOME_UNKNOWN,
       staleDeploy:
-        "This page is out of date — a newer version of the app was deployed. Refresh the page and try again.",
+        "This page is out of date. A newer version of the app was deployed. Refresh the page and try again.",
     },
     // An Aave transaction that has been broadcast but has not confirmed within
     // the receipt wait. It may still confirm, so the loan and collateral forms
@@ -2060,7 +2070,7 @@ export const COPY = {
       fallbackFeeWarning:
         "Could not fetch the mempool fee rate. The minimum relay fee may not get your reclaim confirmed. Set a fee rate above to continue.",
       dustError:
-        "Network fee is too high — the reclaimed amount would be below the Bitcoin dust limit. Your reserve is safe where it is; try again when fees are lower.",
+        "Network fee is too high: the reclaimed amount would be below the Bitcoin dust limit. Your reserve is safe where it is; try again when fees are lower.",
       feeRateCapError: (maxRateSatsVb: number) =>
         `Network fee rate exceeds the safety cap of ${maxRateSatsVb} sat/vB. Lower the fee rate to continue.`,
       // The basis here is the reclaimed amount itself, unlike the refund's cap
@@ -2109,7 +2119,7 @@ export const COPY = {
       // blocks arrive, so the copy says plainly that nothing is at risk and
       // retrying later works.
       payoutNotConfirmed:
-        "The Bitcoin transaction that made this reserve reclaimable is no longer confirmed. Your reserve is safe where it is — try again once it settles.",
+        "The Bitcoin transaction that made this reserve reclaimable is no longer confirmed. Your reserve is safe where it is. Try again once it settles.",
       // Fallback when the failure carries no message of its own.
       generic: "Reclaim transaction failed",
     },
@@ -2404,7 +2414,7 @@ export const COPY = {
       // Post-approve verification failures. Wording must avoid the substrings
       // getEnhancedErrorMessage rewrites (see utils/errors/contract.ts).
       approvalNotConfirmed: (required: string, observed: string) =>
-        `Token approval could not be confirmed on-chain (required ${required}, last read ${observed}). The network may be briefly out of sync — please try again.`,
+        `Token approval could not be confirmed on-chain (required ${required}, last read ${observed}). The network may be briefly out of sync. Please try again.`,
       approvalBelowRequired: (required: string, approved: string) =>
         `The wallet approved a lower amount than required (required ${required}, approved ${approved}). Please retry and approve the full amount.`,
       // The full-repay quote includes accrued interest + the adapter fee, so
@@ -2416,7 +2426,7 @@ export const COPY = {
       balanceBelowRepayAmount: (required: string, balance: string) =>
         `Repaying ${required} needs more than your balance of ${balance}. Lower the amount or acquire more and try again.`,
       // Submit-time (Max intent) balance/debt refetch failure.
-      refetchError: "Couldn't refresh balance/debt — please try again.",
+      refetchError: "Couldn't refresh balance/debt. Please try again.",
       // Shown when the indexer-supplied proxy contract disagrees with the
       // on-chain proxy resolved from the env-pinned adapter (fail closed).
       integrityError:
@@ -2437,7 +2447,7 @@ export const COPY = {
       // a retry button would only invite the user to click past the warning.
       identityBlockedTitle: "Asset could not be verified",
       identityBlockedDescription:
-        "The asset shown for this market doesn't match what's registered on-chain. For your safety, this market can't be used here. Do not proceed — return to Loans and select the asset again.",
+        "The asset shown for this market doesn't match what's registered on-chain. For your safety, this market can't be used here. Do not proceed. Return to Loans and select the asset again.",
       // Verification couldn't complete (network or RPC failure), as opposed to
       // completing and failing. Neutral, and retryable.
       identityUnavailableTitle: "Couldn't verify this asset",
@@ -3002,6 +3012,8 @@ export const COPY = {
     // The registry read failed, so the BTCVaults could not be verified.
     collateralVerificationFailed:
       "Could not verify your BTCVaults on-chain. Try again in a moment.",
+    // The optimal-order guard was given no BTCVaults to check.
+    emptySubmission: "Reorder submission is empty. Refusing to sign.",
   },
   protocolFees: {
     sectionTitle: "Protocol Parameters",
@@ -3043,11 +3055,11 @@ export const COPY = {
   protocolStatusV3: {
     frozen: {
       title: "Protocol is soft-paused",
-      body: "Some new actions are temporarily restricted while the protocol is soft-paused. Any unavailable action is disabled and explains why. Your exits — repay, withdraw, and activation — stay available.",
+      body: "Some new actions are temporarily restricted while the protocol is soft-paused. Any unavailable action is disabled and explains why. Your exits (repay, withdraw, and activation) stay available.",
     },
     paused: {
       title: "Protocol is fully paused",
-      body: "Some actions are temporarily unavailable while the protocol is fully paused. Any unavailable action is disabled and explains why. Debt continues accruing interest — monitor official announcements.",
+      body: "Some actions are temporarily unavailable while the protocol is fully paused. Any unavailable action is disabled and explains why. Debt continues accruing interest. Monitor official announcements.",
     },
   },
   // Full-width critical banner rendered above the header when the position is at
@@ -3055,8 +3067,8 @@ export const COPY = {
   // the banner's icon slot, not the message string.
   topBanner: {
     critical: (distancePct: string) =>
-      `Critical — liquidation in ${distancePct}`,
-    liquidatable: "Critical — liquidation can trigger now",
+      `Critical: liquidation in ${distancePct}`,
+    liquidatable: "Critical: liquidation can trigger now",
   },
   // Liquidation-notification warnings. Mirrors the warning types produced by the
   // calculator: urgent / cliff / reorder / dust / weird-params / too-many-vaults.
@@ -3090,7 +3102,7 @@ export const COPY = {
     reorder: {
       title: "Reorder BTCVaults to lose less",
       detail:
-        "A different BTCVault order makes the first liquidation event smaller — less BTC seized when it triggers.",
+        "A different BTCVault order makes the first liquidation event smaller, with less BTC seized when it triggers.",
       suggestedOrderLabel: "Suggested order",
       vaultChip: (name: string, amount: string) => `${name} · ${amount}`,
     },
@@ -3134,7 +3146,7 @@ export const COPY = {
           orderStr: string,
         ) =>
           hasReorderFix
-            ? `All ${nVaults} BTCVaults land in the first liquidation group. Reordering BTCVaults will fix this — suggested order: ${orderStr}.`
+            ? `All ${nVaults} BTCVaults land in the first liquidation group. Reordering BTCVaults will fix this. Suggested order: ${orderStr}.`
             : `All ${nVaults} BTCVaults land in the first liquidation group, and no combination of BTCVaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
       },
     },
@@ -3144,9 +3156,9 @@ export const COPY = {
     tooManyVaults: {
       title: "Too many BTCVaults to optimize",
       detail: (nVaults: number, cap: number) =>
-        `You have ${nVaults} BTCVaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
+        `You have ${nVaults} BTCVaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order. It falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
       suggestion:
-        "Consider consolidating smaller BTCVaults into fewer larger ones — fewer BTCVaults means lower fees and better optimization.",
+        "Consider consolidating smaller BTCVaults into fewer larger ones. Fewer BTCVaults means lower fees and better optimization.",
     },
     maxVaults: {
       // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body keeps.
@@ -3157,7 +3169,7 @@ export const COPY = {
     dust: {
       title: "Small position - simplified view",
       detail:
-        "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+        "Below $1,000 the cascade simplifies: all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },
     // The BTC price is stale or unreadable, so no cascade is computed.
     stalePrice: {
@@ -3183,11 +3195,11 @@ export const COPY = {
       causeLiqPenalty: (liqPenalty: string, thf: string) =>
         `LB × CF = ${liqPenalty}, but it must be less than THF (${thf}). At this combination the liquidation formula becomes undefined (division by a non-positive number).`,
       causeThfTooLow: (thf: string, expectedHf: string) =>
-        `THF (${thf}) must be greater than expected HF (${expectedHf}) — otherwise liquidation has no valid target.`,
+        `THF (${thf}) must be greater than expected HF (${expectedHf}). Otherwise liquidation has no valid target.`,
       causeFractionOver: (fractionPct: string) =>
-        `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible — adjust CF, THF, or LB.`,
+        `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible. Adjust CF, THF, or LB.`,
       causeGeneric: (fractionPct: string) =>
-        `Seizure fraction computed as ${fractionPct}% — outside the valid range. Adjust CF, THF, or LB.`,
+        `Seizure fraction computed as ${fractionPct}%, outside the valid range. Adjust CF, THF, or LB.`,
     },
   },
 } as const;

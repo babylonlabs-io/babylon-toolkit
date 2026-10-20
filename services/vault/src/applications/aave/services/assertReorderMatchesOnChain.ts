@@ -181,9 +181,7 @@ export async function assertOptimalOrderMatchesOnChain(
   ctx: ReorderVerificationContext,
 ): Promise<void> {
   if (submittedVaultIds.length === 0) {
-    throw new OptimalReorderMismatchError(
-      "Reorder submission is empty — refusing to sign.",
-    );
+    throw new OptimalReorderMismatchError(COPY.reorder.emptySubmission);
   }
 
   const onChainAmounts = await readTrustedVaultAmountsSats(
