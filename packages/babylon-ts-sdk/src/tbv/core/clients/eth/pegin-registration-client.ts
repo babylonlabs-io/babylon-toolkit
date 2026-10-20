@@ -495,8 +495,34 @@ export class ViemPeginRegistrationClient {
       code !== undefined &&
       code !== "0x" &&
       !EIP_7702_DELEGATION_CODE.test(code);
+    const balance = await this.config.publicClient.getBalance({
+      address: this.assertEthAccount(depositor),
+    });
+    if (typeof balance !== "bigint" || balance < 0n) {
+      throw new Error("Failed to read the Ethereum balance. Try again.");
+    }
+    // Typed before any node call: a node reports a value shortfall in its own words.
+    if (balance < value) {
+      throw new InsufficientFundsError();
+    }
+    // No fee fields: with a fee cap, geth/reth cap the estimate at the balance
+    // ("gas required exceeds allowance", go-ethereum eth/gasestimator).
+    let gas: bigint;
+    try {
+      gas = await this.config.publicClient.estimateGas({
+        to: this.config.btcVaultRegistry,
+        data,
+        value,
+        account,
+      });
+    } catch (error) {
+      handleContractError(error);
+    }
+    if (typeof gas !== "bigint" || gas <= 0n) {
+      throw new Error("Failed to estimate registration gas. Try again.");
+    }
     let gasAndFees;
-    let requiredBalance = value;
+    // A Safe's executor pays gas; the estimate above is just its revert check.
     if (!isSmartAccount) {
       let request;
       try {
@@ -506,14 +532,14 @@ export class ViemPeginRegistrationClient {
           value,
           account,
           chain: this.config.ethChain,
-          parameters: ["gas", "fees", "type"],
+          gas,
+          parameters: ["fees", "type"],
         });
       } catch (error) {
         handleContractError(error);
       }
 
-      const { gas, type, gasPrice, maxFeePerGas, maxPriorityFeePerGas } =
-        request;
+      const { type, gasPrice, maxFeePerGas, maxPriorityFeePerGas } = request;
       const fees =
         type === "eip1559" &&
         typeof maxFeePerGas === "bigint" &&
@@ -524,24 +550,18 @@ export class ViemPeginRegistrationClient {
           : type === "legacy" && typeof gasPrice === "bigint" && gasPrice >= 0n
             ? { type, gasPrice }
             : undefined;
-      if (typeof gas !== "bigint" || gas <= 0n || !fees) {
-        throw new Error(
-          "Failed to prepare registration gas and fees. Try again.",
-        );
+      if (!fees) {
+        throw new Error("Failed to prepare registration fees. Try again.");
       }
       gasAndFees = { gas, ...fees };
-      requiredBalance +=
-        gas * (fees.type === "eip1559" ? fees.maxFeePerGas : fees.gasPrice);
+      const feeCap =
+        fees.type === "eip1559" ? fees.maxFeePerGas : fees.gasPrice;
+      if (balance < value + gas * feeCap) {
+        throw new InsufficientFundsError();
+      }
     }
-    const balance = await this.config.publicClient.getBalance({
-      address: this.assertEthAccount(depositor),
-    });
-    if (typeof balance !== "bigint" || balance < 0n) {
-      throw new Error("Failed to read the Ethereum balance. Try again.");
-    }
-    if (balance < requiredBalance) {
-      throw new InsufficientFundsError();
-    }
+    // The node reads above used the snapshot; re-gate before the liveness check.
+    this.assertEthAccount(depositor);
     const addresses = await this.config.ethWallet.getAddresses();
     if (
       !Array.isArray(addresses) ||
