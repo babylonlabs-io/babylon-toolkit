@@ -77,6 +77,7 @@ import {
   getProtocolParamsReader,
   getVaultRegistryReader,
 } from "../../clients/eth-contract/sdk-readers";
+import type { TransactionResult } from "../../clients/eth-contract/transactionFactory";
 import {
   ContractStatus,
   getNextLocalStatus,
@@ -89,6 +90,9 @@ import {
   fetchVaultById,
 } from "../../services/vault";
 import { assertActivationFollowsConstructionOrder } from "../../services/vault/activationOrder";
+import type { ActivationRedeemReason } from "../../services/vault/activationRedeemReason";
+import { activationRedeemReasonFromReveal } from "../../services/vault/activationRedeemReasonFromReveal";
+import { appendActivationRevertNotice } from "../../services/vault/activationRevertNotice";
 import { assertResumePositionCapacity } from "../../services/vault/assertResumePositionCapacity";
 import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
@@ -177,17 +181,14 @@ export interface ActivateVaultParams {
     activationOutcome?: PendingPeginRequest["activationOutcome"],
   ) => void;
   onRefetchActivities: () => void;
-  /**
-   * `collateralAdded` is true only when the receipt carries the adapter's
-   * `CollateralAdded` log for this vault. `redeemed` is true only when it
-   * carries the registry's `VaultClaimableBy` log making this vault claimable
-   * by the depositor's on-chain BTC key: the registry redeemed the vault for
-   * the depositor instead of handing it to the application. A receipt with
-   * neither is an activation into an application other than the Aave adapter.
-   */
+  /** What the reveal receipt proves. A receipt with neither log is an activation into an application other than the Aave adapter. */
   onShowSuccessModal: (outcome: {
+    /** The receipt carries the adapter's `CollateralAdded` log for this vault. */
     collateralAdded: boolean;
+    /** The receipt carries the registry's `VaultClaimableBy` log for the depositor's on-chain BTC key. */
     redeemed: boolean;
+    /** Why a normal activation was returned; null otherwise. */
+    reason: ActivationRedeemReason | null;
   }) => void;
 }
 
@@ -1087,16 +1088,22 @@ export function useVaultActions(): UseVaultActionsReturn {
       // escape-hatch mode, activate-and-redeem. Hashlock is forwarded so the
       // SDK re-checks `sha256(secret) === hashlock` as the last gate before
       // calldata is assembled.
-      const revealSecretOnChain = redeemImmediately
-        ? activateVaultWithSecretAndRedeem
-        : activateVaultWithSecret;
-      const revealResult = await revealSecretOnChain({
+      const revealArgs = {
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
         hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
         depositorBtcPubKey: expectedDepositorBtcPubkey,
         walletClient,
-      });
+      };
+      let revealResult: TransactionResult;
+      let minActivationGasAtSend: bigint | null = null;
+      if (redeemImmediately) {
+        revealResult = await activateVaultWithSecretAndRedeem(revealArgs);
+      } else {
+        const result = await activateVaultWithSecret(revealArgs);
+        revealResult = result;
+        minActivationGasAtSend = result.minActivationGas;
+      }
       revealed = true;
 
       // Cross-device resume has no `pendingPegin`; fall back to the
@@ -1120,6 +1127,15 @@ export function useVaultActions(): UseVaultActionsReturn {
       // A normal activation the registry redeemed for the depositor. The
       // escape hatch always redeems, and is told apart by its own mode.
       const returned = redeemed && !redeemImmediately;
+      // The registry's own application binding decides whether a cap may be inferred.
+      const reason = returned
+        ? activationRedeemReasonFromReveal({
+            receipt: revealResult.receipt,
+            vaultId: ensureHexPrefix(vaultId),
+            minActivationGasAtSend,
+            applicationEntryPoint: basicInfo.applicationEntryPoint,
+          })
+        : null;
 
       // Update localStorage status. A returned activation stores that outcome
       // in the same write: CONFIRMED alone reads as activated, and a reload or
@@ -1154,7 +1170,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       });
 
       // Show success and refetch
-      onShowSuccessModal({ collateralAdded, redeemed });
+      onShowSuccessModal({ collateralAdded, redeemed, reason });
       onRefetchActivities();
 
       if (mountedRef.current) setActivating(false);
@@ -1191,7 +1207,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         const errorMessage = isVaultRecordEmptyError(err)
           ? COPY.deposit.errors.vaultRegistrationNotYetVisible.body
           : rawMessage;
-        setActivationError(errorMessage);
+        setActivationError(appendActivationRevertNotice(err, errorMessage));
         // Classify from the typed error before it is flattened to a string — a
         // passed deadline, an already-EXPIRED vault or an endpoint that cannot
         // run the activation check is terminal (no Retry).

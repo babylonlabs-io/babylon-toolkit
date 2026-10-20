@@ -1,6 +1,15 @@
+import {
+  type Abi,
+  type AbiFunction,
+  type AbiParameter,
+  type Address,
+  decodeAbiParameters,
+  encodeAbiParameters,
+  type Hex,
+} from "viem";
 import { describe, expect, it, vi } from "vitest";
-import type { Address, Hex } from "viem";
 
+import { ProtocolParamsABI } from "../../../contracts/abis/ProtocolParams.abi";
 import { ViemProtocolParamsReader } from "../protocol-params-reader";
 
 const MOCK_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678" as Address;
@@ -14,6 +23,42 @@ const MOCK_TBV_PARAMS = {
   expiredPegInGraceBlocks: 100n,
   maxFundingInputCount: 20,
 };
+
+const MOCK_TBV_PARAMS_9 = { ...MOCK_TBV_PARAMS, minActivationGas: 5_000_000n };
+
+const MOCK_TBV_PARAMS_6 = {
+  minimumPegInAmount: MOCK_TBV_PARAMS.minimumPegInAmount,
+  maxPegInAmount: MOCK_TBV_PARAMS.maxPegInAmount,
+  pegInAckTimeout: MOCK_TBV_PARAMS.pegInAckTimeout,
+  pegInActivationTimeout: MOCK_TBV_PARAMS.pegInActivationTimeout,
+  maxHtlcOutputCount: MOCK_TBV_PARAMS.maxHtlcOutputCount,
+  expiredPegInGraceBlocks: MOCK_TBV_PARAMS.expiredPegInGraceBlocks,
+};
+
+// Makes the getTBVProtocolParams entry of that struct width fail to decode.
+const DECODE_FAILS = Symbol("DECODE_FAILS");
+
+class DecodeFailure {
+  constructor(readonly width: number) {}
+}
+
+function tbvParamsTuple(abi: Abi): AbiParameter & {
+  components: readonly AbiParameter[];
+} {
+  const item = abi.find(
+    (i): i is AbiFunction =>
+      i.type === "function" && i.name === "getTBVProtocolParams",
+  );
+  const output = item?.outputs[0];
+  if (output === undefined || !("components" in output)) {
+    throw new Error("ABI has no getTBVProtocolParams tuple output");
+  }
+  return output;
+}
+
+function tbvParamsWidth(abi: Abi): number {
+  return tbvParamsTuple(abi).components.length;
+}
 
 const MOCK_OFFCHAIN_PARAMS = {
   timelockAssert: 150n,
@@ -37,6 +82,9 @@ const MOCK_OFFCHAIN_PARAMS = {
 
 function createMockPublicClient(overrides?: {
   tbvParams?: unknown;
+  tbvParams9?: unknown;
+  tbvParams8?: unknown;
+  tbvParams6?: unknown;
   offchainParams?: unknown;
   version?: unknown;
   activeVaultCoreVersion?: unknown;
@@ -91,14 +139,33 @@ function createMockPublicClient(overrides?: {
         allowFailure,
       }: {
         contracts: Array<{
+          abi: Abi;
           functionName: string;
           args?: readonly unknown[];
         }>;
         allowFailure: boolean;
+        blockNumber?: bigint;
       }) => {
         const results = contracts.map((c) => {
           if (c.functionName === "getTBVProtocolParams") {
-            return overrides?.tbvParams ?? MOCK_TBV_PARAMS;
+            const width = tbvParamsWidth(c.abi);
+            const byWidth: Record<number, unknown> = {
+              9:
+                overrides?.tbvParams9 ??
+                overrides?.tbvParams ??
+                MOCK_TBV_PARAMS_9,
+              8:
+                overrides?.tbvParams8 ??
+                overrides?.tbvParams ??
+                MOCK_TBV_PARAMS,
+              6: overrides?.tbvParams6 ?? MOCK_TBV_PARAMS_6,
+            };
+            if (!(width in byWidth)) {
+              throw new Error(`Unexpected getTBVProtocolParams width ${width}`);
+            }
+            return byWidth[width] === DECODE_FAILS
+              ? new DecodeFailure(width)
+              : byWidth[width];
           }
           if (c.functionName === "getLatestOffchainParams") {
             return overrides?.offchainParams ?? MOCK_OFFCHAIN_PARAMS;
@@ -120,7 +187,14 @@ function createMockPublicClient(overrides?: {
           throw new Error(`Unknown function in multicall: ${c.functionName}`);
         });
         return allowFailure
-          ? results.map((result) => ({ status: "success", result }))
+          ? results.map((result) =>
+              result instanceof DecodeFailure
+                ? {
+                    status: "failure",
+                    error: new Error(`decode ${result.width}`),
+                  }
+                : { status: "success", result },
+            )
           : results;
       },
     ),
@@ -142,6 +216,126 @@ describe("ViemProtocolParamsReader", () => {
     expect(params.pegInAckTimeout).toBe(7200n);
     expect(params.pegInActivationTimeout).toBe(14400n);
     expect(params.maxHtlcOutputCount).toBe(5);
+    expect(params.minActivationGas).toBe(5_000_000n);
+  });
+
+  it("reads minActivationGas when the deployment serves the 9-field struct", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const params = await reader.getTBVProtocolParams();
+
+    expect(params.minActivationGas).toBe(5_000_000n);
+    expect(params.maxFundingInputCount).toBe(20);
+  });
+
+  it("returns null minActivationGas on a deployment that predates the field", async () => {
+    const publicClient = createMockPublicClient({ tbvParams9: DECODE_FAILS });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const params = await reader.getTBVProtocolParams();
+
+    expect(params.minActivationGas).toBeNull();
+    expect(params.maxFundingInputCount).toBe(20);
+  });
+
+  it("falls back to the 6-field struct with both newer fields null", async () => {
+    const publicClient = createMockPublicClient({
+      tbvParams9: DECODE_FAILS,
+      tbvParams8: DECODE_FAILS,
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const params = await reader.getTBVProtocolParams();
+
+    expect(params.minActivationGas).toBeNull();
+    expect(params.maxFundingInputCount).toBeNull();
+  });
+
+  it("asks for the 9-field struct before the 8-field one, so the gate is never dropped by a lenient decode", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getTBVProtocolParams();
+
+    const callArgs = publicClient.multicall.mock.calls[0][0] as {
+      contracts: Array<{ abi: Abi; functionName: string }>;
+    };
+    const widths = callArgs.contracts
+      .filter((c) => c.functionName === "getTBVProtocolParams")
+      .map((c) => tbvParamsWidth(c.abi));
+    expect(widths).toEqual([9, 8, 6]);
+  });
+
+  it("passes the block number through to the multicall", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getTBVProtocolParams(123n);
+
+    expect(publicClient.multicall).toHaveBeenCalledWith(
+      expect.objectContaining({ blockNumber: 123n }),
+    );
+  });
+
+  it("carries minActivationGas into the peg-in configuration", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const config = await reader.getPegInConfiguration();
+
+    expect(config.minActivationGas).toBe(5_000_000n);
+  });
+
+  it("reports the most permissive decode's error when every struct width fails", async () => {
+    const publicClient = createMockPublicClient({
+      tbvParams9: DECODE_FAILS,
+      tbvParams8: DECODE_FAILS,
+      tbvParams6: DECODE_FAILS,
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getTBVProtocolParams()).rejects.toThrow("decode 6");
+  });
+
+  it("viem decodes a 9-word payload under the 8- and 6-field tuples and rejects shorter payloads under wider tuples", () => {
+    const tuple9 = tbvParamsTuple(ProtocolParamsABI as Abi);
+    const tuple8 = { ...tuple9, components: tuple9.components.slice(0, 8) };
+    const tuple6 = { ...tuple9, components: tuple9.components.slice(0, 6) };
+    const values8 = { ...MOCK_TBV_PARAMS, peginActivationDelay: 150n };
+    const values9 = { ...values8, minActivationGas: 5_000_000n };
+
+    const nineWords = encodeAbiParameters([tuple9], [values9]);
+    const eightWords = encodeAbiParameters([tuple8], [values8]);
+    const sixWords = encodeAbiParameters([tuple6], [MOCK_TBV_PARAMS_6]);
+
+    expect(decodeAbiParameters([tuple8], nineWords)[0]).toEqual(values8);
+    expect(decodeAbiParameters([tuple6], nineWords)[0]).toEqual(
+      MOCK_TBV_PARAMS_6,
+    );
+    expect(() => decodeAbiParameters([tuple9], eightWords)).toThrow();
+    expect(() => decodeAbiParameters([tuple8], sixWords)).toThrow();
   });
 
   it("returns offchain params with all 13 fields", async () => {
@@ -253,7 +447,7 @@ describe("ViemProtocolParamsReader", () => {
   });
 
   it("getPegInConfiguration throws when the version is not a valid uint32", async () => {
-    // The reader produces `offchainParamsVersion` via `Number(results[2])`.
+    // The reader produces `offchainParamsVersion` via `Number(results[4])`.
     // If multicall yields a non-integer (e.g. NaN from a malformed
     // payload), the validator must reject it rather than letting NaN
     // propagate into downstream consumers.
@@ -296,6 +490,7 @@ describe("ViemProtocolParamsReader", () => {
       contracts: Array<{ functionName: string }>;
     };
     expect(callArgs.contracts.map((c) => c.functionName)).toEqual([
+      "getTBVProtocolParams",
       "getTBVProtocolParams",
       "getTBVProtocolParams",
       "getLatestOffchainParams",

@@ -413,6 +413,30 @@ export function isSimulationPhaseError(err: unknown): err is ContractError {
   );
 }
 
+/** Context marker for errors decoded from a receipt that was mined reverted. */
+const MINED_REVERT_PHASE = "mined-revert";
+
+/** Mark a mapped error as decoded from a mined, reverted receipt. */
+export function tagMinedRevert(err: ContractError): ContractError {
+  return new ContractError(
+    err.message,
+    err.code,
+    err.transactionHash,
+    err.reason,
+    {
+      cause: err.cause,
+      context: { ...err.context, phase: MINED_REVERT_PHASE },
+    },
+  );
+}
+
+/** True when the error came from a mined revert (see tagMinedRevert). */
+export function isMinedRevertError(err: unknown): err is ContractError {
+  return (
+    err instanceof ContractError && err.context?.phase === MINED_REVERT_PHASE
+  );
+}
+
 /**
  * ABI error name from BTCVaultRegistry, surfaced as `ContractError.reason` when
  * `activateVaultWithSecret` is called after the activation window closed

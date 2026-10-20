@@ -363,6 +363,11 @@ export interface TBVProtocolParams {
    * funding-input bound.
    */
   maxFundingInputCount: number | null;
+  /**
+   * Source: `IProtocolParams.TBVProtocolParams.minActivationGas`; minimum gas at
+   * activation entry. `null` means the deployment predates the field.
+   */
+  minActivationGas: bigint | null;
 }
 
 /**
@@ -400,6 +405,11 @@ export interface PegInConfiguration {
   maxHtlcOutputCount: number;
   expiredPegInGraceBlocks: bigint;
   maxFundingInputCount: number | null;
+  /**
+   * Source: `IProtocolParams.TBVProtocolParams.minActivationGas`; minimum gas at
+   * activation entry. `null` means the deployment predates the field.
+   */
+  minActivationGas: bigint | null;
   timelockPegin: number;
   timelockRefund: number;
   maxVpCommissionBps: number;
@@ -444,7 +454,7 @@ export type OnSkippedOffchainParamsVersion = (
 
 /** Interface for reading protocol parameters from the ProtocolParams contract. */
 export interface ProtocolParamsReader {
-  getTBVProtocolParams(): Promise<TBVProtocolParams>;
+  getTBVProtocolParams(blockNumber?: bigint): Promise<TBVProtocolParams>;
   getOffchainParamsByVersion(version: number): Promise<VersionedOffchainParams>;
   getLatestOffchainParams(): Promise<VersionedOffchainParams>;
   getLatestOffchainParamsVersion(): Promise<number>;

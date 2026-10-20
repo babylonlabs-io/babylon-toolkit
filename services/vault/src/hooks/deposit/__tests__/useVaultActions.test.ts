@@ -28,6 +28,7 @@ import {
   broadcastPrePeginTransaction,
   fetchVaultById,
 } from "@/services/vault";
+import { activationRedeemReasonFromReveal } from "@/services/vault/activationRedeemReasonFromReveal";
 import { waitForEthRegistrationDepth } from "@/services/vault/ethConfirmationGate";
 import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
@@ -282,6 +283,10 @@ vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecretAndRedeem: vi.fn(),
   activationAddedCollateral: vi.fn(() => true),
   activationRedeemedForDepositor: vi.fn(() => false),
+}));
+
+vi.mock("@/services/vault/activationRedeemReasonFromReveal", () => ({
+  activationRedeemReasonFromReveal: vi.fn(() => ({ kind: "cap_exceeded" })),
 }));
 
 vi.mock("@/services/vault/rebuildDepositTerms", () => ({
@@ -1511,7 +1516,11 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       hashlock: ON_CHAIN_HASHLOCK,
     });
     mockGetVaultRegistryReader.mockReturnValue(reader);
-    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+      minActivationGas: 5_000_000n,
+    } as never);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -1660,7 +1669,11 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       hashlock: ON_CHAIN_HASHLOCK,
     });
     mockGetVaultRegistryReader.mockReturnValue(reader);
-    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+      minActivationGas: 5_000_000n,
+    } as never);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -1684,7 +1697,11 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       hashlock: ON_CHAIN_HASHLOCK,
     });
     mockGetVaultRegistryReader.mockReturnValue(reader);
-    const revealResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    const revealResult = {
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+      minActivationGas: 5_000_000n,
+    };
     mockActivateVaultWithSecret.mockResolvedValue(revealResult as never);
     vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
 
@@ -1698,19 +1715,32 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       revealResult,
       "0xvaultId",
     );
+    expect(activationRedeemReasonFromReveal).not.toHaveBeenCalled();
     expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
       collateralAdded: false,
       redeemed: false,
+      reason: null,
     });
   });
 
   it("reports to onShowSuccessModal that the registry redeemed the vault when the receipt proves it", async () => {
-    const reader = readerReturning({
-      depositorSignedPeginTx: "0xdeadbeef",
-      hashlock: ON_CHAIN_HASHLOCK,
-    });
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        applicationEntryPoint: "0xaave_adapter",
+      },
+    );
     mockGetVaultRegistryReader.mockReturnValue(reader);
-    const revealResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    const revealResult = {
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+      minActivationGas: 5_000_000n,
+    };
     mockActivateVaultWithSecret.mockResolvedValue(revealResult as never);
     vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
     vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
@@ -1726,9 +1756,48 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       "0xvaultId",
       DEPOSITOR_BTC_KEY,
     );
+    expect(activationRedeemReasonFromReveal).toHaveBeenCalledTimes(1);
+    expect(activationRedeemReasonFromReveal).toHaveBeenCalledWith({
+      receipt: revealResult.receipt,
+      vaultId: "0xvaultId",
+      minActivationGasAtSend: 5_000_000n,
+      // The registry's binding for the vault, not a caller-supplied value.
+      applicationEntryPoint: "0xaave_adapter",
+    });
     expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
       collateralAdded: false,
       redeemed: true,
+      reason: { kind: "cap_exceeded" },
+    });
+  });
+
+  it("reads no redeem reason for the escape hatch, which has its own success screen", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(activationRedeemReasonFromReveal).not.toHaveBeenCalled();
+    expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
+      collateralAdded: false,
+      redeemed: true,
+      reason: null,
     });
   });
 
@@ -2129,7 +2198,11 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       hashlock: ON_CHAIN_HASHLOCK,
     });
     mockGetVaultRegistryReader.mockReturnValue(reader);
-    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+      minActivationGas: 5_000_000n,
+    } as never);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -2421,7 +2494,11 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       hashlock: ON_CHAIN_HASHLOCK,
     });
     mockGetVaultRegistryReader.mockReturnValue(reader);
-    mockActivateVaultWithSecret.mockResolvedValue(undefined as never);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+      minActivationGas: 5_000_000n,
+    } as never);
 
     const { result } = renderHook(() => useVaultActions());
 

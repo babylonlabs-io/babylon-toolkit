@@ -71,6 +71,11 @@ export const ProtocolParamsABI = [
             type: "uint8",
             internalType: "uint8",
           },
+          {
+            name: "minActivationGas",
+            type: "uint64",
+            internalType: "uint64",
+          },
         ],
       },
     ],

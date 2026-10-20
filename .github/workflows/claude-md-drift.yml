@@ -53,6 +53,7 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts"
             "packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts"
             "services/vault/src/services/vault/vaultActivationService.ts"
+            "services/vault/src/services/vault/activationGasLimit.ts"
             "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
             "packages/babylon-ledger-vault-signer/src/"

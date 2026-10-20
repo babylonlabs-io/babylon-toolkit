@@ -31,6 +31,8 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // so this is the fallback for a governance change mid-flow.
   ActivationDelayNotElapsed:
     "The BTCVault activation window has not opened yet. The deposit list shows how long is left.",
+  InsufficientGasForActivation:
+    "The activation was not given enough gas to run, so the BTCVault was not activated. Try again.",
   InvalidSecret:
     "The secret does not match the BTCVault's hashlock. Please verify your secret and try again.",
   InvalidHashlock: "The BTCVault does not have a valid hashlock configured.",

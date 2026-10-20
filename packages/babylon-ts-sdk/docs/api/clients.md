@@ -377,10 +377,16 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 ##### getTBVProtocolParams()
 
 ```ts
-getTBVProtocolParams(): Promise<TBVProtocolParams>;
+getTBVProtocolParams(blockNumber?): Promise<TBVProtocolParams>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts)
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -3692,6 +3698,17 @@ rejects a Pre-PegIn with more. Source:
 deployed ProtocolParams predates `maxFundingInputCount` and enforces no
 funding-input bound.
 
+##### minActivationGas
+
+```ts
+minActivationGas: bigint | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Source: `IProtocolParams.TBVProtocolParams.minActivationGas`; minimum gas at
+activation entry. `null` means the deployment predates the field.
+
 ***
 
 ### VersionedOffchainParams
@@ -3877,6 +3894,17 @@ maxFundingInputCount: number | null;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
+##### minActivationGas
+
+```ts
+minActivationGas: bigint | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Source: `IProtocolParams.TBVProtocolParams.minActivationGas`; minimum gas at
+activation entry. `null` means the deployment predates the field.
+
 ##### timelockPegin
 
 ```ts
@@ -3978,10 +4006,16 @@ Interface for reading protocol parameters from the ProtocolParams contract.
 ##### getTBVProtocolParams()
 
 ```ts
-getTBVProtocolParams(): Promise<TBVProtocolParams>;
+getTBVProtocolParams(blockNumber?): Promise<TBVProtocolParams>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 

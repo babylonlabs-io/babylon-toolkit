@@ -1,8 +1,12 @@
+import { encodeFunctionData } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+import { logger } from "@/infrastructure";
 import {
   ContractError,
   SendOutcomeUnknownError,
+  isMinedRevertError,
   isSimulationPhaseError,
 } from "@/utils/errors";
 
@@ -136,7 +140,12 @@ describe("executeWrite simulation-phase tagging", () => {
       transactionHash: "0xabc",
       logs: [],
     });
-    mockPublicClient.getTransaction.mockResolvedValue({ gas: 1000n });
+    mockPublicClient.getTransaction.mockResolvedValue({
+      gas: 1000n,
+      to: "0x1000000000000000000000000000000000000001",
+      input: "0xcef6d209",
+      from: "0x2000000000000000000000000000000000000002",
+    });
     // The replay call rethrows the on-chain revert for decoding.
     mockPublicClient.call.mockRejectedValue(new Error("execution reverted"));
 
@@ -144,6 +153,7 @@ describe("executeWrite simulation-phase tagging", () => {
 
     expect(thrown).toBeInstanceOf(ContractError);
     expect(isSimulationPhaseError(thrown)).toBe(false);
+    expect(isMinedRevertError(thrown)).toBe(true);
   });
 
   it("waits for the wallet to count a reverted transaction before surfacing the revert", async () => {
@@ -156,7 +166,12 @@ describe("executeWrite simulation-phase tagging", () => {
       transactionHash: "0xabc",
       logs: [],
     });
-    mockPublicClient.getTransaction.mockResolvedValue({ gas: 1000n });
+    mockPublicClient.getTransaction.mockResolvedValue({
+      gas: 1000n,
+      to: "0x1000000000000000000000000000000000000001",
+      input: "0xcef6d209",
+      from: "0x2000000000000000000000000000000000000002",
+    });
     mockPublicClient.call.mockRejectedValue(new Error("execution reverted"));
 
     await write().catch(() => undefined);
@@ -166,6 +181,137 @@ describe("executeWrite simulation-phase tagging", () => {
         receipt: expect.objectContaining({ transactionHash: "0xabc" }),
       }),
     );
+  });
+});
+
+describe("executeWrite mined revert replay", () => {
+  const REGISTRY = "0x1000000000000000000000000000000000000001";
+  const SENDER = "0x2000000000000000000000000000000000000002";
+  const MINED_GAS = 1_181_585n;
+  const MINED_TO = "0xdb9B000000000000000000000000000000000001";
+  const MINED_INPUT = "0xcef6d209";
+  const MINED_FROM = "0x23fC000000000000000000000000000000000002";
+  const ACCESS_LIST = [
+    {
+      address: "0x4000000000000000000000000000000000000004",
+      storageKeys: [],
+    },
+  ];
+
+  beforeEach(() => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    walletClient.writeContract.mockResolvedValue("0xhash");
+    mockWaitReceipt.mockResolvedValue({
+      status: "reverted",
+      gasUsed: 10n,
+      blockNumber: 5n,
+      transactionHash: "0xabc",
+      logs: [],
+    });
+    mockPublicClient.getTransaction.mockResolvedValue({
+      gas: MINED_GAS,
+      to: MINED_TO,
+      input: MINED_INPUT,
+      from: MINED_FROM,
+      value: 0n,
+      accessList: ACCESS_LIST,
+    });
+  });
+
+  it("replays the intended call at the mined gas limit first", async () => {
+    const innerReplayRevert = new Error("execution reverted");
+    mockPublicClient.call.mockRejectedValueOnce(innerReplayRevert);
+
+    const thrown = await write().catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect((thrown as ContractError).cause).toBe(innerReplayRevert);
+    expect(mockPublicClient.call).toHaveBeenCalledTimes(1);
+    expect(mockPublicClient.call).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        to: REGISTRY,
+        data: encodeFunctionData({
+          abi: APPROVE_ABI,
+          functionName: "approve",
+          args: ["0x3000000000000000000000000000000000000003", 1n],
+        }),
+        account: SENDER,
+        gas: MINED_GAS,
+        blockNumber: 5n,
+      }),
+    );
+  });
+
+  it("falls back to replaying the transaction as mined when the intended call does not revert", async () => {
+    const minedReplayRevert = new Error("mined replay reverted");
+    mockPublicClient.call
+      .mockResolvedValueOnce({ data: "0x" })
+      .mockRejectedValueOnce(minedReplayRevert);
+
+    const thrown = await write().catch((e: unknown) => e);
+
+    expect(mockPublicClient.call).toHaveBeenCalledTimes(2);
+    expect(mockPublicClient.call).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        to: MINED_TO,
+        data: MINED_INPUT,
+        account: MINED_FROM,
+        gas: MINED_GAS,
+        value: 0n,
+        accessList: ACCESS_LIST,
+        blockNumber: 5n,
+      }),
+    );
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect((thrown as ContractError).cause).toBe(minedReplayRevert);
+  });
+
+  it("reports the reason as unavailable, from copy, when neither replay reverts", async () => {
+    mockPublicClient.call.mockResolvedValue({ data: "0x" });
+
+    const thrown = await write().catch((e: unknown) => e);
+
+    expect(mockPublicClient.call).toHaveBeenCalledTimes(2);
+    expect(mockPublicClient.call).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ to: REGISTRY, account: SENDER }),
+    );
+    expect(mockPublicClient.call).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ to: MINED_TO, account: MINED_FROM }),
+    );
+    expect(thrown).toBeInstanceOf(ContractError);
+    expect((thrown as Error).message).toContain(
+      COPY.common.transactionRevertedReasonUnavailable("0xabc"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.any(String), {
+      data: { hash: "0xabc" },
+    });
+  });
+
+  it("reports out of gas, from copy, without replaying when nearly all gas was used", async () => {
+    mockWaitReceipt.mockResolvedValue({
+      status: "reverted",
+      gasUsed: 960n,
+      blockNumber: 5n,
+      transactionHash: "0xabc",
+      logs: [],
+    });
+    mockPublicClient.getTransaction.mockResolvedValue({
+      gas: 1000n,
+      to: MINED_TO,
+      input: MINED_INPUT,
+      from: MINED_FROM,
+    });
+
+    const thrown = await write().catch((e: unknown) => e);
+
+    expect((thrown as Error).message).toContain(
+      COPY.common.transactionOutOfGas("960", "1000"),
+    );
+    expect(mockPublicClient.call).not.toHaveBeenCalled();
   });
 });
 

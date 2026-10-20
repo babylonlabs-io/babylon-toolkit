@@ -60,6 +60,12 @@ vi.mock("../activationGasLimit", async (importOriginal) => ({
     mockAssertActivationAddsCollateral(...args),
 }));
 
+vi.mock("@/clients/eth-contract/sdk-readers", () => ({
+  getProtocolParamsReader: async () => ({
+    getTBVProtocolParams: async () => ({ minActivationGas: 5_000_000n }),
+  }),
+}));
+
 vi.mock("@/infrastructure", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), event: vi.fn() },
 }));
@@ -136,7 +142,27 @@ describe("activateVaultWithSecret (vault adapter)", () => {
         depositorBtcPubKey,
         walletClient,
       }),
-    ).resolves.toBe(result);
+    ).resolves.toEqual({ ...result, minActivationGas: 5_000_000n });
+  });
+
+  it("returns the gate it read alongside the transaction result", async () => {
+    const receipt = { status: "success", blockNumber: 42n };
+    mockExecuteWrite.mockResolvedValueOnce({
+      transactionHash: txHash,
+      receipt,
+    });
+
+    const result = await activateVaultWithSecret({
+      vaultId,
+      secret,
+      hashlock,
+      depositorBtcPubKey,
+      walletClient,
+    });
+
+    expect(result.minActivationGas).toBe(5_000_000n);
+    expect(result.transactionHash).toBe(txHash);
+    expect(result.receipt).toBe(receipt);
   });
 
   it("propagates executeWrite errors unchanged", async () => {
@@ -193,6 +219,7 @@ describe("activateVaultWithSecret (vault adapter)", () => {
       account: DEPOSITOR,
       vaultId,
       depositorBtcPubKey,
+      minActivationGas: 5_000_000n,
       call: {
         address: REGISTRY_ADDRESS,
         functionName: "activateVaultWithSecret",
@@ -200,6 +227,25 @@ describe("activateVaultWithSecret (vault adapter)", () => {
       },
     });
     expect(mockExecuteWrite.mock.calls[0][0].gas).toBe(PLANNED_GAS);
+  });
+
+  it("hands the registry's minimum activation gas to the gas plan", async () => {
+    mockExecuteWrite.mockResolvedValueOnce({
+      transactionHash: txHash,
+      receipt: { status: "success" },
+    });
+
+    await activateVaultWithSecret({
+      vaultId,
+      secret,
+      hashlock,
+      depositorBtcPubKey,
+      walletClient,
+    });
+
+    expect(mockPlanActivationGasLimit.mock.calls[0][0]).toMatchObject({
+      minActivationGas: 5_000_000n,
+    });
   });
 
   it("re-checks the activation at the planned limit as the send's pre-flight", async () => {

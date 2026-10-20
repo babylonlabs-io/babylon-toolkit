@@ -1,15 +1,5 @@
-/**
- * Gas limit for `activateVaultWithSecret`, taken from the activation path.
- *
- * The registry catches a failing application `activateVault` and redeems the
- * vault instead (vault-contracts-aave-v4@a20b5e0d:src/protocol/BTCVaultRegistry.sol:745-754),
- * so `eth_estimateGas`, the lowest limit at which the transaction does not
- * revert (go-ethereum@9e800218:eth/gasestimator/gasestimator.go:53-204), can
- * be that redeem outcome: devnet tx 0xe8c975c7…a0068 was sent at the estimate
- * and redeemed, while it activates from about 3.2M (#2724). So the limit is
- * searched here with `eth_simulateV1`, which returns logs, and only a limit at
- * which the registry does not redeem the vault for the depositor counts.
- */
+// Gas limit for `activateVaultWithSecret`, searched with `eth_simulateV1`: the estimate can land on the registry's
+// redeem-on-failure path (vault-contracts-aave-v4@102e78c5:src/protocol/BTCVaultRegistry.sol:718-765).
 
 import {
   BTCVaultRegistryABI,
@@ -77,28 +67,10 @@ const COLLATERAL_ADDED_EVENT_ABI = [
   },
 ] as const;
 
-/**
- * The registry's `PeginActivated`, emitted by `_activateVaultWithSecret` before
- * the cap check and the application call, so every successful run carries it
- * (vault-contracts-aave-v4@a20b5e0d:src/protocol/BTCVaultRegistry.sol:719,1189;
- * src/protocol/lib/types/Events.sol:159).
- */
-const PEGIN_ACTIVATED_EVENT_ABI = [
-  {
-    type: "event",
-    name: "PeginActivated",
-    inputs: [
-      { indexed: true, name: "vaultId", type: "bytes32" },
-      { indexed: true, name: "depositor", type: "address" },
-      { indexed: false, name: "secret", type: "bytes32" },
-    ],
-  },
-] as const;
-
 /** True when `logs` carry the registry's `PeginActivated` for this vault. */
 function logsCarryPeginActivated(logs: Log[], vaultId: Hex): boolean {
   return parseEventLogs({
-    abi: PEGIN_ACTIVATED_EVENT_ABI,
+    abi: BTCVaultRegistryABI,
     logs,
     eventName: "PeginActivated",
   }).some(
@@ -160,6 +132,9 @@ export interface ActivationSimulationParams {
   vaultId: Hex;
   /** The vault's depositor BTC key as the registry records it (x-only, `0x` optional). */
   depositorBtcPubKey: string;
+  /** The registry reverts any limit at or below this (BTCVaultRegistry.sol:728 @102e78c5);
+   * `null` when the deployment predates the gate. */
+  minActivationGas: bigint | null;
   /** Checked before and after every simulation. */
   signal?: AbortSignal;
 }
@@ -330,6 +305,10 @@ export async function planActivationGasLimit(
   // (gasestimator.go:146-150). It is positive, at least the base transaction
   // cost, so the doubling below always moves.
   let lo = unconstrained.gasUsed - 1n;
+  // `gasleft()` at the gate is below the limit, so a limit at the gate reverts.
+  if (params.minActivationGas !== null && params.minActivationGas > lo) {
+    lo = params.minActivationGas;
+  }
   let hi = GAS_SEARCH_CEILING;
   while (
     lo + 1n < hi &&
@@ -355,6 +334,7 @@ export async function planActivationGasLimit(
   logger.info("Activation gas limit taken from the activation path", {
     category: "activation",
     gasUsed: unconstrained.gasUsed.toString(),
+    minActivationGas: String(params.minActivationGas),
     lowestActivatingLimit: hi.toString(),
     gasLimit: gasLimit.toString(),
     probes,

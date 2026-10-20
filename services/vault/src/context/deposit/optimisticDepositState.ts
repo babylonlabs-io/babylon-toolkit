@@ -21,6 +21,7 @@
  */
 
 import type { LocalStorageStatus } from "../../models/peginStateMachine";
+import type { ActivationRedeemReason } from "../../services/vault/activationRedeemReason";
 import { isWithinTtl } from "../../utils/ttl";
 
 export interface OptimisticDepositState {
@@ -56,6 +57,8 @@ export interface OptimisticDepositState {
    * cross-device resume, which holds no record, has.
    */
   activationReturnedIds: ReadonlySet<string>;
+  /** Why the registry returned each marked deposit, when the receipt said. */
+  activationReturnedReasons: ReadonlyMap<string, ActivationRedeemReason>;
 }
 
 /**
@@ -96,6 +99,7 @@ const EMPTY_STATE: OptimisticDepositState = {
   wotsSubmittedAt: new Map(),
   payoutSignCanceledIds: new Set(),
   activationReturnedIds: new Set(),
+  activationReturnedReasons: new Map(),
 };
 
 let currentState: OptimisticDepositState = EMPTY_STATE;
@@ -156,6 +160,7 @@ export function setOptimisticDepositStatus(
     wotsSubmittedAt: currentState.wotsSubmittedAt,
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
     activationReturnedIds: currentState.activationReturnedIds,
+    activationReturnedReasons: currentState.activationReturnedReasons,
   });
 }
 
@@ -180,6 +185,7 @@ export function markWotsSubmitted(depositId: string): void {
     ),
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
     activationReturnedIds: currentState.activationReturnedIds,
+    activationReturnedReasons: currentState.activationReturnedReasons,
   });
 }
 
@@ -202,6 +208,7 @@ export function markPayoutSignCanceled(depositId: string): void {
       depositId,
     ),
     activationReturnedIds: currentState.activationReturnedIds,
+    activationReturnedReasons: currentState.activationReturnedReasons,
   });
 }
 
@@ -213,9 +220,15 @@ export function markPayoutSignCanceled(depositId: string): void {
  * cleanup; read through the poll result, where it keeps the vault from reading
  * as activated.
  */
-export function markActivationReturned(depositId: string): void {
+export function markActivationReturned(
+  depositId: string,
+  reason: ActivationRedeemReason | null,
+): void {
   // Repeat writes must not publish — same discipline as the setters above.
-  if (currentState.activationReturnedIds.has(depositId)) {
+  if (
+    currentState.activationReturnedIds.has(depositId) &&
+    (reason === null || currentState.activationReturnedReasons.has(depositId))
+  ) {
     return;
   }
   publish({
@@ -226,6 +239,13 @@ export function markActivationReturned(depositId: string): void {
     activationReturnedIds: new Set(currentState.activationReturnedIds).add(
       depositId,
     ),
+    activationReturnedReasons:
+      reason === null
+        ? currentState.activationReturnedReasons
+        : new Map(currentState.activationReturnedReasons).set(
+            depositId,
+            reason,
+          ),
   });
 }
 

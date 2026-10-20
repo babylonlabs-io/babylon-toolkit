@@ -25,6 +25,7 @@ import { normalizeError } from "@/utils/errors/normalizeError";
 
 import {
   mapViemErrorToContractError,
+  tagMinedRevert,
   tagSimulationPhase,
 } from "../../utils/errors";
 
@@ -199,14 +200,20 @@ export async function executeWrite(
         functionName,
         args,
       });
-      await throwRevertError(
-        publicClient,
-        receipt,
-        receipt.transactionHash,
-        address,
-        callData,
-        account.address,
-      );
+      try {
+        await throwRevertError(
+          publicClient,
+          receipt,
+          receipt.transactionHash,
+          address,
+          callData,
+          account.address,
+        );
+      } catch (e) {
+        throw tagMinedRevert(
+          mapViemErrorToContractError(e, errorContext, [abi as Abi]),
+        );
+      }
     }
 
     return {
@@ -228,12 +235,8 @@ export async function executeWrite(
 const OUT_OF_GAS_RATIO = 95n;
 
 /**
- * Diagnose a reverted transaction and throw a descriptive error.
- *
- * 1. If gasUsed ≈ gasLimit → out-of-gas (replaying with unlimited gas would just succeed).
- * 2. Otherwise → replay with eth_call at the revert block to extract the custom error selector.
- *
- * Shared by both `executeWrite` (abi-based) and Aave's `executeTx` (raw calldata).
+ * Replays the intended call at the mined gas first (surfaces the app's error for Safe executions),
+ * then the transaction as mined (reproduces a gas-dependent revert behind a wrapped send).
  */
 export async function throwRevertError(
   publicClient: PublicClient,
@@ -255,25 +258,37 @@ export async function throwRevertError(
     );
   }
 
-  // Replay the call to extract revert data for error decoding
   try {
     await publicClient.call({
       to,
       data,
       account,
+      gas: tx.gas,
       blockNumber: receipt.blockNumber,
     });
   } catch (replayError) {
-    // The replay reverted — this error should contain the revert data
     throw normalizeError(replayError);
   }
 
-  // Replay succeeded (state changed between block and now, or archive node unavailable)
+  // The intended call passed at the mined gas; replay the transaction as mined
+  try {
+    await publicClient.call({
+      to: tx.to ?? undefined,
+      data: tx.input,
+      account: tx.from,
+      gas: tx.gas,
+      value: tx.value,
+      accessList: tx.accessList,
+      blockNumber: receipt.blockNumber,
+    });
+  } catch (replayError) {
+    throw normalizeError(replayError);
+  }
+
+  // Both replays succeeded (state changed between block and now, or archive node unavailable)
   logger.warn(
     "Transaction reverted on-chain but replay succeeded — revert reason unavailable",
     { data: { hash } },
   );
-  throw new Error(
-    `Transaction reverted. Hash: ${hash}. Check the transaction on block explorer for details.`,
-  );
+  throw new Error(COPY.common.transactionRevertedReasonUnavailable(hash));
 }

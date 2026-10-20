@@ -61,6 +61,7 @@ import { useActionableReclaims } from "@/hooks/deposit/useActionableReclaims";
 import { useClaimExpiredRowAction } from "@/hooks/deposit/useClaimExpiredRowAction";
 import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
+import { useActivationRedeemReasons } from "@/hooks/useActivationRedeemReasons";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useRedeemClaimTxids } from "@/hooks/useRedeemClaimTxids";
@@ -77,6 +78,10 @@ import {
   type PeginState,
 } from "@/models/peginStateMachine";
 import { getDemoStepperBatch } from "@/overrides/deposits";
+import {
+  activationRedeemReasonText,
+  type ActivationRedeemReason,
+} from "@/services/vault/activationRedeemReason";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
@@ -420,6 +425,7 @@ function InactiveRow({
   onReclaim,
   reclaimAction,
   claimTxid,
+  redeemReason,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
@@ -429,6 +435,8 @@ function InactiveRow({
   reclaimAction: ReclaimRowAction | undefined;
   /** The vault provider's BTC claim of a redeemed vault, once broadcast. */
   claimTxid: string | undefined;
+  /** Why the registry redeemed the vault at activation, once read. */
+  redeemReason: ActivationRedeemReason | undefined;
 }) {
   const result = useDepositPollingResult(activity.id);
   const provider = findProvider(vaultProviders, activity.providers[0]?.id);
@@ -500,6 +508,10 @@ function InactiveRow({
       ? COPY.vaults.claimTransactionLabel
       : undefined;
 
+  const reasonText = redeemReason
+    ? activationRedeemReasonText(redeemReason)
+    : null;
+
   return (
     <ListRowCard className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}>
       {/* Amount + refund maturity */}
@@ -539,7 +551,9 @@ function InactiveRow({
                 what the cell is reporting while a sweep is in flight. */}
             {!isReclaiming && peginState.message && (
               <Hint
-                tooltip={peginState.message}
+                tooltip={[peginState.message, reasonText]
+                  .filter(Boolean)
+                  .join(" ")}
                 title={statusLabel}
                 icon={<InfoIcon size={16} className="text-accent-secondary" />}
               />
@@ -756,6 +770,7 @@ export function VaultsLifecycleSections({
   const { candidates: actionableReclaims, actions: reclaimActions } =
     useActionableReclaims(reclaimableCandidates, reclaimModal.inFlightVaultIds);
   const claimTxids = useRedeemClaimTxids(returnedRedeemedActivities);
+  const redeemReasons = useActivationRedeemReasons(returnedRedeemedActivities);
   const inactiveActivities: VaultActivity[] = useMemo(
     () => [
       ...expiredActivities,
@@ -1042,6 +1057,7 @@ export function VaultsLifecycleSections({
                 onReclaim={handleReclaim}
                 reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
                 claimTxid={claimTxids.get(activity.id)}
+                redeemReason={redeemReasons.get(activity.id)}
               />
             ))}
           </div>

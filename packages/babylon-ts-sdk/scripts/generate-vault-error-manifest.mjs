@@ -28,7 +28,7 @@ import { toFunctionSelector } from "viem";
  * Contract revisions the dApp decodes: vault-contracts-aave-v4 main, which
  * devnet runs. Update when the dApp moves to a newer contracts revision.
  */
-const REVISIONS = [{ rev: "a20b5e0d", note: "main" }];
+const REVISIONS = [{ rev: "102e78c5", note: "main" }];
 
 /** Aave v4 sources compiled alongside `src/` so their errors are collected. */
 const AAVE_EXTRA_SOURCES = ["lib/aave-v4/src/spoke/Spoke.sol", "lib/aave-v4/src/hub/Hub.sol"];

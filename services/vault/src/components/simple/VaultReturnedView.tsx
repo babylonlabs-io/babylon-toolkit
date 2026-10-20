@@ -15,19 +15,27 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
+import {
+  activationRedeemReasonText,
+  type ActivationRedeemReason,
+} from "@/services/vault/activationRedeemReason";
 
 import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./DepositProgressView/layout";
 
 interface VaultReturnedViewProps {
   variant: "full" | "partial";
+  /** Why the activation was returned; its sentence is shown under the body when known. */
+  reason?: ActivationRedeemReason | null;
   onGoToDashboard: () => void;
 }
 
 export function VaultReturnedView({
   variant,
+  reason,
   onGoToDashboard,
 }: VaultReturnedViewProps) {
   const copy = COPY.deposit.vaultReturnedSuccess[variant];
+  const reasonText = reason ? activationRedeemReasonText(reason) : null;
   return (
     <div
       className={`w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS} overflow-hidden rounded-2xl border border-secondary-strokeLight bg-primary-contrast px-6 pb-6 pt-10`}
@@ -59,6 +67,11 @@ export function VaultReturnedView({
           <Text variant="body1" className="text-accent-secondary">
             {copy.body}
           </Text>
+          {reasonText && (
+            <Text variant="body1" className="text-accent-secondary">
+              {reasonText}
+            </Text>
+          )}
         </div>
       </div>
       <Button

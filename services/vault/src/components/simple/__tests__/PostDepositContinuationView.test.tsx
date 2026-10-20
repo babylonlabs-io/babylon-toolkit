@@ -33,6 +33,9 @@ vi.mock("@/hooks/useBtcAction", () => ({
 
 const mockGetPollingResult = vi.hoisted(() => vi.fn());
 const mockRefetch = vi.hoisted(() => vi.fn());
+const mockActivationReturnedReasons = vi.hoisted(
+  () => new Map<string, { kind: string }>(),
+);
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   // `refetch` gets a FRESH identity on every render, mirroring production:
@@ -41,6 +44,7 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
   usePeginPolling: () => ({
     refetch: (...args: unknown[]) => mockRefetch(...args),
     getPollingResult: mockGetPollingResult,
+    activationReturnedReasons: mockActivationReturnedReasons,
   }),
 }));
 
@@ -282,6 +286,9 @@ vi.mock("@/copy", async (importOriginal) => {
           staleDeploy: "Reload the page.",
         },
       },
+      vaults: {
+        redeemReason: { capExceeded: "The application's limit was reached." },
+      },
     },
   };
 });
@@ -442,6 +449,7 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockActivationReturnedReasons.clear();
     btcAction.btcConnected = true;
     btcAction.sessionConfirmed = true;
     btcAction.locked = false;
@@ -694,6 +702,25 @@ describe("PostDepositContinuationView", () => {
     expect(getByText("Go to Dashboard")).toBeInTheDocument();
     expect(queryByText("Vault activated")).toBeNull();
     expect(queryByTestId("step")).toBeNull();
+  });
+
+  it("passes the returned vault's reason to the returned view", () => {
+    const VERIFIED = 1;
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+        activationReturned: true,
+      }),
+    );
+    mockActivationReturnedReasons.set("0xvault0", { kind: "cap_exceeded" });
+
+    const { getByText } = renderView();
+
+    expect(
+      getByText("The application's limit was reached."),
+    ).toBeInTheDocument();
   });
 
   it("keeps the returned screen once the indexer reports the returned vault REDEEMED", () => {
