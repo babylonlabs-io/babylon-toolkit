@@ -46,18 +46,16 @@ vi.mock("../../utils/transaction/btcTxHash", () => ({
   calculateBtcTxHash: vi.fn(() => `0x${"a".repeat(64)}`),
 }));
 
-// Mock buildPeginInputPsbt, extractPeginInputSignature, and finalizePeginInputPsbt —
-// the mock wallet cannot produce a valid signed PSBT, so we mock these primitives
+// The mock wallet cannot produce a valid signed PSBT, so the signature comes
+// from this stub. The PegIn input PSBT is still built for real, and the manager
+// finalizes that PSBT with the stub signature. The wallet-PSBT boundary with
+// real signatures is covered by PeginManager.walletPsbt.test.ts.
 vi.mock("../../primitives/psbt/peginInput", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../../primitives/psbt/peginInput")>();
   return {
     ...actual,
-    buildPeginInputPsbt: vi.fn().mockResolvedValue({ psbtHex: "deadbeef" }),
     extractPeginInputSignature: vi.fn().mockReturnValue("a".repeat(128)),
-    finalizePeginInputPsbt: vi
-      .fn()
-      .mockReturnValue("mock-depositor-signed-pegin-tx"),
   };
 });
 
@@ -92,8 +90,19 @@ vi.mock("../../primitives/psbt/verifyKeyPathSchnorrSignature", () => ({
 // Passthrough observer: records each per-vault PegIn build so the seam test can
 // assert the htlcVout bind-checks run BEFORE deposit-terms approval. The
 // prePeginTamper hook lets tests corrupt the Pre-PegIn commit pass to prove
-// the sizing/commit and funded-fee cross-checks fire; each resets it to null.
+// the sizing/commit and funded-fee cross-checks fire, and peginTxTamper does
+// the same for the per-vault PegIn build; each resets it to null.
 const peginBuildLog = vi.hoisted(() => [] as string[]);
+const peginTxTamper = vi.hoisted(
+  () =>
+    ({ fn: null }) as {
+      fn:
+        | ((
+            r: import("../../primitives").PeginTxResult,
+          ) => import("../../primitives").PeginTxResult)
+        | null;
+    },
+);
 const prePeginTamper = vi.hoisted(
   () =>
     ({ fn: null }) as {
@@ -125,7 +134,8 @@ vi.mock("../../primitives/psbt/pegin", async (importOriginal) => {
     ...args
   ) => {
     peginBuildLog.push("buildPeginTx");
-    return actual.buildPeginTxFromFundedPrePegin(...args);
+    const result = await actual.buildPeginTxFromFundedPrePegin(...args);
+    return peginTxTamper.fn ? peginTxTamper.fn(result) : result;
   };
   const wrappedPrePegin: typeof actual.buildPrePeginPsbt = async (...args) => {
     const result = await actual.buildPrePeginPsbt(...args);
@@ -444,23 +454,15 @@ describe("PeginManager", () => {
       const { assertPsbtUnsignedTxMatches } = await import(
         "../../primitives/psbt/assertPsbtUnsignedTxMatches"
       );
-      const { buildPeginInputPsbt } = await import(
-        "../../primitives/psbt/peginInput"
-      );
       const rebind = vi.mocked(assertPsbtUnsignedTxMatches);
-      const builder = vi.mocked(buildPeginInputPsbt);
       rebind.mockClear();
-      // Distinct per-call PSBT hex so we can prove each rebind call gets
-      // its own (requested, returned) pair instead of all calls being
-      // validated against index 0.
-      let buildCount = 0;
-      builder.mockImplementation(async () => ({
-        psbtHex: `requested_${buildCount++}`,
-      }));
 
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
+      // The two vaults' PegIn PSBTs differ (distinct hashlocks), so a rebind
+      // validated against index 0 for both would show up below.
+      const signPsbtsSpy = vi.spyOn(btcWallet, "signPsbts");
       const ethWallet = new MockEthereumWallet();
       const manager = new PeginManager({
         btcNetwork: "signet",
@@ -482,9 +484,11 @@ describe("PeginManager", () => {
       // Each rebind call must pair the per-vault request with the wallet's
       // response for THAT vault — MockBitcoinWallet.signPsbts produces
       // `<requested>deadbeef`, so `returned[i]` must be `requested[i]deadbeef`.
+      const requested = signPsbtsSpy.mock.calls[0][0];
+      expect(new Set(requested).size).toBe(2);
       rebind.mock.calls.forEach(([params], i) => {
-        expect(params.requestedPsbtHex).toBe(`requested_${i}`);
-        expect(params.returnedPsbtHex).toBe(`requested_${i}deadbeef`);
+        expect(params.requestedPsbtHex).toBe(requested[i]);
+        expect(params.returnedPsbtHex).toBe(`${requested[i]}deadbeef`);
       });
     });
 
@@ -525,6 +529,34 @@ describe("PeginManager", () => {
       ).rejects.toThrow(/prevout txid differs/);
 
       expect(extract).not.toHaveBeenCalled();
+    });
+
+    it("refuses a depositor-signed PegIn whose txid differs from the PegIn it built", async () => {
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: new MockBitcoinWallet({ publicKeyHex: TEST_KEYS.DEPOSITOR }),
+        ethWallet: new MockEthereumWallet() as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // The PSBT is still built from the real PegIn bytes; only the txid the
+      // build reports changes, which is what callers track the vault by.
+      peginTxTamper.fn = (result) => ({ ...result, txid: "00".repeat(32) });
+      try {
+        await expect(
+          manager.preparePegin({
+            amounts: [TEST_AMOUNTS.PEGIN],
+            ...BASE_PREPARE_PEGIN_PARAMS,
+          }),
+        ).rejects.toThrow(
+          /Depositor-signed PegIn for HTLC output 0 has txid [0-9a-f]{64}, but the PegIn built for it has txid 0{64}/,
+        );
+      } finally {
+        peginTxTamper.fn = null;
+      }
     });
 
     it("should prepare a pegin with valid params", async () => {

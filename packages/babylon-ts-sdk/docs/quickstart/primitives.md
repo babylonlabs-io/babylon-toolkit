@@ -37,7 +37,7 @@ Primitives are the lowest-level SDK functions. They:
 
 ## Primitives
 
-The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged). When the vault provider acts as claimer, most of these are generated and managed by the vault provider. The SDK provides primitives for operations the **depositor** performs: building the peg-in transaction and signing payout authorizations. When the depositor acts as claimer (depositor-as-claimer path), the SDK also provides the NoPayout builder; the ChallengeAssert builder exists for tooling only, since the claimer never signs it.
+The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged). When the vault provider acts as claimer, most of these are generated and managed by the vault provider. The SDK provides primitives for operations the **depositor** performs: building the peg-in transaction, signing its PegIn input, and signing payout authorizations. When the depositor acts as claimer (depositor-as-claimer path), the SDK also provides the NoPayout builder; the ChallengeAssert builder exists for tooling only, since the claimer never signs it.
 
 ### 1. buildPrePeginPsbt + buildPeginTxFromFundedPrePegin
 
@@ -88,7 +88,81 @@ const pegin = await buildPeginTxFromFundedPrePegin({
 
 **Full parameter shapes:** see the [API Reference](../api/primitives.md) — both `PrePeginParams` and the return type `PrePeginPsbtResult` expose additional batch fields (one entry per vault).
 
-### 2. buildPayoutPsbt
+### 2. buildPeginInputPsbt + finalizeScriptPathWithSignatures
+
+The depositor signs input 0 of each PegIn, its HTLC hashlock leaf, and registers the signed PegIn on Ethereum as `depositorSignedPeginTx`. Only the 64-byte signature may come from the wallet:
+
+1. build the PSBT;
+2. have the wallet sign it;
+3. check what the wallet returned;
+4. finalize **the PSBT you built** with that signature.
+
+Never finalize the PSBT the wallet returned. A wallet can return a valid signature alongside a key-path signature, its own final witness or a scriptSig. Finalizing the wallet's copy can then register bytes other than yours: a one-item key-path witness, the wallet's own witness, or a transaction whose scriptSig changes its txid.
+
+```typescript
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  assertPsbtUnsignedTxMatches,
+  assertScriptPathSchnorrSignature,
+  buildPeginInputPsbt,
+  extractPeginInputSignature,
+  finalizeScriptPathWithSignatures,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import { createTaprootScriptPathSignOptions } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+
+// 1. PSBT for the PegIn's HTLC input, from step 1's `pegin` and the same keys
+const { psbtHex } = await buildPeginInputPsbt({
+  vaultCoreVersion: 1,
+  peginTxHex: pegin.txHex,
+  fundedPrePeginTxHex,           // the funded Pre-PegIn from step 1
+  depositorPubkey,               // x-only, 64 hex chars
+  vaultProviderPubkey,
+  vaultKeeperPubkeys,
+  universalChallengerPubkeys,
+  hashlock,                      // this vault's hashlock
+  timelockRefund: 144,
+  network: "signet",
+});
+
+// 2. The wallet signs input 0 with the untweaked key and returns the PSBT unfinalized
+const signedPsbtHex = await wallet.signPsbt(
+  psbtHex,
+  createTaprootScriptPathSignOptions(depositorPubkey, 1),
+);
+
+// 3. Check the answer: the same unsigned transaction, and a valid signature for your leaf
+assertPsbtUnsignedTxMatches({
+  requestedPsbtHex: psbtHex,
+  returnedPsbtHex: signedPsbtHex,
+});
+const signature = extractPeginInputSignature(signedPsbtHex, depositorPubkey);
+assertScriptPathSchnorrSignature({
+  requestedPsbtHex: psbtHex,
+  signatureHex: signature,
+  signerXOnlyPubkeyHex: depositorPubkey,
+  inputIndex: 0,
+});
+
+// 4. Finalize the PSBT you built, not the wallet's, with only that signature
+const depositorSignedPeginTx = finalizeScriptPathWithSignatures({
+  requestedPsbtHex: psbtHex,
+  signaturesHex: [signature],
+  signerXOnlyPubkeyHex: depositorPubkey,
+});
+
+// The registry derives the vault id from this transaction's txid, so it must be the PegIn you built.
+if (calculateBtcTxHash(depositorSignedPeginTx) !== `0x${pegin.txid}`) {
+  throw new Error("The signed PegIn is not the PegIn that was built");
+}
+```
+
+`depositorSignedPeginTx` is what you register on Ethereum. Its input witness is `[signature, hashlock leaf script, control block]`, taken from the PSBT you built.
+
+`extractPeginInputSignature` refuses a PSBT the wallet already finalized, because it carries no `tapScriptSig`. The wallet must therefore honor `autoFinalized: false`.
+
+`PeginManager.preparePegin` runs this whole sequence for you; see the [Managers Quickstart](./managers.md).
+
+### 3. buildPayoutPsbt
 
 Builds the unsigned Payout PSBT for depositor signing.
 
@@ -125,7 +199,7 @@ const result = await buildPayoutPsbt({
 // }
 ```
 
-### 3. extractPayoutSignature
+### 4. extractPayoutSignature
 
 Extracts 64-byte Schnorr signature from a signed PSBT.
 
@@ -167,9 +241,9 @@ import {
 
 const depositorPubkey = "abc123..."; // x-only, 64 hex chars
 
-// 1. Payout (depositor-as-claimer variant): use buildPayoutPsbt (section 2
+// 1. Payout (depositor-as-claimer variant): use buildPayoutPsbt (section 3
 // above) with claimerBtcPubkey = depositorPubkey, then sign and extract with
-// extractPayoutSignature as shown there.
+// extractPayoutSignature (section 4).
 
 // 2. NoPayout (one per challenger)
 // Uses AssertPayoutNoPayoutConnector — input 0 spends Assert:0

@@ -31,6 +31,17 @@
  * the network's real values (protocol minimum deposit + provider list) and offers them as defaults —
  * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.
  *
+ * A pegin run, and the pegin leg of a `--pegin-first` borrow, ends by reading each new vault's registered
+ * PegIn back from the registry and checking it is the depositor's script-path spend of its HTLC output: an
+ * empty scriptSig, and a signature, leaf and control block that commit to that output. `--action=pegin`
+ * alone also accepts `--inject-pegin-psbt-extras` (it is not one of the pegin extras above, so a
+ * `--pegin-first` leg refuses it), which makes the BTC wallet answer the PegIn signing request with a
+ * key-path signature, its own final witness, a scriptSig and a relabelled leaf hash beside its genuine
+ * signature. The deposit must still activate and pass that check. Single-vault, and `--btc=unisat` or
+ * `--btc=okx` only; it spends signet BTC and Sepolia ETH like any pegin, so NEVER run it without an explicit
+ * go-ahead. Run it on `--target=localhost` to test local app code (see
+ * actions/peginWalletPsbtInjection.ts).
+ *
  * Borrow accepts `--pegin-first` (peg in fresh collateral before borrowing — then also honors the pegin
  * extras above), `--borrow-token=<symbol>` (from the live borrowable list; an interactive run asks, a
  * non-interactive run requires it unless only one reserve is borrowable),
@@ -114,6 +125,10 @@
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
+import {
+  PEGIN_PSBT_EXTRAS_WALLET_LABELS,
+  supportsPeginPsbtExtras,
+} from "./actions/peginWalletPsbtInjection";
 import {
   describeReserve,
   fetchBorrowableReserves,
@@ -768,6 +783,23 @@ async function resolveConfig(
         );
       injectReorg = reorgFlag;
     }
+    // Pegin extra: the wallet answers the PegIn signing request with fields the dApp never built beside
+    // its signature (see actions/peginWalletPsbtInjection.ts).
+    const injectPeginPsbtExtras = flagBool(flags["inject-pegin-psbt-extras"]);
+    if (injectPeginPsbtExtras) {
+      if (action !== "pegin")
+        throw new Error(
+          "--inject-pegin-psbt-extras only applies to --action=pegin.",
+        );
+      if (!supportsPeginPsbtExtras(btcWallet))
+        throw new Error(
+          `--inject-pegin-psbt-extras wraps the provider of ${PEGIN_PSBT_EXTRAS_WALLET_LABELS.join(" or ")} only; run it with one of those as --btc.`,
+        );
+      if (split)
+        throw new Error(
+          "--inject-pegin-psbt-extras rewrites the one PegIn answer of a single-vault deposit; drop --split.",
+        );
+    }
     if (willBorrow) {
       // Fetch the live borrowable list up front so an explicit --borrow-token (+ --borrow-hub) is
       // VALIDATED before a (possibly funded, pegin-first) run — an unselectable token would otherwise
@@ -1043,6 +1075,7 @@ async function resolveConfig(
       forgedStuckActivate,
       injectNonceTooLow,
       injectReorg,
+      injectPeginPsbtExtras,
     };
   } finally {
     rl.close();

@@ -123,7 +123,6 @@ export type {
 export {
   buildPeginInputPsbt,
   extractPeginInputSignature,
-  finalizePeginInputPsbt,
 } from "./psbt/peginInput";
 export type {
   BuildPeginInputPsbtParams,

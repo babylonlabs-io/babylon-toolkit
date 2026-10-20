@@ -40,23 +40,14 @@
  * A freshly verified deposit may still be waiting for its activation window, when its row offers no
  * Activate; the run then keeps watching, under the forgery, until Activate appears.
  */
-import {
-  calculateBtcTxHash,
-  ViemVaultRegistryReader,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Locator, Page, Request, Route } from "@playwright/test";
-import { gql } from "graphql-request";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Hex } from "viem";
 
 import { fetchActiveVaultCount } from "../borrowParams";
-import {
-  createEthClient,
-  createGraphQLClient,
-  resolveNetworkContracts,
-} from "../networkContracts";
+import { findRegisteredVaults } from "../depositorVaults";
 import {
   FORGED_STUCK_ACTIVATE_WAIT_MS,
   FORGED_STUCK_OBSERVE_MS,
@@ -93,57 +84,7 @@ import { connectWallets } from "./walletConnect";
 const PENDING_ROW_TESTID = '[data-testid="pending-deposit-row"]';
 const PENDING_RESUME_CTA_TESTID = '[data-testid="pending-deposit-resume-cta"]';
 
-/** Ponder's max page size and a runaway-cursor backstop, as in peginParams.ts. */
-const INDEXER_VAULTS_PAGE_SIZE = 1000;
-const INDEXER_MAX_VAULT_PAGES = 50;
-
 const TXID_RX = /^[0-9a-f]{64}$/;
-
-const DEPOSITOR_VAULTS_FIRST = gql`
-  query ForgedStuckVaultsFirst($depositor: String!, $limit: Int!) {
-    vaults(where: { depositor: $depositor }, limit: $limit) {
-      items {
-        id
-        unsignedPrePeginTx
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-    }
-  }
-`;
-
-const DEPOSITOR_VAULTS_NEXT = gql`
-  query ForgedStuckVaultsNext(
-    $depositor: String!
-    $limit: Int!
-    $after: String!
-  ) {
-    vaults(where: { depositor: $depositor }, limit: $limit, after: $after) {
-      items {
-        id
-        unsignedPrePeginTx
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-    }
-  }
-`;
-
-interface IndexerVault {
-  id: Hex;
-  unsignedPrePeginTx: string | null;
-}
-
-interface IndexerVaultPage {
-  vaults: {
-    items: IndexerVault[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
-}
 
 /** How many times the page asked for each forged answer, per vault. */
 type HitCounts = Map<Hex, { outspend: number; hex: number }>;
@@ -177,39 +118,6 @@ function normalizeTxid(txid: string | undefined): string {
 }
 
 /**
- * Every vault of the depositor, across the indexer's pages. Refuses a list that does not fit rather than
- * searching part of it, which would report a deposit as missing when it is not.
- */
-async function fetchDepositorVaults(
-  graphqlEndpoint: string,
-  depositor: string,
-): Promise<IndexerVault[]> {
-  const client = createGraphQLClient(graphqlEndpoint);
-  const vaults: IndexerVault[] = [];
-  let after: string | null = null;
-  for (let pageIndex = 0; pageIndex < INDEXER_MAX_VAULT_PAGES; pageIndex++) {
-    const page: IndexerVaultPage = after
-      ? await client.request(DEPOSITOR_VAULTS_NEXT, {
-          depositor,
-          limit: INDEXER_VAULTS_PAGE_SIZE,
-          after,
-        })
-      : await client.request(DEPOSITOR_VAULTS_FIRST, {
-          depositor,
-          limit: INDEXER_VAULTS_PAGE_SIZE,
-        });
-    vaults.push(...page.vaults.items);
-    after = page.vaults.pageInfo.hasNextPage
-      ? page.vaults.pageInfo.endCursor
-      : null;
-    if (!after) return vaults;
-  }
-  throw new Error(
-    `forged-stuck: ${depositor} has more vaults than ${INDEXER_MAX_VAULT_PAGES} indexer pages hold; refusing to search a partial list.`,
-  );
-}
-
-/**
  * The deposit's Verified vaults, forged from their on-chain registry records. The indexer only names the
  * candidates; the outpoint, the PegIn and the status all come from the registry.
  */
@@ -218,43 +126,20 @@ async function resolveForgedVaults(
   prePeginTxid: string,
 ): Promise<ForgedVault[]> {
   const { log, config } = ctx;
-  const { registry, graphqlEndpoint, ethRpcUrl } = resolveNetworkContracts(
+  const registered = await findRegisteredVaults(
     config.network,
-  );
-  const vaults = await fetchDepositorVaults(
-    graphqlEndpoint,
-    ctx.eth.address.toLowerCase(),
-  );
-  const candidates = vaults.filter(
-    (v) =>
-      v.unsignedPrePeginTx !== null &&
-      stripHex(calculateBtcTxHash(v.unsignedPrePeginTx)).toLowerCase() ===
-        prePeginTxid,
-  );
-  if (candidates.length === 0)
-    throw new Error(
-      `forged-stuck: no deposit of ${ctx.eth.address} has Pre-PegIn txid ${prePeginTxid}.`,
-    );
-
-  const reader = new ViemVaultRegistryReader(
-    createEthClient(ethRpcUrl),
-    registry,
+    ctx.eth.address,
+    prePeginTxid,
   );
   const forged: ForgedVault[] = [];
-  for (const candidate of candidates) {
-    const { basic, protocol } = await reader.getVaultData(candidate.id);
+  for (const { vaultId, basic, protocol } of registered) {
     if (basic.status !== OnChainBtcVaultStatus.VERIFIED) {
       log(
-        `Skipping vault ${candidate.id}: on-chain status ${OnChainBtcVaultStatus[basic.status] ?? basic.status}, not Verified.`,
+        `Skipping vault ${vaultId}: on-chain status ${OnChainBtcVaultStatus[basic.status] ?? basic.status}, not Verified.`,
       );
       continue;
     }
-    const vault = forgedVaultFromRecord(candidate.id, protocol);
-    if (vault.prePeginTxid !== prePeginTxid)
-      throw new Error(
-        `forged-stuck: the registry records vault ${candidate.id}'s HTLC on Pre-PegIn ${vault.prePeginTxid}, not ${prePeginTxid}.`,
-      );
-    forged.push(vault);
+    forged.push(forgedVaultFromRecord(vaultId, protocol));
   }
   if (forged.length === 0)
     throw new Error(

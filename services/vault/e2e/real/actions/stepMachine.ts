@@ -268,6 +268,11 @@ export async function walkStepMachine(
      * yet activated (forged-stuck `--pegin-first`). Nothing past the gate is driven.
      */
     stopAtActivationGate?: boolean;
+    /**
+     * Called once, the first tick the progress view links this run's Pre-PegIn txid. The return value
+     * carries it only when the walk succeeds; this hands it to a caller whose walk then throws.
+     */
+    onPrePeginTxid?: (prePeginTxid: string) => void;
   } = {},
 ): Promise<string | undefined> {
   const deadline = Date.now() + PEGIN_STEP_MACHINE_BUDGET_MS;
@@ -449,8 +454,10 @@ export async function walkStepMachine(
     // Capture the Pre-PegIn txid once, the first tick the progress view links it.
     if (!prePeginTxid) {
       prePeginTxid = await readPrePeginTxid(page);
-      if (prePeginTxid)
+      if (prePeginTxid) {
         log(`Captured this run's Pre-PegIn txid: ${prePeginTxid}`);
+        options.onPrePeginTxid?.(prePeginTxid);
+      }
     }
 
     const step = await readActiveStep(page);

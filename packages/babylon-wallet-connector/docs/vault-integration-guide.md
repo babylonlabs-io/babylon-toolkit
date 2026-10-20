@@ -132,7 +132,13 @@ both: return a non-finalized PSBT with `tapScriptSig`
 entries, signed with the **untweaked internal key**.
 Auto-finalizing PegIn input PSBTs causes the SDK to
 throw — the depositor signature cannot be reliably
-extracted from the witness stack.
+extracted from the witness stack. Only that 64-byte
+signature is used: the SDK builds the PegIn witness
+from the PSBT it sent, so the returned PSBT's other
+per-input fields (a key-path signature, a final
+witness or scriptSig, leaf metadata) are ignored. Its
+unsigned transaction must still match the one the SDK
+sent, or the SDK rejects the answer.
 
 ### deriveContextHash
 

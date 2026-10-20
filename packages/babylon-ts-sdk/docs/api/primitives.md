@@ -2655,35 +2655,6 @@ If no signature is found for the depositor's key
 
 ***
 
-### finalizePeginInputPsbt()
-
-```ts
-function finalizePeginInputPsbt(signedPsbtHex): string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts)
-
-Finalize a signed PegIn input PSBT and return the depositor-signed transaction hex.
-
-The default tapscript finalizer builds the full witness stack [sig, script, controlBlock]
-that vaultd requires when verifying the depositor signature on-chain.
-
-#### Parameters
-
-##### signedPsbtHex
-
-`string`
-
-Non-finalized signed PSBT hex (returned by wallet with autoFinalized: false)
-
-#### Returns
-
-`string`
-
-Depositor-signed PegIn transaction hex with full taproot witness stack
-
-***
-
 ### reclaimVsize()
 
 ```ts

@@ -25,8 +25,10 @@
  *
  * Selectors + copy strings below were verified against a real observe recording AND the React
  * components (DepositForm, VaultProviderSelectorV3, DepositProgressView, ActivateConfirmationModal,
- * InStepArtifactCallout, VaultActivatedView, VaultsActiveSection). No product/SDK code is
- * reimplemented — this only drives the UI; the frozen critical paths stay owned by the app.
+ * InStepArtifactCallout, VaultActivatedView, VaultsActiveSection). Besides driving the UI, it reads
+ * the registry to check each new vault's registered PegIn witness with its own BIP-341 check
+ * (actions/peginWalletPsbt.ts); it calls no product signing or registration code, and the frozen
+ * critical paths stay owned by the app.
  *
  * The deposit modal is a RootLayout overlay opened from the /vaults deposit CTA (v3 moved it off the
  * dashboard — see markdown/e2e-v3/02-pegin.md), so the form phase navigates there first.
@@ -37,6 +39,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 import { fetchActiveVaultCount } from "../borrowParams";
+import { findRegisteredVaults, type RegisteredVault } from "../depositorVaults";
 import {
   DEPOSIT_CTA_ENABLE_TIMEOUT_MS,
   FORM_SETTLE_MS,
@@ -47,6 +50,8 @@ import {
 
 import { installPopupApprover } from "./approver";
 import { goToSection } from "./navigation";
+import { assertRegisteredPeginWitness } from "./peginWalletPsbt";
+import { installPeginPsbtExtras } from "./peginWalletPsbtInjection";
 import { startRecording } from "./recording";
 import { FLUID_CTA_SELECTOR } from "./selectors";
 import {
@@ -280,8 +285,58 @@ export async function startSigning(
 }
 
 /**
+ * The deposit's vaults as the registry records them, so their PegIn witnesses can be checked. A failure
+ * here (no captured txid, indexer lag, a missing vault, an RPC error) says nothing about the witnesses.
+ */
+async function findDepositVaults(
+  ctx: ActionContext,
+  prePeginTxid: string | undefined,
+  expectedVaults: number,
+): Promise<RegisteredVault[]> {
+  if (!prePeginTxid)
+    throw new Error(
+      "pegin: the run never captured its Pre-PegIn txid, so the PegIn it registered cannot be checked.",
+    );
+  const vaults = await findRegisteredVaults(
+    ctx.config.network,
+    ctx.eth.address,
+    prePeginTxid,
+  );
+  if (vaults.length !== expectedVaults)
+    throw new Error(
+      `pegin: expected ${expectedVaults} registered vault(s) on Pre-PegIn ${prePeginTxid}, found ${vaults.length}.`,
+    );
+  return vaults;
+}
+
+/**
+ * Every vault of the deposit must have registered the PegIn the dApp built: the depositor's script-path
+ * spend of its HTLC output (`assertRegisteredPeginWitness`). The vault provider checks those bytes'
+ * txid and witness item count but reads only the signature out of them, so an activated vault alone
+ * does not show that the leaf script and control block are right.
+ */
+function assertRegisteredPeginWitnesses(
+  ctx: ActionContext,
+  vaults: readonly RegisteredVault[],
+): void {
+  for (const { vaultId, basic, protocol, fundedPrePeginTxHex } of vaults) {
+    assertRegisteredPeginWitness({
+      depositorSignedPeginTx: protocol.depositorSignedPeginTx,
+      prePeginTxHash: protocol.prePeginTxHash,
+      htlcVout: protocol.htlcVout,
+      depositorBtcPubKey: basic.depositorBtcPubKey,
+      fundedPrePeginTxHex,
+    });
+    ctx.log(
+      `Vault ${vaultId} registered the depositor's script-path PegIn witness.`,
+    );
+  }
+}
+
+/**
  * The pegin flow proper: deposit form → "Sign Transaction" → the 15-step signing machine → activated
- * vault on the dashboard. Assumes the caller has ALREADY connected the wallets and installed the
+ * vault on the dashboard, with the registered PegIn witness of every vault checked on chain. Assumes
+ * the caller has ALREADY connected the wallets and installed the
  * pop-up approver + recorder for the run (so a composite like `borrow --pegin-first` keeps a single
  * approver/recorder across both phases). `onStep` tags the recorder's HTTP fixtures with the current
  * phase and is forwarded into the step machine. Shared by the `pegin` action and `borrow --pegin-first`.
@@ -318,16 +373,64 @@ export async function runPeginFlow(
   await startSigning(page, log);
 
   onStep("step-machine");
-  const prePeginTxid = await walkStepMachine(
-    page,
-    context,
-    log,
-    expectedVaults,
-    onStep,
-  );
+  let capturedPrePeginTxid: string | undefined;
+  let prePeginTxid: string | undefined;
+  try {
+    prePeginTxid = await walkStepMachine(
+      page,
+      context,
+      log,
+      expectedVaults,
+      onStep,
+      {
+        onPrePeginTxid: (txid) => {
+          capturedPrePeginTxid = txid;
+        },
+      },
+    );
+  } catch (stepMachineError) {
+    // A PegIn the vault provider rejects never activates, so the walk fails as a provider or timeout
+    // error. Once the Pre-PegIn is broadcast the PegIn is registered, so check its witness here and
+    // name a malformed one as the cause. A lookup that cannot reach the vaults says nothing about the
+    // witness, so it is only logged and the walk's own error stands.
+    if (capturedPrePeginTxid) {
+      onStep("verify-pegin-witness");
+      let vaults: RegisteredVault[];
+      try {
+        vaults = await findDepositVaults(
+          ctx,
+          capturedPrePeginTxid,
+          expectedVaults,
+        );
+      } catch (lookupError) {
+        log(
+          `⚠️ Could not check the registered PegIn witness after the step machine failed: ${lookupError instanceof Error ? lookupError.message : lookupError}`,
+        );
+        throw stepMachineError;
+      }
+      try {
+        assertRegisteredPeginWitnesses(ctx, vaults);
+      } catch (witnessError) {
+        throw new Error(
+          `${witnessError instanceof Error ? witnessError.message : witnessError} (The step machine then failed: ${stepMachineError instanceof Error ? stepMachineError.message : stepMachineError})`,
+          { cause: stepMachineError },
+        );
+      }
+    }
+    throw stepMachineError;
+  }
 
   onStep("finish");
   await assertActivatedAndOnDashboard(page, log, amountBtc, prePeginTxid);
+
+  // Before the collateral check: the registered PegIn does not depend on how activation went, so its
+  // verdict is in the run log even when activation does not open the position (as it is when the walk
+  // itself fails, above).
+  onStep("verify-pegin-witness");
+  assertRegisteredPeginWitnesses(
+    ctx,
+    await findDepositVaults(ctx, prePeginTxid, expectedVaults),
+  );
 
   onStep("verify");
   await assertVaultCountRose(ctx, vaultsBefore, expectedVaults);
@@ -354,10 +457,15 @@ export const peginAction: Action = {
       () => currentStep,
     );
     try {
+      // `--inject-pegin-psbt-extras`: armed before signing so the wallet's PegIn answer is rewritten.
+      const psbtExtras = ctx.config.injectPeginPsbtExtras
+        ? await installPeginPsbtExtras(page, ctx.config.btcWallet, log)
+        : undefined;
       await connectWallets(ctx);
       await runPeginFlow(ctx, (step) => {
         currentStep = step;
       });
+      await psbtExtras?.assertTampered();
     } finally {
       await recorder.stop();
       context.off("page", handler);
