@@ -195,13 +195,25 @@ function WithdrawFlowContent({
   const handleConfirm = useCallback(async () => {
     // Submit exactly the vaults whose commission the user reviewed.
     if (vpCommission.status !== "ready") return;
+    // Bind each reviewed vault to the amount the review showed, so the hook
+    // can refuse before signing if the registry disagrees. Both lists come
+    // from `liveSelectedVaults` in this render, so a miss is a bug.
+    const selection = vpCommission.vaultIds.map((vaultId) => {
+      const vault = liveSelectedVaults.find((v) => v.vaultId === vaultId);
+      if (!vault) {
+        throw new Error(
+          `Reviewed vault ${vaultId} is not in the live selection`,
+        );
+      }
+      return { vaultId, amountSats: vault.amountSats };
+    });
     setConfirmed({
       vaults: liveSelectedVaults,
       collateralBtc,
       collateralValueUsd,
       currentHealthFactor,
     });
-    const result = await executeWithdraw(vpCommission.vaultIds);
+    const result = await executeWithdraw(selection);
     if (result === "succeeded") {
       goToProgress();
       return;
