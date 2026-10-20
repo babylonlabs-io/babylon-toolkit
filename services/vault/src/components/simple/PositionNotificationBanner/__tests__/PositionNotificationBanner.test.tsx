@@ -333,12 +333,14 @@ describe("PositionNotificationBanner", () => {
     },
   );
 
-  it("renders green banner when no warnings and order is optimal", () => {
+  it("shows optimal vault order as information", () => {
     renderBanner(makeBaseResult(), onDeposit, onRepay);
     const banner = screen.getByTestId("position-notification-banner");
-    expect(banner.dataset.severity).toBe("green");
-    expect(banner.dataset.variant).toBe("success");
-    expect(screen.getByText("Position optimally structured")).toBeTruthy();
+    expect(
+      screen.getByText(/Your position can still be liquidated/),
+    ).toBeTruthy();
+    expect(banner.dataset.variant).toBe("info");
+    expect(screen.getByText("BTCVault ordering is optimal")).toBeTruthy();
     expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
@@ -473,7 +475,7 @@ describe("PositionNotificationBanner", () => {
       COPY.common.unconfirmedTransaction.inProgress;
     renderBanner(makeBaseResult(), onDeposit, onRepay);
 
-    expect(screen.getByText("Position optimally structured")).toBeTruthy();
+    expect(screen.getByText("BTCVault ordering is optimal")).toBeTruthy();
     expect(screen.queryByRole("note")).toBeNull();
   });
 
@@ -993,11 +995,11 @@ describe("PositionNotificationBanner v3", () => {
     expect(banner.dataset.tone).toBeUndefined();
   });
 
-  it("renders the green all-healthy state as a plain Notification (no card tone)", () => {
+  it("shows optimal order as a plain Notification (no card tone)", () => {
     renderBanner(makeBaseResult(), onDeposit, onRepay);
 
     const banner = screen.getByTestId("position-notification-banner");
-    expect(banner.dataset.variant).toBe("success");
+    expect(banner.dataset.variant).toBe("info");
     expect(banner.dataset.tone).toBeUndefined();
   });
 });
