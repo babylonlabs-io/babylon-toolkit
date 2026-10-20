@@ -7,6 +7,11 @@ const mockGetCurrentVaultProviderOperationBtcKey = vi.hoisted(() => vi.fn());
 const mockGetVaultProviderOperationBtcKeyAtEpoch = vi.hoisted(() => vi.fn());
 const mockGetVaultKeyEpochs = vi.hoisted(() => vi.fn());
 const mockGetVaultBasicInfo = vi.hoisted(() => vi.fn());
+const featureFlagsMock = vi.hoisted(() => ({
+  isHttpArtifactDownloadsEnabled: false,
+}));
+
+vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
@@ -19,10 +24,7 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   }),
 }));
 
-import {
-  refreshVpJsonRpcPinnedPubkey,
-  resolveVpAuthPins,
-} from "../vpAuthPinnedPubkey";
+import { resolveVpAuthPins } from "../vpAuthPinnedPubkey";
 
 const VAULT_ID = `0x${"f".repeat(64)}` as Hex;
 const VP_ADDRESS = `0x${"1".repeat(40)}` as Address;
@@ -33,6 +35,7 @@ const FROZEN_EPOCH = 17n;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  featureFlagsMock.isHttpArtifactDownloadsEnabled = false;
   mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
     CURRENT_OPERATION_KEY,
   );
@@ -49,12 +52,13 @@ beforeEach(() => {
 
 describe("resolveVpAuthPins", () => {
   it("uses the live key for JSON-RPC and the vault's frozen key for gRPC", async () => {
-    await expect(resolveVpAuthPins(VP_ADDRESS, VAULT_ID)).resolves.toEqual({
+    const pins = await resolveVpAuthPins(VP_ADDRESS, VAULT_ID);
+
+    expect(pins).toMatchObject({
       pinnedServerPubkey: CURRENT_OPERATION_KEY,
       grpcPinnedServerPubkey: FROZEN_OPERATION_KEY,
       grpcKeyEpoch: FROZEN_EPOCH,
     });
-
     expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledWith(
       VP_ADDRESS,
     );
@@ -63,6 +67,34 @@ describe("resolveVpAuthPins", () => {
       VP_ADDRESS,
       FROZEN_EPOCH,
     );
+  });
+
+  it("refreshes only the live JSON-RPC key", async () => {
+    const { refreshJsonRpcPinnedServerPubkey } = await resolveVpAuthPins(
+      VP_ADDRESS,
+      VAULT_ID,
+    );
+    vi.clearAllMocks();
+
+    await expect(refreshJsonRpcPinnedServerPubkey?.()).resolves.toBe(
+      CURRENT_OPERATION_KEY,
+    );
+    expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledWith(
+      VP_ADDRESS,
+    );
+    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
+    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).not.toHaveBeenCalled();
+  });
+
+  it("pins JSON-RPC to the frozen key with no refresh when HTTP downloads are on", async () => {
+    featureFlagsMock.isHttpArtifactDownloadsEnabled = true;
+
+    await expect(resolveVpAuthPins(VP_ADDRESS, VAULT_ID)).resolves.toEqual({
+      pinnedServerPubkey: FROZEN_OPERATION_KEY,
+      grpcPinnedServerPubkey: FROZEN_OPERATION_KEY,
+      grpcKeyEpoch: FROZEN_EPOCH,
+    });
+    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
   });
 
   it("throws before any key read when the address is not the vault's on-chain provider", async () => {
@@ -76,18 +108,6 @@ describe("resolveVpAuthPins", () => {
 
     expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
     expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
-    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).not.toHaveBeenCalled();
-  });
-
-  it("refreshes only the live JSON-RPC key", async () => {
-    await expect(refreshVpJsonRpcPinnedPubkey(VP_ADDRESS)).resolves.toBe(
-      CURRENT_OPERATION_KEY,
-    );
-
-    expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledWith(
-      VP_ADDRESS,
-    );
-    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
     expect(mockGetVaultProviderOperationBtcKeyAtEpoch).not.toHaveBeenCalled();
   });
 });

@@ -162,6 +162,32 @@ describe("VpTokenProvider", () => {
     ).toBe(1);
   });
 
+  it("serves the JSON-RPC-subject token through getJsonRpcToken()", async () => {
+    stubCallOnce(buildResponse());
+
+    const provider = new VpTokenProvider({
+      client: createClient(),
+      peginTxid: PEGIN_TXID,
+      authAnchorHex: AUTH_ANCHOR,
+      pinnedServerPubkey: PINNED_PUBKEY,
+      grpcPinnedServerPubkey: PINNED_PUBKEY,
+      expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
+      authGatedMethods: AUTH_GATED_METHODS,
+      grpcGatedMethods: GRPC_GATED_METHODS,
+      now: () => NOW,
+    });
+
+    expect(await provider.getJsonRpcToken()).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    // The same slot serves JSON-RPC-gated methods, so no second acquire.
+    expect(
+      await provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).toBe(GOLDEN_CWT_TOKEN_JSONRPC);
+    expect(
+      (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .length,
+    ).toBe(1);
+  });
+
   it("re-acquires after invalidate()", async () => {
     const mockFetch = vi
       .fn()

@@ -62,10 +62,7 @@ import {
   getPeginDisplayStep,
 } from "@/models/peginStateMachine";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
-import {
-  refreshVpJsonRpcPinnedPubkey,
-  resolveVpAuthPins,
-} from "@/services/vault/vpAuthPinnedPubkey";
+import { resolveVpAuthPins } from "@/services/vault/vpAuthPinnedPubkey";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -530,8 +527,6 @@ function ResumeWotsContentConnected({
           authAnchorHex,
           providerAddress: vpAddress,
           ...authPins,
-          refreshJsonRpcPinnedServerPubkey: () =>
-            refreshVpJsonRpcPinnedPubkey(vpAddress),
           depositorBtcPubkey,
         });
         trackPrimedTxid(primedTxid);

@@ -101,10 +101,7 @@ import {
   type PeginSigningProgress,
 } from "@/services/vault/vaultTransactionService";
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
-import {
-  refreshVpJsonRpcPinnedPubkey,
-  resolveVpAuthPins,
-} from "@/services/vault/vpAuthPinnedPubkey";
+import { resolveVpAuthPins } from "@/services/vault/vpAuthPinnedPubkey";
 import {
   addPendingPegin,
   getPendingPegins,
@@ -1454,8 +1451,6 @@ export function useDepositFlow(
               authAnchorHex,
               providerAddress: vpAddress,
               ...authPins,
-              refreshJsonRpcPinnedServerPubkey: () =>
-                refreshVpJsonRpcPinnedPubkey(vpAddress),
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
           }

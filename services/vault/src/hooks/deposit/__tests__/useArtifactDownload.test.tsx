@@ -118,6 +118,7 @@ import {
   ArtifactDownloadTooLargeError,
   ArtifactFileAccessError,
   type ArtifactSaveTarget,
+  ArtifactsNotReadyError,
   fetchAndDownloadArtifacts,
   openArtifactSaveTarget,
   PresignGraphMismatchError,
@@ -1259,4 +1260,62 @@ describe("useArtifactDownload — funnel telemetry", () => {
       vi.useRealTimers();
     }
   });
+
+  it.each([
+    { invalidState: true, stops: true },
+    { invalidState: false, stops: false },
+  ])(
+    "waits on ArtifactsNotReadyError(invalidState=$invalidState); stops after 2h: $stops",
+    async ({ invalidState, stops }) => {
+      vi.useFakeTimers();
+      try {
+        seedHotCache();
+        fetchMock.mockRejectedValue(new ArtifactsNotReadyError(invalidState));
+
+        const { result } = renderHook(() =>
+          useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+        );
+
+        let downloadPromise: Promise<void> | undefined;
+        act(() => {
+          downloadPromise = result.current.download(
+            PROVIDER_ADDRESS,
+            PEGIN_TXID,
+            DEPOSITOR_PK,
+          );
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(result.current.progress).toBe(
+          COPY.deposit.recoveryArtifacts.waitingForSignatures,
+        );
+        expect(result.current.error).toBeNull();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2 * 60 * 60_000 + 10_000);
+        });
+
+        if (stops) {
+          await act(async () => {
+            await downloadPromise;
+          });
+          expect(result.current.error).toBe(
+            COPY.deposit.recoveryArtifacts.notAvailable,
+          );
+        } else {
+          expect(result.current.error).toBeNull();
+          act(() => {
+            result.current.cancel();
+          });
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(10_000);
+            await downloadPromise;
+          });
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 });

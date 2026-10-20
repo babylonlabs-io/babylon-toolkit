@@ -32,10 +32,7 @@ import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
-import {
-  refreshVpJsonRpcPinnedPubkey,
-  resolveVpAuthPins,
-} from "@/services/vault/vpAuthPinnedPubkey";
+import { resolveVpAuthPins } from "@/services/vault/vpAuthPinnedPubkey";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface EnsureAuthenticatedVpClientParams {
@@ -137,8 +134,6 @@ export async function ensureAuthenticatedVpClient(
       authAnchorHex,
       providerAddress: vpAddress,
       ...authPins,
-      refreshJsonRpcPinnedServerPubkey: () =>
-        refreshVpJsonRpcPinnedPubkey(vpAddress),
       depositorBtcPubkey: params.depositorBtcPubkey,
     });
   } finally {

@@ -48,8 +48,9 @@ import {
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 
+import featureFlags from "@/config/featureFlags";
 import { logger } from "@/infrastructure";
-import { getVpProxyUrl } from "@/utils/rpc";
+import { getVpArtifactsProxyUrl, getVpProxyUrl } from "@/utils/rpc";
 
 import {
   assertBundleBoundToVault,
@@ -65,6 +66,7 @@ import {
   ArtifactDownloadCancelledError,
   ArtifactDownloadTooLargeError,
 } from "./errors";
+import { fetchHttpArtifactsResponse } from "./httpArtifactDownload";
 import { ArtifactStreamValidator } from "./streamingArtifactValidator";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */
@@ -157,24 +159,30 @@ export async function fetchAndDownloadArtifacts(
     expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(depositorPk),
   });
 
-  const client = new JsonRpcClient({
-    baseUrl: getVpProxyUrl(providerAddress),
-    timeout: RPC_TIMEOUT_MS,
-    // Artifact requests are idempotent reads — safe to retry on transient errors
-    retryableFor: () => true,
-    tokenProvider,
-  });
-
   let response: Response;
   try {
-    response = await client.callRaw(
-      "vaultProvider_requestDepositorClaimerArtifacts",
-      {
-        pegin_txid: normalizedPeginTxid,
-        depositor_pk: stripHexPrefix(depositorPk),
-      },
-      options?.signal,
-    );
+    response = featureFlags.isHttpArtifactDownloadsEnabled
+      ? await fetchHttpArtifactsResponse(
+          getVpArtifactsProxyUrl(providerAddress),
+          normalizedPeginTxid,
+          async () => (await tokenProvider?.getJsonRpcToken()) ?? null,
+          options?.signal,
+        )
+      : await new JsonRpcClient({
+          baseUrl: getVpProxyUrl(providerAddress),
+          timeout: RPC_TIMEOUT_MS,
+          // Artifact requests are idempotent reads — safe to retry on
+          // transient errors
+          retryableFor: () => true,
+          tokenProvider,
+        }).callRaw(
+          "vaultProvider_requestDepositorClaimerArtifacts",
+          {
+            pegin_txid: normalizedPeginTxid,
+            depositor_pk: stripHexPrefix(depositorPk),
+          },
+          options?.signal,
+        );
   } catch (err) {
     throw normalizeCancellation(err, options);
   }
@@ -278,6 +286,9 @@ export async function downloadArtifactsFromResponse(
     // presign record, and runs before commit so a swapped bundle never lands.
     assertGraphMatchesPresign(validated.txGraph, binding);
   } catch (err) {
+    // Stop the source too: the HTTP path would otherwise keep downloading
+    // the next session and hold a VP download slot.
+    await reader.cancel().catch(() => undefined);
     await discardQuietly(stream);
     throw err;
   } finally {

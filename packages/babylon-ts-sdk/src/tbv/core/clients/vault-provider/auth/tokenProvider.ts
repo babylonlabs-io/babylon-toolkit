@@ -198,6 +198,16 @@ export class VpTokenProvider implements BearerTokenProvider {
   }
 
   /**
+   * Return the JSON-RPC-subject bearer (`auth_createDepositorToken`).
+   *
+   * For VP routes that are not JSON-RPC methods but accept this bearer,
+   * such as the HTTP depositor artifact downloads.
+   */
+  getJsonRpcToken(): Promise<string> {
+    return this.getTokenForSubject("jsonrpc");
+  }
+
+  /**
    * Drop both cached tokens. Next `getToken` call re-acquires the slot
    * that's actually needed. Called by `JsonRpcClient` on wire
    * `auth_expired` responses; the client doesn't tell us which subject

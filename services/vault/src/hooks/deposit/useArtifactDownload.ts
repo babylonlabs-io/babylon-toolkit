@@ -32,6 +32,7 @@ import {
   ArtifactDownloadTooLargeError,
   ArtifactFileAccessError,
   type ArtifactSaveTarget,
+  ArtifactsNotReadyError,
   fetchAndDownloadArtifacts,
   type FetchArtifactsOptions,
   openArtifactSaveTarget,
@@ -61,6 +62,13 @@ const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
  * to monitoring. Emitted once per download attempt.
  */
 const ARTIFACT_STALL_EVENT_ATTEMPTS = 30;
+
+/**
+ * How long the HTTP path waits on a VP `INVALID_STATE` answer. The VP sends
+ * it before activation (normal after signing) and for terminal statuses such
+ * as expired, without saying which, so the wait must end.
+ */
+const ARTIFACT_INVALID_STATE_MAX_WAIT_MS = 2 * 60 * 60_000;
 
 interface ArtifactDownloadState {
   loading: boolean;
@@ -508,6 +516,7 @@ export function useArtifactDownload(options?: {
 
       let stillProcessingAttempts = 0;
       let stallEventEmitted = false;
+      let invalidStateSince: number | null = null;
 
       while (true) {
         if (isStale()) return;
@@ -601,7 +610,27 @@ export function useArtifactDownload(options?: {
             return;
           }
 
-          if (isPreDepositorSignaturesError(err)) {
+          if (err instanceof ArtifactsNotReadyError && err.invalidState) {
+            invalidStateSince ??= Date.now();
+            if (
+              Date.now() - invalidStateSince >=
+              ARTIFACT_INVALID_STATE_MAX_WAIT_MS
+            ) {
+              captureFunnelFailure(
+                TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+                err,
+                telemetryVaultId,
+                { tags: { site: "invalid_state_timeout" } },
+              );
+              setError(COPY.deposit.recoveryArtifacts.notAvailable);
+              return;
+            }
+          }
+
+          if (
+            isPreDepositorSignaturesError(err) ||
+            err instanceof ArtifactsNotReadyError
+          ) {
             stillProcessingAttempts += 1;
             if (
               !stallEventEmitted &&
