@@ -381,9 +381,6 @@ describe("WithdrawFlow selection step", () => {
 
     expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
     expect(screen.getByText("0.8 sBTC")).toBeInTheDocument();
-    expect(
-      screen.queryByText(COPY.withdraw.initiated.reserveReminder),
-    ).not.toBeInTheDocument();
 
     await vi.waitFor(() =>
       expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
@@ -395,12 +392,6 @@ describe("WithdrawFlow selection step", () => {
         { vaultId: FIRST_VAULT, amountSats: 60_000_000n },
         { vaultId: SECOND_VAULT, amountSats: 20_000_000n },
       ]),
-    );
-    const reminder = await screen.findByText(
-      COPY.withdraw.initiated.reserveReminder,
-    );
-    expect(reminder.previousElementSibling).toHaveTextContent(
-      COPY.withdraw.initiated.body,
     );
   });
 });
@@ -455,5 +446,30 @@ describe("WithdrawFlow review commission (issue #2546)", () => {
     expect(confirm).toBeDisabled();
     fireEvent.click(confirm);
     expect(executeWithdraw).not.toHaveBeenCalled();
+  });
+});
+
+describe("WithdrawFlow after a successful withdrawal", () => {
+  it("shows the unused claim reserve reminder directly below the success text, and not on Review", async () => {
+    renderFlow();
+
+    fireEvent.click(continueButton());
+
+    expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.withdraw.initiated.reserveReminder),
+    ).not.toBeInTheDocument();
+
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("withdraw-confirm-button"));
+
+    const reminder = await screen.findByText(
+      COPY.withdraw.initiated.reserveReminder,
+    );
+    expect(reminder.previousElementSibling).toHaveTextContent(
+      COPY.withdraw.initiated.body,
+    );
   });
 });
