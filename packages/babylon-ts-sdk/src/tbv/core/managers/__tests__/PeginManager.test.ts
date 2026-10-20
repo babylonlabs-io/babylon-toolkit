@@ -161,8 +161,8 @@ const TEST_CHAIN: Chain = {
 // Mock public client passed into PeginManager config so tests don't
 // hit HTTP. Mirrors viem's PublicClient surface used by the manager.
 const TEST_PUBLIC_CLIENT = {
+  estimateGas: vi.fn().mockResolvedValue(100000n),
   prepareTransactionRequest: vi.fn().mockResolvedValue({
-    gas: 100000n,
     type: "eip1559",
     maxFeePerGas: 3n,
     maxPriorityFeePerGas: 1n,

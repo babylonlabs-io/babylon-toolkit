@@ -53,8 +53,8 @@ function setup() {
         return Promise.resolve(100);
       return Promise.resolve({ depositor: zeroAddress });
     }),
+    estimateGas: vi.fn().mockResolvedValue(250_000n),
     prepareTransactionRequest: vi.fn().mockResolvedValue({
-      gas: 250_000n,
       type: "eip1559",
       maxFeePerGas: 3n,
       maxPriorityFeePerGas: 1n,
@@ -134,13 +134,20 @@ describe("ViemPeginRegistrationClient calldata", () => {
     // arity — but a partial ABI edit that updated only one of them would make
     // both 12 and let viem resolve by type, silently.
     expect(data.slice(0, 10)).toBe("0x564feec1");
+    expect(publicClient.estimateGas).toHaveBeenCalledWith({
+      to: REGISTRY,
+      data,
+      value: 3n,
+      account: DEPOSITOR,
+    });
     expect(publicClient.prepareTransactionRequest).toHaveBeenCalledWith({
       to: REGISTRY,
       data,
       value: 3n,
       account: DEPOSITOR,
       chain: sepolia,
-      parameters: ["gas", "fees", "type"],
+      gas: 250_000n,
+      parameters: ["fees", "type"],
     });
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -227,13 +234,20 @@ describe("ViemPeginRegistrationClient calldata", () => {
     // per #555's generated snapshots/selectors.md at head 86577e40; it was
     // 0x68d177ac before the fingerprint.
     expect(data.slice(0, 10)).toBe("0x3e62a2ba");
+    expect(publicClient.estimateGas).toHaveBeenCalledWith({
+      to: REGISTRY,
+      data,
+      value: 6n,
+      account: DEPOSITOR,
+    });
     expect(publicClient.prepareTransactionRequest).toHaveBeenCalledWith({
       to: REGISTRY,
       data,
       value: 6n,
       account: DEPOSITOR,
       chain: sepolia,
-      parameters: ["gas", "fees", "type"],
+      gas: 250_000n,
+      parameters: ["fees", "type"],
     });
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith(
