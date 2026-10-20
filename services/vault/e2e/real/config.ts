@@ -326,9 +326,9 @@ export interface RunConfig {
    */
   injectReorg?: ReorgInjection;
   /**
-   * Pegin only: make UniSat answer the PegIn signing request with a key-path signature, its own final
-   * witness, a scriptSig and a relabelled leaf hash beside its genuine signature
-   * (`--inject-pegin-psbt-extras`). The deposit must still activate, and the PegIn it registers must
+   * Pegin only, UniSat or OKX: make the BTC wallet answer the PegIn signing request with a key-path
+   * signature, its own final witness, a scriptSig and a relabelled leaf hash beside its genuine
+   * signature (`--inject-pegin-psbt-extras`). The deposit must still activate, and the PegIn it registers must
    * still be the depositor's script-path spend the dApp built.
    */
   injectPeginPsbtExtras?: boolean;

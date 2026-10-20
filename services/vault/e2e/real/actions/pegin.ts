@@ -459,7 +459,7 @@ export const peginAction: Action = {
     try {
       // `--inject-pegin-psbt-extras`: armed before signing so the wallet's PegIn answer is rewritten.
       const psbtExtras = ctx.config.injectPeginPsbtExtras
-        ? await installPeginPsbtExtras(page, log)
+        ? await installPeginPsbtExtras(page, ctx.config.btcWallet, log)
         : undefined;
       await connectWallets(ctx);
       await runPeginFlow(ctx, (step) => {

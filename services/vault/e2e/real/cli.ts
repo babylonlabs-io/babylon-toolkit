@@ -35,10 +35,10 @@
  * PegIn back from the registry and checking it is the depositor's script-path spend of its HTLC output: an
  * empty scriptSig, and a signature, leaf and control block that commit to that output. `--action=pegin`
  * alone also accepts `--inject-pegin-psbt-extras` (it is not one of the pegin extras above, so a
- * `--pegin-first` leg refuses it), which makes UniSat answer the PegIn signing request with a
+ * `--pegin-first` leg refuses it), which makes the BTC wallet answer the PegIn signing request with a
  * key-path signature, its own final witness, a scriptSig and a relabelled leaf hash beside its genuine
- * signature. The deposit must still activate and pass that check. Single-vault and `--btc=unisat`
- * only; it spends signet BTC and Sepolia ETH like any pegin, so NEVER run it without an explicit
+ * signature. The deposit must still activate and pass that check. Single-vault, and `--btc=unisat` or
+ * `--btc=okx` only; it spends signet BTC and Sepolia ETH like any pegin, so NEVER run it without an explicit
  * go-ahead. Run it on `--target=localhost` to test local app code (see
  * actions/peginWalletPsbtInjection.ts).
  *
@@ -125,6 +125,10 @@
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
+import {
+  PEGIN_PSBT_EXTRAS_WALLET_LABELS,
+  supportsPeginPsbtExtras,
+} from "./actions/peginWalletPsbtInjection";
 import {
   describeReserve,
   fetchBorrowableReserves,
@@ -787,9 +791,9 @@ async function resolveConfig(
         throw new Error(
           "--inject-pegin-psbt-extras only applies to --action=pegin.",
         );
-      if (btcWallet !== "unisat")
+      if (!supportsPeginPsbtExtras(btcWallet))
         throw new Error(
-          "--inject-pegin-psbt-extras wraps UniSat's provider; run it with --btc=unisat.",
+          `--inject-pegin-psbt-extras wraps the provider of ${PEGIN_PSBT_EXTRAS_WALLET_LABELS.join(" or ")} only; run it with one of those as --btc.`,
         );
       if (split)
         throw new Error(
