@@ -3142,7 +3142,7 @@ export const COPY = {
     },
     // Groups exist, nothing warns and the order is already optimal.
     optimal: {
-      title: "Vault ordering is optimal",
+      title: "BTCVault ordering is optimal",
       detail:
         "Your BTCVaults are in the optimal liquidation order. Your position can still be liquidated.",
     },

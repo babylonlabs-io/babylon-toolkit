@@ -340,7 +340,7 @@ describe("PositionNotificationBanner", () => {
       screen.getByText(/Your position can still be liquidated/),
     ).toBeTruthy();
     expect(banner.dataset.variant).toBe("info");
-    expect(screen.getByText("Vault ordering is optimal")).toBeTruthy();
+    expect(screen.getByText("BTCVault ordering is optimal")).toBeTruthy();
     expect(screen.queryByText("Apply Optimal Order")).toBeNull();
   });
 
@@ -475,7 +475,7 @@ describe("PositionNotificationBanner", () => {
       COPY.common.unconfirmedTransaction.inProgress;
     renderBanner(makeBaseResult(), onDeposit, onRepay);
 
-    expect(screen.getByText("Vault ordering is optimal")).toBeTruthy();
+    expect(screen.getByText("BTCVault ordering is optimal")).toBeTruthy();
     expect(screen.queryByRole("note")).toBeNull();
   });
 
