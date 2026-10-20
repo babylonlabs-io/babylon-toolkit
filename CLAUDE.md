@@ -109,8 +109,10 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 ### 5. HTLC secret & vault activation
 
-- File: `services/vault/src/services/vault/vaultActivationService.ts`
-- Submits the secret that unlocks the HTLC on-chain. Wrong secret = funds permanently locked.
+- Files:
+  - `services/vault/src/services/vault/vaultActivationService.ts`
+  - `services/vault/src/services/vault/activationGasLimit.ts` — chooses the gas limit the activation is sent with
+- Submits the secret that unlocks the HTLC on-chain. Wrong secret = funds permanently locked. Too little gas makes the registry redeem the vault instead of activating it.
 - **Rule:** Verify `hash(secret) === expectedHash` immediately before submission. Do not infer the secret from UI state - derive it only from the source that generated it.
 
 ### 6. Multi-vault split transactions

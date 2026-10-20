@@ -30,7 +30,66 @@ import type {
  */
 const UINT16_MAX = 65535;
 
-// Decodes deployments that predate `maxFundingInputCount`, including those that also predate `peginActivationDelay`; delete it once every network returns 8 fields.
+// Decodes deployments that predate `minActivationGas`.
+const PRE_MIN_ACTIVATION_GAS_TBV_PARAMS_ABI = [
+  {
+    type: "function",
+    name: "getTBVProtocolParams",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        internalType: "struct IProtocolParams.TBVProtocolParams",
+        components: [
+          {
+            name: "minimumPegInAmount",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "maxPegInAmount",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "pegInAckTimeout",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "pegInActivationTimeout",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "maxHtlcOutputCount",
+            type: "uint8",
+            internalType: "uint8",
+          },
+          {
+            name: "expiredPegInGraceBlocks",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "peginActivationDelay",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "maxFundingInputCount",
+            type: "uint8",
+            internalType: "uint8",
+          },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+] as const;
+
+// Decodes deployments that predate `maxFundingInputCount`, including those that also predate `peginActivationDelay`; delete it once every network returns the full 9-field struct.
 const PRE_FUNDING_INPUT_CAP_TBV_PARAMS_ABI = [
   {
     type: "function",
@@ -108,10 +167,13 @@ interface RawTBVParams {
   maxHtlcOutputCount: number;
   expiredPegInGraceBlocks: bigint;
   maxFundingInputCount: number;
+  minActivationGas: bigint;
 }
 
+type RawPreMinActivationGasTBVParams = Omit<RawTBVParams, "minActivationGas">;
+
 type RawPreFundingInputCapTBVParams = Omit<
-  RawTBVParams,
+  RawPreMinActivationGasTBVParams,
   "maxFundingInputCount"
 >;
 
@@ -149,6 +211,7 @@ function mapOffchainParams(result: RawOffchainParams): VersionedOffchainParams {
 function mapTBVParams(
   result: RawPreFundingInputCapTBVParams,
   maxFundingInputCount: number | null,
+  minActivationGas: bigint | null,
 ): TBVProtocolParams {
   return {
     minimumPegInAmount: result.minimumPegInAmount,
@@ -158,24 +221,33 @@ function mapTBVParams(
     maxHtlcOutputCount: result.maxHtlcOutputCount,
     expiredPegInGraceBlocks: result.expiredPegInGraceBlocks,
     maxFundingInputCount,
+    minActivationGas,
   };
 }
 
+// Widest struct first: a narrower tuple decodes a wider payload leniently.
 function resolveTBVParams(
+  withMinActivationGas: MulticallEntry,
   withFundingInputCap: MulticallEntry,
   preFundingInputCap: MulticallEntry,
 ): TBVProtocolParams {
+  if (withMinActivationGas.status === "success") {
+    const raw = withMinActivationGas.result as RawTBVParams;
+    return mapTBVParams(raw, raw.maxFundingInputCount, raw.minActivationGas);
+  }
   if (withFundingInputCap.status === "success") {
-    const raw = withFundingInputCap.result as RawTBVParams;
-    return mapTBVParams(raw, raw.maxFundingInputCount);
+    const raw = withFundingInputCap.result as RawPreMinActivationGasTBVParams;
+    return mapTBVParams(raw, raw.maxFundingInputCount, null);
   }
   if (preFundingInputCap.status === "success") {
     return mapTBVParams(
       preFundingInputCap.result as RawPreFundingInputCapTBVParams,
       null,
+      null,
     );
   }
-  throw withFundingInputCap.error;
+  // The most permissive decode's error is the real cause, not a width mismatch.
+  throw preFundingInputCap.error;
 }
 
 /**
@@ -218,14 +290,19 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
     private contractAddress: Address,
   ) {}
 
-  async getTBVProtocolParams(): Promise<TBVProtocolParams> {
-    const [withFundingInputCap, preFundingInputCap] =
+  async getTBVProtocolParams(blockNumber?: bigint): Promise<TBVProtocolParams> {
+    const [withMinActivationGas, withFundingInputCap, preFundingInputCap] =
       await this.publicClient.multicall({
+        blockNumber,
         contracts: this.tbvParamsCalls(),
         allowFailure: true,
       });
 
-    const params = resolveTBVParams(withFundingInputCap, preFundingInputCap);
+    const params = resolveTBVParams(
+      withMinActivationGas,
+      withFundingInputCap,
+      preFundingInputCap,
+    );
     validateTBVProtocolParams(params);
     return params;
   }
@@ -235,6 +312,11 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       {
         address: this.contractAddress,
         abi: ProtocolParamsABI,
+        functionName: "getTBVProtocolParams",
+      },
+      {
+        address: this.contractAddress,
+        abi: PRE_MIN_ACTIVATION_GAS_TBV_PARAMS_ABI,
         functionName: "getTBVProtocolParams",
       },
       {
@@ -350,12 +432,12 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       allowFailure: true,
     });
 
-    const tbvParams = resolveTBVParams(results[0], results[1]);
+    const tbvParams = resolveTBVParams(results[0], results[1], results[2]);
     const offchainParams = mapOffchainParams(
-      requireSuccess(results[2]) as RawOffchainParams,
+      requireSuccess(results[3]) as RawOffchainParams,
     );
-    const offchainParamsVersion = Number(requireSuccess(results[3]));
-    const activeVaultCoreVersion = Number(requireSuccess(results[4]));
+    const offchainParamsVersion = Number(requireSuccess(results[4]));
+    const activeVaultCoreVersion = Number(requireSuccess(results[5]));
 
     const config: PegInConfiguration = {
       minimumPegInAmount: tbvParams.minimumPegInAmount,
@@ -365,6 +447,7 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       maxHtlcOutputCount: tbvParams.maxHtlcOutputCount,
       expiredPegInGraceBlocks: tbvParams.expiredPegInGraceBlocks,
       maxFundingInputCount: tbvParams.maxFundingInputCount,
+      minActivationGas: tbvParams.minActivationGas,
       timelockPegin: deriveTimelockPegin(offchainParams.timelockAssert),
       timelockRefund: offchainParams.tRefund,
       maxVpCommissionBps: offchainParams.maxVpCommissionBps,

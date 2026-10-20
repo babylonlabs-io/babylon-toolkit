@@ -52,6 +52,7 @@
 
 # 5. HTLC secret & vault activation
 /services/vault/src/services/vault/vaultActivationService.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/services/vault/src/services/vault/activationGasLimit.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 
 # 6. Multi-vault split transactions
 /packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProtocolGateState } from "@/components/shared/protocolStatus";
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { COPY } from "@/copy";
+import { useActivationRedeemReasons } from "@/hooks/useActivationRedeemReasons";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
@@ -19,6 +20,7 @@ import {
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
+import type { ActivationRedeemReason } from "@/services/vault/activationRedeemReason";
 import type { RemovePendingPeginsResult } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
@@ -104,6 +106,13 @@ vi.mock("@/hooks/useReclaimVaultChainData", () => ({
 // resolves is driven per test.
 vi.mock("@/hooks/useRedeemClaimTxids", () => ({
   useRedeemClaimTxids: vi.fn(() => new Map<string, string>()),
+}));
+
+// Same reason as the claim links: the redeem-reason queries need a QueryClient.
+vi.mock("@/hooks/useActivationRedeemReasons", () => ({
+  useActivationRedeemReasons: vi.fn(
+    () => new Map<string, ActivationRedeemReason>(),
+  ),
 }));
 
 // The decode itself is covered in utils/btc; here only the row's use of it.
@@ -1048,6 +1057,7 @@ describe("VaultsLifecycleSections returned vault", () => {
 
   afterEach(() => {
     vi.mocked(useRedeemClaimTxids).mockReturnValue(new Map());
+    vi.mocked(useActivationRedeemReasons).mockReturnValue(new Map());
   });
 
   function renderReturnedRow(activity = REDEEMED_ACTIVITY) {
@@ -1106,6 +1116,30 @@ describe("VaultsLifecycleSections returned vault", () => {
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
       `https://mempool.space/signet/tx/${claimTxid}`,
+    );
+  });
+
+  it("the redeemed row's hint carries the reason sentence", () => {
+    vi.mocked(useActivationRedeemReasons).mockReturnValue(
+      new Map([[REDEEMED_ID, { kind: "cap_exceeded" }]]),
+    );
+
+    renderReturnedRow();
+
+    expect(screen.getByTestId("row-hint")).toHaveTextContent(
+      `${COPY.pegin.messages.redemptionInProgress} ${COPY.vaults.redeemReason.capExceeded}`,
+    );
+  });
+
+  it("the hint carries no sentence for an unknown reason", () => {
+    vi.mocked(useActivationRedeemReasons).mockReturnValue(
+      new Map([[REDEEMED_ID, { kind: "unknown" }]]),
+    );
+
+    renderReturnedRow();
+
+    expect(screen.getByTestId("row-hint").textContent).toBe(
+      COPY.pegin.messages.redemptionInProgress,
     );
   });
 

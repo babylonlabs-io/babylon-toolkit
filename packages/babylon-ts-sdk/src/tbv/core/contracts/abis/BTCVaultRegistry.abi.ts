@@ -669,6 +669,7 @@ export const BTCVaultRegistryABI = [
   { type: "error", name: "DuplicateHashlock", inputs: [] },
   { type: "error", name: "InvalidSecret", inputs: [] },
   { type: "error", name: "ActivationDeadlineExpired", inputs: [] },
+  { type: "error", name: "InsufficientGasForActivation", inputs: [] },
   // Lower bound on activation: reverts while
   // `block.number < verifiedAt + peginActivationDelay`. Clears with time, so
   // unlike ActivationDeadlineExpired it is retryable, not terminal.
@@ -876,6 +877,46 @@ export const BTCVaultRegistryABI = [
         type: "uint16",
         indexed: false,
         internalType: "uint16",
+      },
+    ],
+    anonymous: false,
+  },
+  // Activation succeeded (vault-contracts-aave-v4 `Events.sol:159` @ 102e78c5).
+  {
+    type: "event",
+    name: "PeginActivated",
+    inputs: [
+      {
+        name: "vaultId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "depositor",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "secret",
+        type: "bytes32",
+        indexed: false,
+        internalType: "bytes32",
+      },
+    ],
+    anonymous: false,
+  },
+  // Activation fell to the auto-redeem path (`Events.sol:197` @ 102e78c5).
+  {
+    type: "event",
+    name: "ActivationFailed",
+    inputs: [
+      {
+        name: "data",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
       },
     ],
     anonymous: false,

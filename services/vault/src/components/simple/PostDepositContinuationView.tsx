@@ -143,7 +143,8 @@ export function PostDepositContinuationView({
   // any other branch waits for the depositor in its gate.
   const autoStart = (action: PeginAction) =>
     admitted && (autoStartAction === "any" || autoStartAction === action);
-  const { refetch, getPollingResult } = usePeginPolling();
+  const { refetch, getPollingResult, activationReturnedReasons } =
+    usePeginPolling();
   const navigate = useNavigate();
 
   // Refresh on open because the shared poll can stop before this view mounts.
@@ -343,12 +344,21 @@ export function PostDepositContinuationView({
       states.some((state) => isVaultActivationReturned(state)) &&
       states.every((state) => isVaultPastActivation(state));
     if (showReturned) {
+      // A reason is shown only when it names the batch's one returned vault.
+      const returnedIds = vaultIds.filter((_, index) =>
+        isVaultActivationReturned(states[index]),
+      );
       return (
         <VaultReturnedView
           variant={
             states.every((state) => isVaultActivationReturned(state))
               ? "full"
               : "partial"
+          }
+          reason={
+            returnedIds.length === 1
+              ? activationReturnedReasons.get(returnedIds[0])
+              : undefined
           }
           onGoToDashboard={handleGoToDashboard}
         />

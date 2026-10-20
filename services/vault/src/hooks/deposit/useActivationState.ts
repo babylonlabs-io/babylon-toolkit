@@ -13,6 +13,7 @@ import { useActivatingVaults } from "@/applications/aave/context";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { ACTIVITIES_QUERY_KEY } from "@/services/activity";
+import type { ActivationRedeemReason } from "@/services/vault/activationRedeemReason";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
 import { parseBtcToSatoshis } from "@/utils/btcConversion";
@@ -58,6 +59,8 @@ export interface UseActivationStateResult {
   activating: boolean;
   /** How the activation ended; `null` until it completes. */
   outcome: ActivationOutcome | null;
+  /** Why a normal activation was returned; null until then, or when not returned. */
+  returnedReason: ActivationRedeemReason | null;
   /** Error message if activation failed */
   error: string | null;
   /** True when no retry can change the error (a passed deadline, an EXPIRED vault, an endpoint that cannot run the activation check) — no Retry. */
@@ -86,6 +89,8 @@ export function useActivationState({
   } = useVaultActions();
   const [localActivating, setLocalActivating] = useState(false);
   const [outcome, setOutcome] = useState<ActivationOutcome | null>(null);
+  const [returnedReason, setReturnedReason] =
+    useState<ActivationRedeemReason | null>(null);
 
   // Track mount: `handleActivation` awaits an on-chain tx, so the consumer
   // can unmount (modal closed) before the success/catch callbacks run.
@@ -130,7 +135,7 @@ export function useActivationState({
               queryKey: [ACTIVITIES_QUERY_KEY],
             });
           },
-          onShowSuccessModal: ({ collateralAdded, redeemed }) => {
+          onShowSuccessModal: ({ collateralAdded, redeemed, reason }) => {
             // Ahead of the mount guard, for both outcomes. The mark and the
             // optimistic CONFIRMED live in the app-scoped store and describe
             // the vault, not this consumer, which may have unmounted
@@ -143,7 +148,7 @@ export function useActivationState({
             // `vaultHandleActivation` just made), so no render sees CONFIRMED
             // without the mark — which reads as activated.
             if (redeemed && !redeemImmediately) {
-              markActivationReturned(activity.id);
+              markActivationReturned(activity.id, reason);
             }
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
             // Optimistically surface the just-activated vault in the dashboard
@@ -168,6 +173,7 @@ export function useActivationState({
             if (!mountedRef.current) return;
             setLocalActivating(false);
             setOutcome(redeemed ? "returned" : "activated");
+            setReturnedReason(reason);
           },
         });
       } catch {
@@ -198,6 +204,7 @@ export function useActivationState({
   return {
     activating: isActivating,
     outcome,
+    returnedReason,
     error: activationError,
     errorTerminal: activationErrorTerminal,
     errorOutcomeUnknown: activationOutcomeUnknown,

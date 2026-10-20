@@ -217,6 +217,7 @@ export function PeginPollingProvider({
     refundBroadcastAt: optimisticRefundBroadcastAt,
     wotsSubmittedAt,
     activationReturnedIds,
+    activationReturnedReasons,
   } = useSyncExternalStore(
     subscribeToOptimisticDepositState,
     getOptimisticDepositState,
@@ -232,7 +233,7 @@ export function PeginPollingProvider({
   useEffect(() => {
     for (const pegin of pendingPegins) {
       if (pegin.activationOutcome === "returned") {
-        markActivationReturned(pegin.id);
+        markActivationReturned(pegin.id, null);
       }
     }
   }, [pendingPegins]);
@@ -740,6 +741,7 @@ export function PeginPollingProvider({
       // wallet churn) keeps that status, so a provider-local mark would be lost
       // and the returned vault would read as activated again.
       markActivationReturned,
+      activationReturnedReasons,
       refreshHtlcSpends,
     }),
     [
@@ -748,6 +750,7 @@ export function PeginPollingProvider({
       refetch,
       setOptimisticStatus,
       addConfirmedRefund,
+      activationReturnedReasons,
       refreshHtlcSpends,
     ],
   );

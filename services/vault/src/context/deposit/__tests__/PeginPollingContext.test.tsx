@@ -509,7 +509,7 @@ describe("PeginPollingContext", () => {
     const { result } = renderHook(() => usePeginPolling(), { wrapper });
 
     act(() => {
-      result.current.markActivationReturned(ACTIVITY_ID);
+      result.current.markActivationReturned(ACTIVITY_ID, null);
       result.current.setOptimisticStatus(
         ACTIVITY_ID,
         LocalStorageStatus.CONFIRMED,
@@ -681,7 +681,7 @@ describe("PeginPollingContext", () => {
     );
     const first = renderHook(() => usePeginPolling(), { wrapper });
     act(() => {
-      first.result.current.markActivationReturned(ACTIVITY_ID);
+      first.result.current.markActivationReturned(ACTIVITY_ID, null);
       first.result.current.setOptimisticStatus(
         ACTIVITY_ID,
         LocalStorageStatus.CONFIRMED,

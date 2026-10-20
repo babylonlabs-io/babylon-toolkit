@@ -1269,6 +1269,9 @@ export const COPY = {
       // check cannot run and nothing is sent. Retrying cannot help.
       activationCheckUnsupported:
         "This app's network endpoint cannot run the activation check, so nothing was submitted. Please contact support.",
+      // Appended only when the revert was mined, which made the secret public.
+      activationRevertedSecretPublic:
+        "Because the transaction was mined, your HTLC secret is now public. Retry promptly, or use Withdraw once it becomes available, before the activation deadline.",
       // Surfaced if deposit execution is reached while the protocol is frozen or
       // paused — aborted up front, before the on-chain registration and the BTC
       // broadcast, so no funds are locked and the user can retry once it resumes.
@@ -1864,6 +1867,9 @@ export const COPY = {
     // chosen afresh on retry, by the wallet or, for activation, by the app.
     transactionOutOfGas: (used: string, limit: string) =>
       `Transaction ran out of gas (used ${used} of ${limit} limit). Try again.`,
+    // A mined revert whose reason could not be recovered by replaying it.
+    transactionRevertedReasonUnavailable: (hash: string) =>
+      `Transaction reverted. Hash: ${hash}. Check the transaction on block explorer for details.`,
     // A contract write was attempted with no wallet account connected.
     walletAccountUnavailable: "Wallet account not available",
     dismissNotification: "Dismiss notification",
@@ -2806,6 +2812,19 @@ export const COPY = {
     },
   },
   vaults: {
+    // One sentence appended to the redeem explanation: why activation redeemed the BTCVault.
+    redeemReason: {
+      capExceeded:
+        "This deposit would have exceeded the application's deposit limit or your per-address limit when the activation ran.",
+      appFailedWithoutReason:
+        "The application's activation step failed without giving a reason, most likely because it ran out of gas.",
+      appRejected: (errorName: string | null) =>
+        errorName
+          ? `The application rejected the BTCVault (${errorName}).`
+          : "The application rejected the BTCVault.",
+      depositorRedeemed:
+        "You chose to redeem this BTCVault instead of activating it.",
+    },
     refundTransactionLabel: "Refund transaction",
     // Transaction-cell caption on a redeemed vault's row once the vault
     // provider has broadcast its claim; the cell then links that tx.

@@ -9,6 +9,7 @@ import type {
   LocalStorageStatus,
   PeginState,
 } from "../models/peginStateMachine";
+import type { ActivationRedeemReason } from "../services/vault/activationRedeemReason";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import type { VaultActivity } from "../types/activity";
 
@@ -89,7 +90,12 @@ export interface PeginPollingContextValue {
    * holding the deposit record also stores the outcome on it
    * (`PendingPeginRequest.activationOutcome`), which survives a reload.
    */
-  markActivationReturned: (depositId: string) => void;
+  markActivationReturned: (
+    depositId: string,
+    reason: ActivationRedeemReason | null,
+  ) => void;
+  /** Why the registry returned each marked deposit, when its receipt said. */
+  activationReturnedReasons: ReadonlyMap<string, ActivationRedeemReason>;
   /**
    * Re-probe the HTLC spends now rather than on the next poll tick — after a
    * refund attempt learns the PegIn swept the deposit, so the row trades its

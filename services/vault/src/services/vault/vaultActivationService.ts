@@ -21,6 +21,7 @@ import {
 import type { Hex, WalletClient } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
+import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
 import {
   executeWrite,
   requireWalletAccount,
@@ -61,9 +62,14 @@ export interface ActivateVaultWithSecretParams extends ActivateVaultParams {
   depositorBtcPubKey: string;
 }
 
+/** The activation's result and the registry gate read before it was sent. */
+export type ActivationWriteResult = TransactionResult & {
+  minActivationGas: bigint | null;
+};
+
 export async function activateVaultWithSecret(
   params: ActivateVaultWithSecretParams,
-): Promise<TransactionResult> {
+): Promise<ActivationWriteResult> {
   const {
     vaultId,
     secret,
@@ -75,7 +81,10 @@ export async function activateVaultWithSecret(
 
   signal?.throwIfAborted();
 
-  const writer: EthContractWriter<TransactionResult> = async (call) => {
+  const writer: EthContractWriter<ActivationWriteResult> = async (call) => {
+    const { minActivationGas } = await (
+      await getProtocolParamsReader()
+    ).getTBVProtocolParams();
     // A wallet estimate can land on the registry's redeem path, so the limit
     // comes from a simulation shown to activate (see activationGasLimit).
     const simulation = {
@@ -84,10 +93,11 @@ export async function activateVaultWithSecret(
       call,
       vaultId,
       depositorBtcPubKey,
+      minActivationGas,
       signal,
     };
     const gas = await planActivationGasLimit(simulation);
-    return executeWrite({
+    const result = await executeWrite({
       walletClient,
       chain: getETHChain(),
       address: call.address,
@@ -100,9 +110,10 @@ export async function activateVaultWithSecret(
       // success says nothing here, since the redeem path succeeds too.
       preflight: () => assertActivationNotRedeemed({ ...simulation, gas }),
     });
+    return { ...result, minActivationGas };
   };
 
-  return activateVault<TransactionResult>({
+  return activateVault<ActivationWriteResult>({
     btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
     vaultId,
     secret,

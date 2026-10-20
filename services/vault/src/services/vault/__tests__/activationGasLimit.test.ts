@@ -69,7 +69,13 @@ const call: EthContractWriteCall = {
 };
 
 /** Everything the planner needs but the client. */
-const activation = { account: DEPOSITOR, call, vaultId, depositorBtcPubKey };
+const activation = {
+  account: DEPOSITOR,
+  call,
+  vaultId,
+  depositorBtcPubKey,
+  minActivationGas: null,
+};
 
 const collateralAddedLog = {
   address: ADAPTER,
@@ -90,22 +96,11 @@ const collateralAddedLog = {
   data: "0x",
 } as unknown as Log;
 
-// The registry's PeginActivated, which every successful run carries
-// (Events.sol:159 at a20b5e0d: vaultId and depositor indexed, secret in data).
+// The registry's PeginActivated, which every successful run carries.
 const peginActivatedLog = {
   address: REGISTRY,
   topics: encodeEventTopics({
-    abi: [
-      {
-        type: "event",
-        name: "PeginActivated",
-        inputs: [
-          { indexed: true, name: "vaultId", type: "bytes32" },
-          { indexed: true, name: "depositor", type: "address" },
-          { indexed: false, name: "secret", type: "bytes32" },
-        ],
-      },
-    ],
+    abi: BTCVaultRegistryABI,
     eventName: "PeginActivated",
     args: { vaultId, depositor: DEPOSITOR },
   }) as Log["topics"],
@@ -244,6 +239,72 @@ describe("planActivationGasLimit", () => {
     expect(probes.some((gas) => gas < ACTIVATES_FROM)).toBe(true);
     // A node estimate would have landed on the redeem path below it.
     expect(gasLimit).toBeGreaterThan(ACTIVATES_FROM);
+  });
+
+  it("never probes at or below the registry's minimum activation gas", async () => {
+    // A gated registry: below the gate the transaction reverts.
+    const { simulateBlocks, publicClient } = clientActivatingFrom(
+      5_400_000n,
+      "reverts",
+    );
+
+    const limit = await planActivationGasLimit({
+      publicClient,
+      ...activation,
+      minActivationGas: 5_000_000n,
+    });
+
+    expect(
+      probedGas(simulateBlocks)
+        .slice(1)
+        .every((g) => g > 5_000_000n),
+    ).toBe(true);
+    expect(limit).toBeGreaterThanOrEqual(5_400_000n);
+  });
+
+  it("searches from the gas used when the deployment has no minimum", async () => {
+    const { simulateBlocks, publicClient } =
+      clientActivatingFrom(ACTIVATES_FROM);
+
+    await planActivationGasLimit({
+      publicClient,
+      ...activation,
+      minActivationGas: null,
+    });
+
+    // The probes of the ungated search, starting just below ACTIVATION_GAS_USED.
+    expect(probedGas(simulateBlocks)).toEqual([
+      16_777_216n,
+      5_872_556n,
+      4_404_417n,
+      3_670_347n,
+      3_303_312n,
+      3_119_795n,
+      3_211_553n,
+      3_165_674n,
+    ]);
+  });
+
+  it("searches from the gas used when the minimum is zero", async () => {
+    const { simulateBlocks, publicClient } =
+      clientActivatingFrom(ACTIVATES_FROM);
+
+    await planActivationGasLimit({
+      publicClient,
+      ...activation,
+      minActivationGas: 0n,
+    });
+
+    expect(probedGas(simulateBlocks)).toEqual([
+      16_777_216n,
+      5_872_556n,
+      4_404_417n,
+      3_670_347n,
+      3_303_312n,
+      3_119_795n,
+      3_211_553n,
+      3_165_674n,
+    ]);
   });
 
   it("finds the limit in at most ten simulations", async () => {

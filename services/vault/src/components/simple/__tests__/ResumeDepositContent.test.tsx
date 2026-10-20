@@ -193,6 +193,7 @@ vi.mock("@/hooks/deposit/useActivationState", () => ({
   useActivationState: vi.fn(() => ({
     activating: false,
     outcome: null,
+    returnedReason: null,
     error: null,
     errorTerminal: false,
     errorOutcomeUnknown: false,
@@ -780,6 +781,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: null,
+      returnedReason: null,
       error: "User rejected the request.",
       errorTerminal: false,
       errorOutcomeUnknown: false,
@@ -818,6 +820,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
       vi.mocked(useActivationState).mockReturnValue({
         activating: false,
         outcome: null,
+        returnedReason: null,
         error: null,
         errorTerminal: false,
         errorOutcomeUnknown: false,
@@ -1392,6 +1395,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: "activated",
+      returnedReason: null,
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
@@ -1413,6 +1417,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: "returned",
+      returnedReason: null,
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
@@ -1436,6 +1441,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: "returned",
+      returnedReason: null,
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
@@ -1457,6 +1463,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: null,
+      returnedReason: null,
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
@@ -1478,6 +1485,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: true,
       outcome: null,
+      returnedReason: null,
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
@@ -1498,6 +1506,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: null,
+      returnedReason: null,
       error: "The activation deadline has passed.",
       errorTerminal: true,
       errorOutcomeUnknown: false,
@@ -1521,6 +1530,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: null,
+      returnedReason: null,
       error: COPY.pegin.messages.activationOrderInconsistent,
       errorTerminal: true,
       errorOutcomeUnknown: false,
@@ -1544,6 +1554,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: null,
+      returnedReason: null,
       error: COPY.deposit.errors.activationCheckUnsupported,
       errorTerminal: true,
       errorOutcomeUnknown: false,
@@ -1567,6 +1578,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: null,
+      returnedReason: null,
       error: "Some transient RPC error",
       errorTerminal: false,
       errorOutcomeUnknown: false,
@@ -1588,6 +1600,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
       outcome: null,
+      returnedReason: null,
       error: COPY.common.classifiedErrors.sendOutcomeUnknown,
       errorTerminal: false,
       errorOutcomeUnknown: true,

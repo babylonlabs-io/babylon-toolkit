@@ -60,6 +60,7 @@ function buildConfig(
     maxHtlcOutputCount: 2,
     expiredPegInGraceBlocks: 10n,
     maxFundingInputCount: 20,
+    minActivationGas: null,
     timelockPegin: 144,
     timelockRefund: 288,
     maxVpCommissionBps: 10,

@@ -45,6 +45,7 @@ import {
   isDefinitiveReceiptWaitFailure,
   isSimulationPhaseError,
   mapViemErrorToContractError,
+  tagMinedRevert,
   tagSimulationPhase,
 } from "../../../utils/errors";
 import { AAVE_WRITE_CONFIRMATIONS, RECEIPT_WAIT_ROUND_MS } from "../constants";
@@ -305,7 +306,7 @@ async function executeTx(
       data,
       account,
     ).catch((error: unknown) => {
-      throw mapError(error);
+      throw tagMinedRevert(mapError(error));
     });
   }
 

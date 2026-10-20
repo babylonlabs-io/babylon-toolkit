@@ -86,21 +86,35 @@ describe("optimisticDepositState", () => {
   });
 
   it("records an activation that returned the BTC", () => {
-    markActivationReturned(DEPOSIT_ID);
+    markActivationReturned(DEPOSIT_ID, null);
     expect(
       getOptimisticDepositState().activationReturnedIds.has(DEPOSIT_ID),
     ).toBe(true);
   });
 
+  it("stores the reason beside the returned mark", () => {
+    markActivationReturned(DEPOSIT_ID, { kind: "cap_exceeded" });
+    expect(
+      getOptimisticDepositState().activationReturnedReasons.get(DEPOSIT_ID),
+    ).toEqual({ kind: "cap_exceeded" });
+  });
+
+  it("a null reason leaves no entry", () => {
+    markActivationReturned(DEPOSIT_ID, null);
+    expect(
+      getOptimisticDepositState().activationReturnedReasons.has(DEPOSIT_ID),
+    ).toBe(false);
+  });
+
   it("keeps the snapshot reference stable when the same returned activation is recorded twice", () => {
-    markActivationReturned(DEPOSIT_ID);
+    markActivationReturned(DEPOSIT_ID, null);
     const after = getOptimisticDepositState();
-    markActivationReturned(DEPOSIT_ID);
+    markActivationReturned(DEPOSIT_ID, null);
     expect(getOptimisticDepositState()).toBe(after);
   });
 
   it("keeps a returned activation when a status is set afterwards", () => {
-    markActivationReturned(DEPOSIT_ID);
+    markActivationReturned(DEPOSIT_ID, null);
     setOptimisticDepositStatus(DEPOSIT_ID, LocalStorageStatus.CONFIRMED);
     expect(
       getOptimisticDepositState().activationReturnedIds.has(DEPOSIT_ID),

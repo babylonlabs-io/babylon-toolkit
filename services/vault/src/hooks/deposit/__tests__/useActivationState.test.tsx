@@ -3,10 +3,12 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ActivationRedeemReason } from "@/services/vault/activationRedeemReason";
 import type { VaultActivity } from "@/types/activity";
 
 let mockCollateralAdded = true;
 let mockRedeemed = false;
+let mockReason: ActivationRedeemReason | null = null;
 let mockActivationOutcomeUnknown = false;
 const mockHandleActivation = vi.fn(
   async ({
@@ -16,12 +18,14 @@ const mockHandleActivation = vi.fn(
     onShowSuccessModal: (outcome: {
       collateralAdded: boolean;
       redeemed: boolean;
+      reason: ActivationRedeemReason | null;
     }) => void;
     onRefetchActivities: () => void;
   }) => {
     onShowSuccessModal({
       collateralAdded: mockCollateralAdded,
       redeemed: mockRedeemed,
+      reason: mockReason,
     });
     onRefetchActivities();
   },
@@ -101,6 +105,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCollateralAdded = true;
   mockRedeemed = false;
+  mockReason = null;
   mockActivationOutcomeUnknown = false;
 });
 
@@ -172,7 +177,21 @@ describe("useActivationState", () => {
     });
 
     expect(result.current.outcome).toBe("activated");
+    expect(result.current.returnedReason).toBeNull();
     expect(mockMarkActivationReturned).not.toHaveBeenCalled();
+  });
+
+  it("exposes the redeem reason the activation reported", async () => {
+    mockCollateralAdded = false;
+    mockRedeemed = true;
+    mockReason = { kind: "cap_exceeded" };
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.handleActivation("0xsecret");
+    });
+
+    expect(result.current.returnedReason).toEqual({ kind: "cap_exceeded" });
   });
 
   it("reports the activated outcome when the receipt shows neither CollateralAdded nor a redemption", async () => {
@@ -203,7 +222,7 @@ describe("useActivationState", () => {
     });
 
     expect(result.current.outcome).toBe("returned");
-    expect(mockMarkActivationReturned).toHaveBeenCalledWith(VAULT_ID);
+    expect(mockMarkActivationReturned).toHaveBeenCalledWith(VAULT_ID, null);
     expect(mockSetOptimisticStatus).toHaveBeenCalledWith(VAULT_ID, "confirmed");
   });
 
@@ -238,7 +257,7 @@ describe("useActivationState", () => {
       await handleActivation("0xsecret");
     });
 
-    expect(mockMarkActivationReturned).toHaveBeenCalledWith(VAULT_ID);
+    expect(mockMarkActivationReturned).toHaveBeenCalledWith(VAULT_ID, null);
     expect(mockSetOptimisticStatus).toHaveBeenCalledWith(VAULT_ID, "confirmed");
   });
 

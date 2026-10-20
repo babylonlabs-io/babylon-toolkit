@@ -753,6 +753,7 @@ function ResumeActivationContentConnected({
   const {
     activating,
     outcome,
+    returnedReason,
     error: activationError,
     errorTerminal,
     errorOutcomeUnknown,
@@ -905,7 +906,11 @@ function ResumeActivationContentConnected({
   if (outcome === "returned") {
     // Only this vault's outcome is known here, so not the partial screen.
     return (
-      <VaultReturnedView variant="full" onGoToDashboard={onGoToDashboard} />
+      <VaultReturnedView
+        variant="full"
+        reason={returnedReason}
+        onGoToDashboard={onGoToDashboard}
+      />
     );
   }
 
