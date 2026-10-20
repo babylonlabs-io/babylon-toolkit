@@ -36,7 +36,7 @@ pnpm --filter @babylonlabs-io/ts-sdk run docs:clean
 
 Run `pnpm run lint` and `pnpm run test` in the affected service before considering work done. If the change touched `packages/babylon-ts-sdk`'s public surface, run `docs:clean` as well and commit the regenerated `docs/api/` output.
 
-The `verify` CI job regenerates those docs and diffs them against what is committed, failing with _"Generated API docs are stale"_. It is easy to miss locally: `docs:clean` is not part of `build`, `lint` or `test`, so a change can be green on all three and still fail CI. Note also that the generator prints hundreds of pre-existing warnings about undocumented symbols — those are not the failure; only staleness is.
+The Verify PR workflow regenerates those docs (in its "Lint, service builds and release checks" job) and diffs them against what is committed, failing with _"Generated API docs are stale"_ and so failing the required `verify` check. It is easy to miss locally: `docs:clean` is not part of `build`, `lint` or `test`, so a change can be green on all three and still fail CI. Note also that the generator prints hundreds of pre-existing warnings about undocumented symbols — those are not the failure; only staleness is.
 
 Run the SDK's own `test` script rather than `vitest` directly when checking that package. `pnpm --filter @babylonlabs-io/ts-sdk run test` is `build && vitest run && node --test tests/wasm-facade.node.mjs`; invoking `vitest` alone skips the build and the WASM-facade pin check that CI runs.
 
