@@ -12,10 +12,54 @@ concurrency:
 permissions:
   contents: read
 
+# The packages are built once, in `build`, and every other job restores their
+# gitignored `dist` directories from one tarball instead of rebuilding them.
+# That is also why every nx command whose target depends on a build passes
+# `--exclude-task-dependencies`: without it, that target rebuilds the packages
+# in each job, because the nx cache does not travel between jobs.
+env:
+  BUILT_PACKAGES_ARTIFACT: built-packages
+
 jobs:
-  verify:
+  build:
+    name: Build packages
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Build packages
+        run: pnpm exec nx run-many --target=build --projects=tag:type:package
+
+      # One tarball rather than the directories themselves: upload-artifact
+      # drops file modes, and the tarball keeps the paths exactly as built.
+      - name: Pack built packages
+        run: tar -cf "$RUNNER_TEMP/$BUILT_PACKAGES_ARTIFACT.tar" packages/*/dist
+
+      - name: Upload built packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: ${{ env.BUILT_PACKAGES_ARTIFACT }}
+          path: ${{ runner.temp }}/${{ env.BUILT_PACKAGES_ARTIFACT }}.tar
+          if-no-files-found: error
+          # "Re-run failed jobs" does not re-run this job, so a re-run reads this
+          # upload. A week covers re-running a failed job after a weekend.
+          retention-days: 7
+          # A re-run of this job uploads under the same name again.
+          overwrite: true
+
+  checks:
+    name: Lint, service builds and release checks
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -25,31 +69,19 @@ jobs:
           # The release rehearsal below resolves every package's current version
           # from its release tag, so the tags have to be present.
           fetch-tags: true
+          persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+      - name: Set up workspace
+        id: setup
+        uses: ./.github/actions/setup-workspace
         with:
-          node-version: '24.2.0'
+          built-packages-artifact: ${{ env.BUILT_PACKAGES_ARTIFACT }}
 
-      - name: Install Corepack
-        run: npm install -g corepack && corepack enable
-
-      - name: Resolve pnpm store path
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
-
-      - name: Cache pnpm store
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 https://github.com/actions/cache/releases/tag/v4.3.0
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
+      # The checks below are independent of each other, so each runs whenever
+      # the workspace is set up and a failure in one does not hide the others.
 
       - name: Single Version Policy
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |-
           # Exit immediately if any command in the script fails
           set -e
@@ -62,8 +94,14 @@ jobs:
             exit 1
           fi
 
-      # Note: a dedicated `nx typecheck` step is not run here, and adding one
-      # before this point would not work. Every project with a `build`
+      - name: Build services
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm exec nx run-many --target=build --projects=tag:type:service --exclude-task-dependencies
+        env:
+          NEXT_PUBLIC_TBV_NETWORK: devnet
+
+      # Note: a dedicated `nx typecheck` step is not run here, and running one
+      # without the built packages would not work. Every project with a `build`
       # declares an explicit `typecheck` script — that build's type-checking
       # pass, with `--noEmit` added where the build itself emits — which
       # overrides the stub @nx/js generates for `noEmit: true` projects and
@@ -72,24 +110,17 @@ jobs:
       # dependency's built `dist`, which is gitignored and not built on
       # install, and `typecheck` carries no `dependsOn: ["^build"]` (that was
       # tried and reverted: it drags a proto `git clone` and every dependency
-      # build into the foreground). So in a fresh clone, before `Build all`,
-      # tsc fails with module-not-found rather than reporting type errors.
-      # After the build, a blanket `nx affected -t typecheck` would mostly
-      # repeat each project's own build-time check — but not for every
-      # project, which is why `@internal/release`, whose only type-checking
-      # is its `typecheck` script, gets its own step below.
+      # build into the foreground). So in a fresh clone, before the packages
+      # are built, tsc fails with module-not-found rather than reporting type
+      # errors. With them restored, a blanket `nx affected -t typecheck` would
+      # mostly repeat each project's own build-time check — but not for every
+      # project, which is why `@internal/release`, whose only type-checking is
+      # its `typecheck` script, gets its own step below.
       # `/pre-review` runs this locally, where `dist` is usually populated.
 
-      - name: Build all
-        run: pnpm build
-        env:
-          NEXT_PUBLIC_TBV_NETWORK: devnet
-
-      - name: Check packed SDK consumer
-        run: pnpm exec nx run @babylonlabs-io/ts-sdk:check:packed-consumer
-
       - name: Typecheck the release driver
-        run: pnpm exec nx run @internal/release:typecheck
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm exec nx run @internal/release:typecheck --exclude-task-dependencies
 
       # tsx and vitest both strip types without checking them, and the driver
       # has no build target, so this is the only place its TypeScript is
@@ -97,114 +128,26 @@ jobs:
       # tagging anything: this is what catches a sibling whose version was
       # tagged but never published, before that blocks a real release.
       - name: Rehearse the release
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
           DRY_RUN: 'true'
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm run ci:release
 
       - name: Lint all
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm run lint
 
       - name: Check the vault env manifest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm --filter @services/vault run check:env-manifest
-
-      - name: Install browsers for browser tests
-        id: browsers
-        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium firefox
-
-      - name: Check packed wallet consumer
-        run: pnpm exec nx run @babylonlabs-io/wallet-connector:check:packed-consumer
-
-      # Check split-deposit lanes at 360px with Vault's own browser version.
-      - name: Install Chromium for Vault layout
-        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
-
-      - name: Test vault layout in Chromium
-        env:
-          PLAYWRIGHT_HTML_OPEN: never
-        run: pnpm exec nx run @services/vault:test-layout
-
-      - name: Upload vault layout results
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
-        with:
-          name: vault-layout-results
-          path: |
-            services/vault/playwright-report
-            services/vault/test-results
-
-      - name: Test SDK in Chromium
-        run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
-
-      - name: Test wallet connections in Chromium
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        env:
-          PLAYWRIGHT_HTML_OPEN: never
-        run: xvfb-run -a pnpm exec nx run @babylonlabs-io/wallet-connector:test:e2e
-
-      - name: Test Vault browsers
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        env:
-          PLAYWRIGHT_HTML_OPEN: never
-        run: pnpm exec nx run @services/vault:test:e2e --retries=0
-
-      - name: Build staking for browser tests
-        id: staking-browser-build
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        env:
-          NEXT_BUILD_E2E: 'true'
-          DISABLE_SENTRY: 'true'
-        run: pnpm exec nx run @services/simple-staking:build:e2e
-
-      - name: Test staking browsers
-        if: ${{ !cancelled() && steps.staking-browser-build.outcome == 'success' }}
-        env:
-          PLAYWRIGHT_HTML_OPEN: never
-        run: pnpm exec nx run @services/simple-staking:test:e2e --retries=0
-
-      - name: Upload app browser results
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
-        with:
-          name: app-browser-results
-          path: |
-            services/vault/playwright-report
-            services/vault/test-results
-            services/simple-staking/playwright-report
-            services/simple-staking/test-results
-
-      - name: Test affected
-        if: ${{ !cancelled() }}
-        id: tests
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm exec nx affected --target=test --base=origin/main --verbose 2>&1 | tee /tmp/test-output.log
-
-      - name: Append test summary
-        if: always() && steps.tests.conclusion != 'skipped'
-        shell: bash
-        run: |
-          {
-            echo "## Test results"
-            echo ""
-            if [ "${{ steps.tests.outcome }}" = "success" ]; then
-              echo ":white_check_mark: All affected tests passed."
-            else
-              echo ":x: Tests failed. Tail of output:"
-              echo ""
-              echo '```'
-              tail -n 200 /tmp/test-output.log || true
-              echo '```'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
 
       # Replaces `docs:validate`, which used --emit none and so never rendered
       # pages — meaning it could not see the strip or its guard in
-      # typedoc-plugin.mjs. MUST stay after "Build all": docs output depends on
-      # the gitignored babylon-tbv-rust-wasm/dist.
+      # typedoc-plugin.mjs. MUST run on the restored packages: docs output
+      # depends on the gitignored babylon-tbv-rust-wasm/dist.
       - name: Check generated API docs are current
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         shell: bash
         run: |
           set -o pipefail
@@ -239,3 +182,211 @@ jobs:
 
           echo "::error::Generated API docs are stale — run: pnpm --filter @babylonlabs-io/ts-sdk run docs:clean"
           exit 1
+
+  unit:
+    name: Unit tests
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          # `nx affected` compares against origin/main.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          built-packages-artifact: ${{ env.BUILT_PACKAGES_ARTIFACT }}
+
+      - name: Test affected
+        id: tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm exec nx affected --target=test --base=origin/main --exclude-task-dependencies --verbose 2>&1 | tee /tmp/test-output.log
+
+      - name: Append test summary
+        if: always() && steps.tests.conclusion != 'skipped'
+        shell: bash
+        run: |
+          {
+            echo "## Test results"
+            echo ""
+            if [ "${{ steps.tests.outcome }}" = "success" ]; then
+              echo ":white_check_mark: All affected tests passed."
+            else
+              echo ":x: Tests failed. Tail of output:"
+              echo ""
+              echo '```'
+              tail -n 200 /tmp/test-output.log || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  packages:
+    name: Package checks
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        id: setup
+        uses: ./.github/actions/setup-workspace
+        with:
+          built-packages-artifact: ${{ env.BUILT_PACKAGES_ARTIFACT }}
+
+      # The SDK browser test and the packed wallet consumer both drive Chromium.
+      - name: Install Chromium
+        id: browsers
+        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium
+
+      - name: Check packed SDK consumer
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:check:packed-consumer --exclude-task-dependencies
+
+      - name: Check packed wallet consumer
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: pnpm exec nx run @babylonlabs-io/wallet-connector:check:packed-consumer --exclude-task-dependencies
+
+      - name: Test SDK in Chromium
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser --exclude-task-dependencies
+
+  wallet-e2e:
+    name: Wallet browser tests
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          built-packages-artifact: ${{ env.BUILT_PACKAGES_ARTIFACT }}
+
+      - name: Install Chromium
+        run: pnpm --filter @babylonlabs-io/wallet-connector exec playwright install --with-deps chromium
+
+      # The wallet extensions only load in a headed browser, hence xvfb.
+      - name: Test wallet connections in Chromium
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: xvfb-run -a pnpm exec nx run @babylonlabs-io/wallet-connector:test:e2e --exclude-task-dependencies
+
+  vault-e2e:
+    name: Vault browser tests
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          built-packages-artifact: ${{ env.BUILT_PACKAGES_ARTIFACT }}
+
+      - name: Install Chromium
+        id: browsers
+        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
+
+      # Every Playwright project, the god-mode layout and tour specs included.
+      - name: Test Vault browsers
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/vault:test:e2e --exclude-task-dependencies --retries=0
+
+      - name: Upload Vault browser results
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: vault-browser-results
+          path: |
+            services/vault/playwright-report
+            services/vault/test-results
+          overwrite: true
+
+  staking-e2e:
+    name: Staking browser tests
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          built-packages-artifact: ${{ env.BUILT_PACKAGES_ARTIFACT }}
+
+      - name: Install browsers
+        run: pnpm --filter @services/simple-staking exec playwright install --with-deps chromium firefox
+
+      - name: Build staking for browser tests
+        id: staking-browser-build
+        env:
+          NEXT_BUILD_E2E: 'true'
+          DISABLE_SENTRY: 'true'
+        run: pnpm exec nx run @services/simple-staking:build:e2e --exclude-task-dependencies
+
+      - name: Test staking browsers
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/simple-staking:test:e2e --exclude-task-dependencies --retries=0
+
+      - name: Upload staking browser results
+        if: ${{ !cancelled() && steps.staking-browser-build.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: staking-browser-results
+          path: |
+            services/simple-staking/playwright-report
+            services/simple-staking/test-results
+          overwrite: true
+
+  # The required check: ruleset `critical-pr-safety-checks` requires `verify`,
+  # so this job keeps that name and passes only when every job above passed.
+  # `always()` is load-bearing. A job skipped by a condition counts as a
+  # passing required check, so without it a failure above would skip this job
+  # and leave the PR mergeable.
+  verify:
+    needs: [build, checks, unit, packages, wallet-e2e, vault-e2e, staking-e2e]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Require every job to pass
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          not_passed="$(jq -r 'to_entries[] | select(.value.result != "success") | "\(.key) (\(.value.result))"' <<< "$NEEDS")"
+          if [ -n "$not_passed" ]; then
+            echo "::error::Every Verify PR job must succeed. Not successful: $(paste -sd ',' - <<< "$not_passed")"
+            exit 1
+          fi
+          echo "Every Verify PR job succeeded."

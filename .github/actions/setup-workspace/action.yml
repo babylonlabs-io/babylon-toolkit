@@ -1,0 +1,56 @@
+name: Set up workspace
+description: >
+  Node.js, pnpm and the workspace dependencies, installed the same way in every
+  Verify PR job. Given the artifact the `build` job uploaded, it also restores
+  the packages' built `dist` directories, so the job uses those outputs instead
+  of rebuilding them.
+
+inputs:
+  built-packages-artifact:
+    description: >
+      Name of the artifact holding `<name>.tar`, a tarball of `packages/*/dist`.
+      Leave empty to skip restoring the built packages.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+      with:
+        node-version: '24.2.0'
+
+    - name: Install Corepack
+      shell: bash
+      run: npm install -g corepack && corepack enable
+
+    - name: Resolve pnpm store path
+      shell: bash
+      run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+    - name: Cache pnpm store
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 https://github.com/actions/cache/releases/tag/v4.3.0
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile --prefer-offline
+
+    - name: Download built packages
+      if: inputs.built-packages-artifact != ''
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0 https://github.com/actions/download-artifact/releases/tag/v4.3.0
+      with:
+        name: ${{ inputs.built-packages-artifact }}
+        path: ${{ runner.temp }}/built-packages
+
+    - name: Restore built packages
+      if: inputs.built-packages-artifact != ''
+      shell: bash
+      env:
+        ARTIFACT: ${{ inputs.built-packages-artifact }}
+      run: tar -xf "$RUNNER_TEMP/built-packages/$ARTIFACT.tar"

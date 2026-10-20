@@ -862,9 +862,13 @@ roles have different review requirements. Satisfy both.
 
 - All third-party actions are **pinned to full commit SHAs** with a version comment. Preserve this;
   a tag reference is mutable.
-- `verify.yml` runs syncpack, a full build, lint, and `nx affected --target=test`. Note that tests
-  are **affected-scoped** while build and lint are not — a change that alters behaviour without
-  touching a project Nx considers affected runs fewer tests than a full sweep.
+- `verify.yml` builds the packages once, then runs in parallel jobs: syncpack, the service
+  builds, lint, the release rehearsal and the API-docs check; `nx affected --target=test`; the
+  packed SDK and wallet consumer checks and the SDK browser test; and the wallet, Vault and staking
+  browser suites. Its final `verify` job, the required check, fails unless every other job
+  succeeded. Note that unit tests are **affected-scoped** while build, lint and the browser suites
+  are not — a change that alters behaviour without touching a project Nx considers affected runs
+  fewer unit tests than a full sweep.
 - `critical-path-check.yml` comments and labels PRs touching critical paths but **does not block**.
   Enforcement of the two-approval rule requires a GitHub ruleset scoped to those path globs with
   `required_approving_review_count: 2` — CODEOWNERS alone cannot express it, as the comment in
