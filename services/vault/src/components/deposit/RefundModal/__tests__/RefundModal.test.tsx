@@ -9,6 +9,7 @@ import { getRefundPreview } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
 
 import { RefundModal } from "../index";
+import { RefundReviewContent } from "../RefundReviewContent";
 
 // The shared v3 modal shell renders the app's top bar (network badge +
 // settings), whose graph reaches wallet-connector and can't be transformed
@@ -280,6 +281,56 @@ describe("RefundModal", () => {
     expect(screen.getByText("Refund Amount")).toBeInTheDocument();
     expect(screen.getByText("0.01 sBTC")).toBeInTheDocument();
     expect(await screen.findByText("$500.00 USD")).toBeInTheDocument();
+    expect(screen.getByText("Recommended: 5 sats/vB")).toBeInTheDocument();
+  });
+
+  it.each([null, 0])(
+    "does not call the fallback rate recommended when the source returns %s",
+    async (recommendation) => {
+      vi.mocked(getRefundPreview).mockResolvedValueOnce({
+        amountSats: 1_000_000n,
+        feeCapBasisSats: 1_000_000n,
+        halfHourFeeSatsVb: recommendation,
+        prePeginOnChain: true,
+      });
+      renderRefundModal();
+
+      expect(
+        await screen.findByText("Recommendation unavailable"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Recommended:/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
+    },
+  );
+
+  it("refreshes the recommendation without changing a manual fee rate", async () => {
+    const onConfirm = vi.fn();
+    const props = {
+      amountSats: 1_000_000n,
+      feeCapBasisSats: 1_000_000n,
+      defaultFeeRateSatsVb: 5,
+      previewError: null,
+      refunding: false,
+      error: null,
+      onConfirm,
+    };
+    const { rerender } = render(<RefundReviewContent {...props} />, {
+      wrapper: Wrapper,
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "5 sats/vB" }));
+    fireEvent.change(screen.getByRole("spinbutton"), {
+      target: { value: "7" },
+    });
+    fireEvent.keyDown(screen.getByRole("spinbutton"), { key: "Enter" });
+
+    rerender(<RefundReviewContent {...props} defaultFeeRateSatsVb={9} />);
+
+    expect(screen.getByText("Recommended: 9 sats/vB")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "7 sats/vB" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onConfirm).toHaveBeenCalledWith(7);
   });
 
   it("disables Confirm and shows the rate-cap banner when mempool returns a malicious fee rate", async () => {

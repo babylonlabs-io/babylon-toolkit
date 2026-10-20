@@ -188,6 +188,15 @@ export function RefundReviewContent({
 
           <ReviewDetailRow
             label={COPY.deposit.refundReview.networkFeeRate}
+            secondaryValue={
+              defaultFeeRateSatsVb !== null &&
+              Number.isFinite(defaultFeeRateSatsVb) &&
+              defaultFeeRateSatsVb > 0
+                ? COPY.deposit.refundReview.recommendedFeeRate(
+                    defaultFeeRateSatsVb,
+                  )
+                : COPY.deposit.refundReview.recommendationUnavailable
+            }
             value={
               feeRate !== null ? (
                 <FeeRateField
