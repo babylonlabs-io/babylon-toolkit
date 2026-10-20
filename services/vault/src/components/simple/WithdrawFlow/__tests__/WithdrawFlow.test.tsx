@@ -448,3 +448,28 @@ describe("WithdrawFlow review commission (issue #2546)", () => {
     expect(executeWithdraw).not.toHaveBeenCalled();
   });
 });
+
+describe("WithdrawFlow after a successful withdrawal", () => {
+  it("shows the unused claim reserve reminder directly below the success text, and not on Review", async () => {
+    renderFlow();
+
+    fireEvent.click(continueButton());
+
+    expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.withdraw.initiated.reserveReminder),
+    ).not.toBeInTheDocument();
+
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("withdraw-confirm-button"));
+
+    const reminder = await screen.findByText(
+      COPY.withdraw.initiated.reserveReminder,
+    );
+    expect(reminder.previousElementSibling).toHaveTextContent(
+      COPY.withdraw.initiated.body,
+    );
+  });
+});
