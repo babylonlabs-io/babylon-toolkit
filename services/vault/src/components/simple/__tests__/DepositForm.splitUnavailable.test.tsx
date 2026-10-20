@@ -8,7 +8,7 @@
  * unavailable, which was simply untrue. These pin each reason to its own copy.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -51,8 +51,16 @@ vi.mock("../VaultProviderSelectorV3", () => ({
   VaultProviderSelectorV3: () => null,
 }));
 vi.mock("@/components/shared", () => ({
-  DepositButton: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
+  DepositButton: ({
+    children,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    disabled?: boolean;
+  }) => (
+    <button type="button" disabled={disabled}>
+      {children}
+    </button>
   ),
 }));
 
@@ -101,7 +109,10 @@ const walletState: DepositWalletState = {
   isWalletConnected: true,
 };
 
-function renderForm(gatingOverrides: Partial<DepositGatingState>) {
+function renderForm(
+  gatingOverrides: Partial<DepositGatingState>,
+  feeOverrides: Partial<DepositFeeState> = {},
+) {
   const gatingState: DepositGatingState = {
     isDepositDisabled: false,
     isGeoBlocked: false,
@@ -112,7 +123,7 @@ function renderForm(gatingOverrides: Partial<DepositGatingState>) {
   render(
     <DepositForm
       amountState={amountState}
-      feeState={feeState}
+      feeState={{ ...feeState, ...feeOverrides }}
       providerState={providerState}
       walletState={walletState}
       gatingState={gatingState}
@@ -129,6 +140,27 @@ function renderForm(gatingOverrides: Partial<DepositGatingState>) {
 describe("DepositForm split-unavailable hint", () => {
   const PROTOCOL_HINT =
     COPY.deposit.maxVaultsReached.splitUnavailableProtocolLimit;
+
+  it("lets the user refresh a blocked ETH balance check", () => {
+    let refreshCount = 0;
+    renderForm(
+      {},
+      {
+        ethBalanceBlocked: true,
+        ethBalanceMessage: COPY.deposit.errors.insufficientEthForGas.body,
+        onRefreshEthBalance: () => {
+          refreshCount += 1;
+        },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.deposit.form.refreshEthBalance,
+      }),
+    );
+    expect(refreshCount).toBe(1);
+    expect(screen.getByRole("button", { name: "Deposit" })).toBeDisabled();
+  });
 
   it("shows no hint when a split is available", () => {
     renderForm({ splitUnavailableReason: null });
@@ -203,5 +235,30 @@ describe("DepositForm split-unavailable hint", () => {
       screen.getByText(COPY.deposit.liveVaultCapReached.splitUnavailable),
     ).toBeInTheDocument();
     expect(screen.queryByText(PROTOCOL_HINT)).not.toBeInTheDocument();
+  });
+});
+
+describe("DepositForm ETH balance check", () => {
+  it.each([
+    COPY.deposit.form.ethBalanceChecking,
+    COPY.deposit.errors.ethBalanceUnavailable.body,
+    COPY.deposit.errors.insufficientEthForGas.body,
+  ])("blocks Deposit and shows %s", (message) => {
+    renderForm({}, { ethBalanceBlocked: true, ethBalanceMessage: message });
+    expect(screen.getByRole("button", { name: "Deposit" })).toBeDisabled();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+  it("keeps Deposit enabled and states that gas is checked later", () => {
+    renderForm(
+      {},
+      {
+        ethBalanceBlocked: false,
+        ethBalanceMessage: COPY.deposit.form.registrationGasCheckedLater,
+      },
+    );
+    expect(screen.getByRole("button", { name: "Deposit" })).toBeEnabled();
+    expect(
+      screen.getByText(COPY.deposit.form.registrationGasCheckedLater),
+    ).toBeInTheDocument();
   });
 });

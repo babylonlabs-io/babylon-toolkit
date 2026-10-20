@@ -1,12 +1,16 @@
 import { Heading } from "@babylonlabs-io/core-ui";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
+import { useAccount } from "wagmi";
 
+import { ethClient } from "@/clients/eth-contract/client";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { FeatureFlags } from "@/config";
+import { getETHChain } from "@/config/network";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import {
@@ -99,6 +103,8 @@ function SimpleDepositContent({
     isLoading: isScreeningLoading,
   } = useAddressScreening();
   const { address: connectedEthAddress } = useETHWallet();
+  const { chainId: walletChainId } = useAccount();
+  const queryClient = useQueryClient();
   const {
     address: connectedBtcAddress,
     reconnect: reconnectBtcWallet,
@@ -259,6 +265,7 @@ function SimpleDepositContent({
 
   const {
     feeWei: protocolFeeWei,
+    isLoading: protocolFeeIsLoading,
     feeEthFormatted: protocolFeeAmount,
     feeUsdFormatted: protocolFeePrice,
     isError: protocolFeeIsError,
@@ -267,7 +274,52 @@ function SimpleDepositContent({
       ? (formData.selectedProvider as Address)
       : undefined,
     depositBatchSize,
+    amountSats,
   );
+  const ethBalance = useQuery({
+    queryKey: [
+      "depositEthBalance",
+      connectedEthAddress,
+      getETHChain().id,
+      walletChainId,
+      formData.selectedProvider,
+      depositBatchSize,
+      amountSats.toString(),
+    ],
+    queryFn: () =>
+      ethClient.getPublicClient().getBalance({
+        address: connectedEthAddress as Address,
+      }),
+    enabled: open && !!connectedEthAddress && !!formData.selectedProvider,
+    staleTime: 30_000,
+    refetchOnWindowFocus: "always",
+    retry: 1,
+  });
+  const ethBalanceWei =
+    typeof ethBalance.data === "bigint" && ethBalance.data >= 0n
+      ? ethBalance.data
+      : null;
+  const ethBalanceMessage =
+    !connectedEthAddress || !formData.selectedProvider
+      ? null
+      : protocolFeeIsLoading || ethBalance.isFetching
+        ? COPY.deposit.form.ethBalanceChecking
+        : protocolFeeIsError ||
+            protocolFeeWei === null ||
+            ethBalance.isError ||
+            ethBalanceWei === null
+          ? COPY.deposit.errors.ethBalanceUnavailable.body
+          : ethBalanceWei <= protocolFeeWei
+            ? COPY.deposit.errors.insufficientEthForGas.body
+            : COPY.deposit.form.registrationGasCheckedLater;
+  const ethBalanceBlocked =
+    protocolFeeIsLoading ||
+    ethBalance.isFetching ||
+    protocolFeeWei === null ||
+    ethBalanceWei === null ||
+    protocolFeeIsError ||
+    ethBalance.isError ||
+    ethBalanceWei <= protocolFeeWei;
 
   const totalDepositorClaimValue =
     depositorClaimValue !== undefined
@@ -415,7 +467,7 @@ function SimpleDepositContent({
     }
     if (!requireBtcWallet()) return;
 
-    if (!validateForm()) return;
+    if (!validateForm() || ethBalanceBlocked) return;
     if (isVerifyingWallet) return;
 
     if (btcWalletProvider && connectedBtcAddress) {
@@ -536,6 +588,14 @@ function SimpleDepositContent({
                   protocolFeeAmount,
                   protocolFeePrice,
                   protocolFeeIsError,
+                  ethBalanceBlocked,
+                  ethBalanceMessage,
+                  onRefreshEthBalance: () => {
+                    void queryClient.invalidateQueries({
+                      queryKey: ["depositPeginFee"],
+                    });
+                    void ethBalance.refetch();
+                  },
                   feeRows,
                 }}
                 providerState={{

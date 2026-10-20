@@ -103,6 +103,9 @@ export interface DepositFeeState {
   protocolFeeAmount?: string;
   protocolFeePrice?: string;
   protocolFeeIsError?: boolean;
+  ethBalanceBlocked?: boolean;
+  ethBalanceMessage?: string | null;
+  onRefreshEthBalance?: () => void;
   feeRows?: FeeRow[];
 }
 
@@ -250,6 +253,9 @@ export function DepositForm({
     protocolFeeAmount = "--",
     protocolFeePrice = "",
     protocolFeeIsError = false,
+    ethBalanceBlocked = false,
+    ethBalanceMessage = null,
+    onRefreshEthBalance,
     feeRows,
   } = feeState;
   const { providers, isLoadingProviders, selectedProvider, onProviderSelect } =
@@ -559,6 +565,20 @@ export function DepositForm({
             {walletConnectionErrorMessage}
           </p>
         )}
+      {ethBalanceMessage && (
+        <p className="text-sm text-accent-secondary" role="status">
+          {ethBalanceMessage}
+          {ethBalanceBlocked && onRefreshEthBalance && (
+            <button
+              type="button"
+              className="ml-2 underline"
+              onClick={onRefreshEthBalance}
+            >
+              {COPY.deposit.form.refreshEthBalance}
+            </button>
+          )}
+        </p>
+      )}
       <DepositButton
         variant="contained"
         color="primary"
@@ -567,6 +587,9 @@ export function DepositForm({
         className={V3_CTA_CLASSES}
         disabled={
           cta.disabled ||
+          (isWalletConnected &&
+            !hasWalletConnectionError &&
+            ethBalanceBlocked) ||
           isVerifyingWallet ||
           isVaultCapReached ||
           vaultCountCapUnavailable
