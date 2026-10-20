@@ -219,9 +219,10 @@
 }
 
 .bbn-liq-zoom {
-  position: absolute;
   display: flex;
+  justify-content: flex-end;
   gap: 0.25rem;
+  margin-top: 0.5rem;
 }
 .bbn-liq-zoom button {
   width: 1.75rem;
