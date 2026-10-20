@@ -20,6 +20,7 @@ import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
 
+import { BatchSiblingMismatchError } from "../batchSiblingMismatchError";
 import {
   COMMISSION_UNAVAILABLE_ERROR,
   isDeviceDisconnectedContent,
@@ -788,6 +789,15 @@ describe("mapDepositError", () => {
       { vaultId: "0xabc", cause: new Error("execution reverted") },
     );
     expect(mapDepositError(err)).toEqual(ERRORS.positionCapacityUnavailable);
+  });
+
+  it("maps a listed batch sibling the chain contradicts to the batch-mismatch callout", () => {
+    const err = new BatchSiblingMismatchError({
+      vaultId: "0xabc",
+      siblingId: "0xdef",
+      field: "depositor",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.batchSiblingMismatch);
   });
 
   it("classifies a coded-only rejection preserved as a wrapper's cause as a signing rejection", () => {

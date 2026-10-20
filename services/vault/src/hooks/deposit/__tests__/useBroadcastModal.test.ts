@@ -37,6 +37,21 @@ describe("useBroadcastModal", () => {
     expect(result.current.isOpen).toBe(true);
   });
 
+  it("opens on the clicked vault, not the batch's first, when a later sibling is clicked", () => {
+    const a = { ...activity("0xa", "0xshared", "0.05"), constructionIndex: 0 };
+    const b = { ...activity("0xb", "0xshared", "0.03"), constructionIndex: 1 };
+
+    const { result } = renderHook(() =>
+      useBroadcastModal({ allActivities: [a, b], onSuccess: vi.fn() }),
+    );
+
+    act(() => result.current.handleBroadcastClick("0xb"));
+
+    expect(result.current.broadcastingActivity).toBe(b);
+    expect(result.current.broadcastingBatchIds).toEqual(["0xa", "0xb"]);
+    expect(result.current.isOpen).toBe(true);
+  });
+
   it("resolves a single-vault batch for a standalone deposit", () => {
     const a = activity("0xa", "0xshared", "0.05");
     const c = activity("0xc", "0xother", "0.10");

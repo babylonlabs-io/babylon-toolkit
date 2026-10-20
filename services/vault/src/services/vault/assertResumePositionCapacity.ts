@@ -21,12 +21,11 @@
  * (vault-contracts-aave-v4@06f46477:src/applications/aave/AaveAdapter.sol:137;
  * `vaultActivationService.ts`).
  *
- * The batch is whatever the broadcast funds. On resume it comes from the
- * transaction, not from the listing: the hash-bound Pre-PegIn's HTLC outputs,
- * each of which must be held by exactly one of this depositor's vaults on
- * chain. An under-listed batch would otherwise ask about too few vaults and
- * pass. A new deposit passes `assertPositionAcceptsBatch` the batch it built
- * and funded itself, so there is no listing to cross-check.
+ * The transaction's HTLC outputs define the resumed batch. Each listed vault
+ * must hold one output and be registered to this Pre-PegIn, depositor and
+ * application. Refuse an incomplete batch or a mismatched vault. Otherwise,
+ * success could mark an unfunded vault as confirmed. A new deposit passes
+ * `assertPositionAcceptsBatch` the batch it built and funded itself.
  *
  * Advisory, and fail closed. The read is a snapshot that reserves nothing: a
  * concurrent activation or a later parameter change can still fail activation,
@@ -53,6 +52,7 @@ import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
 import { countPrePeginHtlcOutputs } from "@/utils/btc/prePeginHtlcOutputCount";
 import {
+  BatchSiblingMismatchError,
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
 } from "@/utils/errors";
@@ -82,8 +82,10 @@ export interface AssertResumePositionCapacityParams {
   unsignedTxHex: string;
   /**
    * Every vault the indexer groups under this Pre-PegIn, including `vaultId`.
-   * Discovery input only: a listed vault counts when its on-chain hash and
-   * depositor match the target, and the result must cover every HTLC output.
+   * The listing is untrusted and is verified, not filtered: each listed vault
+   * must be registered on chain to `target`'s Pre-PegIn, depositor and
+   * application, or the broadcast is refused, and the vaults found must hold
+   * every HTLC output of the transaction.
    */
   batchVaultIds: readonly Hex[];
 }
@@ -110,35 +112,65 @@ function capacityUnavailable(vaultId: Hex, failedStep: string) {
 }
 
 /**
- * On-chain records of the listed vaults that belong to this deposit: same
- * registered Pre-PegIn hash and same depositor. A cheap hash-only read filters
- * first; full records are read only for the matches. A same-hash vault of
- * another depositor is dropped: the registry reserves each output per
- * depositor (vault-contracts-aave-v4@06f46477:src/protocol/lib/PeginLogic.sol:130-139),
- * so such a vault is not in this position.
+ * On-chain records of the listed siblings, each required to be registered to
+ * the target's Pre-PegIn, depositor and application. The cheap hash-only read
+ * runs first, so a vault of another Pre-PegIn is refused before any full
+ * record is read; `prePeginTxHash` is immutable per vault ID, so that read
+ * decides it. Only the two chain reads are wrapped as "unavailable", so the
+ * typed refusal escapes as itself.
+ *
+ * @throws {BatchSiblingMismatchError} a listed sibling is registered to
+ *   another Pre-PegIn, depositor or application.
+ * @throws {PositionCapacityUnavailableError} a chain read failed.
  */
-async function readSameDepositorSiblings(
+async function readBatchSiblings(
+  vaultId: Hex,
   target: ResumePositionCapacityTarget,
   listedSiblingIds: readonly Hex[],
 ): Promise<Array<{ vaultId: Hex; vault: OnChainVaultData }>> {
   if (listedSiblingIds.length === 0) return [];
 
-  const protocolInfos =
-    await getVaultRegistryReader().getProtocolInfoBatch(listedSiblingIds);
-  const hashMatchedIds = listedSiblingIds.filter((_, i) =>
-    sameHex(protocolInfos[i].prePeginTxHash, target.prePeginTxHash),
-  );
+  const protocolInfos = await getVaultRegistryReader()
+    .getProtocolInfoBatch(listedSiblingIds)
+    .catch(
+      capacityUnavailable(
+        vaultId,
+        "read the batch's Pre-PegIn hashes from chain",
+      ),
+    );
+  for (const [i, siblingId] of listedSiblingIds.entries()) {
+    if (!sameHex(protocolInfos[i].prePeginTxHash, target.prePeginTxHash)) {
+      throw new BatchSiblingMismatchError({
+        vaultId,
+        siblingId,
+        field: "prePeginTxHash",
+      });
+    }
+  }
+
   const records = await Promise.all(
-    hashMatchedIds.map(async (vaultId) => ({
-      vaultId,
-      vault: await getVaultFromChain(vaultId),
+    listedSiblingIds.map(async (siblingId) => ({
+      vaultId: siblingId,
+      vault: await getVaultFromChain(siblingId),
     })),
-  );
-  return records.filter(
-    ({ vault }) =>
-      sameHex(vault.prePeginTxHash, target.prePeginTxHash) &&
-      sameHex(vault.depositor, target.depositor),
-  );
+  ).catch(capacityUnavailable(vaultId, "read the batch's vaults from chain"));
+  for (const { vaultId: siblingId, vault } of records) {
+    if (!sameHex(vault.depositor, target.depositor)) {
+      throw new BatchSiblingMismatchError({
+        vaultId,
+        siblingId,
+        field: "depositor",
+      });
+    }
+    if (!sameHex(vault.applicationEntryPoint, target.applicationEntryPoint)) {
+      throw new BatchSiblingMismatchError({
+        vaultId,
+        siblingId,
+        field: "applicationEntryPoint",
+      });
+    }
+  }
+  return records;
 }
 
 /**
@@ -238,10 +270,11 @@ export async function assertPositionAcceptsBatch({
  *   first), as proven against the chain, the same set the broadcast funds.
  * @throws {PositionCapacityExceededError} the application says the position
  *   would exceed its BTCVault count or BTC limit.
+ * @throws {BatchSiblingMismatchError} a listed vault is registered on chain
+ *   to a different Pre-PegIn, depositor or application than `vaultId`.
  * @throws {PositionCapacityUnavailableError} a chain read failed; the
- *   transaction cannot be parsed or has no HTLC output; the vaults found do
- *   not hold every HTLC output exactly once; or a member is bound to a
- *   different application than the target.
+ *   transaction cannot be parsed or has no HTLC output; or the vaults found
+ *   do not hold every HTLC output exactly once.
  * @throws {Error} `batchVaultIds` does not include `vaultId`, or
  *   `unsignedTxHex` is not the registered Pre-PegIn (caller bugs: the resume
  *   broadcast checks both first).
@@ -286,21 +319,9 @@ export async function assertResumePositionCapacity(
     throw new Error(COPY.deposit.errors.prePeginIntegrityMismatch);
   }
 
-  const siblings = await readSameDepositorSiblings(target, [
+  const siblings = await readBatchSiblings(vaultId, target, [
     ...listedById.values(),
-  ]).catch(capacityUnavailable(vaultId, "read the batch's vaults from chain"));
-
-  for (const { vaultId: siblingId, vault } of siblings) {
-    if (!sameHex(vault.applicationEntryPoint, target.applicationEntryPoint)) {
-      throw new PositionCapacityUnavailableError(
-        `Vault ${siblingId} shares vault ${vaultId}'s Pre-PegIn but is bound ` +
-          `to application ${vault.applicationEntryPoint}, not ` +
-          `${target.applicationEntryPoint}, so there is no single position ` +
-          `limit to check. Broadcast refused.`,
-        { vaultId },
-      );
-    }
-  }
+  ]);
 
   const members: BatchMember[] = [
     { vaultId, htlcVout: target.htlcVout, amount: target.amount },

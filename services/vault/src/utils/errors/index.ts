@@ -1,3 +1,4 @@
+export * from "./batchSiblingMismatchError";
 export * from "./contract";
 export * from "./depositErrors";
 export * from "./depositorWalletMismatch";

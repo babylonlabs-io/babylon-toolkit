@@ -6,7 +6,10 @@ import { formatBtcValue } from "../../utils/formatting";
 
 /** What the broadcast modal was opened on. */
 interface OpenBroadcast {
-  /** The vault driving the resume UI. Fixed while the modal is open. */
+  /**
+   * The clicked vault: the one the broadcast resumes and re-verifies against
+   * its own on-chain record. Fixed while the modal is open.
+   */
   representative: VaultActivity;
   /** Every sibling as listed when the modal opened. */
   batchAtOpen: VaultActivity[];
@@ -20,9 +23,10 @@ interface OpenBroadcast {
  *
  * A batched pegin shares one Pre-PegIn transaction across vaults, so a
  * broadcast commits the whole batch. The modal therefore tracks every
- * sibling: `broadcastingActivity` is the representative vault driving the
- * resume UI, `broadcastingBatchIds` are all vaults grouped with it by the
- * Pre-PegIn hex. The success amount counts only the vaults the chain confirmed.
+ * sibling: `broadcastingActivity` is the clicked vault, which the broadcast
+ * resumes and re-verifies against its own on-chain record;
+ * `broadcastingBatchIds` are all vaults grouped with it by the Pre-PegIn hex.
+ * The success amount counts only the vaults the chain confirmed.
  */
 export function useBroadcastModal(options: {
   allActivities: VaultActivity[];
@@ -42,9 +46,11 @@ export function useBroadcastModal(options: {
       const activity = allActivities.find((a) => a.id === depositId);
       if (!activity) return;
       // Resolve every sibling sharing this Pre-PegIn tx — broadcasting it
-      // commits all of them. A standalone deposit resolves to one vault.
+      // commits all of them. A standalone deposit resolves to one vault. The
+      // clicked vault, not the batch's first, is what the broadcast resumes,
+      // so an indexer grouping cannot redirect it to another vault.
       const batch = getBatchSiblings(allActivities, activity);
-      setOpenBroadcast({ representative: batch[0], batchAtOpen: batch });
+      setOpenBroadcast({ representative: activity, batchAtOpen: batch });
     },
     [allActivities],
   );

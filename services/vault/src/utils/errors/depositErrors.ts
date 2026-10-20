@@ -40,10 +40,10 @@
  *    callout, or to the can't-complete callout when the ack window has no
  *    room; the gate's own chain-read failures map to the window-unavailable
  *    callout, by body).
- *  - Position capacity — the Pre-PegIn broadcast's typed refusals, new or
- *    resumed, when the application says the depositor's position cannot take
- *    the batch, or the check could not reach a verdict. Both fire before the
- *    Pre-PegIn is signed for broadcast.
+ *  - Position capacity - refuse a new or resumed broadcast before signing if
+ *    the position cannot take the batch or the check is unavailable. A resumed
+ *    broadcast also refuses a listed vault registered to another Pre-PegIn,
+ *    depositor or application.
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -94,6 +94,7 @@ import {
 } from "@/services/vault/pinnedBuildLimits";
 import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 
+import { isBatchSiblingMismatchError } from "./batchSiblingMismatchError";
 import {
   isDepositorBtcKeyMismatchError,
   isDepositorWalletMismatchError,
@@ -372,16 +373,18 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3a''''. The other limit a deposit can run into: the depositor's own
-  // position, checked before any Pre-PegIn broadcast, new or resumed, and
-  // before it is signed for broadcast. A refusal and a check with no verdict
-  // need different instructions (free room, or just try again), hence two
-  // callouts. Checked ahead of the cause-walking buckets below, so the read
-  // failure kept as `cause` cannot classify the refusal as something else.
+  // position, checked before signing a new or resumed Pre-PegIn broadcast.
+  // Give separate instructions for a full position, an unavailable check and
+  // a mismatched batch. Check these before walking `cause` below, so a read
+  // failure cannot change the classification.
   if (isPositionCapacityExceededError(err)) {
     return ERRORS.positionCapacityExceeded;
   }
   if (isPositionCapacityUnavailableError(err)) {
     return ERRORS.positionCapacityUnavailable;
+  }
+  if (isBatchSiblingMismatchError(err)) {
+    return ERRORS.batchSiblingMismatch;
   }
 
   // 3b. RFC-006 participant key drift. Distinct from the version mismatch

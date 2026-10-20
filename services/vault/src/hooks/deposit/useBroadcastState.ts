@@ -77,8 +77,15 @@ export function useBroadcastState({
     });
 
   const handleBroadcast = useCallback(async () => {
-    // Resolve pendingPegin at call time to avoid stale closure references
-    const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
+    // Resolve pendingPegin at call time to avoid stale closure references.
+    // Every sibling's record holds the same transaction, UTXOs, build versions
+    // and key stamp, and a deposit keeps going when one record fails to save,
+    // so a sibling's record stands in when the clicked vault has none. The
+    // broadcast still compares its transaction with the clicked vault's.
+    let pendingPegin = pendingPegins.find((p) => p.id === activity.id);
+    if (pendingPegin === undefined) {
+      pendingPegin = pendingPegins.find((p) => batchVaultIds.includes(p.id));
+    }
 
     setLocalBroadcasting(true);
     try {
