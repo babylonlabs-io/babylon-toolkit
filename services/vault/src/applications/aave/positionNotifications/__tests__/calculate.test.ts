@@ -114,8 +114,9 @@ describe("calculate", () => {
 
   it("dust — collateral under $1k", () => {
     const result = calculate(makeParams([v(0.00001)]));
-    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings).toHaveLength(2);
     expect(result.warnings[0].type).toBe("dust");
+    expect(result.warnings[1].type).toBe("urgent");
   });
 
   // ── Urgent ───────────────────────────────────────────────────

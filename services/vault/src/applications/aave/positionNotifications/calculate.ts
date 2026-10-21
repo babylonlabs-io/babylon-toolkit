@@ -72,7 +72,8 @@ function sizeSuggestedVaultBtc(
  * other advisories), `too-many-vaults` (optimizer fell back past its cap),
  * `urgent` (already liquidatable or within 5%), `cliff` (all vaults consolidate
  * into one liquidation group — partial liquidation impossible), `reorder` (a
- * safer order exists), or `dust`.
+ * safer order exists), or `dust` (returned together with any `urgent` warning;
+ * suppresses the other advisories).
  */
 export function calculate(params: CalculatorParams): CalculatorResult {
   const {
@@ -115,46 +116,10 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     };
   }
 
-  // Dust check — force a single group (only when there IS debt but it's tiny).
+  // Dust (there IS debt but it's tiny, or the collateral is) forces one
+  // full-liquidation group through the normal loop below.
   const isDust =
     totalDebtUsd < DUST_THRESHOLD_USD || collateralValue < DUST_THRESHOLD_USD;
-  if (isDust) {
-    const liqPrice = totalDebtUsd / (totalBtc * CF);
-    const distancePct = ((liqPrice - btcPrice) / btcPrice) * 100;
-    return {
-      groups: [
-        {
-          index: 1,
-          vaults: [...vaults],
-          combinedBtc: totalBtc,
-          liquidationPrice: liqPrice,
-          distancePct,
-          targetSeizureBtc: totalBtc,
-          overSeizureBtc: 0,
-          isFullLiquidation: true,
-          debtToRepay: totalDebtUsd,
-          liquidatorProfitUsd: 0,
-          debtRepaid: totalDebtUsd,
-          fairnessDebtRepay: 0,
-          fairnessPaymentUsd: 0,
-          debtRemainingAfter: 0,
-          btcRemainingAfter: 0,
-        },
-      ],
-      currentHF,
-      collateralValue,
-      targetSeizureBtc: totalBtc,
-      warnings: [
-        {
-          type: "dust",
-          title: COPY.liquidationWarnings.dust.title,
-          detail: COPY.liquidationWarnings.dust.detail,
-        },
-      ],
-      optimalVaultOrder: null,
-      suggestedNewVaultBtc: null,
-    };
-  }
 
   // ── 2. Protocol math ───────────────────────────────────────────
 
@@ -197,7 +162,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     let i = 0;
     while (
       i < remainingVaults.length &&
-      prefixSum < curTargetSeizure * (1 - SEIZURE_TOL)
+      (isDust || prefixSum < curTargetSeizure * (1 - SEIZURE_TOL))
     ) {
       prefixSum += remainingVaults[i].btc;
       i++;
@@ -306,7 +271,54 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     };
   }
 
-  // ── 5. Optimal-order analysis (manual "Apply Optimal Order") ──
+  // ── 5. Warnings: urgent ────────────────────────────────────────
+
+  // urgent: position already liquidatable (distancePct >= 0) or within 5%.
+  if (firstGroup) {
+    const { urgent } = COPY.liquidationWarnings;
+    const liqPriceStr = firstGroup.liquidationPrice.toLocaleString("en-US", {
+      maximumFractionDigits: 0,
+    });
+    const distAbs = Math.abs(firstGroup.distancePct);
+    if (firstGroup.distancePct >= 0) {
+      warnings.push({
+        type: "urgent",
+        title: urgent.liquidatableTitle,
+        detail: urgent.liquidatableDetail(liqPriceStr),
+        suggestion: urgent.liquidatableSuggestion,
+      });
+    } else if (distAbs < URGENT_DISTANCE_PCT) {
+      warnings.push({
+        type: "urgent",
+        title: urgent.approachingTitle(distAbs.toFixed(1)),
+        detail: urgent.approachingDetail(liqPriceStr),
+        suggestion: urgent.approachingSuggestion,
+      });
+    }
+  }
+
+  // Dust skips the order, cliff and reorder advice. A sub-$1k position has no
+  // meaningful multi-event cascade.
+  if (isDust) {
+    return {
+      groups,
+      currentHF,
+      collateralValue,
+      targetSeizureBtc,
+      warnings: [
+        {
+          type: "dust",
+          title: COPY.liquidationWarnings.dust.title,
+          detail: COPY.liquidationWarnings.dust.detail,
+        },
+        ...warnings,
+      ],
+      optimalVaultOrder: null,
+      suggestedNewVaultBtc: null,
+    };
+  }
+
+  // ── 6. Optimal-order analysis (manual "Apply Optimal Order") ──
   //
   // We never reorder automatically. Score the current order against the
   // optimizer's best order; only when the optimizer strictly improves the
@@ -387,7 +399,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     ? globalOptimalOrder
     : null;
 
-  // ── 6. Warnings: too-many-vaults / urgent ──────────────────────
+  // ── 7. Warnings: too-many-vaults ───────────────────────────────
 
   // Too many vaults — optimizer fell back to largest-first, so the suggested
   // order is no longer guaranteed optimal.
@@ -400,31 +412,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     });
   }
 
-  // urgent: position already liquidatable (distancePct >= 0) or within 5%.
-  if (firstGroup) {
-    const { urgent } = COPY.liquidationWarnings;
-    const liqPriceStr = firstGroup.liquidationPrice.toLocaleString("en-US", {
-      maximumFractionDigits: 0,
-    });
-    const distAbs = Math.abs(firstGroup.distancePct);
-    if (firstGroup.distancePct >= 0) {
-      warnings.push({
-        type: "urgent",
-        title: urgent.liquidatableTitle,
-        detail: urgent.liquidatableDetail(liqPriceStr),
-        suggestion: urgent.liquidatableSuggestion,
-      });
-    } else if (distAbs < URGENT_DISTANCE_PCT) {
-      warnings.push({
-        type: "urgent",
-        title: urgent.approachingTitle(distAbs.toFixed(1)),
-        detail: urgent.approachingDetail(liqPriceStr),
-        suggestion: urgent.approachingSuggestion,
-      });
-    }
-  }
-
-  // ── 7. Warnings: cliff / reorder ───────────────────────────────
+  // ── 8. Warnings: cliff / reorder ───────────────────────────────
 
   const { cliff, reorder } = COPY.liquidationWarnings;
 
@@ -555,7 +543,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     }
   }
 
-  // ── 8. Return ──────────────────────────────────────────────────
+  // ── 9. Return ──────────────────────────────────────────────────
 
   return {
     groups,

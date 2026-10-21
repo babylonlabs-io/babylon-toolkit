@@ -21,7 +21,7 @@ import {
 } from "../liquidationChartData";
 
 // `calculate()` emits 1-based `index` fields (`groupIndex` starts at 1 in
-// calculate.ts, and the dust early-return hardcodes 1) — these hand-built
+// calculate.ts) — these hand-built
 // fixtures match that so a fixture that quietly assumed 0-based indices can't
 // hide a real index-base bug again. Pass the real 1-based index (1, 2, 3, …).
 function makeGroup(
