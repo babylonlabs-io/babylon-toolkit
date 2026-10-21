@@ -244,6 +244,37 @@ describe("ViemVaultRegistryReader", () => {
     );
   });
 
+  it("getVaultBasicInfo reads at the block it is given", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getVaultBasicInfo(MOCK_VAULT_ID, 42n);
+
+    expect(publicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        functionName: "getBtcVaultBasicInfo",
+        blockNumber: 42n,
+      }),
+    );
+  });
+
+  it("getProtocolInfoBatch reads every vault at the block it is given", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getProtocolInfoBatch([MOCK_VAULT_ID], 42n);
+
+    expect(publicClient.multicall).toHaveBeenCalledWith(
+      expect.objectContaining({ blockNumber: 42n }),
+    );
+  });
+
   it("getProtocolInfoBatch returns an empty array without calling the chain", async () => {
     const publicClient = createMockPublicClient();
     const reader = new ViemVaultRegistryReader(

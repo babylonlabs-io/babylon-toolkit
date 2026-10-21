@@ -429,12 +429,16 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     );
   }
 
-  async getVaultBasicInfo(vaultId: Hex): Promise<VaultBasicInfo> {
+  async getVaultBasicInfo(
+    vaultId: Hex,
+    blockNumber?: bigint,
+  ): Promise<VaultBasicInfo> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: BTCVaultRegistryABI,
       functionName: "getBtcVaultBasicInfo",
       args: [vaultId],
+      blockNumber,
     })) as RawVaultBasicInfo;
 
     return mapVaultBasicInfo(result);
@@ -453,6 +457,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
 
   async getProtocolInfoBatch(
     vaultIds: readonly Hex[],
+    blockNumber?: bigint,
   ): Promise<VaultProtocolInfo[]> {
     if (vaultIds.length === 0) return [];
 
@@ -464,6 +469,7 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
         args: [vaultId] as const,
       })),
       allowFailure: false,
+      blockNumber,
     });
 
     return results.map((info, i) => {

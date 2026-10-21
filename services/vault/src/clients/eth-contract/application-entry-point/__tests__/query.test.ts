@@ -11,7 +11,7 @@ const ENTRY_POINT = "0x00000000000000000000000000000000000000a1";
 const RECEIVER = "0x00000000000000000000000000000000000000b2";
 
 describe("readAllowedToDeposit", () => {
-  it("asks the given entry point with receiver, vault count and amount in ABI order", async () => {
+  it("asks the given entry point with receiver, vault count and amount in ABI order, at the given block", async () => {
     mockReadContract.mockResolvedValueOnce(true);
 
     await readAllowedToDeposit({
@@ -19,6 +19,7 @@ describe("readAllowedToDeposit", () => {
       vaultReceiver: RECEIVER,
       nVaultsToDeposit: 2n,
       amountToDeposit: 150_000n,
+      blockNumber: 1_000n,
     });
 
     expect(mockReadContract).toHaveBeenCalledWith(
@@ -26,6 +27,7 @@ describe("readAllowedToDeposit", () => {
         address: ENTRY_POINT,
         functionName: "allowedToDeposit",
         args: [RECEIVER, 2n, 150_000n],
+        blockNumber: 1_000n,
       }),
     );
   });
@@ -39,6 +41,7 @@ describe("readAllowedToDeposit", () => {
         vaultReceiver: RECEIVER,
         nVaultsToDeposit: 1n,
         amountToDeposit: 100_000n,
+        blockNumber: 1_000n,
       }),
     ).resolves.toBe(false);
   });
@@ -52,6 +55,7 @@ describe("readAllowedToDeposit", () => {
         vaultReceiver: RECEIVER,
         nVaultsToDeposit: 1n,
         amountToDeposit: 100_000n,
+        blockNumber: 1_000n,
       }),
     ).rejects.toThrow(/reverted/);
   });

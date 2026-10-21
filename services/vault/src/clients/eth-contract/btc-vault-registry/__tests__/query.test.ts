@@ -78,8 +78,25 @@ describe("getBtcVaultBasicInfoFromChain", () => {
       applicationEntryPoint: AAVE_ADAPTER,
     });
     expect(mockGetVaultBasicInfo).toHaveBeenCalledTimes(2);
-    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(1, VAULT_A);
-    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(2, VAULT_B);
+    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(
+      1,
+      VAULT_A,
+      undefined,
+    );
+    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(
+      2,
+      VAULT_B,
+      undefined,
+    );
+  });
+
+  it("reads every vault at the block it is given", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(basicInfo(60_000_000n));
+
+    await getBtcVaultBasicInfoFromChain([VAULT_A, VAULT_B], 1_000n);
+
+    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(1, VAULT_A, 1_000n);
+    expect(mockGetVaultBasicInfo).toHaveBeenNthCalledWith(2, VAULT_B, 1_000n);
   });
 
   it("returns an empty map and skips RPC when no vault IDs are supplied", async () => {

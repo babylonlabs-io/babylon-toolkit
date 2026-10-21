@@ -306,6 +306,16 @@ describe("buildRecordedChain", () => {
     expect(plain.statedAsks).toEqual([]);
   });
 
+  it("answers a stated method the recording does not hold, in the view that states it", () => {
+    const run = loadRecordedRun();
+    const stating = buildRecordedChain(run, [], { eth_blockNumber: "0x3e8" });
+
+    const plain = buildRecordedChain(run);
+
+    expect(stating.answerMethod("eth_blockNumber")).toBe("0x3e8");
+    expect(plain.answerMethod("eth_blockNumber")).toBeUndefined();
+  });
+
   it("reports an unanswerable inner call instead of fabricating a result", () => {
     const run = loadRecordedRun();
     const chain = buildRecordedChain(run);

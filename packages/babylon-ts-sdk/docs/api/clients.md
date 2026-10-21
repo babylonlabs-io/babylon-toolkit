@@ -1182,16 +1182,23 @@ readonly `` `0x${string}` ``[]
 ##### getVaultBasicInfo()
 
 ```ts
-getVaultBasicInfo(vaultId): Promise<VaultBasicInfo>;
+getVaultBasicInfo(vaultId, blockNumber?): Promise<VaultBasicInfo>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
+
+Read a vault's basic record. `blockNumber` pins the read to that block;
+omitted, it reads the latest state.
 
 ###### Parameters
 
 ###### vaultId
 
 `` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -1226,16 +1233,23 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 ##### getProtocolInfoBatch()
 
 ```ts
-getProtocolInfoBatch(vaultIds): Promise<VaultProtocolInfo[]>;
+getProtocolInfoBatch(vaultIds, blockNumber?): Promise<VaultProtocolInfo[]>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
+
+Read several vaults' protocol records in one multicall. `blockNumber` pins
+every read to that block; omitted, they read the latest state.
 
 ###### Parameters
 
 ###### vaultIds
 
 readonly `` `0x${string}` ``[]
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -3203,16 +3217,23 @@ Interface for reading vault data from the BTCVaultRegistry contract.
 ##### getVaultBasicInfo()
 
 ```ts
-getVaultBasicInfo(vaultId): Promise<VaultBasicInfo>;
+getVaultBasicInfo(vaultId, blockNumber?): Promise<VaultBasicInfo>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read a vault's basic record. `blockNumber` pins the read to that block;
+omitted, it reads the latest state.
 
 ###### Parameters
 
 ###### vaultId
 
 `` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -3239,16 +3260,23 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ##### getProtocolInfoBatch()
 
 ```ts
-getProtocolInfoBatch(vaultIds): Promise<VaultProtocolInfo[]>;
+getProtocolInfoBatch(vaultIds, blockNumber?): Promise<VaultProtocolInfo[]>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read several vaults' protocol records in one multicall. `blockNumber` pins
+every read to that block; omitted, they read the latest state.
 
 ###### Parameters
 
 ###### vaultIds
 
 readonly `` `0x${string}` ``[]
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 

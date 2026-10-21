@@ -302,15 +302,19 @@ export interface OnChainVaultBasicInfo {
  * zero address). Callers treat an unregistered vault as untrusted: the
  * reorder guard refuses to sign, the position-capacity check refuses to
  * give a verdict.
+ *
+ * `blockNumber` pins every read to that block, so the records describe one
+ * chain state; omitted, they read the latest state.
  */
 export async function getBtcVaultBasicInfoFromChain(
   vaultIds: readonly Hex[],
+  blockNumber?: bigint,
 ): Promise<Map<Hex, OnChainVaultBasicInfo>> {
   if (vaultIds.length === 0) return new Map();
 
   const reader = getVaultRegistryReader();
   const results = await Promise.all(
-    vaultIds.map((vaultId) => reader.getVaultBasicInfo(vaultId)),
+    vaultIds.map((vaultId) => reader.getVaultBasicInfo(vaultId, blockNumber)),
   );
 
   const out = new Map<Hex, OnChainVaultBasicInfo>();

@@ -28,9 +28,16 @@
  * activates with empty metadata, which the adapter resolves to
  * `vault.depositor` (`AaveAdapter.sol:136`; `vaultActivationService.ts`).
  *
- * The in-flight vaults are read before `allowedToDeposit`. A vault's status
- * only moves forward, so one that activates between the two reads is counted
- * twice — an early refusal — and never missed.
+ * Every chain read of one check — the depositor's vault list, their statuses,
+ * the later vaults' Pre-PegIn hashes and `allowedToDeposit` — is pinned to one
+ * block (`resolvePinnedReadBlock`: the head less a small lag, so a node behind
+ * a load-balanced RPC can still serve it). They describe one chain state, so a
+ * vault that activates around the check is counted either in flight or by the
+ * adapter, never by neither; reads that each took their own `latest` could
+ * miss it when the RPC answers from nodes at different heights. The newest
+ * registrations, at most that lag old, are not yet visible, which widens the
+ * concurrent-registration window by the lag. A node that has not seen the
+ * pinned block fails the read, which refuses as unavailable.
  *
  * In-flight means Pending or Verified on chain. A Pending vault past its
  * acknowledgment window
@@ -59,9 +66,10 @@
  * one whose Pre-PegIn the mempool API knows, or whose lookup fails, still
  * counts: it may have passed its own check before the limit dropped. Only the
  * API's explicit "not found" leaves a vault out, so the untrusted API can
- * relax the check only by denying a transaction it has. When a vault counted
- * for a failed lookup is what fills the position, the check reports that it
- * could not decide rather than that the position is full. A Verified vault
+ * relax the check only by denying a transaction it has. When the application
+ * says no with vaults counted for a failed lookup, it is asked again without
+ * them: still no means the position is full whatever they are; yes means they
+ * are what fills it, and the check reports that it could not decide. A Verified vault
  * counts wherever it is listed; so does every vault when this deposit's own
  * are not listed yet.
  *
@@ -102,6 +110,7 @@ import {
   getVaultFromChain,
   type OnChainVaultData,
 } from "@/clients/eth-contract/btc-vault-registry/query";
+import { resolvePinnedReadBlock } from "@/clients/eth-contract/pinnedReadBlock";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
 import { countPrePeginHtlcOutputs } from "@/utils/btc/prePeginHtlcOutputCount";
@@ -181,11 +190,22 @@ interface InFlightOccupancy {
   vaultCount: number;
   amount: bigint;
   /**
-   * Errors of mempool lookups that could not say whether a later vault's
-   * Pre-PegIn is on Bitcoin; those vaults are counted in the totals above.
+   * The part of the totals above counted only because a mempool lookup could
+   * not say whether a later vault's Pre-PegIn is on Bitcoin, with the errors of
+   * those lookups.
    */
-  lookupFailures: readonly unknown[];
+  unconfirmed: {
+    vaultCount: number;
+    amount: bigint;
+    lookupFailures: readonly unknown[];
+  };
 }
+
+const NOTHING_UNCONFIRMED: InFlightOccupancy["unconfirmed"] = {
+  vaultCount: 0,
+  amount: 0n,
+  lookupFailures: [],
+};
 
 /** What the mempool API says about a Pre-PegIn. */
 type PrePeginLookup =
@@ -365,11 +385,15 @@ async function lookUpPrePegin(
 async function laterVaultsPossiblyBroadcast(
   checkpoint: PositionCapacityCheckpoint,
   laterPending: ReadonlyArray<{ vaultId: Hex; amount: bigint }>,
+  blockNumber: bigint,
 ): Promise<InFlightOccupancy> {
   if (laterPending.length === 0)
-    return { vaultCount: 0, amount: 0n, lookupFailures: [] };
+    return { vaultCount: 0, amount: 0n, unconfirmed: NOTHING_UNCONFIRMED };
   const protocolInfos = await getVaultRegistryReader()
-    .getProtocolInfoBatch(laterPending.map(({ vaultId }) => vaultId))
+    .getProtocolInfoBatch(
+      laterPending.map(({ vaultId }) => vaultId),
+      blockNumber,
+    )
     .catch(
       capacityUnavailable(
         checkpoint,
@@ -392,15 +416,30 @@ async function laterVaultsPossiblyBroadcast(
 
   let vaultCount = 0;
   let amount = 0n;
+  let unconfirmedVaultCount = 0;
+  let unconfirmedAmount = 0n;
   for (const [i, vault] of laterPending.entries()) {
-    if (lookupByTxHash.get(txHashes[i])?.result === "absent") continue;
+    const lookup = lookupByTxHash.get(txHashes[i]);
+    if (lookup?.result === "absent") continue;
     vaultCount += 1;
     amount += vault.amount;
+    if (lookup?.result === "failed") {
+      unconfirmedVaultCount += 1;
+      unconfirmedAmount += vault.amount;
+    }
   }
   const lookupFailures = lookups.flatMap((lookup) =>
     lookup.result === "failed" ? [lookup.error] : [],
   );
-  return { vaultCount, amount, lookupFailures };
+  return {
+    vaultCount,
+    amount,
+    unconfirmed: {
+      vaultCount: unconfirmedVaultCount,
+      amount: unconfirmedAmount,
+      lookupFailures,
+    },
+  };
 }
 
 /**
@@ -423,16 +462,19 @@ async function readInFlightOccupancy(
     depositor,
     applicationEntryPoint,
     ownVaultIds,
+    blockNumber,
   }: {
     depositor: Address;
     applicationEntryPoint: Address;
     /** This deposit's registered vaults; empty before its registration. */
     ownVaultIds: readonly Hex[];
+    /** The block every read of this check is pinned to. */
+    blockNumber: bigint;
   },
 ): Promise<InFlightOccupancy> {
   const own = new Set(ownVaultIds.map((id) => id.toLowerCase()));
   const registered = (
-    await getDepositorVaultIdsFromChain(depositor).catch(
+    await getDepositorVaultIdsFromChain(depositor, blockNumber).catch(
       capacityUnavailable(
         checkpoint,
         "read the depositor's registered vaults from chain",
@@ -444,7 +486,10 @@ async function readInFlightOccupancy(
     firstOwnIndex === -1 ? [] : registered.slice(firstOwnIndex + 1),
   );
   const others = registered.filter((id) => !own.has(id));
-  const records = await getBtcVaultBasicInfoFromChain(others).catch(
+  const records = await getBtcVaultBasicInfoFromChain(
+    others,
+    blockNumber,
+  ).catch(
     capacityUnavailable(
       checkpoint,
       "read the status of the depositor's registered vaults from chain",
@@ -482,11 +527,15 @@ async function readInFlightOccupancy(
         );
     }
   }
-  const later = await laterVaultsPossiblyBroadcast(checkpoint, laterPending);
+  const later = await laterVaultsPossiblyBroadcast(
+    checkpoint,
+    laterPending,
+    blockNumber,
+  );
   return {
     vaultCount: vaultCount + later.vaultCount,
     amount: amount + later.amount,
-    lookupFailures: later.lookupFailures,
+    unconfirmed: later.unconfirmed,
   };
 }
 
@@ -531,28 +580,43 @@ export async function assertPositionAcceptsBatch(
     ownVaultIds = [];
   }
 
+  const blockNumber = await resolvePinnedReadBlock().catch(
+    capacityUnavailable(checkpoint, "read the chain head"),
+  );
   const inFlight = await readInFlightOccupancy(checkpoint, {
     depositor,
     applicationEntryPoint,
     ownVaultIds,
+    blockNumber,
   });
-  const allowed = await readAllowedToDeposit({
-    applicationEntryPoint,
-    vaultReceiver: depositor,
-    nVaultsToDeposit: BigInt(vaultCount + inFlight.vaultCount),
-    amountToDeposit: amount + inFlight.amount,
-  }).catch(
-    capacityUnavailable(
-      checkpoint,
-      "read allowedToDeposit from the application",
-    ),
-  );
-  if (allowed) return;
-  // Counted for want of an answer, a later vault may be what fills the
-  // position, so the refusal is not a verdict: the depositor is told to try
-  // again, not that the position is full.
-  const [lookupFailure] = inFlight.lookupFailures;
-  if (inFlight.lookupFailures.length > 0) {
+  const askApplication = (extraVaults: number, extraAmount: bigint) =>
+    readAllowedToDeposit({
+      applicationEntryPoint,
+      vaultReceiver: depositor,
+      nVaultsToDeposit: BigInt(vaultCount + extraVaults),
+      amountToDeposit: amount + extraAmount,
+      blockNumber,
+    }).catch(
+      capacityUnavailable(
+        checkpoint,
+        "read allowedToDeposit from the application",
+      ),
+    );
+  if (await askApplication(inFlight.vaultCount, inFlight.amount)) return;
+
+  // Later vaults counted for want of a mempool answer may be what fills the
+  // position. Ask without them: still no, and the position is full whatever
+  // they are; yes, and the refusal rests on them, so the depositor is told to
+  // try again rather than that the position is full.
+  const { unconfirmed } = inFlight;
+  if (
+    unconfirmed.vaultCount > 0 &&
+    (await askApplication(
+      inFlight.vaultCount - unconfirmed.vaultCount,
+      inFlight.amount - unconfirmed.amount,
+    ))
+  ) {
+    const [lookupFailure] = unconfirmed.lookupFailures;
     throw new PositionCapacityUnavailableError(
       `The position has no room once the depositor's later deposits are ` +
         `counted, but the mempool API could not say whether their ` +

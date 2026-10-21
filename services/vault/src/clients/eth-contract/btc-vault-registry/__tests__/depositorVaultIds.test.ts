@@ -16,18 +16,19 @@ import { getDepositorVaultIdsFromChain } from "../depositorVaultIds";
 const DEPOSITOR = "0x00000000000000000000000000000000000000d1";
 
 describe("getDepositorVaultIdsFromChain", () => {
-  it("reads getDepositorVaultIds from the configured registry for the depositor", async () => {
+  it("reads getDepositorVaultIds from the configured registry for the depositor at the given block", async () => {
     const ids = [`0x${"11".repeat(32)}`, `0x${"22".repeat(32)}`];
     mockReadContract.mockResolvedValueOnce(ids);
 
-    await expect(getDepositorVaultIdsFromChain(DEPOSITOR)).resolves.toEqual(
-      ids,
-    );
+    await expect(
+      getDepositorVaultIdsFromChain(DEPOSITOR, 1_000n),
+    ).resolves.toEqual(ids);
     expect(mockReadContract).toHaveBeenCalledWith(
       expect.objectContaining({
         address: "0x0000000000000000000000000000000000000001",
         functionName: "getDepositorVaultIds",
         args: [DEPOSITOR],
+        blockNumber: 1_000n,
       }),
     );
   });
@@ -35,8 +36,8 @@ describe("getDepositorVaultIdsFromChain", () => {
   it("propagates a failed read instead of answering with no vaults", async () => {
     mockReadContract.mockRejectedValueOnce(new Error("execution reverted"));
 
-    await expect(getDepositorVaultIdsFromChain(DEPOSITOR)).rejects.toThrow(
-      /reverted/,
-    );
+    await expect(
+      getDepositorVaultIdsFromChain(DEPOSITOR, 1_000n),
+    ).rejects.toThrow(/reverted/);
   });
 });

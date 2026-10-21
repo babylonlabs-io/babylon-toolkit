@@ -40,6 +40,11 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   }),
 }));
 
+const mockResolvePinnedReadBlock = vi.hoisted(() => vi.fn());
+vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
+  resolvePinnedReadBlock: mockResolvePinnedReadBlock,
+}));
+
 const mockGetTxInfo = vi.hoisted(() => vi.fn());
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => ({
   ...(await importOriginal<
@@ -90,6 +95,8 @@ const OTHER_DEPOSITOR = "0x00000000000000000000000000000000000000d2";
 const ENTRY_POINT = "0x00000000000000000000000000000000000000e1";
 const OTHER_ENTRY_POINT = "0x00000000000000000000000000000000000000e2";
 const OTHER_PRE_PEGIN_TX_HASH = `0x${"bb".repeat(32)}` as Hex;
+/** The block every read of one check is pinned to. */
+const PINNED_BLOCK = 1_000n;
 
 /** The target at HTLC output 0 of `tx`. */
 function targetOf(tx: { hash: Hex }) {
@@ -158,6 +165,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetProtocolInfoBatch.mockReset();
   mockGetTxInfo.mockReset();
+  mockReadAllowedToDeposit.mockReset();
+  mockResolvePinnedReadBlock.mockResolvedValue(PINNED_BLOCK);
   mockReadAllowedToDeposit.mockResolvedValue(true);
   mockGetDepositorVaultIdsFromChain.mockResolvedValue([]);
   mockGetBtcVaultBasicInfoFromChain.mockResolvedValue(new Map());
@@ -201,6 +210,7 @@ describe("assertResumePositionCapacity — the question asked", () => {
       vaultReceiver: DEPOSITOR,
       nVaultsToDeposit: 1n,
       amountToDeposit: 100_000n,
+      blockNumber: PINNED_BLOCK,
     });
   });
 
@@ -511,12 +521,16 @@ describe("assertPositionAcceptsBatch — the depositor's other vaults", () => {
       amount: 150_000n,
     });
 
-    expect(mockGetDepositorVaultIdsFromChain).toHaveBeenCalledWith(DEPOSITOR);
+    expect(mockGetDepositorVaultIdsFromChain).toHaveBeenCalledWith(
+      DEPOSITOR,
+      PINNED_BLOCK,
+    );
     expect(mockReadAllowedToDeposit).toHaveBeenCalledWith({
       applicationEntryPoint: ENTRY_POINT,
       vaultReceiver: DEPOSITOR,
       nVaultsToDeposit: 2n,
       amountToDeposit: 150_000n,
+      blockNumber: PINNED_BLOCK,
     });
   });
 
@@ -616,9 +630,10 @@ describe("assertPositionAcceptsBatch — the depositor's other vaults", () => {
       amount: 150_000n,
     });
 
-    expect(mockGetBtcVaultBasicInfoFromChain).toHaveBeenCalledWith([
-      PENDING_ID,
-    ]);
+    expect(mockGetBtcVaultBasicInfoFromChain).toHaveBeenCalledWith(
+      [PENDING_ID],
+      PINNED_BLOCK,
+    );
     expect(mockReadAllowedToDeposit).toHaveBeenCalledWith(
       expect.objectContaining({
         nVaultsToDeposit: 3n,
@@ -649,7 +664,10 @@ describe("assertPositionAcceptsBatch — the depositor's other vaults", () => {
       amount: 100_000n,
     });
 
-    expect(mockGetProtocolInfoBatch).toHaveBeenCalledWith([PENDING_ID]);
+    expect(mockGetProtocolInfoBatch).toHaveBeenCalledWith(
+      [PENDING_ID],
+      PINNED_BLOCK,
+    );
     expect(mockGetTxInfo).toHaveBeenCalledWith(
       OTHER_PRE_PEGIN_TX_HASH.slice(2),
       "https://mempool.test/api",
@@ -728,6 +746,39 @@ describe("assertPositionAcceptsBatch — the depositor's other vaults", () => {
     ]);
     const lookupFailure = new Error("Mempool API error (429)");
     mockGetTxInfo.mockRejectedValue(lookupFailure);
+    mockReadAllowedToDeposit
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const err = await assertPositionAcceptsBatch({
+      stage: "broadcast",
+      vaultId: VAULT_ID,
+      batchVaultIds: [VAULT_ID],
+      applicationEntryPoint: ENTRY_POINT,
+      depositor: DEPOSITOR,
+      vaultCount: 1,
+      amount: 100_000n,
+    }).catch((e: unknown) => e);
+
+    expect(mockReadAllowedToDeposit).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        nVaultsToDeposit: 1n,
+        amountToDeposit: 100_000n,
+      }),
+    );
+    expect(err).toBeInstanceOf(PositionCapacityUnavailableError);
+    expect((err as Error).cause).toBe(lookupFailure);
+  });
+
+  it("refuses as full when the position is full even without the later vault whose lookup failed", async () => {
+    depositorHas({
+      [VAULT_ID]: { status: OnChainBtcVaultStatus.PENDING, amount: 100_000n },
+      [PENDING_ID]: { status: OnChainBtcVaultStatus.PENDING, amount: 30_000n },
+    });
+    mockGetProtocolInfoBatch.mockResolvedValue([
+      { prePeginTxHash: OTHER_PRE_PEGIN_TX_HASH },
+    ]);
+    mockGetTxInfo.mockRejectedValue(new Error("Mempool API error (429)"));
     mockReadAllowedToDeposit.mockResolvedValue(false);
 
     const err = await assertPositionAcceptsBatch({
@@ -740,8 +791,12 @@ describe("assertPositionAcceptsBatch — the depositor's other vaults", () => {
       amount: 100_000n,
     }).catch((e: unknown) => e);
 
-    expect(err).toBeInstanceOf(PositionCapacityUnavailableError);
-    expect((err as Error).cause).toBe(lookupFailure);
+    expect(mockReadAllowedToDeposit).toHaveBeenCalledTimes(2);
+    expect(err).toBeInstanceOf(PositionCapacityExceededError);
+    expect(err).toMatchObject({
+      inFlightVaultCount: 1,
+      inFlightAmount: 30_000n,
+    });
   });
 
   it("looks up a later split deposit's shared Pre-PegIn once", async () => {
@@ -854,23 +909,60 @@ describe("assertPositionAcceptsBatch — the depositor's other vaults", () => {
     );
   });
 
-  it("reads the depositor's vaults before asking the application", async () => {
+  it("pins every chain read of one check to the same block", async () => {
     depositorHas({
+      [VAULT_ID]: { status: OnChainBtcVaultStatus.PENDING, amount: 100_000n },
       [PENDING_ID]: { status: OnChainBtcVaultStatus.PENDING, amount: 30_000n },
     });
+    mockGetProtocolInfoBatch.mockResolvedValue([
+      { prePeginTxHash: OTHER_PRE_PEGIN_TX_HASH },
+    ]);
+    mockGetTxInfo.mockResolvedValue({ status: { confirmed: false } });
 
     await assertPositionAcceptsBatch({
-      stage: "registration",
+      stage: "broadcast",
+      vaultId: VAULT_ID,
+      batchVaultIds: [VAULT_ID],
       applicationEntryPoint: ENTRY_POINT,
       depositor: DEPOSITOR,
       vaultCount: 1,
       amount: 100_000n,
     });
 
-    const statusRead =
-      mockGetBtcVaultBasicInfoFromChain.mock.invocationCallOrder[0];
-    const allowedRead = mockReadAllowedToDeposit.mock.invocationCallOrder[0];
-    expect(statusRead).toBeLessThan(allowedRead);
+    expect(mockResolvePinnedReadBlock).toHaveBeenCalledTimes(1);
+    expect(mockGetDepositorVaultIdsFromChain).toHaveBeenCalledWith(
+      DEPOSITOR,
+      PINNED_BLOCK,
+    );
+    expect(mockGetBtcVaultBasicInfoFromChain).toHaveBeenCalledWith(
+      [PENDING_ID],
+      PINNED_BLOCK,
+    );
+    expect(mockGetProtocolInfoBatch).toHaveBeenCalledWith(
+      [PENDING_ID],
+      PINNED_BLOCK,
+    );
+    expect(mockReadAllowedToDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ blockNumber: PINNED_BLOCK }),
+    );
+  });
+
+  it("refuses without reading the position when the chain head cannot be read", async () => {
+    const readFailure = new Error("eth_blockNumber failed");
+    mockResolvePinnedReadBlock.mockRejectedValue(readFailure);
+
+    const err = await assertPositionAcceptsBatch({
+      stage: "registration",
+      applicationEntryPoint: ENTRY_POINT,
+      depositor: DEPOSITOR,
+      vaultCount: 1,
+      amount: 100_000n,
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(PositionCapacityUnavailableError);
+    expect((err as Error).cause).toBe(readFailure);
+    expect(mockGetDepositorVaultIdsFromChain).not.toHaveBeenCalled();
+    expect(mockReadAllowedToDeposit).not.toHaveBeenCalled();
   });
 });
 
@@ -1013,9 +1105,10 @@ describe("assertResumePositionCapacity — the depositor's other vaults", () => 
       batchVaultIds: [VAULT_ID, SIBLING_ID],
     });
 
-    expect(mockGetBtcVaultBasicInfoFromChain).toHaveBeenCalledWith([
-      PENDING_ID,
-    ]);
+    expect(mockGetBtcVaultBasicInfoFromChain).toHaveBeenCalledWith(
+      [PENDING_ID],
+      PINNED_BLOCK,
+    );
     expect(mockReadAllowedToDeposit).toHaveBeenCalledWith(
       expect.objectContaining({
         nVaultsToDeposit: 3n,

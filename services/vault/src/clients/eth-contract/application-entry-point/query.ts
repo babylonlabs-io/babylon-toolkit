@@ -45,13 +45,15 @@ export interface ReadAllowedToDepositParams {
   nVaultsToDeposit: bigint;
   /** Total amount of those vaults, in satoshis. */
   amountToDeposit: bigint;
+  /** The block to read at, the one every read of the same check is pinned to. */
+  blockNumber: bigint;
 }
 
 /**
  * Whether the application would accept the given vaults into `vaultReceiver`'s
- * position at call time. Advisory: the contract reserves nothing, so a `true`
- * can be invalidated by a parameter change or another activation before this
- * batch activates. A failed read throws; callers decide how to fail.
+ * position at `blockNumber`. Advisory: the contract reserves nothing, so a
+ * `true` can be invalidated by a parameter change or another activation before
+ * this batch activates. A failed read throws; callers decide how to fail.
  */
 export async function readAllowedToDeposit(
   params: ReadAllowedToDepositParams,
@@ -61,6 +63,7 @@ export async function readAllowedToDeposit(
     vaultReceiver,
     nVaultsToDeposit,
     amountToDeposit,
+    blockNumber,
   } = params;
 
   return ethClient.getPublicClient().readContract({
@@ -68,5 +71,6 @@ export async function readAllowedToDeposit(
     abi: ALLOWED_TO_DEPOSIT_ABI,
     functionName: "allowedToDeposit",
     args: [vaultReceiver, nVaultsToDeposit, amountToDeposit],
+    blockNumber,
   });
 }

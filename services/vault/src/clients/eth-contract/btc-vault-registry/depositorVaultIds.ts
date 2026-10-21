@@ -28,16 +28,18 @@ const GET_DEPOSITOR_VAULT_IDS_ABI = [
 ] as const;
 
 /**
- * Every vault id the depositor registered, read at call time. A failed read
+ * Every vault id the depositor registered, read at `blockNumber`. A failed read
  * throws; callers decide how to fail.
  */
 export async function getDepositorVaultIdsFromChain(
   depositor: Address,
+  blockNumber: bigint,
 ): Promise<readonly Hex[]> {
   return ethClient.getPublicClient().readContract({
     address: CONTRACTS.BTC_VAULT_REGISTRY,
     abi: GET_DEPOSITOR_VAULT_IDS_ABI,
     functionName: "getDepositorVaultIds",
     args: [depositor],
+    blockNumber,
   });
 }

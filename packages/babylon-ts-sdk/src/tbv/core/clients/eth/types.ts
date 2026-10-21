@@ -188,9 +188,23 @@ export interface KeyEpochs {
 
 /** Interface for reading vault data from the BTCVaultRegistry contract. */
 export interface VaultRegistryReader {
-  getVaultBasicInfo(vaultId: Hex): Promise<VaultBasicInfo>;
+  /**
+   * Read a vault's basic record. `blockNumber` pins the read to that block;
+   * omitted, it reads the latest state.
+   */
+  getVaultBasicInfo(
+    vaultId: Hex,
+    blockNumber?: bigint,
+  ): Promise<VaultBasicInfo>;
   getVaultProtocolInfo(vaultId: Hex): Promise<VaultProtocolInfo>;
-  getProtocolInfoBatch(vaultIds: readonly Hex[]): Promise<VaultProtocolInfo[]>;
+  /**
+   * Read several vaults' protocol records in one multicall. `blockNumber` pins
+   * every read to that block; omitted, they read the latest state.
+   */
+  getProtocolInfoBatch(
+    vaultIds: readonly Hex[],
+    blockNumber?: bigint,
+  ): Promise<VaultProtocolInfo[]>;
   getVaultData(vaultId: Hex): Promise<VaultData>;
   /**
    * Read a vault provider's *genesis* (registration) BTC key — the key bonded

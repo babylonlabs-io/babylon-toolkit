@@ -9,7 +9,8 @@
  * `getDepositorVaultIds`).
  *
  * The recorded backend serves everything up to the "Sign Transaction" click.
- * The two capacity reads are stated by this spec instead: the depositor has no
+ * The check's own reads are stated by this spec instead: the chain head it
+ * pins them to (the recording ends before any was read), the depositor has no
  * other vaults, and the application refuses. The form's own cap check never
  * reads `allowedToDeposit`, so the form lets the deposit through - the
  * stale-snapshot case - and the refusal must come from the flow.
@@ -19,9 +20,8 @@
  * after Sign is logged and must not happen. The injected ETH wallet already
  * reports the app's chain, so no chain switch is asked here; the check's place
  * before the chain switch is pinned by `useDepositFlow.test.tsx`. The case
- * where the position has room cannot be walked here (the
- * next read is a block number the recording does not hold); the real-wallet
- * CLI covers it (`e2e/real`, `--action=pegin`).
+ * where the position has room cannot be walked here (the injected wallets
+ * never sign); the real-wallet CLI covers it (`e2e/real`, `--action=pegin`).
  */
 
 import { expect, test } from "@playwright/test";
@@ -30,6 +30,7 @@ import {
   encodeFunctionResult,
   parseAbi,
   toFunctionSelector,
+  toHex,
   type Hex,
 } from "viem";
 
@@ -56,6 +57,12 @@ const GET_DEPOSITOR_VAULT_IDS_ABI = parseAbi([
 const ALLOWED_TO_DEPOSIT_ABI = parseAbi([
   "function allowedToDeposit(address vaultReceiver, uint256 nVaultsToDeposit, uint256 amountToDeposit) view returns (bool)",
 ]);
+
+/**
+ * The chain head the check reads, and pins its reads to less a small lag. The
+ * replay answers a contract read the same at any block, so any head will do.
+ */
+const STATED_CHAIN_HEAD = 1_000n;
 
 /**
  * Above the deployment's minimum deposit and below the recorded wallet's
@@ -99,6 +106,7 @@ test("a deposit into a full position stops before any signing prompt", async ({
 }) => {
   await blockOffsiteRequests(page);
   const backend = await installRecordedBackend(page, {
+    statedMethods: { eth_blockNumber: toHex(STATED_CHAIN_HEAD) },
     statedAnswers: [
       {
         target: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,

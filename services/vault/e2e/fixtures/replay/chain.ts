@@ -100,6 +100,14 @@ export interface StatedAnswer {
   readonly answer: (callData: Hex) => Hex;
 }
 
+/**
+ * A spec's own answers for JSON-RPC methods other than `eth_call`, keyed by
+ * method name - the counterpart to {@link StatedAnswer} for a value such as
+ * the chain head, which a recording that ends before it was read cannot hold.
+ * Each one wins over the recording.
+ */
+export type StatedMethods = Readonly<Record<string, unknown>>;
+
 /** One read a stated answer served. */
 export interface StatedAsk {
   /** Lowercased target. */
@@ -128,7 +136,10 @@ export interface RecordedChain {
    * a silent green rather than the loud failure this fixture exists to give.
    */
   answerMulticall(data: Hex): Hex | null;
-  /** Answer a non-`eth_call` method (`eth_chainId`, `eth_blockNumber`, ...). */
+  /**
+   * Answer a non-`eth_call` method (`eth_chainId`, `eth_blockNumber`, ...):
+   * the stated answer when there is one, else the recorded one.
+   */
   answerMethod(method: string): unknown | undefined;
   /** Every call this chain could not answer, in the order they arrived. */
   readonly unanswered: readonly UnansweredCall[];
@@ -292,12 +303,14 @@ function buildTables(run: RecordedRun): ChainTables {
  * A chain view over a run.
  *
  * The decoded tables are shared across every call for the same run; only
- * {@link RecordedChain.unanswered} and the stated answers are per-view, so one
- * screen's misses and premises are never attributed to another's.
+ * {@link RecordedChain.unanswered} and the stated answers and methods are
+ * per-view, so one screen's misses and premises are never attributed to
+ * another's.
  */
 export function buildRecordedChain(
   run: RecordedRun,
   statedAnswers: readonly StatedAnswer[] = [],
+  statedMethods: StatedMethods = {},
 ): RecordedChain {
   let tables = tableCache.get(run);
   if (!tables) {
@@ -368,7 +381,10 @@ export function buildRecordedChain(
         result: results as never,
       });
     },
-    answerMethod: (method) => methods.get(method),
+    answerMethod: (method) =>
+      Object.hasOwn(statedMethods, method)
+        ? statedMethods[method]
+        : methods.get(method),
     unanswered,
     statedAsks,
     get size() {
