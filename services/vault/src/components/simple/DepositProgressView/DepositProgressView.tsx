@@ -492,6 +492,14 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const showReconnect =
     started && error !== null && isDeviceDisconnectedContent(error);
 
+  const showCloseAndTrack =
+    started &&
+    !showCancelAppWait &&
+    !showContinuePrompt &&
+    !showReconnect &&
+    !showCancelSigning &&
+    canContinueInBackground;
+
   const handleReconnect = useCallback(async () => {
     setIsReconnecting(true);
     setReconnectFailedFor(null);
@@ -687,82 +695,92 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             </Callout>
           )}
 
-          <Button
-            disabled={
-              showUnlockCta
-                ? isUnlocking
-                : showCancelAppWait || showContinuePrompt
-                  ? false
-                  : showReconnect
-                    ? isReconnecting
-                    : showCancelSigning
-                      ? cancelSigningRequested
-                      : started
-                        ? !canClose && !isTerminalSuccess
-                        : signDisabled
-            }
-            variant="contained"
-            color="secondary"
-            className="w-full"
-            onClick={
-              showUnlockCta
-                ? unlock
-                : showCancelAppWait
-                  ? handleCancelAppWait
-                  : showContinuePrompt
-                    ? continuePrompt?.onContinue
+          <div className="flex flex-col gap-2">
+            <Button
+              disabled={
+                showUnlockCta
+                  ? isUnlocking
+                  : showCancelAppWait || showContinuePrompt
+                    ? false
                     : showReconnect
-                      ? handleReconnect
+                      ? isReconnecting
                       : showCancelSigning
-                        ? onCancelSigning
-                        : !started
-                          ? onSign
-                          : error && onRetry
-                            ? onRetry
-                            : onClose
-            }
-          >
-            {showUnlockCta ? (
-              isUnlocking ? (
-                COPY.wallet.locked.unlocking
+                        ? cancelSigningRequested
+                        : started
+                          ? !canClose && !isTerminalSuccess
+                          : signDisabled
+              }
+              variant="contained"
+              color="secondary"
+              className="w-full"
+              onClick={
+                showUnlockCta
+                  ? unlock
+                  : showCancelAppWait
+                    ? handleCancelAppWait
+                    : showContinuePrompt
+                      ? continuePrompt?.onContinue
+                      : showReconnect
+                        ? handleReconnect
+                        : showCancelSigning
+                          ? onCancelSigning
+                          : !started
+                            ? onSign
+                            : error && onRetry
+                              ? onRetry
+                              : onClose
+              }
+            >
+              {showUnlockCta ? (
+                isUnlocking ? (
+                  COPY.wallet.locked.unlocking
+                ) : (
+                  COPY.wallet.locked.unlockButton
+                )
+              ) : !started ? (
+                COPY.deposit.progress.buttons.signTransaction
+              ) : showCancelAppWait ? (
+                COPY.deposit.ledger.waitingForApp.cancel
+              ) : showContinuePrompt ? (
+                continuePrompt?.ctaLabel
+              ) : showReconnect ? (
+                COPY.deposit.ledger.reconnectButton
+              ) : showCancelSigning ? (
+                COPY.deposit.progress.buttons.cancelSigning
+              ) : showCloseAndTrack ? (
+                COPY.deposit.progress.buttons.closeAndTrack
+              ) : error ? (
+                onRetry ? (
+                  COPY.deposit.progress.buttons.retry
+                ) : (
+                  COPY.deposit.progress.buttons.close
+                )
+              ) : isComplete || isTerminalSuccess ? (
+                COPY.deposit.progress.buttons.done
+              ) : isProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader size={16} className="text-accent-contrast" />
+                  <Text
+                    as="span"
+                    variant="body2"
+                    className="text-accent-contrast"
+                  >
+                    {COPY.deposit.progress.buttons.sign}
+                  </Text>
+                </span>
               ) : (
-                COPY.wallet.locked.unlockButton
-              )
-            ) : !started ? (
-              COPY.deposit.progress.buttons.signTransaction
-            ) : showCancelAppWait ? (
-              COPY.deposit.ledger.waitingForApp.cancel
-            ) : showContinuePrompt ? (
-              continuePrompt?.ctaLabel
-            ) : showReconnect ? (
-              COPY.deposit.ledger.reconnectButton
-            ) : showCancelSigning ? (
-              COPY.deposit.progress.buttons.cancelSigning
-            ) : canContinueInBackground ? (
-              COPY.deposit.progress.buttons.closeContinueLater
-            ) : error ? (
-              onRetry ? (
-                COPY.deposit.progress.buttons.retry
-              ) : (
-                COPY.deposit.progress.buttons.close
-              )
-            ) : isComplete || isTerminalSuccess ? (
-              COPY.deposit.progress.buttons.done
-            ) : isProcessing ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader size={16} className="text-accent-contrast" />
-                <Text
-                  as="span"
-                  variant="body2"
-                  className="text-accent-contrast"
-                >
-                  {COPY.deposit.progress.buttons.sign}
-                </Text>
-              </span>
-            ) : (
-              COPY.deposit.progress.buttons.sign
+                COPY.deposit.progress.buttons.sign
+              )}
+            </Button>
+            {showCloseAndTrack && (
+              <Text
+                variant="caption"
+                className="text-center leading-[1.66] text-accent-secondary"
+              >
+                {COPY.deposit.progress.closeAndTrackHint}
+              </Text>
             )}
-          </Button>
+          </div>
         </div>
       }
     >

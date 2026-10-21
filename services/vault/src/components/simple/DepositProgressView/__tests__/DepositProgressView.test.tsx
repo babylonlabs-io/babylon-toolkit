@@ -588,7 +588,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByRole("button", { name: "Close & continue later" }),
+        screen.getByRole("button", { name: "Close & track in Vault Page" }),
       ).toBeInTheDocument();
     });
 

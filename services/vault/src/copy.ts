@@ -584,7 +584,7 @@ export const COPY = {
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       splitVaultLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
       buttons: {
-        closeContinueLater: "Close & continue later",
+        closeAndTrack: "Close & track in Vault Page",
         retry: "Retry",
         close: "Close",
         done: "Done",
@@ -598,6 +598,8 @@ export const COPY = {
       // in-flight signature only once the user acts on it.
       cancelRequestedNotice:
         "Cancellation requested. Finish or reject the request on your signing device to continue.",
+      closeAndTrackHint:
+        "No need to wait here. You can reopen this window anytime from your Vault Page.",
     },
     btcConfirmation: {
       estRemaining: "Est. remaining",
