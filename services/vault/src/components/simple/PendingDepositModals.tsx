@@ -1,35 +1,19 @@
 /**
  * PendingDepositModals Component
  *
- * Renders the broadcast + refund + reclaim + emergency-withdraw + expired
- * redeem + success modals used by the pending deposit section. The shared
- * Pre-PegIn broadcast keeps a dedicated modal (it's hoisted to a batch-level
- * button); the recovery escape hatches (HTLC refund, depositor-claim reclaim,
- * activate-and-redeem withdraw, expired-vault redeem) each own a dedicated
- * modal; every other per-vault action (WOTS, payout signing, activation,
- * artifact download) is owned by the deposit multistepper opened from the
- * card body.
+ * Renders the refund + reclaim + emergency-withdraw + expired redeem modals
+ * used by the pending deposit section. The recovery escape hatches (HTLC
+ * refund, depositor-claim reclaim, activate-and-redeem withdraw, expired-vault
+ * redeem) each own a dedicated modal; every other per-vault action (Pre-PegIn
+ * broadcast, WOTS, payout signing, activation, artifact download) is owned by
+ * the deposit multistepper.
  */
 
-import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
 import { ClaimExpiredVaultModal } from "@/components/deposit/ClaimExpiredVaultModal";
 import { EmergencyWithdrawModal } from "@/components/deposit/EmergencyWithdrawModal";
 import { ReclaimModal } from "@/components/deposit/ReclaimModal";
 import { RefundModal } from "@/components/deposit/RefundModal";
 import type { VaultActivity } from "@/types/activity";
-
-import SimpleDeposit from "./SimpleDeposit";
-
-interface BroadcastModalState {
-  broadcastingActivity: VaultActivity | null;
-  /** All vault IDs sharing the Pre-PegIn being broadcast (batched pegin). */
-  broadcastingBatchIds: string[];
-  handleClose: () => void;
-  handleSuccess: (confirmedVaultIds: readonly string[]) => void;
-  successOpen: boolean;
-  successAmount: string;
-  handleSuccessClose: () => void;
-}
 
 interface RefundModalState {
   refundingActivity: VaultActivity | null;
@@ -59,37 +43,20 @@ interface ClaimExpiredModalState {
 }
 
 interface PendingDepositModalsProps {
-  broadcastModal: BroadcastModalState;
   refundModal: RefundModalState;
   reclaimModal: ReclaimModalState;
   emergencyWithdrawModal: EmergencyWithdrawModalState;
   claimExpiredModal: ClaimExpiredModalState;
-  ethAddress: string | undefined;
 }
 
 export function PendingDepositModals({
-  broadcastModal,
   refundModal,
   reclaimModal,
   emergencyWithdrawModal,
   claimExpiredModal,
-  ethAddress,
 }: PendingDepositModalsProps) {
   return (
     <>
-      {/* Broadcast Modal – full-screen with stepper */}
-      {broadcastModal.broadcastingActivity && ethAddress && (
-        <SimpleDeposit
-          open={!!broadcastModal.broadcastingActivity}
-          resumeMode="broadcast_btc"
-          onClose={broadcastModal.handleClose}
-          onResumeSuccess={broadcastModal.handleSuccess}
-          activity={broadcastModal.broadcastingActivity}
-          batchVaultIds={broadcastModal.broadcastingBatchIds}
-          depositorEthAddress={ethAddress}
-        />
-      )}
-
       {/* Refund Modal */}
       {refundModal.refundingActivity && (
         <RefundModal
@@ -130,13 +97,6 @@ export function PendingDepositModals({
           onSuccess={claimExpiredModal.handleSuccess}
         />
       )}
-
-      {/* Broadcast Success Modal */}
-      <BroadcastSuccessModal
-        open={broadcastModal.successOpen}
-        onClose={broadcastModal.handleSuccessClose}
-        amount={broadcastModal.successAmount}
-      />
     </>
   );
 }

@@ -36,19 +36,6 @@ vi.mock("@/hooks/deposit/useAllDepositProviders", () => ({
   useAllDepositProviders: vi.fn(() => ({ vaultProviders: [] })),
 }));
 
-vi.mock("@/hooks/deposit/useBroadcastModal", () => ({
-  useBroadcastModal: vi.fn(() => ({
-    broadcastingActivity: null,
-    broadcastingBatchIds: [],
-    handleBroadcastClick: vi.fn(),
-    handleClose: vi.fn(),
-    handleSuccess: vi.fn(),
-    successOpen: false,
-    successAmount: "",
-    handleSuccessClose: vi.fn(),
-  })),
-}));
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function makeActivity(
@@ -193,14 +180,5 @@ describe("usePendingDeposits", () => {
       "w1",
       "k1",
     ]);
-  });
-
-  it("returns the broadcast modal handler", () => {
-    const { result } = renderHook(() => usePendingDeposits());
-
-    expect(result.current.broadcastModal).toBeDefined();
-    expect(result.current.broadcastModal.handleBroadcastClick).toBeInstanceOf(
-      Function,
-    );
   });
 });

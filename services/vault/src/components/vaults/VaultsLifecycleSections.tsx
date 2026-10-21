@@ -190,7 +190,6 @@ function PendingRow({
   activity,
   vaultProviders,
   onOpenDetails,
-  onBroadcast,
   onRefund,
   onEmergencyWithdraw,
   onDismiss,
@@ -198,7 +197,6 @@ function PendingRow({
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
   onOpenDetails: (depositId: string, action: PeginAction | null) => void;
-  onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
   onEmergencyWithdraw: (depositId: string) => void;
   onDismiss?: (depositId: string) => void;
@@ -246,10 +244,6 @@ function PendingRow({
     "";
 
   const routeAction = (action: PeginAction) => {
-    if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
-      onBroadcast(activity.id);
-      return;
-    }
     if (action === PeginAction.REFUND_HTLC) {
       onRefund(activity.id);
       return;
@@ -756,7 +750,6 @@ export function VaultsLifecycleSections({
     allActivities,
     vaultProviders,
     ethAddress,
-    broadcastModal,
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,
@@ -802,19 +795,9 @@ export function VaultsLifecycleSections({
     [allActivities, demo],
   );
 
-  // The broadcast/refund modals resolve ids against the REAL activity list, so
-  // a demo row's action would silently no-op there — route demo ids to the
-  // read-only stepper walk instead (matching v2's card-click behavior).
-  const handleBroadcast = useCallback(
-    (depositId: string) => {
-      if (allActivities.some((a) => a.id === depositId)) {
-        broadcastModal.handleBroadcastClick(depositId);
-        return;
-      }
-      handleOpenDetails(depositId, null);
-    },
-    [allActivities, broadcastModal, handleOpenDetails],
-  );
+  // The refund modals resolve ids against the REAL activity list, so a demo
+  // row's action would silently no-op there — route demo ids to the read-only
+  // stepper walk instead (matching v2's card-click behavior).
   const handleRefund = useCallback(
     (depositId: string) => {
       if (allActivities.some((a) => a.id === depositId)) {
@@ -984,9 +967,7 @@ export function VaultsLifecycleSections({
   // Keep the section (and its modals) mounted while a modal is open, even if
   // the last row advances to a terminal state mid-flow.
   const hasOpenModal = Boolean(
-    broadcastModal.broadcastingActivity ||
-      broadcastModal.successOpen ||
-      refundModal.refundingActivity ||
+    refundModal.refundingActivity ||
       reclaimModal.reclaimingActivity ||
       emergencyWithdrawModal.withdrawing ||
       claimExpiredModal.claimingActivity ||
@@ -1022,7 +1003,6 @@ export function VaultsLifecycleSections({
                 activity={activity}
                 vaultProviders={vaultProviders}
                 onOpenDetails={handleOpenDetails}
-                onBroadcast={handleBroadcast}
                 onRefund={handleRefund}
                 onEmergencyWithdraw={handleEmergencyWithdraw}
                 onDismiss={canDismiss(activity) ? handleDismiss : undefined}
@@ -1073,12 +1053,10 @@ export function VaultsLifecycleSections({
       />
 
       <PendingDepositModals
-        broadcastModal={broadcastModal}
         refundModal={refundModal}
         reclaimModal={reclaimModal}
         emergencyWithdrawModal={emergencyWithdrawModal}
         claimExpiredModal={claimExpiredModal}
-        ethAddress={ethAddress}
       />
 
       {viewingVaultIds && ethAddress && (

@@ -23,7 +23,6 @@ import type { Address } from "viem";
 import { selectPendingActivities } from "@/context/deposit/pendingDepositCount";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
-import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useClaimExpiredModal } from "@/hooks/deposit/useClaimExpiredModal";
 import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useReclaimModal } from "@/hooks/deposit/useReclaimModal";
@@ -110,11 +109,6 @@ export function usePendingDeposits() {
     [demo, vaultProviders],
   );
 
-  const broadcastModal = useBroadcastModal({
-    allActivities: activities,
-    onSuccess: refetchActivities,
-  });
-
   const refundModal = useRefundModal({
     allActivities: activities,
     onSuccess: refetchActivities,
@@ -166,7 +160,6 @@ export function usePendingDeposits() {
      * Stored status of each browser-local record, keyed by lowercased vault id.
      */
     localRecordStatuses,
-    broadcastModal,
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,

@@ -6,7 +6,8 @@
  * so the component stays a thin view layer.
  *
  * Note: onSuccess() triggers parent unmount (setBroadcastingActivity(null))
- * so there is no isComplete state — the BroadcastSuccessModal takes over.
+ * so there is no isComplete state — the parent multistepper refetches and
+ * advances to the next step.
  */
 
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -99,7 +100,7 @@ export function useBroadcastState({
         updatePendingPeginStatus,
         removePendingPegin,
         onRefetchActivities: () => {
-          // No-op: onSuccess() unmounts the component before this could run.
+          // No-op: onSuccess() lets the parent multistepper refetch and advance.
           // The polling context handles periodic refetching, and the optimistic
           // status update below provides immediate UI feedback.
         },

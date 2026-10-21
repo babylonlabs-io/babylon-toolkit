@@ -234,17 +234,6 @@ function makeDeposits(
     error: null,
     storageReadError: null,
     refetchActivities: vi.fn(),
-    broadcastModal: {
-      broadcastingActivity: null,
-      broadcastingBatchIds: [],
-      isOpen: false,
-      successOpen: false,
-      successAmount: "",
-      handleBroadcastClick: vi.fn(),
-      handleClose: vi.fn(),
-      handleSuccess: vi.fn(),
-      handleSuccessClose: vi.fn(),
-    },
     refundModal: {
       refundingActivity: null,
       handleRefundClick: vi.fn(),

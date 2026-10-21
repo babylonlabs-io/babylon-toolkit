@@ -187,7 +187,6 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
     expiredActivities: [],
     allActivities: [],
     ethAddress: undefined,
-    broadcastModal: {},
     refundModal: { handleRefundClick: vi.fn() },
     claimExpiredModal: { claimingActivity: null, handleClaimClick: vi.fn() },
   }),

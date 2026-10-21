@@ -50,7 +50,6 @@ function deposits(overrides: {
   return {
     expiredActivities: overrides.expiredActivities,
     ethAddress: "0x1234",
-    broadcastModal: {},
     refundModal: { handleRefundClick: vi.fn() },
     reclaimModal: {},
     emergencyWithdrawModal: {},
