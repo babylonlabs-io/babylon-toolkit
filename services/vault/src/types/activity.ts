@@ -16,6 +16,7 @@ import type {
   ExpirationReason,
   PeginDisplayLabel,
 } from "../models/peginStateMachine";
+import type { ActivationRedeemReason } from "../services/vault/activationRedeemReason";
 
 /**
  * Vault activity - represents both deposits and borrowing positions
@@ -140,6 +141,9 @@ export interface VaultActivity {
 
   /** Expiration reason, undefined if not expired */
   expirationReason?: ExpirationReason;
+
+  /** Why the registry handed the vault back at activation, from the indexer; undefined when it did not or the value is unknown to this build. */
+  redeemReason?: ActivationRedeemReason;
 
   /**
    * Offchain params version this vault was registered against. The protocol

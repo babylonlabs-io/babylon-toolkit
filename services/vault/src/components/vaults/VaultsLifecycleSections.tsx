@@ -62,7 +62,6 @@ import { useActionableReclaims } from "@/hooks/deposit/useActionableReclaims";
 import { useClaimExpiredRowAction } from "@/hooks/deposit/useClaimExpiredRowAction";
 import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
-import { useActivationRedeemReasons } from "@/hooks/useActivationRedeemReasons";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useRedeemClaimTxids } from "@/hooks/useRedeemClaimTxids";
@@ -79,10 +78,7 @@ import {
   type PeginState,
 } from "@/models/peginStateMachine";
 import { getDemoStepperBatch } from "@/overrides/deposits";
-import {
-  activationRedeemReasonText,
-  type ActivationRedeemReason,
-} from "@/services/vault/activationRedeemReason";
+import { activationRedeemReasonText } from "@/services/vault/activationRedeemReason";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
@@ -440,7 +436,6 @@ function InactiveRow({
   onReclaim,
   reclaimAction,
   claimTxid,
-  redeemReason,
   downloadParams,
   onDownloadArtifacts,
 }: {
@@ -452,8 +447,6 @@ function InactiveRow({
   reclaimAction: ReclaimRowAction | undefined;
   /** The vault provider's BTC claim of a redeemed vault, once broadcast. */
   claimTxid: string | undefined;
-  /** Why the registry redeemed the vault at activation, once read. */
-  redeemReason: ActivationRedeemReason | undefined;
   /** Set while an expired vault's artifacts are downloadable and unsaved. */
   downloadParams: ArtifactDownloadParams | null;
   onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
@@ -544,6 +537,12 @@ function InactiveRow({
       reclaimBlockedTooltip,
   );
 
+  // The indexer's reason explains the hand-back at activation, which only the
+  // REDEEMED row reports; a reclaim row carries the field but not the state.
+  const redeemReason =
+    activity.contractStatus === ContractStatus.REDEEMED
+      ? activity.redeemReason
+      : undefined;
   const reasonText = redeemReason
     ? activationRedeemReasonText(redeemReason)
     : null;
@@ -823,7 +822,6 @@ export function VaultsLifecycleSections({
   const { candidates: actionableReclaims, actions: reclaimActions } =
     useActionableReclaims(reclaimableCandidates, reclaimModal.inFlightVaultIds);
   const claimTxids = useRedeemClaimTxids(returnedRedeemedActivities);
-  const redeemReasons = useActivationRedeemReasons(returnedRedeemedActivities);
   const inactiveActivities: VaultActivity[] = useMemo(
     () => [
       ...expiredActivities,
@@ -1121,7 +1119,6 @@ export function VaultsLifecycleSections({
                 onReclaim={handleReclaim}
                 reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
                 claimTxid={claimTxids.get(activity.id)}
-                redeemReason={redeemReasons.get(activity.id)}
                 downloadParams={unsavedDownloadParams(
                   expiredDownloadParams.get(activity.id),
                 )}

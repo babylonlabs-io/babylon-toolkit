@@ -290,10 +290,9 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
     private contractAddress: Address,
   ) {}
 
-  async getTBVProtocolParams(blockNumber?: bigint): Promise<TBVProtocolParams> {
+  async getTBVProtocolParams(): Promise<TBVProtocolParams> {
     const [withMinActivationGas, withFundingInputCap, preFundingInputCap] =
       await this.publicClient.multicall({
-        blockNumber,
         contracts: this.tbvParamsCalls(),
         allowFailure: true,
       });

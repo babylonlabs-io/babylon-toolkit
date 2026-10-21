@@ -287,7 +287,10 @@ vi.mock("@/copy", async (importOriginal) => {
         },
       },
       vaults: {
-        redeemReason: { capExceeded: "The application's limit was reached." },
+        redeemReason: {
+          capExceeded: "The application's limit was reached.",
+          depositorRedeemed: "You chose to redeem the deposit.",
+        },
       },
     },
   };
@@ -717,6 +720,86 @@ describe("PostDepositContinuationView", () => {
     mockActivationReturnedReasons.set("0xvault0", { kind: "cap_exceeded" });
 
     const { getByText } = renderView();
+
+    expect(
+      getByText("The application's limit was reached."),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the activity's indexer reason after a reload", () => {
+    // A reload re-marks the vault from its deposit record with no reason, so
+    // the session map is empty; the indexer's stored reason covers it.
+    const VERIFIED = 1;
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+        activationReturned: true,
+      }),
+    );
+
+    const { getByText } = renderView({
+      activities: [
+        {
+          ...activityWithId("0xvault0"),
+          redeemReason: { kind: "cap_exceeded" },
+        },
+      ],
+    });
+
+    expect(
+      getByText("The application's limit was reached."),
+    ).toBeInTheDocument();
+  });
+
+  it("the session reason wins over the indexer reason", () => {
+    const VERIFIED = 1;
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+        activationReturned: true,
+      }),
+    );
+    mockActivationReturnedReasons.set("0xvault0", { kind: "cap_exceeded" });
+
+    const { getByText, queryByText } = renderView({
+      activities: [
+        {
+          ...activityWithId("0xvault0"),
+          redeemReason: { kind: "depositor_redeemed" },
+        },
+      ],
+    });
+
+    expect(
+      getByText("The application's limit was reached."),
+    ).toBeInTheDocument();
+    expect(queryByText("You chose to redeem the deposit.")).toBeNull();
+  });
+
+  it("an unknown session reason yields to the indexer's reason", () => {
+    const VERIFIED = 1;
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+        activationReturned: true,
+      }),
+    );
+    mockActivationReturnedReasons.set("0xvault0", { kind: "unknown" });
+
+    const { getByText } = renderView({
+      activities: [
+        {
+          ...activityWithId("0xvault0"),
+          redeemReason: { kind: "cap_exceeded" },
+        },
+      ],
+    });
 
     expect(
       getByText("The application's limit was reached."),
