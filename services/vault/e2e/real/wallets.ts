@@ -58,5 +58,32 @@ export async function importWallets(
   );
   log(`  ${eth} address: ${ethAddress}`);
 
+  await closeLeftoverWalletTabs(context, log);
   return { btcAddress, ethAddress };
+}
+
+/**
+ * Close every wallet tab still open once both wallets are imported. `launchWalletContext` closes the
+ * tabs extensions open on install after a fixed wait, but one opened later survives it: UniSat's own
+ * welcome tab, whose primary control is "Create new wallet", which the pop-up approver would then walk
+ * into a second wallet's creation. Each importer closes its own page and no wallet prompt is open yet,
+ * so every extension page here is such a leftover.
+ */
+async function closeLeftoverWalletTabs(
+  context: BrowserContext,
+  log: (m: string) => void,
+): Promise<void> {
+  const leftovers = context
+    .pages()
+    .filter((page) => page.url().startsWith("chrome-extension://"));
+  for (const page of leftovers) {
+    log(`Closing leftover wallet tab ${page.url()}`);
+    await page
+      .close()
+      .catch((error: unknown) =>
+        log(
+          `⚠️ Could not close leftover wallet tab ${page.url()}: ${error instanceof Error ? error.message : error}`,
+        ),
+      );
+  }
 }
