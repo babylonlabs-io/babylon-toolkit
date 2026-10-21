@@ -12,8 +12,8 @@
  * only the ProtocolParamsProvider its own children need — row state and CTAs
  * derive from the polling result, so god-mode demo rows work
  * unchanged. `deposits` arrives from the page's single `usePendingDeposits`
- * call (shared with the emptiness hook) so the broadcast/refund modal state
- * is instantiated once.
+ * call (shared with the emptiness hook) so the recovery modal state is
+ * instantiated once.
  */
 
 import {

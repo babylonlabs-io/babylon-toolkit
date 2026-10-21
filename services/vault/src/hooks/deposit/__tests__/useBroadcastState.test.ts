@@ -150,7 +150,7 @@ describe("useBroadcastState — batched broadcast", () => {
       "0xc",
       expect.anything(),
     );
-    expect(onSuccess).toHaveBeenCalledExactlyOnceWith(["0xa", "0xb"]);
+    expect(onSuccess).toHaveBeenCalledOnce();
   });
 
   it("emits a broadcast.succeeded milestone per verified sibling, not per listed id", async () => {

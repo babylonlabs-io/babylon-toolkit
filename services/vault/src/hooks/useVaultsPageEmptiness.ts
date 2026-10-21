@@ -46,7 +46,7 @@
  *
  * The deposit lists arrive as a parameter — the page's single
  * `usePendingDeposits` result, shared with VaultsLifecycleSections — so this
- * hook never instantiates a second broadcast/refund modal state pair. The
+ * hook never instantiates a second recovery modal state. The
  * reclaim reads it does repeat resolve against the query cache the section
  * already fills, so they cost no extra requests.
  */

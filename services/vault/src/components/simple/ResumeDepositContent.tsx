@@ -5,7 +5,7 @@
  * or BTC broadcast step. Renders the same DepositProgressView stepper
  * as the initial deposit flow with earlier steps already completed.
  *
- * Used by SimpleDeposit when opened in resume mode.
+ * Rendered by the deposit multistepper (PostDepositContinuationView).
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -263,7 +263,7 @@ export interface ResumeBroadcastContentProps {
   batchVaultIds: string[];
   depositorEthAddress: string;
   onClose: () => void;
-  onSuccess: (confirmedVaultIds: readonly string[]) => void;
+  onSuccess: () => void;
 }
 
 export function ResumeBroadcastContent(props: ResumeBroadcastContentProps) {

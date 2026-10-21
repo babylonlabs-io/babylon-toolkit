@@ -53,17 +53,15 @@ import { FadeTransition } from "./FadeTransition";
 // Props
 // ---------------------------------------------------------------------------
 
-type SimpleDepositBaseProps = {
+// Resuming a deposit (Pre-PegIn broadcast, WOTS key, payout signing,
+// activation) is owned by the deposit multistepper
+// (PostDepositContinuationView). SimpleDeposit only handles the new-deposit flow.
+type SimpleDepositProps = {
   open: boolean;
   onClose: () => void;
   /** Optional pre-filled BTC amount (e.g. from position notification suggestions) */
   initialAmountBtc?: string;
 };
-
-// Every post-broadcast action (Pre-PegIn broadcast, WOTS key, payout signing,
-// activation) is owned by the deposit multistepper (PostDepositContinuationView).
-// SimpleDeposit only handles the new-deposit flow.
-export type SimpleDepositProps = SimpleDepositBaseProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -73,7 +71,7 @@ function SimpleDepositContent({
   open,
   onClose,
   initialAmountBtc,
-}: SimpleDepositBaseProps) {
+}: SimpleDepositProps) {
   const gate = useProtocolGateState();
   const { requireBtcWallet } = useBtcAction();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();

@@ -5,9 +5,9 @@
  * Encapsulates useVaultActions + usePeginStorage + usePeginPolling
  * so the component stays a thin view layer.
  *
- * Note: onSuccess() triggers parent unmount (setBroadcastingActivity(null))
- * so there is no isComplete state — the parent multistepper refetches and
- * advances to the next step.
+ * Note: there is no isComplete state. On success every verified sibling is
+ * marked CONFIRMING, which removes the broadcast action, so the parent
+ * multistepper moves to the next step.
  */
 
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -37,8 +37,7 @@ export interface UseBroadcastStateProps {
    */
   batchVaultIds: string[];
   depositorEthAddress: string;
-  /** Receives the `batchVaultIds` entries the broadcast proved on chain. */
-  onSuccess: (confirmedVaultIds: readonly string[]) => void;
+  onSuccess: () => void;
 }
 
 export interface UseBroadcastStateResult {
@@ -81,8 +80,8 @@ export function useBroadcastState({
     // Resolve pendingPegin at call time to avoid stale closure references.
     // Every sibling's record holds the same transaction, UTXOs, build versions
     // and key stamp, and a deposit keeps going when one record fails to save,
-    // so a sibling's record stands in when the clicked vault has none. The
-    // broadcast still compares its transaction with the clicked vault's.
+    // so a sibling's record stands in when this vault has none. The
+    // broadcast still compares its transaction with this vault's.
     let pendingPegin = pendingPegins.find((p) => p.id === activity.id);
     if (pendingPegin === undefined) {
       pendingPegin = pendingPegins.find((p) => batchVaultIds.includes(p.id));
@@ -122,7 +121,7 @@ export function useBroadcastState({
             });
           }
           setLocalBroadcasting(false);
-          onSuccess(confirmedIds);
+          onSuccess();
         },
       });
     } catch (err) {

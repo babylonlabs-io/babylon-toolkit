@@ -52,8 +52,8 @@ export default function VaultsPage() {
   const gate = useProtocolGateState();
   const queryClient = useQueryClient();
   // The page's single usePendingDeposits instance — shared by the emptiness
-  // hook and the lifecycle sections so the broadcast/refund modal state pair
-  // is instantiated once.
+  // hook and the lifecycle sections so the recovery modal state is
+  // instantiated once.
   const deposits = usePendingDeposits();
   const { vaults: aaveVaults } = useAaveVaults(
     isConnected ? address : undefined,
