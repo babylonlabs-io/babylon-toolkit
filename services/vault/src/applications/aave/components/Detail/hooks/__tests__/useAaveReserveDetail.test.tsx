@@ -473,6 +473,26 @@ describe("useAaveReserveDetail", () => {
     expect(result.current.isLoading).toBe(true);
   });
 
+  it("keeps the current-key load out of isLoading and reports it on its own", () => {
+    // Only the call without an address (the reserve's current key) is loading.
+    mockUseVaultSplitParams.mockImplementation((addr?: string) => ({
+      params: addr
+        ? { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 }
+        : null,
+      isLoading: !addr,
+      error: null,
+      refetch: vi.fn(),
+    }));
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isBorrowSplitParamsLoading).toBe(true);
+  });
+
   it("is not loading when all sources have resolved", () => {
     mockUseAaveReservePrice.mockReturnValue({
       priceUsd: 1.0,
@@ -574,6 +594,26 @@ describe("useAaveReserveDetail", () => {
 
     expect(result.current.ancillaryError).toBe(splitError);
     expect(result.current.positionError).toBeNull();
+  });
+
+  it("keeps the current-key error out of ancillaryError and reports it on its own", () => {
+    const currentKeyError = new Error("getReserve failed");
+    mockUseVaultSplitParams.mockImplementation((addr?: string) => ({
+      params: addr
+        ? { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 }
+        : null,
+      isLoading: false,
+      error: addr ? null : currentKeyError,
+      refetch: vi.fn(),
+    }));
+
+    const { result } = renderHook(
+      () => useAaveReserveDetail({ reserveId: "2", address: "0xUser" }),
+      { wrapper },
+    );
+
+    expect(result.current.ancillaryError).toBeNull();
+    expect(result.current.borrowSplitParamsError).toBe(currentKeyError);
   });
 
   it("returns null for both errors when no hooks have errors", () => {

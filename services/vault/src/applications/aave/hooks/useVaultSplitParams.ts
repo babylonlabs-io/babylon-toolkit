@@ -106,7 +106,7 @@ async function fetchSplitParams(
 ): Promise<VaultSplitParams> {
   // If the user has a position, use its stored key. Otherwise ask the
   // contract for the reserve's current key (the value the contract will
-  // copy onto the user's position on their first borrow).
+  // copy onto the user's position on their next borrow).
   const dynamicConfigKey =
     positionDynamicConfigKey ??
     (await AaveSpoke.getReserve(spokeAddress, reserveId)).dynamicConfigKey;

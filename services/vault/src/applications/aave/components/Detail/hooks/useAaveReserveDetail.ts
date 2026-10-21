@@ -73,6 +73,13 @@ export interface UseAaveReserveDetailResult {
    * the position before it checks the health factor.
    */
   borrowLiquidationThresholdBps: number;
+  /**
+   * Loading and error state of the current-key read. Kept out of `isLoading`
+   * and `ancillaryError`: only the Borrow screen uses that key, so it must not
+   * hold a spinner or a warning over Repay.
+   */
+  isBorrowSplitParamsLoading: boolean;
+  borrowSplitParamsError: Error | null;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
   /** Collateral value in USD */
@@ -288,17 +295,15 @@ export function useAaveReserveDetail({
 
   return {
     isLoading:
-      identityLoading ||
-      positionLoading ||
-      pricesLoading ||
-      splitParamsLoading ||
-      borrowSplitParamsLoading,
+      identityLoading || positionLoading || pricesLoading || splitParamsLoading,
     selectedReserve,
     tokenIdentity,
     assetConfig,
     vbtcReserve,
     liquidationThresholdBps,
     borrowLiquidationThresholdBps,
+    isBorrowSplitParamsLoading: borrowSplitParamsLoading,
+    borrowSplitParamsError: borrowSplitParamsError ?? null,
     proxyContract: position?.proxyContract,
     collateralValueUsd,
     currentDebtAmount,
@@ -307,8 +312,7 @@ export function useAaveReserveDetail({
     tokenPriceUsd,
     isPriceStale,
     positionError: positionError ?? null,
-    ancillaryError:
-      pricesError ?? splitParamsError ?? borrowSplitParamsError ?? null,
+    ancillaryError: pricesError ?? splitParamsError ?? null,
     identityError,
     isIdentityCompromised: isIntegrityViolation,
     retryIdentity,

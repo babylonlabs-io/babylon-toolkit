@@ -11,6 +11,7 @@ import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
 import { LoanCard } from "../LoanCard";
+import { showsRepay } from "../LoanCard/showsRepay";
 import { ReserveIdentityBlock } from "../ReserveIdentityBlock";
 
 import { useAaveReserveDetail } from "./hooks";
@@ -61,6 +62,8 @@ export function ReserveDetailPanel({
     vbtcReserve,
     liquidationThresholdBps,
     borrowLiquidationThresholdBps,
+    isBorrowSplitParamsLoading,
+    borrowSplitParamsError,
     proxyContract,
     collateralValueUsd,
     currentDebtAmount,
@@ -125,7 +128,15 @@ export function ReserveDetailPanel({
     );
   }
 
-  if (isLoading) {
+  // Only the Borrow screen reads the reserve's current key, so its query must
+  // not hold a spinner or a warning over Repay.
+  const isBorrowScreen = !showsRepay(
+    tab,
+    collateralValueUsd,
+    totalDebtValueUsd,
+  );
+
+  if (isLoading || (isBorrowScreen && isBorrowSplitParamsLoading)) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-accent-secondary">{COPY.common.loading}</p>
@@ -197,7 +208,11 @@ export function ReserveDetailPanel({
             ? null
             : positionError
         }
-        ancillaryError={ancillaryError ?? positionError}
+        ancillaryError={
+          ancillaryError ??
+          (isBorrowScreen ? borrowSplitParamsError : null) ??
+          positionError
+        }
         refetchPosition={refetchPosition}
       >
         <LoanCard defaultTab={tab} />
