@@ -32,13 +32,7 @@
  *     write's, read by number, names a parent no node has, so the chain above does not descend from the
  *     write's block.
  */
-import type {
-  BrowserContext,
-  Locator,
-  Page,
-  Request,
-  Route,
-} from "@playwright/test";
+import type { BrowserContext, Locator, Page, Route } from "@playwright/test";
 
 import { type NetworkName, type ReorgInjection } from "../config";
 import { resolveNetworkContracts } from "../networkContracts";
@@ -52,6 +46,7 @@ import {
 } from "../timing";
 
 import { sweepApprovals } from "./approver";
+import { fulfillWithResult, parseJsonRpcCall } from "./jsonRpcRoute";
 import {
   CONFIRMING_LABEL_RX,
   DONE_BUTTON_RX,
@@ -81,31 +76,6 @@ const WATCHED_METHODS = new Set([
   "eth_getTransactionReceipt",
   "eth_getBlockByNumber",
 ]);
-
-/** Response headers that describe the RPC's original body bytes, not a re-encoded one. */
-const REENCODED_BODY_HEADERS = new Set([
-  "content-length",
-  "content-encoding",
-  "transfer-encoding",
-]);
-
-/** The single JSON-RPC call a request carries, or null for anything else (a batch, a GET, bad JSON). */
-function parseJsonRpcCall(
-  request: Request,
-): { method: string; params: readonly unknown[] } | null {
-  if (request.method() !== "POST") return null;
-  let body: unknown;
-  try {
-    body = request.postDataJSON();
-  } catch {
-    return null;
-  }
-  if (!isRecord(body) || typeof body.method !== "string") return null;
-  return {
-    method: body.method,
-    params: Array.isArray(body.params) ? body.params : [],
-  };
-}
 
 export interface AaveWriteWatch {
   /** The write as the app's RPC first reported it mined; null before then. */
@@ -169,17 +139,7 @@ export async function watchAaveWriteRpc(
         `Reorg injection (${reorg}): the app's RPC now shows block ${state.write?.blockNumber} reorganized out`,
       );
     }
-    // The body is re-encoded, so the original length and encoding no longer describe it.
-    const headers = Object.fromEntries(
-      Object.entries(response.headers()).filter(
-        ([name]) => !REENCODED_BODY_HEADERS.has(name.toLowerCase()),
-      ),
-    );
-    return route.fulfill({
-      status: response.status(),
-      headers,
-      json: { ...body, result },
-    });
+    return fulfillWithResult(route, response, body, result);
   };
   await page.route(matches, handler);
 

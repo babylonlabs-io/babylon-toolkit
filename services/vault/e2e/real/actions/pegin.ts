@@ -33,6 +33,10 @@
  * The deposit modal is a RootLayout overlay opened from the /vaults deposit CTA (v3 moved it off the
  * dashboard — see markdown/e2e-v3/02-pegin.md), so the form phase navigates there first.
  *
+ * Every run also watches the deposit's position-capacity checks on the app's RPC and requires them —
+ * one before the registration, one before the Pre-PegIn broadcast (see actions/positionCapacity.ts).
+ * `--inject-position-full=before-registration|before-broadcast` runs the unhappy paths instead.
+ *
  * NEVER run without an explicit go-ahead: it spends real signet BTC + Sepolia ETH and is not
  * idempotent (a crash after the Pre-PegIn broadcast leaves an on-chain in-flight deposit).
  */
@@ -52,10 +56,21 @@ import { installPopupApprover } from "./approver";
 import { goToSection } from "./navigation";
 import { assertRegisteredPeginWitness } from "./peginWalletPsbt";
 import { installPeginPsbtExtras } from "./peginWalletPsbtInjection";
+import {
+  capacityViolationCheck,
+  judgeCapacityChecks,
+  runPeginRefusedBeforeBroadcast,
+  runPeginRefusedBeforeRegistration,
+  startCapacityProbe,
+  writeCapacityArtifact,
+  type CapacityDeposit,
+  type DepositFormDriver,
+} from "./positionCapacity";
 import { startRecording } from "./recording";
 import { FLUID_CTA_SELECTOR } from "./selectors";
 import {
   assertActivatedAndOnDashboard,
+  assertNotReturnedAtActivation,
   assertVaultCountRose,
   walkStepMachine,
 } from "./stepMachine";
@@ -269,10 +284,14 @@ async function waitForDepositCta(
   );
 }
 
-/** Click the single "Sign Transaction" start button that kicks off the whole signing sequence. */
+/**
+ * Click the single "Sign Transaction" start button that kicks off the whole signing sequence.
+ * `beforeClick` runs right before the click, once the button is there (the capacity watch marks it).
+ */
 export async function startSigning(
   page: Page,
   log: (m: string) => void,
+  beforeClick?: () => void,
 ): Promise<void> {
   const signButton = page
     .getByRole("button", { name: SIGN_TRANSACTION_LABEL, exact: true })
@@ -281,7 +300,49 @@ export async function startSigning(
   log(
     "Deposit progress open — starting the signing sequence (Sign Transaction)",
   );
+  beforeClick?.();
   await signButton.click();
+}
+
+/** The deposit a pegin run makes, resolved from the CLI config. */
+interface PeginInputs extends CapacityDeposit {
+  provider: string | undefined;
+}
+
+function resolvePeginInputs(ctx: ActionContext): PeginInputs {
+  // Amount is resolved by the CLI to the fetched protocol minimum (or --amount). If it's unresolved
+  // — the min-fetch failed non-interactively and no --amount was given — fail loudly rather than
+  // silently depositing a stale hardcoded amount (CLAUDE.md: no silent fallbacks on critical paths).
+  const amountBtc = ctx.config.peginAmountBtc?.trim();
+  if (!amountBtc)
+    throw new Error(
+      "pegin: no deposit amount resolved — the minimum-deposit fetch failed and no --amount was given. Re-run with --amount=<btc>, or against a reachable network.",
+    );
+  const split = ctx.config.split ?? false;
+  return {
+    amountBtc,
+    provider: ctx.config.peginProvider?.trim() || undefined,
+    split,
+    expectedVaults: split ? 2 : 1,
+  };
+}
+
+/** The form steps the position-capacity scenarios drive. */
+function depositFormDriver(
+  ctx: ActionContext,
+  inputs: PeginInputs,
+): DepositFormDriver {
+  return {
+    fill: () =>
+      fillDepositForm(
+        ctx.page,
+        ctx.log,
+        inputs.amountBtc,
+        inputs.provider,
+        inputs.split,
+      ),
+    sign: (beforeClick) => startSigning(ctx.page, ctx.log, beforeClick),
+  };
 }
 
 /**
@@ -346,18 +407,8 @@ export async function runPeginFlow(
   onStep: (step: string) => void,
 ): Promise<void> {
   const { page, context, log } = ctx;
-  // Amount is resolved by the CLI to the fetched protocol minimum (or --amount). If it's unresolved
-  // — the min-fetch failed non-interactively and no --amount was given — fail loudly rather than
-  // silently depositing a stale hardcoded amount (CLAUDE.md: no silent fallbacks on critical paths).
-  const amountBtc = ctx.config.peginAmountBtc?.trim();
-  if (!amountBtc)
-    throw new Error(
-      "pegin: no deposit amount resolved — the minimum-deposit fetch failed and no --amount was given. Re-run with --amount=<btc>, or against a reachable network.",
-    );
-  const provider = ctx.config.peginProvider?.trim() || undefined;
-  const split = ctx.config.split ?? false;
-
-  const expectedVaults = split ? 2 : 1;
+  const inputs = resolvePeginInputs(ctx);
+  const { amountBtc, provider, split, expectedVaults } = inputs;
   // The on-chain vault count BEFORE this run — the baseline the post-condition asserts against. Read
   // from `getPosition`, not the UI: /vaults renders optimistic rows for vaults this run activates, so
   // a row count could never tell us whether the deposit actually landed.
@@ -369,58 +420,69 @@ export async function runPeginFlow(
   onStep("deposit-form");
   await fillDepositForm(page, log, amountBtc, provider, split);
 
-  onStep("sign-transaction");
-  await startSigning(page, log);
-
-  onStep("step-machine");
+  const probe = await startCapacityProbe(ctx, inputs, undefined);
   let capturedPrePeginTxid: string | undefined;
   let prePeginTxid: string | undefined;
   try {
-    prePeginTxid = await walkStepMachine(
-      page,
-      context,
-      log,
-      expectedVaults,
-      onStep,
-      {
-        onPrePeginTxid: (txid) => {
-          capturedPrePeginTxid = txid;
+    onStep("sign-transaction");
+    await startSigning(page, log, probe.watch.markSignClick);
+
+    onStep("step-machine");
+    try {
+      prePeginTxid = await walkStepMachine(
+        page,
+        context,
+        log,
+        expectedVaults,
+        onStep,
+        {
+          onPrePeginTxid: (txid) => {
+            capturedPrePeginTxid = txid;
+          },
+          onTick: capacityViolationCheck(probe),
         },
-      },
-    );
-  } catch (stepMachineError) {
-    // A PegIn the vault provider rejects never activates, so the walk fails as a provider or timeout
-    // error. Once the Pre-PegIn is broadcast the PegIn is registered, so check its witness here and
-    // name a malformed one as the cause. A lookup that cannot reach the vaults says nothing about the
-    // witness, so it is only logged and the walk's own error stands.
-    if (capturedPrePeginTxid) {
-      onStep("verify-pegin-witness");
-      let vaults: RegisteredVault[];
-      try {
-        vaults = await findDepositVaults(
-          ctx,
-          capturedPrePeginTxid,
-          expectedVaults,
-        );
-      } catch (lookupError) {
-        log(
-          `⚠️ Could not check the registered PegIn witness after the step machine failed: ${lookupError instanceof Error ? lookupError.message : lookupError}`,
-        );
-        throw stepMachineError;
+      );
+    } catch (stepMachineError) {
+      // A PegIn the vault provider rejects never activates, so the walk fails as a provider or timeout
+      // error. Once the Pre-PegIn is broadcast the PegIn is registered, so check its witness here and
+      // name a malformed one as the cause. A lookup that cannot reach the vaults says nothing about the
+      // witness, so it is only logged and the walk's own error stands.
+      if (capturedPrePeginTxid) {
+        onStep("verify-pegin-witness");
+        let vaults: RegisteredVault[];
+        try {
+          vaults = await findDepositVaults(
+            ctx,
+            capturedPrePeginTxid,
+            expectedVaults,
+          );
+        } catch (lookupError) {
+          log(
+            `⚠️ Could not check the registered PegIn witness after the step machine failed: ${lookupError instanceof Error ? lookupError.message : lookupError}`,
+          );
+          throw stepMachineError;
+        }
+        try {
+          assertRegisteredPeginWitnesses(ctx, vaults);
+        } catch (witnessError) {
+          throw new Error(
+            `${witnessError instanceof Error ? witnessError.message : witnessError} (The step machine then failed: ${stepMachineError instanceof Error ? stepMachineError.message : stepMachineError})`,
+            { cause: stepMachineError },
+          );
+        }
       }
-      try {
-        assertRegisteredPeginWitnesses(ctx, vaults);
-      } catch (witnessError) {
-        throw new Error(
-          `${witnessError instanceof Error ? witnessError.message : witnessError} (The step machine then failed: ${stepMachineError instanceof Error ? stepMachineError.message : stepMachineError})`,
-          { cause: stepMachineError },
-        );
-      }
+      throw stepMachineError;
     }
-    throw stepMachineError;
+    await judgeCapacityChecks(ctx, probe);
+  } finally {
+    // Disposed before the finish line, so a composite run's later route (borrow --pegin-first) never
+    // stacks on this one.
+    await probe.watch.dispose();
+    writeCapacityArtifact(ctx, probe);
   }
 
   onStep("finish");
+  await assertNotReturnedAtActivation(page);
   await assertActivatedAndOnDashboard(page, log, amountBtc, prePeginTxid);
 
   // Before the collateral check: the registered PegIn does not depend on how activation went, so its
@@ -456,16 +518,32 @@ export const peginAction: Action = {
       log,
       () => currentStep,
     );
+    const onStep = (step: string) => {
+      currentStep = step;
+    };
     try {
       // `--inject-pegin-psbt-extras`: armed before signing so the wallet's PegIn answer is rewritten.
       const psbtExtras = ctx.config.injectPeginPsbtExtras
         ? await installPeginPsbtExtras(page, ctx.config.btcWallet, log)
         : undefined;
       await connectWallets(ctx);
-      await runPeginFlow(ctx, (step) => {
-        currentStep = step;
-      });
-      await psbtExtras?.assertTampered();
+      const injection = ctx.config.injectPositionFull;
+      if (injection === undefined) {
+        await runPeginFlow(ctx, onStep);
+        await psbtExtras?.assertTampered();
+      } else {
+        const inputs = resolvePeginInputs(ctx);
+        const form = depositFormDriver(ctx, inputs);
+        if (injection === "before-registration")
+          await runPeginRefusedBeforeRegistration(
+            ctx,
+            inputs,
+            form,
+            onStep,
+            () => context.off("page", handler),
+          );
+        else await runPeginRefusedBeforeBroadcast(ctx, inputs, form, onStep);
+      }
     } finally {
       await recorder.stop();
       context.off("page", handler);

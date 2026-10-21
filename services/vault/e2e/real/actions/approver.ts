@@ -25,12 +25,33 @@
  */
 import type { BrowserContext, Page } from "@playwright/test";
 
+import { EXTENSION_CHROME_STORE_IDS, runtimeExtensionId } from "../connector";
 import {
   APPROVE_CLICK_TIMEOUT_MS,
   APPROVE_ROUND_MS,
   APPROVE_ROUNDS,
 } from "../timing";
 import { centerWindow } from "../windowUtils";
+
+/** UniSat's own onboarding and wallet-management screens: its welcome page and every `#/account/…` route. */
+const UNISAT_ONBOARDING_ROUTE_RX = /#\/(welcome|account\/)/;
+
+/**
+ * Whether `url` is one of UniSat's onboarding screens rather than a wallet prompt. UniSat opens its welcome
+ * tab by itself when installed, and that tab can outlive the launch-time cleanup; its primary control is
+ * "Create new wallet", so approving it would walk into creating a second wallet.
+ */
+function isUnisatOnboardingPage(url: string): boolean {
+  if (!UNISAT_ONBOARDING_ROUTE_RX.test(url)) return false;
+  let unisatId: string;
+  try {
+    unisatId = runtimeExtensionId(EXTENSION_CHROME_STORE_IDS.UNISAT);
+  } catch {
+    // UniSat is not downloaded on this machine, so no UniSat page can be open.
+    return false;
+  }
+  return url.startsWith(`chrome-extension://${unisatId}/`);
+}
 
 /** Accessible-name pattern for the approve/confirm/sign control across wallets. */
 const APPROVE_NAME_RX =
@@ -247,6 +268,7 @@ export async function sweepApprovals(
   for (const popup of context.pages()) {
     if (popup === mainPage || !popup.url().startsWith("chrome-extension://"))
       continue;
+    if (isUnisatOnboardingPage(popup.url())) continue;
     await tickConsent(popup).catch(() => {});
     const clicked = await clickApprove(popup).catch(() => null);
     if (clicked)
@@ -275,6 +297,7 @@ export function installPopupApprover(
         // 'page'-event time would skip the popup permanently.
         await popup.waitForLoadState("domcontentloaded").catch(() => {});
         if (!popup.url().startsWith("chrome-extension://")) return;
+        if (isUnisatOnboardingPage(popup.url())) return;
         await centerWindow(popup);
         const file = popup.url().split("/").pop();
         for (let round = 0; round < APPROVE_ROUNDS; round++) {

@@ -24,6 +24,8 @@ import {
   MULTICALL3_ADDRESS,
   type JsonRpcRequest,
   type RecordedChain,
+  type StatedAnswer,
+  type StatedMethods,
 } from "./chain";
 import { RECORDED_ENDPOINTS } from "./contracts";
 import {
@@ -148,6 +150,17 @@ export interface ReplayOptions {
    * recording holds elsewhere, and this value is new.
    */
   readonly walletUtxoCopies?: number;
+  /**
+   * Contract reads the spec answers itself - its premise, stated in the spec
+   * rather than recorded. See {@link StatedAnswer}. Each one wins over the
+   * recording, and every ask is logged in `chain.statedAsks`.
+   */
+  readonly statedAnswers?: readonly StatedAnswer[];
+  /**
+   * JSON-RPC methods other than `eth_call` the spec answers itself, by method
+   * name. See {@link StatedMethods}. Each one wins over the recording.
+   */
+  readonly statedMethods?: StatedMethods;
 }
 
 /** The mempool key of the wallet's UTXO list, after {@link mempoolKey}. */
@@ -196,7 +209,11 @@ export async function installRecordedBackend(
     options.recordingPath ?? PEGIN_RECORDING_PATH,
     options.upToStep ?? DEFAULT_REPLAY_STEP,
   );
-  const chain = buildRecordedChain(run);
+  const chain = buildRecordedChain(
+    run,
+    options.statedAnswers,
+    options.statedMethods,
+  );
   const misses: string[] = [];
 
   const vpHealth = (run.byBackend.get("vp-health") ?? []).at(-1);

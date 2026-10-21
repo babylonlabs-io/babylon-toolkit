@@ -1,30 +1,70 @@
 import type { Hex } from "viem";
 
 /**
+ * Where a position-capacity check ran. Before registration no vault exists
+ * yet, so only the broadcast checkpoint names one; the stage also decides
+ * what the refusal stopped ("Registration refused." / "Broadcast refused.").
+ */
+export type PositionCapacityCheckpoint =
+  | { stage: "registration" }
+  | { stage: "broadcast"; vaultId: Hex };
+
+function refusedSuffix(checkpoint: PositionCapacityCheckpoint): string {
+  return checkpoint.stage === "registration"
+    ? "Registration refused."
+    : "Broadcast refused.";
+}
+
+/**
  * Typed refusal when the application says the depositor's position cannot take
- * the vaults a new or resumed Pre-PegIn would add. Thrown before the Pre-PegIn
- * is signed for broadcast, so this attempt broadcast nothing. The user can act
- * on it (free room in the position, or wait for limits to change), so the
- * mapper branches on the class and renders the position-capacity callout.
+ * the vaults a new deposit would register, or a new or resumed Pre-PegIn would
+ * fund. Thrown before the Ethereum registration or before the Pre-PegIn is
+ * signed for broadcast, so this attempt broadcast nothing. The user can act on
+ * it (free room in the position, or wait for limits to change), so the mapper
+ * branches on the class and renders the position-capacity callout.
  */
 export class PositionCapacityExceededError extends Error {
-  readonly vaultId: Hex;
-  /** Vaults the check asked the position to accept (the whole batch). */
+  readonly checkpoint: PositionCapacityCheckpoint;
+  /** Vaults this deposit adds (the whole batch). */
   readonly vaultCount: number;
   /** Their total amount in satoshis. */
   readonly amount: bigint;
+  /**
+   * The depositor's other registered, not yet activated vaults in the same
+   * application, which the check counted on top of this deposit.
+   */
+  readonly inFlightVaultCount: number;
+  /** Their total amount in satoshis. */
+  readonly inFlightAmount: bigint;
 
-  constructor(fields: { vaultId: Hex; vaultCount: number; amount: bigint }) {
+  constructor(fields: {
+    checkpoint: PositionCapacityCheckpoint;
+    vaultCount: number;
+    amount: bigint;
+    inFlightVaultCount: number;
+    inFlightAmount: bigint;
+  }) {
+    const subject =
+      fields.checkpoint.stage === "broadcast"
+        ? ` for vault ${fields.checkpoint.vaultId}`
+        : "";
+    const inFlight =
+      fields.inFlightVaultCount > 0
+        ? ` on top of ${fields.inFlightVaultCount} registered, unactivated ` +
+          `BTCVault(s) totalling ${fields.inFlightAmount} sats`
+        : "";
     super(
       `The application refused ${fields.vaultCount} BTCVault(s) totalling ` +
-        `${fields.amount} sats into the depositor's position for vault ` +
-        `${fields.vaultId}: the position would exceed its BTCVault count or ` +
-        `BTC limit. Broadcast refused.`,
+        `${fields.amount} sats${inFlight} into the depositor's position` +
+        `${subject}: the position would exceed its BTCVault count or BTC ` +
+        `limit. ${refusedSuffix(fields.checkpoint)}`,
     );
     this.name = "PositionCapacityExceededError";
-    this.vaultId = fields.vaultId;
+    this.checkpoint = fields.checkpoint;
     this.vaultCount = fields.vaultCount;
     this.amount = fields.amount;
+    this.inFlightVaultCount = fields.inFlightVaultCount;
+    this.inFlightAmount = fields.inFlightAmount;
   }
 }
 
@@ -37,18 +77,24 @@ export function isPositionCapacityExceededError(
 
 /**
  * Typed refusal when the position-capacity check could not reach a verdict: a
- * chain read failed, the transaction could not be sized, or the vaults found
- * do not hold every HTLC output exactly once. The check fails closed rather
- * than defaulting to "allowed", and this attempt broadcast nothing. The
- * underlying failure, when there is one, stays on `cause` for the log.
+ * chain read failed, a registered vault is in a state the check does not
+ * model, the transaction could not be sized, or the vaults found do not hold
+ * every HTLC output exactly once. The check fails closed rather than
+ * defaulting to "allowed", and this attempt broadcast nothing. The underlying
+ * failure, when there is one, stays on `cause` for the log.
  */
 export class PositionCapacityUnavailableError extends Error {
-  readonly vaultId: Hex;
+  readonly checkpoint: PositionCapacityCheckpoint;
 
-  constructor(message: string, fields: { vaultId: Hex; cause?: unknown }) {
-    super(message, { cause: fields.cause });
+  constructor(
+    reason: string,
+    fields: { checkpoint: PositionCapacityCheckpoint; cause?: unknown },
+  ) {
+    super(`${reason} ${refusedSuffix(fields.checkpoint)}`, {
+      cause: fields.cause,
+    });
     this.name = "PositionCapacityUnavailableError";
-    this.vaultId = fields.vaultId;
+    this.checkpoint = fields.checkpoint;
   }
 }
 

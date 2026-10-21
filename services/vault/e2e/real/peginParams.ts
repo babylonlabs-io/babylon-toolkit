@@ -41,7 +41,7 @@ import {
 
 const SATS_PER_BTC = 100_000_000n;
 /** BTC has 8 decimal places (1 BTC = 1e8 sats) — the fractional width for the amount string. */
-const BTC_DECIMALS = 8;
+export const BTC_DECIMALS = 8;
 
 /** A vault provider as offered in the CLI menu. `available` mirrors the app's metadata gating. */
 export interface ProviderChoice {

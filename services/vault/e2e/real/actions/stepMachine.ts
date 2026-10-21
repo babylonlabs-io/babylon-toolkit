@@ -25,6 +25,7 @@ import {
   PEGIN_POLL_INTERVAL_MS,
   PEGIN_STEP_MACHINE_BUDGET_MS,
   PEGIN_TX_FAILURE_RETRY_LIMIT,
+  POSITION_UNCHECKED_RETRY_INTERVAL_MS,
   STEP_TIMEOUT_MS,
   VP_PROBE_CHECK_AGAIN_LIMIT,
   VP_PROBE_VERDICT_WINDOW_MS,
@@ -32,7 +33,13 @@ import {
 
 import { sweepApprovals } from "./approver";
 import { goToSection } from "./navigation";
-import { firstByTestid } from "./selectors";
+import {
+  firstByTestid,
+  POSITION_CAPACITY_EXCEEDED_TITLE,
+  POSITION_CAPACITY_UNAVAILABLE_TITLE,
+  retryButton,
+  VAULT_RETURNED_HEADING_RX,
+} from "./selectors";
 import { type ActionContext } from "./types";
 
 // The activation modal's confirm button. Selected testid-first (stable + text-independent) with a
@@ -54,16 +61,8 @@ const RISK_ACK_LABEL =
   "I understand the risks of continuing without the artifacts."; // riskAcknowledgement
 const CONTINUE_WITHOUT_LABEL = "Continue without";
 const SKIP_LABEL = "Skip"; // COPY.deposit.inStepArtifact.skip
-// The DepositProgressView's recoverable-error CTA: the fluid submit relabels to "Retry" (and calls
-// `onRetry`) whenever a step tx fails with a retryable error (COPY.deposit.progress.buttons.retry). It's
-// only rendered in that error state — during signing the CTA is "Sign Transaction"/processing/"Done" —
-// so its visible text is a safe, state-specific target (mirrors how the Activate/Skip gates are matched).
-const RETRY_BUTTON_RX = /^retry$/i; // COPY.deposit.progress.buttons.retry
-function retryButton(page: Page): Locator {
-  return page.getByRole("button", { name: RETRY_BUTTON_RX }).first();
-}
 // The Activate modal's liveness-gate button, shown with Cancel while the vault provider is unconfirmed
-// (COPY.deposit.activateConfirmation.checkAgainButton). Deliberately not "Retry", so RETRY_BUTTON_RX
+// (COPY.deposit.activateConfirmation.checkAgainButton). Deliberately not "Retry", so `retryButton`
 // never matches it.
 const CHECK_AGAIN_TESTID = '[data-testid="retry-vp-probe-button"]';
 // BtcActionGate's named Start card button (COPY.deposit.resume.start.*.button).
@@ -169,7 +168,9 @@ async function handleArtifactSkip(
  * amount match, and the split branch (txid-only) reports "0/N matched" and blames indexer lag. Same
  * hazard resume.ts documents when it prefers a known txid over the read one.
  */
-async function readPrePeginTxid(page: Page): Promise<string | undefined> {
+export async function readPrePeginTxid(
+  page: Page,
+): Promise<string | undefined> {
   const links = page.locator(`${DEPOSIT_DIALOG_SELECTOR} a[href*="/tx/"]`);
   const count = await links.count().catch(() => 0);
   for (let i = 0; i < count; i++) {
@@ -239,6 +240,71 @@ async function countWotsSkippedVaults(page: Page): Promise<number> {
   return vaults.size;
 }
 
+/** Whether `title` is on screen right now. */
+async function titleShown(page: Page, title: string): Promise<boolean> {
+  return page
+    .getByText(title, { exact: true })
+    .first()
+    .isVisible()
+    .catch(() => false);
+}
+
+/**
+ * The deposit flow's position-capacity screens, for a walk to check every tick. Returns true while
+ * "Couldn't check your position" with Retry is on screen, so the walk leaves that tick to it.
+ * - "Not enough room": fails at once. Its Retry is real (the vaults stay resumable), but only helps once
+ *   room is freed, so clicking it would repeat the refusal until the retry cap.
+ * - "Couldn't check" without Retry: the flow refused before the registration and ended; fails at once.
+ * - "Couldn't check" with Retry: a failed chain read a retry can clear. Retry is clicked again every
+ *   POSITION_UNCHECKED_RETRY_INTERVAL_MS while the screen stays, up to PEGIN_TX_FAILURE_RETRY_LIMIT.
+ * The `--inject-position-full` scenarios handle the refusal before walking.
+ */
+function positionCapacityScreens(
+  page: Page,
+  log: (m: string) => void,
+): () => Promise<boolean> {
+  let retries = 0;
+  let lastRetryAt = 0;
+  return async () => {
+    if (await titleShown(page, POSITION_CAPACITY_EXCEEDED_TITLE))
+      throw new Error(
+        `The deposit flow stopped on "${POSITION_CAPACITY_EXCEEDED_TITLE}": the app's position-capacity check found no room for the deposit, counting the depositor's unactivated deposits. Free a slot or wait for an unfinished deposit to expire, then resume the deposit (or start again if it was refused before registration). trace.zip + the failure screenshot are captured.`,
+      );
+    if (!(await titleShown(page, POSITION_CAPACITY_UNAVAILABLE_TITLE)))
+      return false;
+    if (
+      !(await retryButton(page)
+        .isVisible()
+        .catch(() => false))
+    )
+      throw new Error(
+        `The deposit flow stopped on "${POSITION_CAPACITY_UNAVAILABLE_TITLE}" with no Retry: before the registration a chain read failed, or one of the depositor's vaults is in a status the app does not model (which a healthy RPC will not clear), so nothing was registered. Re-run once the RPC is healthy. trace.zip + the failure screenshot are captured.`,
+      );
+    if (Date.now() - lastRetryAt < POSITION_UNCHECKED_RETRY_INTERVAL_MS)
+      return true;
+    if (retries >= PEGIN_TX_FAILURE_RETRY_LIMIT)
+      throw new Error(
+        `The deposit flow kept stopping on "${POSITION_CAPACITY_UNAVAILABLE_TITLE}" after ${PEGIN_TX_FAILURE_RETRY_LIMIT} retries: the app could not read the position's capacity from chain (a failing RPC or registry read, or a vault in a status the app does not model). The deposit is registered, so resume it once the read succeeds. trace.zip + the failure screenshot are captured.`,
+      );
+    retries += 1;
+    lastRetryAt = Date.now();
+    log(
+      `⚠️ "${POSITION_CAPACITY_UNAVAILABLE_TITLE}" — clicking Retry (${retries}/${PEGIN_TX_FAILURE_RETRY_LIMIT}) to re-run the capacity check`,
+    );
+    // A click that fails is a UI or automation fault, not the chain: stop with that cause rather than
+    // charge the retry cap for it and blame the capacity read three clicks later.
+    try {
+      await retryButton(page).click({ timeout: STEP_TIMEOUT_MS });
+    } catch (error) {
+      throw new Error(
+        `Could not click Retry on "${POSITION_CAPACITY_UNAVAILABLE_TITLE}" (a UI/automation issue, not a failed capacity read). trace.zip + the failure screenshot are captured.`,
+        { cause: error },
+      );
+    }
+    return true;
+  };
+}
+
 /**
  * Walk the 15-step signing machine to the activated vault. Two approval mechanisms run in parallel:
  * the event-driven `installPopupApprover` (for NEW wallet windows) and, each tick, an active
@@ -273,6 +339,8 @@ export async function walkStepMachine(
      * carries it only when the walk succeeds; this hands it to a caller whose walk then throws.
      */
     onPrePeginTxid?: (prePeginTxid: string) => void;
+    /** Run at the start of every tick; a throw aborts the walk (the pegin capacity watch's fast-fail). */
+    onTick?: () => Promise<void>;
   } = {},
 ): Promise<string | undefined> {
   const deadline = Date.now() + PEGIN_STEP_MACHINE_BUDGET_MS;
@@ -296,8 +364,11 @@ export async function walkStepMachine(
   // Count the activations we've driven; the finish gate needs `expectedVaults` of them (see below).
   let activationCount = 0;
   let prePeginTxid: string | undefined;
+  const capacityScreens = positionCapacityScreens(page, log);
 
   while (Date.now() < deadline) {
+    await options.onTick?.();
+
     // Finish only when the activated view is up AND we've driven every expected activation. The second
     // clause rejects the transient per-vault "Go to Dashboard" that can flash after just one split
     // vault activates, before the sibling is done. Single-vault (expectedVaults=1) is satisfied by the
@@ -321,6 +392,13 @@ export async function walkStepMachine(
           `vault-provider availability issue (not the CLI) — retry once the provider is healthy. The ` +
           `Pre-PegIn is already broadcast, so the deposit can be resumed later rather than re-pegged.`,
       );
+
+    // The deposit's position-capacity screens (see positionCapacityScreens): a refusal fails the walk,
+    // and a failed capacity read gets its own timed Retry, outside the transaction Retry below.
+    if (await capacityScreens()) {
+      await page.waitForTimeout(PEGIN_POLL_INTERVAL_MS);
+      continue;
+    }
 
     // Fast-fail on the Activate modal's incomplete-details block: the indexer record lacks the provider
     // address, peg-in txid or depositor key (or the address is malformed), the modal offers only Cancel,
@@ -482,7 +560,8 @@ const BROADCAST_SETTLE_TICKS = 3;
  * `resume` action's `--interrupt-fresh` path to reach an on-chain, resumable deposit, which it then
  * reloads (cold) to resume from the dashboard. Before broadcast the only wallet pop-ups are BTC signing
  * (derive secret / sign PSBT / sign PoP) and the SUBMIT_PEGIN ETH tx — all handled by the approver +
- * this loop's `sweepApprovals`; no Activate/Skip/Retry dapp gates fire yet. The Pre-PegIn txid link
+ * this loop's `sweepApprovals`; no Activate/Skip/Retry dapp gates fire yet, but the position-capacity
+ * screens can, and are handled as in `walkStepMachine`. The Pre-PegIn txid link
  * appears only once the app has signed AND broadcast it, so capturing it is the post-broadcast signal;
  * we keep sweeping for a short settle afterwards so any final broadcast pop-up is confirmed before the
  * caller reloads.
@@ -495,8 +574,14 @@ export async function walkUntilPrePeginBroadcast(
 ): Promise<string> {
   const deadline = Date.now() + PEGIN_STEP_MACHINE_BUDGET_MS;
   let lastStep = "";
+  const capacityScreens = positionCapacityScreens(page, log);
   while (Date.now() < deadline) {
     await sweepApprovals(context, page, log);
+
+    if (await capacityScreens()) {
+      await page.waitForTimeout(PEGIN_POLL_INTERVAL_MS);
+      continue;
+    }
 
     const txid = await readPrePeginTxid(page);
     if (txid) {
@@ -521,6 +606,23 @@ export async function walkUntilPrePeginBroadcast(
   throw new Error(
     "Pre-PegIn was not broadcast (no BTC txid linked in the progress view) within the step-machine budget — see trace.zip",
   );
+}
+
+/**
+ * Refuse to call a deposit activated when its end screen says the registry redeemed it instead. That
+ * screen keeps the activated screen's "Go to Dashboard" label, so `walkStepMachine` returns on it too, and
+ * the vault-count check that follows would then blame a missing activation.
+ */
+export async function assertNotReturnedAtActivation(page: Page): Promise<void> {
+  const returned = await page
+    .getByText(VAULT_RETURNED_HEADING_RX)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (returned)
+    throw new Error(
+      "The deposit ended on the returned-at-activation screen: the registry redeemed the vault instead of activating it. A position-capacity failure shows up as the application rejecting the vault (InvalidPositionSizes) in the activation's ActivationFailed log; an activation sent with too little gas fails the same way without a reason. Check the activation transaction before blaming either. trace.zip + the failure screenshot are captured.",
+    );
 }
 
 /**

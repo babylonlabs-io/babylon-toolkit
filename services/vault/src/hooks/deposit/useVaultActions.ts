@@ -93,7 +93,7 @@ import { assertActivationFollowsConstructionOrder } from "../../services/vault/a
 import type { ActivationRedeemReason } from "../../services/vault/activationRedeemReason";
 import { activationRedeemReasonFromReveal } from "../../services/vault/activationRedeemReasonFromReveal";
 import { appendActivationRevertNotice } from "../../services/vault/activationRevertNotice";
-import { assertResumePositionCapacity } from "../../services/vault/assertResumePositionCapacity";
+import { assertResumePositionCapacity } from "../../services/vault/positionCapacity";
 import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
@@ -439,13 +439,15 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Position capacity, from the same post-wait observation. Activation
       // runs the application's size check per vault and redeems on failure,
-      // so a batch the position can no longer take would lock BTC only to
-      // send it back through a payout. The refusal comes before this attempt
-      // broadcasts anything or prompts the wallet; it cannot recall a Pre-PegIn
-      // another device already broadcast while the on-chain status still reads
-      // PENDING. The batch is sized from the hash-checked transaction's HTLC
-      // outputs. Refuse an incomplete batch, an unavailable check, or a vault
-      // registered to another Pre-PegIn, depositor or application.
+      // so a batch the position can no longer take — counting the depositor's
+      // other registered, unactivated vaults, read from chain — would lock BTC
+      // only to send it back through a payout. The refusal comes before this
+      // attempt broadcasts anything or prompts the wallet; it cannot recall a
+      // Pre-PegIn another device already broadcast while the on-chain status
+      // still reads PENDING. The batch is sized from the hash-checked
+      // transaction's HTLC outputs. Refuse an incomplete batch, an unavailable
+      // check, or a vault registered to another Pre-PegIn, depositor or
+      // application.
       const fundedVaultIds = await assertResumePositionCapacity({
         vaultId,
         target: {

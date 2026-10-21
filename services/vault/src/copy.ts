@@ -1459,27 +1459,38 @@ export const COPY = {
         title: "Couldn't check the deposit window",
         body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast. Please try again in a moment. If this keeps happening, check that this device's date and time are correct.",
       },
-      // Pre-Pegin broadcast refused, new or resumed, because the application
-      // says the depositor's position cannot take this batch: activating would
-      // fail and redeem the BTCVaults instead. Refused before the Pre-Pegin is
-      // signed for broadcast, so this attempt broadcast nothing. It does not
-      // say the BTC has not moved: on resume the check runs while the vault
-      // reads PENDING on chain, which includes a Pre-Pegin already broadcast
-      // from another device and not yet acknowledged, which has already sent
-      // the BTC to the HTLC.
+      // A new deposit's registration, or a new or resumed Pre-Pegin broadcast,
+      // refused because the application says the depositor's position cannot
+      // take this batch on top of the depositor's other registered, not yet
+      // activated BTCVaults: activating would fail and redeem the BTCVaults
+      // instead. Refused before the registration, or before the Pre-Pegin is
+      // signed for broadcast, so this attempt broadcast nothing. Stage-neutral
+      // on purpose: the re-check just before registration runs after the
+      // derive and PoP prompts, so the body never says nothing was signed. It
+      // does not say the BTC has not moved: on resume the check runs while the
+      // vault reads PENDING on chain, which includes a Pre-Pegin already
+      // broadcast from another device and not yet acknowledged, which has
+      // already sent the BTC to the HTLC.
       // Not "has reached its limit": a lowered limit can be exceeded by this
       // deposit alone. Recoverable by the depositor (free a slot or BTC
-      // headroom) or by a limit change, and both the new-deposit and the
-      // resume modal offer Retry.
+      // headroom), by a limit change, or by an unfinished deposit expiring:
+      // an unfinished deposit keeps its room until it expires, and finishing
+      // it frees nothing, because an activated BTCVault counts too. After
+      // registration both the new-deposit and the resume modal offer Retry;
+      // before it the flow ends and the depositor starts again from the form.
       positionCapacityExceeded: {
         title: "Not enough room in your position",
-        body: "Your Aave position doesn't have room for this deposit under its BTCVault count or BTC limit. This attempt didn't broadcast anything. Free up room in your position, for example by withdrawing a BTCVault, or wait for the limit to change, then try again.",
+        body: "Your Aave position doesn't have room for this deposit under its BTCVault count or BTC limit. BTCVaults from deposits that are still in progress count toward that limit. This attempt didn't broadcast anything. Free up room in your position, for example by withdrawing a BTCVault, or wait for an unfinished deposit to expire or for the limit to change, then try again.",
       },
       // The same check had no verdict, so it refused rather than assume room:
-      // a chain read failed, or not every BTCVault this deposit funds could be
-      // found on chain yet (the deposit list can lag). This attempt broadcast
-      // nothing, with the same limit on what that says as the entry above; a
-      // later attempt can succeed.
+      // a chain read failed (the depositor's registered BTCVaults, their
+      // status, or the application's answer), a registered BTCVault is in a
+      // state the check does not model, the position is full only once a
+      // later deposit the mempool API could not answer for is counted, or not
+      // every BTCVault this deposit funds could be found on chain yet (the
+      // deposit list can lag). This
+      // attempt broadcast nothing, with the same limit on what that says as
+      // the entry above; a later attempt can succeed.
       positionCapacityUnavailable: {
         title: "Couldn't check your position",
         body: "We couldn't confirm that your Aave position has room for this deposit. This attempt didn't broadcast anything. Please try again in a few minutes.",

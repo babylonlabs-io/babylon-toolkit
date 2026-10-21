@@ -44,6 +44,23 @@ export const REORG_INJECTIONS: readonly ReorgInjection[] = [
 export function isReorgInjection(value: string): value is ReorgInjection {
   return (REORG_INJECTIONS as readonly string[]).includes(value);
 }
+/**
+ * `--inject-position-full`: when the app's RPC answers the depositor's `allowedToDeposit` with `false`
+ * (see actions/positionCapacity.ts). `before-registration`: from the Sign click, so the deposit must stop
+ * before any signing prompt. `before-broadcast`: once the registration is mined, so the deposit must stop
+ * before the Pre-PegIn broadcast and stay resumable.
+ */
+export type PositionFullInjection = "before-registration" | "before-broadcast";
+export const POSITION_FULL_INJECTIONS: readonly PositionFullInjection[] = [
+  "before-registration",
+  "before-broadcast",
+];
+
+export function isPositionFullInjection(
+  value: string,
+): value is PositionFullInjection {
+  return (POSITION_FULL_INJECTIONS as readonly string[]).includes(value);
+}
 export type ActionId =
   | "connect"
   | "observe"
@@ -332,6 +349,14 @@ export interface RunConfig {
    * still be the depositor's script-path spend the dApp built.
    */
   injectPeginPsbtExtras?: boolean;
+  /**
+   * Pegin only: make the app's RPC answer the depositor's position-capacity read (`allowedToDeposit`)
+   * with `false` (`--inject-position-full`) — `before-registration` (from the Sign click: the deposit
+   * must stop before any signing prompt, with nothing registered) or `before-broadcast` (once the
+   * registration is mined: the deposit must stop before the Pre-PegIn broadcast, then resume to
+   * activation once the injection releases and Retry is clicked).
+   */
+  injectPositionFull?: PositionFullInjection;
 }
 
 /** Resolve the target URL a run should open. */

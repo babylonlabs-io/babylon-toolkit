@@ -42,6 +42,21 @@
  * go-ahead. Run it on `--target=localhost` to test local app code (see
  * actions/peginWalletPsbtInjection.ts).
  *
+ * Every pegin checks that the app asked the depositor's position for room, from chain, before the
+ * registration and again before the Pre-PegIn broadcast; on `--target=website` it only logs what it saw,
+ * since the deployed build can predate the check. Pegin also accepts
+ * `--inject-position-full=<mode>`, which makes the app's RPC answer that question "no room"
+ * (MetaMask's own node is untouched):
+ *   - `before-registration`: from the Sign click — the deposit must stop before any signing prompt,
+ *     with nothing registered or sent (spends nothing; keep UniSat unlocked, since a window that opens
+ *     before the app's check fails the run);
+ *   - `before-broadcast`: once the registration is mined — the deposit must stop before the Pre-PegIn
+ *     broadcast with its vaults Pending, then resume to activation once the injection releases (spends a
+ *     full peg-in).
+ * It needs `--btc=unisat` (one wallet window per prompt, so every prompt is counted) and does not combine
+ * with `--inject-pegin-psbt-extras`. Run it on `--target=localhost` to test local app code (see
+ * actions/positionCapacity.ts).
+ *
  * Borrow accepts `--pegin-first` (peg in fresh collateral before borrowing — then also honors the pegin
  * extras above), `--borrow-token=<symbol>` (from the live borrowable list; an interactive run asks, a
  * non-interactive run requires it unless only one reserve is borrowable),
@@ -140,8 +155,10 @@ import {
   BTC_WALLETS,
   ETH_WALLETS,
   isNonceTooLowInjection,
+  isPositionFullInjection,
   isReorgInjection,
   NONCE_TOO_LOW_INJECTIONS,
+  POSITION_FULL_INJECTIONS,
   REORG_INJECTIONS,
   type ActionId,
   type BtcWalletId,
@@ -149,6 +166,7 @@ import {
   type EthWalletId,
   type NetworkName,
   type NonceTooLowInjection,
+  type PositionFullInjection,
   type ReorgInjection,
   type RunConfig,
   type Target,
@@ -203,6 +221,7 @@ const VALUE_FLAGS = [
   "repay-amount",
   "inject-nonce-too-low",
   "inject-reorg",
+  "inject-position-full",
 ] as const;
 
 /**
@@ -800,6 +819,29 @@ async function resolveConfig(
           "--inject-pegin-psbt-extras rewrites the one PegIn answer of a single-vault deposit; drop --split.",
         );
     }
+    // Pegin extra: answer the depositor's position-capacity read "no room" (see
+    // actions/positionCapacity.ts).
+    const positionFullFlag = flags["inject-position-full"];
+    let injectPositionFull: PositionFullInjection | undefined;
+    if (typeof positionFullFlag === "string") {
+      if (action !== "pegin")
+        throw new Error(
+          "--inject-position-full only applies to --action=pegin.",
+        );
+      if (!isPositionFullInjection(positionFullFlag))
+        throw new Error(
+          `--inject-position-full must be one of ${POSITION_FULL_INJECTIONS.join(", ")} (got "${positionFullFlag}").`,
+        );
+      if (btcWallet !== "unisat")
+        throw new Error(
+          "--inject-position-full needs --btc=unisat: the run counts wallet prompts by the windows they open, and UniSat opens one per prompt.",
+        );
+      if (injectPeginPsbtExtras)
+        throw new Error(
+          "--inject-position-full cannot be combined with --inject-pegin-psbt-extras: a refused deposit never reaches the PegIn signing the other one rewrites.",
+        );
+      injectPositionFull = positionFullFlag;
+    }
     if (willBorrow) {
       // Fetch the live borrowable list up front so an explicit --borrow-token (+ --borrow-hub) is
       // VALIDATED before a (possibly funded, pegin-first) run — an unselectable token would otherwise
@@ -1076,6 +1118,7 @@ async function resolveConfig(
       injectNonceTooLow,
       injectReorg,
       injectPeginPsbtExtras,
+      injectPositionFull,
     };
   } finally {
     rl.close();

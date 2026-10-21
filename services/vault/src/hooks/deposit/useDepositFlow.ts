@@ -76,7 +76,6 @@ import {
   resolveFundingInputCap,
 } from "@/services/deposit/fundingInputCap";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { assertPositionAcceptsBatch } from "@/services/vault/assertResumePositionCapacity";
 import {
   assertBuildConfigMatchesForm,
   isBuildConfigDriftError,
@@ -90,6 +89,7 @@ import {
   assertBuildWithinPinnedLimits,
   isBuildLimitsDriftError,
 } from "@/services/vault/pinnedBuildLimits";
+import { assertPositionAcceptsBatch } from "@/services/vault/positionCapacity";
 import { assertPrePeginBroadcastAckWindowOpen } from "@/services/vault/prePeginBroadcastAckWindow";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
@@ -666,6 +666,28 @@ export function useDepositFlow(
           throw new Error(COMMISSION_UNAVAILABLE_ERROR);
         }
 
+        const depositAmountTotal = vaultAmounts.reduce((sum, a) => sum + a, 0n);
+
+        // Position capacity, live, counting the depositor's other registered
+        // but unactivated vaults. The submit gate read a cached cap and an
+        // indexer count; a position that is already full must stop here,
+        // before the chain switch and every signing prompt (only the liveness
+        // probe above, which can ask a locked wallet to unlock, runs earlier)
+        // and before the registration spends the peg-in fee. Re-run after
+        // every wait that can outlast that answer: an ETH top-up and each
+        // registration attempt.
+        const assertPositionAcceptsRegistration = async () => {
+          await assertPositionAcceptsBatch({
+            stage: "registration",
+            applicationEntryPoint: selectedApplication as Address,
+            depositor: confirmedEthAddress,
+            vaultCount: vaultAmounts.length,
+            amount: depositAmountTotal,
+          });
+          assertDepositIdentity();
+        };
+        await assertPositionAcceptsRegistration();
+
         // Generate batch ID for tracking
         const batchId = uuidv4();
 
@@ -675,9 +697,7 @@ export function useDepositFlow(
           tags: { providerId: shortId(primaryProvider) },
           batchId,
           vaultCount: vaultAmounts.length,
-          amountBucket: amountBucket(
-            satoshiToBtcNumber(vaultAmounts.reduce((sum, a) => sum + a, 0n)),
-          ),
+          amountBucket: amountBucket(satoshiToBtcNumber(depositAmountTotal)),
         });
 
         // ========================================================================
@@ -941,6 +961,7 @@ export function useDepositFlow(
             await waitForEthTopUp(
               new Error(COPY.deposit.errors.insufficientEthForGas.body),
             );
+            await assertPositionAcceptsRegistration();
             continue;
           }
           break;
@@ -1063,6 +1084,7 @@ export function useDepositFlow(
         let batchRegistration;
         for (;;) {
           assertDepositIdentity();
+          await assertPositionAcceptsRegistration();
           try {
             batchRegistration = await registerPeginBatchAndWait({
               btcWalletProvider: confirmedBtcWallet,
@@ -1316,15 +1338,21 @@ export function useDepositFlow(
           offchainParamsVersion: buildConfig.offchainParamsVersion,
         });
 
-        // Position capacity, live. The submit gate read a cached cap; a cap
-        // lowered or a slot filled since then would let activation redeem the
-        // locked BTC instead (same check as the resume path).
+        // Position capacity, live, again: the finality gate stretched the
+        // window since the registration check to minutes, and a cap lowered or
+        // a slot filled meanwhile would let activation redeem the locked BTC
+        // instead (same check as the resume path). This batch's registered
+        // vaults are counted once, as the batch, not again as in-flight.
         await assertPositionAcceptsBatch({
+          stage: "broadcast",
           vaultId: batchRegistration.vaults[0].vaultId as Hex,
+          batchVaultIds: batchRegistration.vaults.map(
+            (vault) => vault.vaultId as Hex,
+          ),
           applicationEntryPoint: selectedApplication as Address,
           depositor: confirmedEthAddress,
           vaultCount: vaultAmounts.length,
-          amount: vaultAmounts.reduce((sum, a) => sum + a, 0n),
+          amount: depositAmountTotal,
         });
 
         // A flow abandoned during the minutes-long gate must not raise an

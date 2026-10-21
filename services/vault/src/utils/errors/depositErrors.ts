@@ -40,10 +40,11 @@
  *    callout, or to the can't-complete callout when the ack window has no
  *    room; the gate's own chain-read failures map to the window-unavailable
  *    callout, by body).
- *  - Position capacity - refuse a new or resumed broadcast before signing if
- *    the position cannot take the batch or the check is unavailable. A resumed
- *    broadcast also refuses a listed vault registered to another Pre-PegIn,
- *    depositor or application.
+ *  - Position capacity - refuse a new deposit's registration, or a new or
+ *    resumed broadcast before signing, if the position cannot take the batch
+ *    on top of the depositor's other unactivated vaults or the check is
+ *    unavailable. A resumed broadcast also refuses a listed vault registered
+ *    to another Pre-PegIn, depositor or application.
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -373,10 +374,11 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3a''''. The other limit a deposit can run into: the depositor's own
-  // position, checked before signing a new or resumed Pre-PegIn broadcast.
-  // Give separate instructions for a full position, an unavailable check and
-  // a mismatched batch. Check these before walking `cause` below, so a read
-  // failure cannot change the classification.
+  // position, checked before a new deposit's registration and before signing
+  // a new or resumed Pre-PegIn broadcast. Give separate instructions for a
+  // full position, an unavailable check and a mismatched batch. Check these
+  // before walking `cause` below, so a read failure cannot change the
+  // classification.
   if (isPositionCapacityExceededError(err)) {
     return ERRORS.positionCapacityExceeded;
   }

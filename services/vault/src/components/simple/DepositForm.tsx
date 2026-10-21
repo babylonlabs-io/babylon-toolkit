@@ -174,7 +174,7 @@ export interface DepositGatingState {
   isVaultCapReached?: boolean;
   /**
    * True when the vault-count cap read terminally failed — fail closed (block
-   * the CTA) so an at-cap user can't lock BTC only to revert at activation.
+   * the CTA) so an at-cap user can't lock BTC only for activation to redeem it.
    */
   vaultCountCapUnavailable?: boolean;
   /**

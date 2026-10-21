@@ -9,6 +9,42 @@ import type { Locator, Page } from "@playwright/test";
  */
 export const FLUID_CTA_SELECTOR = "button.bbn-btn-fluid";
 
+// ── Deposit progress view: error states ──────────────────────────────────────────
+/**
+ * The DepositProgressView's recoverable-error CTA: the submit relabels to "Retry" (and calls `onRetry`)
+ * whenever a step fails with a retryable error (COPY.deposit.progress.buttons.retry). It's only rendered
+ * in that error state — during signing the CTA is "Sign Transaction"/processing/"Done" — so its visible
+ * text is a safe, state-specific target.
+ */
+const RETRY_BUTTON_RX = /^retry$/i;
+export function retryButton(page: Page): Locator {
+  return page.getByRole("button", { name: RETRY_BUTTON_RX }).first();
+}
+/**
+ * The same CTA when the error is not resumable (COPY.deposit.progress.buttons.close). The dialog's
+ * icon-only close button carries the same accessible name, so match the one that shows the text.
+ */
+const CLOSE_LABEL = "Close";
+export function closeCtaButton(page: Page): Locator {
+  return page
+    .getByRole("button", { name: CLOSE_LABEL, exact: true })
+    .filter({ hasText: CLOSE_LABEL })
+    .first();
+}
+/** The deposit flow's refusal when the position has no room (COPY.deposit.errors.positionCapacityExceeded.title). */
+export const POSITION_CAPACITY_EXCEEDED_TITLE =
+  "Not enough room in your position";
+/** The same check without a verdict (COPY.deposit.errors.positionCapacityUnavailable.title). */
+export const POSITION_CAPACITY_UNAVAILABLE_TITLE =
+  "Couldn't check your position";
+/**
+ * The deposit's end screen when the registry redeemed a vault at activation instead of activating it
+ * (COPY.deposit.vaultReturnedSuccess.full.heading / .partial.heading). It keeps the activated screen's
+ * "Go to Dashboard" label, so the walk alone cannot tell the two apart.
+ */
+export const VAULT_RETURNED_HEADING_RX =
+  /your btc is being returned|part of your deposit is being returned/i;
+
 /**
  * Locate a control by its `data-testid` OR a tolerant fallback `Locator`, resolving to the FIRST match
  * in DOM order (`.or()` is a match-either union, not a testid priority). This works because the testid
