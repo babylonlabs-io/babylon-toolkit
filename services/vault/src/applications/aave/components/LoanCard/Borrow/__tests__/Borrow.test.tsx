@@ -70,7 +70,10 @@ vi.mock("../../../../hooks", () => ({
   useBorrowTransaction: () => ({
     executeBorrow: mocks.executeBorrow,
     isProcessing: false,
+    isConfirming: false,
+    pendingWrite: null,
     error: null,
+    notice: null,
     clearError: mocks.clearError,
   }),
   useDebtReserves: () => [],
