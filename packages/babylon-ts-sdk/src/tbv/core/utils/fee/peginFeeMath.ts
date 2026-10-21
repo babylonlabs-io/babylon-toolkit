@@ -176,3 +176,73 @@ export function computeMaxDeposit(
   const max = totalBalance - fee;
   return max > 0n ? max : 0n;
 }
+
+const MIN_PEGIN_SIGNER_SET = 1;
+/** Rust `PrePeginHtlcConnector::dummy` seeding bound (connectors/prepegin_htlc.rs:183-186). */
+const MAX_PEGIN_SIGNER_SET = 99;
+const HASHLOCK_SCRIPT_FIXED_LEN = 109; // fixed opcodes, hash and depositor/VP keys of the hashlock leaf
+const HASHLOCK_SCRIPT_KEY_LEN = 34; // push32 key + CHECKSIG/CHECKSIGADD
+const WITNESS_SIG_LEN = 65; // 64-byte Schnorr sig + length byte
+const WITNESS_FIXED_LEN = 100; // item-count varint 1 + preimage 33 + control block 66
+const WITNESS_FIXED_SIGNATURES = 2; // depositor and vault provider
+const PEGIN_TX_NON_WITNESS_WEIGHT = 602; // 1-in/3-out TRUC tx base weight incl. segwit marker/flag
+const SCRIPT_NUM_SMALL_MAX = 16; // largest count encoded as a single OP_N byte
+const VARINT_ONE_BYTE_MAX = 252; // largest length encoded as a one-byte varint
+const VARINT_THREE_BYTE_LEN = 3;
+const WEIGHT_UNITS_PER_VBYTE = 4n;
+
+function scriptNumLen(count: number): number {
+  return count <= SCRIPT_NUM_SMALL_MAX ? 1 : 2;
+}
+
+function assertSignerSetSize(name: string, count: number): void {
+  if (
+    !Number.isInteger(count) ||
+    count < MIN_PEGIN_SIGNER_SET ||
+    count > MAX_PEGIN_SIGNER_SET
+  ) {
+    throw new Error(
+      `computeMinPeginFeeSats: ${name} must be an integer from ` +
+        `${MIN_PEGIN_SIGNER_SET} to ${MAX_PEGIN_SIGNER_SET}, got ${count}`,
+    );
+  }
+}
+
+/**
+ * Minimum PegIn fee (sats) each Pre-PegIn HTLC must reserve: the PegIn vsize
+ * times `minPeginFeeRate`. Mirrors btc-vault `PegInTx::estimate_vsize`
+ * (transactions/pegin.rs:455) and the `PrePeginHtlcConnector` input weight
+ * prediction (connectors/prepegin_htlc.rs:245) @ 5bc96f5c, with rust-bitcoin
+ * 0.32 `predict_weight` rounding.
+ */
+export function computeMinPeginFeeSats(
+  numVaultKeepers: number,
+  numUniversalChallengers: number,
+  minPeginFeeRate: bigint,
+): bigint {
+  assertSignerSetSize("numVaultKeepers", numVaultKeepers);
+  assertSignerSetSize("numUniversalChallengers", numUniversalChallengers);
+  if (minPeginFeeRate <= 0n) {
+    throw new Error(
+      `computeMinPeginFeeSats: minPeginFeeRate must be positive, got ${minPeginFeeRate}`,
+    );
+  }
+
+  const signerCount = numVaultKeepers + numUniversalChallengers;
+  const scriptLen =
+    HASHLOCK_SCRIPT_FIXED_LEN +
+    HASHLOCK_SCRIPT_KEY_LEN * signerCount +
+    scriptNumLen(numVaultKeepers) +
+    scriptNumLen(numUniversalChallengers);
+  const scriptLenVarintLen =
+    scriptLen <= VARINT_ONE_BYTE_MAX ? 1 : VARINT_THREE_BYTE_LEN;
+  const witnessLen =
+    WITNESS_FIXED_LEN +
+    WITNESS_SIG_LEN * (WITNESS_FIXED_SIGNATURES + signerCount) +
+    scriptLen +
+    scriptLenVarintLen;
+  const weight = BigInt(PEGIN_TX_NON_WITNESS_WEIGHT + witnessLen);
+  const vsize =
+    (weight + WEIGHT_UNITS_PER_VBYTE - 1n) / WEIGHT_UNITS_PER_VBYTE;
+  return vsize * minPeginFeeRate;
+}

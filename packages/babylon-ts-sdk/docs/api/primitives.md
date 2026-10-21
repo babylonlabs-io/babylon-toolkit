@@ -1150,9 +1150,9 @@ minPeginFee: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts)
 
-Minimum PegIn fee (sats), independently computed and asserted against
-`htlcValues`' implied reserve by assertWasmPeginSizing. Reuse
-this instead of recomputing — it is already the cross-checked value.
+Minimum PegIn fee (sats) from the TypeScript fee model
+(`computeMinPeginFeeSats`), asserted against each HTLC's implied reserve
+by assertWasmPeginSizing. Reuse this instead of recomputing.
 
 ***
 

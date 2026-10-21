@@ -1154,6 +1154,43 @@ alone exceeds the balance.
 
 ***
 
+### computeMinPeginFeeSats()
+
+```ts
+function computeMinPeginFeeSats(
+   numVaultKeepers, 
+   numUniversalChallengers, 
+   minPeginFeeRate): bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts)
+
+Minimum PegIn fee (sats) each Pre-PegIn HTLC must reserve: the PegIn vsize
+times `minPeginFeeRate`. Mirrors btc-vault `PegInTx::estimate_vsize`
+(transactions/pegin.rs:455) and the `PrePeginHtlcConnector` input weight
+prediction (connectors/prepegin_htlc.rs:245) @ 5bc96f5c, with rust-bitcoin
+0.32 `predict_weight` rounding.
+
+#### Parameters
+
+##### numVaultKeepers
+
+`number`
+
+##### numUniversalChallengers
+
+`number`
+
+##### minPeginFeeRate
+
+`bigint`
+
+#### Returns
+
+`bigint`
+
+***
+
 ### createTaprootScriptPathSignOptions()
 
 ```ts
@@ -1753,23 +1790,6 @@ Safety multiplier for split transaction fee validation.
 The signed PSBT's fee rate and absolute fee must not exceed this multiple
 of the planned values. 5x accounts for witness estimation variance while
 catching catastrophic wallet-side overpayment.
-
-***
-
-### MAX\_REASONABLE\_PEGIN\_VBYTES
-
-```ts
-const MAX_REASONABLE_PEGIN_VBYTES: 100000n = 100_000n;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts)
-
-Binary-independent cap on the implied per-HTLC reserve
-(`htlcValue - peginAmount - depositorClaimValue`): the exact identity in
-`assertWasmPeginSizing` is WASM-vs-WASM, so this pure-JS bound is what
-limits a doctored binary. 100,000 vbytes = Bitcoin Core's relay ceiling
-(MAX_STANDARD_TX_WEIGHT / 4) — ~19× the protocol-max PegIn (~5,150 vbytes
-at 99 VKs + 99 UCs), so it can never false-positive.
 
 ***
 

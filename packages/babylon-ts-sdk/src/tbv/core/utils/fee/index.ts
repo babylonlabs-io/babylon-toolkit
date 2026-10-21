@@ -9,6 +9,7 @@ export {
   applyChangeOutputPolicy,
   computeChangeOutputFeeSats,
   computeMaxDeposit,
+  computeMinPeginFeeSats,
   computePeginBaseFeeSats,
   type ApplyChangeOutputPolicyParams,
   type ChangeOutputPolicyResult,

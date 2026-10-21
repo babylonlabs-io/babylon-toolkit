@@ -19,16 +19,12 @@ import { script as bscript, opcodes, payments } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import {
   computeMinClaimValue,
-  computeMinPeginFee,
-  peginP2aAnchorOutput,
   tapInternalPubkey,
   type PrePeginResult,
 } from "../../wasm";
 
-import {
-  MAX_REASONABLE_PEGIN_VBYTES,
-  peginOutputCount,
-} from "../../utils/fee/constants";
+import { peginOutputCount } from "../../utils/fee/constants";
+import { computeMinPeginFeeSats } from "../../utils/fee/peginFeeMath";
 import type { ParsedOutput } from "../../utils/transaction/fundPeginTransaction";
 import {
   TAPSCRIPT_LEAF_VERSION,
@@ -38,6 +34,7 @@ import {
 } from "../utils/bitcoin";
 
 import {
+  PEGIN_P2A_ANCHOR_VALUE_SATS,
   PRE_PEGIN_AUTH_OUTPUT_VALUE_SATS,
   PRE_PEGIN_AUTH_SCRIPT_PREFIX,
   PRE_PEGIN_CPFP_VALUE_SATS,
@@ -279,25 +276,22 @@ export function deriveExpectedPeginPayoutScriptPubKey(
  * Assert the WASM Pre-PegIn sizing result is internally consistent and
  * matches what the caller requested.
  *
- * Two layers of checks. Pure-JS, binary-INDEPENDENT: the per-HTLC
- * `peginAmount` must echo the requested amount, array lengths must match,
- * every value must be positive, and the implied per-HTLC reserve
- * (`htlcValue - peginAmount - depositorClaimValue`) must be strictly
- * positive and under the plausibility cap
- * ({@link MAX_REASONABLE_PEGIN_VBYTES}). WASM-vs-WASM consistency: the
- * reserve must also EXACTLY equal `computeMinPeginFee(version, ...) +
- * p2aAnchorValue(version)` (like the `computeMinClaimValue` check) -
- * exact, but both sides come from the same binary, which is why the
- * independent bounds above are kept alongside it.
+ * Binary-independent checks: the per-HTLC `peginAmount` must echo the
+ * requested amount, array lengths must match, every value must be positive,
+ * and the implied per-HTLC reserve (`htlcValue - peginAmount -
+ * depositorClaimValue`) must be strictly positive and EXACTLY equal the
+ * TypeScript PegIn fee model (`computeMinPeginFeeSats`) plus the 240-sat P2A
+ * anchor. `depositorClaimValue` is still checked against WASM
+ * `computeMinClaimValue`.
  *
- * The resume rebuild (`deposit-terms/rebuildDepositTermsCore.ts`) mirrors these
- * bounds (positivity + reserve band) - keep the two in sync when editing.
+ * The resume rebuild (`deposit-terms/rebuildDepositTermsCore.ts`) uses the
+ * same TypeScript fee and anchor expectation - keep the two in sync.
  *
  * @param result - The result returned by `createPrePeginTransaction`.
  * @param params - The parameters that were passed to build it.
- * @returns The independently computed `minPeginFee` this function already
- *   asserted against `result`'s implied reserve - callers that need the
- *   value should reuse this instead of recomputing it.
+ * @returns The TypeScript `minPeginFee` this function already asserted
+ *   against `result`'s implied reserve - callers that need the value should
+ *   reuse this instead of recomputing it.
  * @throws If any value is missing, non-positive, mismatched against the
  *   request, or outside the protocol formula.
  */
@@ -367,28 +361,15 @@ export async function assertWasmPeginSizing(
     );
   }
 
-  // The per-HTLC reserve above pegin+claim decomposes into the version's
-  // P2A anchor value plus the exact minimum PegIn fee. Both terms are Rust-model values fetched through
-  // independent WASM entry points; the builder must reproduce their sum.
-  // The Rust fee model sizes the PegIn input witness from the vault keeper
-  // and universal challenger counts (btc-vault `PegInTx::estimate_vsize`).
-  const { value: anchorValue } = await peginP2aAnchorOutput(
-    params.vaultCoreVersion,
-  );
-  const expectedPeginFee = await computeMinPeginFee(
-    params.vaultCoreVersion,
+  // The per-HTLC reserve above pegin+claim is the P2A anchor plus the exact
+  // minimum PegIn fee, both computed in TypeScript (the fee sizes the PegIn
+  // input witness from the vault keeper and universal challenger counts).
+  const expectedPeginFee = computeMinPeginFeeSats(
     params.vaultKeeperPubkeys.length,
     params.universalChallengerPubkeys.length,
     params.minPeginFeeRate,
   );
-  const expectedReserve = expectedPeginFee + anchorValue;
-  // Binary-INDEPENDENT plausibility cap: the exact identity below compares
-  // WASM against WASM, so a consistently doctored binary could satisfy it
-  // with an inflated reserve. This pure-JS bound (max standard-relay tx
-  // vbytes x the caller's fee rate) caps how much a compromised binary can
-  // burn.
-  const maxImpliedReserve =
-    params.minPeginFeeRate * MAX_REASONABLE_PEGIN_VBYTES;
+  const expectedReserve = expectedPeginFee + PEGIN_P2A_ANCHOR_VALUE_SATS;
 
   for (let i = 0; i < expectedCount; i++) {
     const requested = params.pegInAmounts[i];
@@ -425,10 +406,6 @@ export async function assertWasmPeginSizing(
     // shortfall starves the PegIn's fee/anchor, an excess locks sats
     // irrecoverably in the HTLC.
     const impliedReserve = htlcValue - peginAmount - result.depositorClaimValue;
-    // Independent JS-side bounds first (see maxImpliedReserve above): the
-    // reserve must be strictly positive (a zero reserve starves the PegIn
-    // of its fee) and plausibly sized, regardless of what the binary's own
-    // reference entry points claim.
     if (impliedReserve <= 0n) {
       throw new Error(
         `WASM Pre-PegIn htlcValue[${i}] ${htlcValue} does not strictly ` +
@@ -437,22 +414,13 @@ export async function assertWasmPeginSizing(
           `reserve ${impliedReserve}).`,
       );
     }
-    if (impliedReserve > maxImpliedReserve) {
-      throw new Error(
-        `WASM Pre-PegIn implied reserve for HTLC[${i}] (${impliedReserve} ` +
-          `sat) exceeds the plausibility cap ${maxImpliedReserve} sat ` +
-          `(minPeginFeeRate=${params.minPeginFeeRate} × ` +
-          `${MAX_REASONABLE_PEGIN_VBYTES} vbytes); htlcValue ${htlcValue} ` +
-          `appears grossly inflated.`,
-      );
-    }
     if (impliedReserve !== expectedReserve) {
       throw new Error(
         `WASM Pre-PegIn htlcValue[${i}] ${htlcValue} implies a PegIn ` +
           `fee+anchor reserve of ${impliedReserve} sat, expected exactly ` +
-          `${expectedReserve} sat (minPeginFee ${expectedPeginFee} + ` +
-          `p2aAnchor ${anchorValue} for vaultCoreVersion ` +
-          `${params.vaultCoreVersion}, vaultKeepers=` +
+          `${expectedReserve} sat (TypeScript PegIn fee model: minPeginFee ` +
+          `${expectedPeginFee} + P2A anchor ${PEGIN_P2A_ANCHOR_VALUE_SATS}, ` +
+          `vaultCoreVersion ${params.vaultCoreVersion}, vaultKeepers=` +
           `${params.vaultKeeperPubkeys.length}, universalChallengers=` +
           `${params.universalChallengerPubkeys.length}, minPeginFeeRate=` +
           `${params.minPeginFeeRate}).`,

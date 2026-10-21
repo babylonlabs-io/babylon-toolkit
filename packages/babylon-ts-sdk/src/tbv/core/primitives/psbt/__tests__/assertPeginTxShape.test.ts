@@ -1,7 +1,7 @@
 /**
  * Negative-path tests for the PegIn shape assertion inside
  * `buildPeginTxFromFundedPrePegin`: every bind (header, input, output count,
- * vault value/script, txid, depositor-claim value/script, anchor validation)
+ * vault value/script, txid, depositor-claim value/script, P2A anchor value/script)
  * must reject a doctored WASM result. `buildPeginTxFromFundedPrePegin` also
  * rejects an out-of-range `timelockPegin` before the engine is called. The WASM
  * boundary is mocked so each dimension can be corrupted independently; the
@@ -14,22 +14,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
-const {
-  buildPeginTxFromPrePeginMock,
-  computeMinClaimValueMock,
-  validatePeginP2aAnchorMock,
-} = vi.hoisted(() => ({
-  buildPeginTxFromPrePeginMock: vi.fn(),
-  computeMinClaimValueMock: vi.fn(),
-  validatePeginP2aAnchorMock: vi.fn(),
-}));
+const { buildPeginTxFromPrePeginMock, computeMinClaimValueMock } = vi.hoisted(
+  () => ({
+    buildPeginTxFromPrePeginMock: vi.fn(),
+    computeMinClaimValueMock: vi.fn(),
+  }),
+);
 
 vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
   initWasm: async () => {},
   buildPeginTxFromPrePegin: buildPeginTxFromPrePeginMock,
   computeMinClaimValue: computeMinClaimValueMock,
   createPrePeginTransaction: vi.fn(),
-  validatePeginP2aAnchor: validatePeginP2aAnchorMock,
 }));
 
 import { buildPeginTxFromFundedPrePegin, type PrePeginParams } from "../pegin";
@@ -101,6 +97,8 @@ interface DoctorOptions {
   inputScriptSig?: Buffer;
   inputWitness?: Buffer[];
   omitAnchor?: boolean;
+  anchorValue?: number;
+  anchorScript?: string;
   extraOutput?: boolean;
   metadataVaultScript?: string;
   encodedVaultValue?: number;
@@ -140,7 +138,10 @@ function makeWasmResult(fundedHex: string, doctor: DoctorOptions = {}) {
     doctor.claimValue ?? Number(CLAIM_VALUE),
   );
   if (!doctor.omitAnchor) {
-    tx.addOutput(Buffer.from("51024e73", "hex"), 240);
+    tx.addOutput(
+      Buffer.from(doctor.anchorScript ?? "51024e73", "hex"),
+      doctor.anchorValue ?? 240,
+    );
   }
   if (doctor.extraOutput) {
     tx.addOutput(Buffer.from(VAULT_SCRIPT_TIMELOCK_100, "hex"), 330);
@@ -180,7 +181,6 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     computeMinClaimValueMock.mockResolvedValue(CLAIM_VALUE);
-    validatePeginP2aAnchorMock.mockResolvedValue(undefined);
   });
 
   it("accepts an honest result (harness sanity)", async () => {
@@ -367,10 +367,15 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
     ).rejects.toThrow(/does not match the WASM-reported txid/);
   });
 
-  it("propagates the anchor validator's rejection", async () => {
-    validatePeginP2aAnchorMock.mockRejectedValue(
-      new Error("missing P2A anchor output (output2)"),
+  it("rejects a P2A anchor output with the wrong value", async () => {
+    await expect(buildWith(fundedHex, { anchorValue: 330 })).rejects.toThrow(
+      /P2A anchor output\[2\] value 330 sat; expected exactly 240 sat/,
     );
-    await expect(buildWith(fundedHex)).rejects.toThrow(/missing P2A anchor/);
+  });
+
+  it("rejects a P2A anchor output with the wrong scriptPubKey", async () => {
+    await expect(
+      buildWith(fundedHex, { anchorScript: "51024e74" }),
+    ).rejects.toThrow(/P2A anchor output\[2\] scriptPubKey 51024e74/);
   });
 });

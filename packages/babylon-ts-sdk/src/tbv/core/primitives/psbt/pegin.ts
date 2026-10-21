@@ -19,7 +19,6 @@ import {
   buildPeginTxFromPrePegin,
   computeMinClaimValue,
   createPrePeginTransaction,
-  validatePeginP2aAnchor,
   type Network,
 } from "../../wasm";
 
@@ -34,6 +33,9 @@ import {
 import {
   PEGIN_INPUT_SEQUENCE,
   PEGIN_OUTPUT_COUNT,
+  PEGIN_P2A_ANCHOR_SCRIPT_HEX,
+  PEGIN_P2A_ANCHOR_VALUE_SATS,
+  PEGIN_P2A_ANCHOR_VOUT,
   PEGIN_TX_LOCKTIME,
   PEGIN_TX_VERSION,
   PEGIN_VAULT_CORE_VERSION,
@@ -161,9 +163,9 @@ export interface PrePeginPsbtResult {
    */
   authAnchorVout: number | null;
   /**
-   * Minimum PegIn fee (sats), independently computed and asserted against
-   * `htlcValues`' implied reserve by {@link assertWasmPeginSizing}. Reuse
-   * this instead of recomputing — it is already the cross-checked value.
+   * Minimum PegIn fee (sats) from the TypeScript fee model
+   * (`computeMinPeginFeeSats`), asserted against each HTLC's implied reserve
+   * by {@link assertWasmPeginSizing}. Reuse this instead of recomputing.
    */
   minPeginFee: bigint;
 }
@@ -385,8 +387,7 @@ export async function buildPeginTxFromFundedPrePegin(
  * exact on-chain vault amount, so it must equal the requested peg-in amount
  * (btc-vault: PegIn vout 0 carries `pegin_amount` verbatim). The nVersion
  * and output count are checked against TypeScript constants, independently of
- * WASM; the P2A anchor's exact value, vout and script are enforced by the
- * version-dispatched `validatePeginP2aAnchor`.
+ * WASM; so are the P2A anchor's exact value, vout and script.
  *
  * @throws If the encoded transaction disagrees with the request, metadata,
  *   or canonical shape for its Vault Core version.
@@ -407,8 +408,6 @@ async function assertPeginTxShape(
         `${PEGIN_VAULT_CORE_VERSION} has a PegIn shape.`,
     );
   }
-
-  await validatePeginP2aAnchor(version, result.txHex);
 
   const peginTx = Transaction.fromHex(stripHexPrefix(result.txHex));
 
@@ -473,6 +472,22 @@ async function assertPeginTxShape(
       `PegIn tx has ${peginTx.outs.length} output(s), expected exactly ` +
         `${PEGIN_OUTPUT_COUNT} for vaultCoreVersion ${version} (vault + ` +
         `depositor claim + P2A anchor).`,
+    );
+  }
+
+  const anchorOut = peginTx.outs[PEGIN_P2A_ANCHOR_VOUT];
+  if (BigInt(anchorOut.value) !== PEGIN_P2A_ANCHOR_VALUE_SATS) {
+    throw new Error(
+      `PegIn P2A anchor output[${PEGIN_P2A_ANCHOR_VOUT}] value ` +
+        `${anchorOut.value} sat; expected exactly ` +
+        `${PEGIN_P2A_ANCHOR_VALUE_SATS} sat.`,
+    );
+  }
+  const anchorScriptHex = anchorOut.script.toString("hex").toLowerCase();
+  if (anchorScriptHex !== PEGIN_P2A_ANCHOR_SCRIPT_HEX) {
+    throw new Error(
+      `PegIn P2A anchor output[${PEGIN_P2A_ANCHOR_VOUT}] scriptPubKey ` +
+        `${anchorScriptHex}; expected ${PEGIN_P2A_ANCHOR_SCRIPT_HEX}.`,
     );
   }
 

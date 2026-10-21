@@ -29,15 +29,11 @@ import {
 } from "../recoveryErrors";
 
 const computeMinClaimValue = vi.fn();
-const computeMinPeginFee = vi.fn();
-const peginP2aAnchorOutput = vi.fn();
 const getPrePeginHtlcConnectorInfo = vi.fn();
 
 vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
   initWasm: async () => {},
   computeMinClaimValue: (...args: unknown[]) => computeMinClaimValue(...args),
-  computeMinPeginFee: (...args: unknown[]) => computeMinPeginFee(...args),
-  peginP2aAnchorOutput: (...args: unknown[]) => peginP2aAnchorOutput(...args),
   getPrePeginHtlcConnectorInfo: (...args: unknown[]) =>
     getPrePeginHtlcConnectorInfo(...args),
 }));
@@ -102,8 +98,6 @@ describe("WASM sizing boundary checks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     computeMinClaimValue.mockResolvedValue(23_862n);
-    computeMinPeginFee.mockResolvedValue(2_177n);
-    peginP2aAnchorOutput.mockResolvedValue({ value: 240n });
   });
 
   it("refuses a non-positive depositorClaimValue", async () => {
@@ -113,18 +107,6 @@ describe("WASM sizing boundary checks", () => {
     await expect(search(1)).rejects.toThrow(
       /non-positive depositorClaimValue 0/,
     );
-  });
-
-  it("refuses a non-positive peginMaxFee", async () => {
-    computeMinPeginFee.mockResolvedValue(0n);
-
-    await expect(search(1)).rejects.toThrow(/non-positive peginMaxFee 0/);
-  });
-
-  it("refuses a negative P2A anchor value", async () => {
-    peginP2aAnchorOutput.mockResolvedValue({ value: -1n });
-
-    await expect(search(1)).rejects.toThrow(/negative P2A anchor value -1/);
   });
 
   it("escapes the search rather than counting as one more rejected candidate", async () => {
