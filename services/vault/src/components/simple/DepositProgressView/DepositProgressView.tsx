@@ -60,6 +60,7 @@ import {
   getVisualStep,
   STEP_GROUPS,
   TOTAL_VISUAL_STEPS,
+  TRUNK_END_VISUAL_STEP,
 } from "./steps";
 
 /** How long the copy button reports its outcome before reverting. */
@@ -533,12 +534,17 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const visualStep = isComplete
     ? TOTAL_VISUAL_STEPS + 1
     : getVisualStep(currentStep);
-  // `currentStep` is the active action, but split deposits can have each vault
-  // lane land on a different step after a recoverable per-vault failure. The
-  // aggregate progress bar and completed-group pill must therefore use the
-  // slowest lane, while the split lanes below keep rendering their own steps.
+  // Through the shared trunk (up to TRUNK_END_VISUAL_STEP) every vault is on
+  // the same step, but the flow does not update the per-vault lanes until the
+  // Pre-PegIn broadcast, so the aggregate tracks `currentStep`. After the
+  // trunk, lanes can diverge after a recoverable per-vault failure, so the
+  // aggregate progress bar and completed-group pill use the slowest lane,
+  // while the split lanes below keep rendering their own steps.
   const aggregateRawStep =
-    vaultCount > 1 && perVaultSteps && perVaultSteps.length > 0
+    vaultCount > 1 &&
+    perVaultSteps &&
+    perVaultSteps.length > 0 &&
+    getVisualStep(currentStep) > TRUNK_END_VISUAL_STEP
       ? perVaultSteps.reduce((minStep, step) =>
           getVisualStep(step) < getVisualStep(minStep) ? step : minStep,
         )
