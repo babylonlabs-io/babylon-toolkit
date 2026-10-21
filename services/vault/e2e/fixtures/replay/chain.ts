@@ -23,8 +23,9 @@
  * argument - see {@link buildTables}. A getter recorded with several has no
  * single right answer for a fourth, and handing back the last recorded one
  * would put an invented number on a screenshot that no walk asked for. (The
- * one invented answer in this fixture is `walletUtxoCopies` in `index.ts`,
- * and only a walk that names it gets it.) It is a wrong answer rather than a
+ * invented answers in this fixture are `walletUtxoCopies` in `index.ts` and
+ * the stated answers below, and only a walk that names them gets them.) It is
+ * a wrong answer rather than a
  * missing one, which every gate in `visual/capture.ts` is blind to because
  * nothing was ever reported as unanswered.
  */
@@ -79,6 +80,33 @@ export interface UnansweredCall {
   readonly selector: string;
 }
 
+/**
+ * A spec's own answer for one contract read, keyed by (target, selector).
+ *
+ * Not a recording and not a supplement: a supplement recovers a value the
+ * recording holds elsewhere, while a stated answer is the premise of the spec
+ * that states it - "the depositor has no other vaults", "the position is
+ * full". It wins over the recording, because a spec stating it is asking a
+ * question the recording cannot answer for it. Every ask is logged in
+ * {@link RecordedChain.statedAsks}, so the spec can assert the app asked it,
+ * and with what.
+ */
+export interface StatedAnswer {
+  /** Contract the read is aimed at. */
+  readonly target: string;
+  /** 4-byte function selector, `0x`-prefixed. */
+  readonly selector: Hex;
+  /** ABI-encoded return data for the given calldata. */
+  readonly answer: (callData: Hex) => Hex;
+}
+
+/** One read a stated answer served. */
+export interface StatedAsk {
+  /** Lowercased target. */
+  readonly target: string;
+  readonly callData: Hex;
+}
+
 export interface RecordedChain {
   /**
    * Answer one `eth_call`. Returns the recorded return data, or null when the
@@ -104,6 +132,8 @@ export interface RecordedChain {
   answerMethod(method: string): unknown | undefined;
   /** Every call this chain could not answer, in the order they arrived. */
   readonly unanswered: readonly UnansweredCall[];
+  /** Every call a stated answer served, in the order they arrived. */
+  readonly statedAsks: readonly StatedAsk[];
   /** How many distinct inner calls the recording yielded. */
   readonly size: number;
 }
@@ -262,10 +292,13 @@ function buildTables(run: RecordedRun): ChainTables {
  * A chain view over a run.
  *
  * The decoded tables are shared across every call for the same run; only
- * {@link RecordedChain.unanswered} is per-view, so one screen's misses are
- * never attributed to another's.
+ * {@link RecordedChain.unanswered} and the stated answers are per-view, so one
+ * screen's misses and premises are never attributed to another's.
  */
-export function buildRecordedChain(run: RecordedRun): RecordedChain {
+export function buildRecordedChain(
+  run: RecordedRun,
+  statedAnswers: readonly StatedAnswer[] = [],
+): RecordedChain {
   let tables = tableCache.get(run);
   if (!tables) {
     tables = buildTables(run);
@@ -273,10 +306,23 @@ export function buildRecordedChain(run: RecordedRun): RecordedChain {
   }
   const { exact, bySelector, methods } = tables;
   const unanswered: UnansweredCall[] = [];
+  const statedAsks: StatedAsk[] = [];
+
+  const answerStated = (to: string, data: Hex): RecordedCall | null => {
+    const stated = statedAnswers.find(
+      (candidate) =>
+        candidate.target.toLowerCase() === to.toLowerCase() &&
+        candidate.selector.toLowerCase() === selectorOf(data),
+    );
+    if (!stated) return null;
+    statedAsks.push({ target: to.toLowerCase(), callData: data });
+    return { success: true, returnData: stated.answer(data) };
+  };
 
   // `?? null` covers both selector outcomes that must not answer: a pair the
   // recording never held, and one it held under several arguments.
   const answerCall = (to: string, data: Hex): RecordedCall | null =>
+    answerStated(to, data) ??
     exact.get(exactKey(to, data)) ??
     bySelector.get(selectorKey(to, data)) ??
     null;
@@ -324,6 +370,7 @@ export function buildRecordedChain(run: RecordedRun): RecordedChain {
     },
     answerMethod: (method) => methods.get(method),
     unanswered,
+    statedAsks,
     get size() {
       return exact.size;
     },

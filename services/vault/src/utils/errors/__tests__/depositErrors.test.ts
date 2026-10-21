@@ -776,9 +776,22 @@ describe("mapDepositError", () => {
 
   it("maps the typed position-capacity refusal to the position-limit callout", () => {
     const err = new PositionCapacityExceededError({
-      vaultId: "0xabc",
+      checkpoint: { stage: "broadcast", vaultId: "0xabc" },
       vaultCount: 2,
       amount: 150_000n,
+      inFlightVaultCount: 0,
+      inFlightAmount: 0n,
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.positionCapacityExceeded);
+  });
+
+  it("maps a position-capacity refusal before registration to the position-limit callout", () => {
+    const err = new PositionCapacityExceededError({
+      checkpoint: { stage: "registration" },
+      vaultCount: 1,
+      amount: 100_000n,
+      inFlightVaultCount: 1,
+      inFlightAmount: 30_000n,
     });
     expect(mapDepositError(err)).toEqual(ERRORS.positionCapacityExceeded);
   });
@@ -786,7 +799,21 @@ describe("mapDepositError", () => {
   it("maps a position-capacity check with no verdict to the couldn't-check callout", () => {
     const err = new PositionCapacityUnavailableError(
       "Could not read allowedToDeposit for vault 0xabc",
-      { vaultId: "0xabc", cause: new Error("execution reverted") },
+      {
+        checkpoint: { stage: "broadcast", vaultId: "0xabc" },
+        cause: new Error("execution reverted"),
+      },
+    );
+    expect(mapDepositError(err)).toEqual(ERRORS.positionCapacityUnavailable);
+  });
+
+  it("maps a position-capacity check with no verdict before registration to the couldn't-check callout", () => {
+    const err = new PositionCapacityUnavailableError(
+      "Could not read the depositor's registered vaults from chain",
+      {
+        checkpoint: { stage: "registration" },
+        cause: new Error("execution reverted"),
+      },
     );
     expect(mapDepositError(err)).toEqual(ERRORS.positionCapacityUnavailable);
   });

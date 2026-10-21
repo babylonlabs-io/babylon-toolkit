@@ -152,7 +152,8 @@ function SimpleDepositContent({
   // closed if the cap read errors (`vaultCountCapUnavailable`). The count comes
   // from `useVaultCountCap` (ACTIVE + PENDING + VERIFIED, adapter-scoped), which
   // keeps the in-flight margin so concurrent deposits can't slip past the cap
-  // and revert at activation.
+  // and be redeemed at activation. The deposit flow repeats the check from
+  // chain before registration and before the broadcast.
   const {
     maxVaults,
     currentCount: collateralizableVaultCount,

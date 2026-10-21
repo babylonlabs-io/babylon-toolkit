@@ -4,11 +4,11 @@
  * `allowedToDeposit` is the application's own answer to "would this position
  * accept N more vaults totalling X sats right now". The Aave adapter evaluates
  * it with `_allowedToDeposit`
- * (vault-contracts-aave-v4@06f46477:src/applications/aave/AaveAdapter.sol:635-642),
+ * (vault-contracts-aave-v4@99a4e3e7:src/applications/aave/AaveAdapter.sol:635-642),
  * the same check its `activateVault` runs per vault
- * (vault-contracts-aave-v4@06f46477:src/applications/aave/AaveAdapter.sol:149),
- * so reading it before a Pre-PegIn broadcast predicts the activation-time size
- * check.
+ * (vault-contracts-aave-v4@99a4e3e7:src/applications/aave/AaveAdapter.sol:148-150),
+ * so reading it before a deposit's registration and before its Pre-PegIn
+ * broadcast predicts the activation-time size check.
  *
  * Self-contained ABI fragment, same as the `application-status` sibling: the
  * SDK's bundled adapter ABI does not expose this view.
@@ -20,7 +20,7 @@ import { ethClient } from "../client";
 
 /**
  * Single-function ABI for `IApplicationEntryPoint.allowedToDeposit`
- * (vault-contracts-aave-v4@06f46477:src/interfaces/IApplicationEntryPoint.sol:35).
+ * (vault-contracts-aave-v4@99a4e3e7:src/interfaces/IApplicationEntryPoint.sol:35).
  */
 const ALLOWED_TO_DEPOSIT_ABI = [
   {

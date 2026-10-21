@@ -84,6 +84,24 @@ export const PEGIN_POLL_INTERVAL_MS = 3_000;
  * instead of spinning to the multi-hour step-machine budget.
  */
 export const PEGIN_TX_FAILURE_RETRY_LIMIT = 3;
+
+// ── pegin: position-capacity injection (`--inject-position-full`) ────────────────
+/** Sign → the refusal when it comes before registration: the wallet liveness probe and a few chain reads. */
+export const POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS = 60_000;
+/**
+ * Sign → the refusal when it comes before the broadcast: the derive, PSBT and PoP prompts, the
+ * registration mined, the Ethereum finality gate (~1.6 min) and the check, with margin.
+ */
+export const POSITION_REFUSAL_BEFORE_BROADCAST_TIMEOUT_MS = 20 * 60 * 1_000;
+/** How long a refusal must hold with no wallet window, registration or broadcast after it. */
+export const POSITION_REFUSAL_HOLD_MS = 30_000;
+/**
+ * How long "Couldn't check your position" may stay on screen after a Retry click before a step walk
+ * clicks Retry again (at most PEGIN_TX_FAILURE_RETRY_LIMIT times). Timed rather than re-armed when the
+ * button hides: the re-check can fail again within one poll tick, so the button may never be seen
+ * hidden. Several ticks, so a re-check still in flight is not clicked over.
+ */
+export const POSITION_UNCHECKED_RETRY_INTERVAL_MS = 15_000;
 /**
  * How many times to click the Activate modal's "Check again" while it reports the vault provider as
  * unconfirmed. The modal probes the provider when it opens and, until a result comes back, offers

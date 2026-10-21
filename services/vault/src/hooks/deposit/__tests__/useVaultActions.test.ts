@@ -102,11 +102,11 @@ vi.mock("@/services/vault/verifyResumeParticipantKeys", () => ({
 
 // Position-capacity gate. Default: the position has room and funds just the
 // selected vault, so the pre-existing broadcast tests are unaffected. The
-// gate's own reads are covered by assertResumePositionCapacity.test.ts.
+// gate's own reads are covered by positionCapacity.test.ts.
 const mockAssertResumePositionCapacity = vi.hoisted(() =>
   vi.fn(async ({ vaultId }: { vaultId: Hex }) => [vaultId]),
 );
-vi.mock("@/services/vault/assertResumePositionCapacity", () => ({
+vi.mock("@/services/vault/positionCapacity", () => ({
   assertResumePositionCapacity: mockAssertResumePositionCapacity,
 }));
 
@@ -3704,9 +3704,11 @@ describe("useVaultActions — handleBroadcast position capacity", () => {
   it("refuses a full position before any BTC wallet prompt", async () => {
     mockAssertResumePositionCapacity.mockRejectedValue(
       new PositionCapacityExceededError({
-        vaultId: "0xvaultId",
+        checkpoint: { stage: "broadcast", vaultId: "0xvaultId" },
         vaultCount: 1,
         amount: 100_000n,
+        inFlightVaultCount: 0,
+        inFlightAmount: 0n,
       }),
     );
     // "unisat" is a probe-safe wallet, so a liveness probe would call
@@ -3738,7 +3740,7 @@ describe("useVaultActions — handleBroadcast position capacity", () => {
   it("refuses when the position's capacity cannot be read", async () => {
     mockAssertResumePositionCapacity.mockRejectedValue(
       new PositionCapacityUnavailableError("allowedToDeposit unreadable", {
-        vaultId: "0xvaultId",
+        checkpoint: { stage: "broadcast", vaultId: "0xvaultId" },
         cause: new Error("execution reverted"),
       }),
     );

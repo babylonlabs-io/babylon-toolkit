@@ -13,7 +13,9 @@ import {
   custom,
   decodeFunctionResult,
   encodeFunctionData,
+  encodeFunctionResult,
   parseAbi,
+  toFunctionSelector,
   type Hex,
 } from "viem";
 import { sepolia } from "viem/chains";
@@ -230,6 +232,78 @@ describe("buildRecordedChain", () => {
 
     expect(encoded).not.toBe("0x");
     expect(chain.unanswered).toEqual([]);
+  });
+
+  it("answers a stated read inside a batch and logs what the app asked", async () => {
+    const allowedToDepositAbi = parseAbi([
+      "function allowedToDeposit(address vaultReceiver, uint256 nVaultsToDeposit, uint256 amountToDeposit) view returns (bool)",
+    ]);
+    const chain = buildRecordedChain(loadRecordedRun(), [
+      {
+        target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+        selector: toFunctionSelector(allowedToDepositAbi[0]),
+        answer: () =>
+          encodeFunctionResult({
+            abi: allowedToDepositAbi,
+            functionName: "allowedToDeposit",
+            result: false,
+          }),
+      },
+    ]);
+    const client = createPublicClient({
+      chain: sepolia,
+      batch: { multicall: true },
+      transport: custom({
+        request: async ({ params }) => {
+          const [call] = params as [{ data: Hex }];
+          return chain.answerMulticall(call.data);
+        },
+      }),
+    });
+
+    const allowed = await client.readContract({
+      address: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+      abi: allowedToDepositAbi,
+      functionName: "allowedToDeposit",
+      args: [RECORDED_DEPOSITOR.ETH_ADDRESS, 1n, 100_000n],
+    });
+
+    expect(allowed).toBe(false);
+    expect(chain.statedAsks).toEqual([
+      {
+        target: RECORDED_DEPLOYMENT.AAVE_ADAPTER.toLowerCase(),
+        callData: encodeFunctionData({
+          abi: allowedToDepositAbi,
+          functionName: "allowedToDeposit",
+          args: [RECORDED_DEPOSITOR.ETH_ADDRESS, 1n, 100_000n],
+        }),
+      },
+    ]);
+    expect(chain.unanswered).toEqual([]);
+  });
+
+  it("keeps a stated answer to the view that states it", () => {
+    const allowedToDeposit = encodeFunctionData({
+      abi: parseAbi([
+        "function allowedToDeposit(address vaultReceiver, uint256 nVaultsToDeposit, uint256 amountToDeposit) view returns (bool)",
+      ]),
+      args: [RECORDED_DEPOSITOR.ETH_ADDRESS, 1n, 100_000n],
+    });
+    const run = loadRecordedRun();
+    buildRecordedChain(run, [
+      {
+        target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+        selector: allowedToDeposit.slice(0, 10) as Hex,
+        answer: () => "0x",
+      },
+    ]);
+
+    const plain = buildRecordedChain(run);
+
+    expect(
+      plain.answerCall(RECORDED_DEPLOYMENT.AAVE_ADAPTER, allowedToDeposit),
+    ).toBeNull();
+    expect(plain.statedAsks).toEqual([]);
   });
 
   it("reports an unanswerable inner call instead of fabricating a result", () => {

@@ -32,7 +32,11 @@ import {
 import { COPY } from "@/copy";
 import { BtcWalletLivenessError } from "@/utils/btc";
 import type { CancellableSigningProvider } from "@/utils/cancelSigning";
-import { VaultLifecycleStateError } from "@/utils/errors";
+import {
+  PositionCapacityExceededError,
+  PositionCapacityUnavailableError,
+  VaultLifecycleStateError,
+} from "@/utils/errors";
 
 import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
@@ -189,7 +193,7 @@ vi.mock("@/services/vault/prePeginBroadcastAckWindow", () => ({
   assertPrePeginBroadcastAckWindowOpen: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/services/vault/assertResumePositionCapacity", () => ({
+vi.mock("@/services/vault/positionCapacity", () => ({
   assertPositionAcceptsBatch: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -699,6 +703,10 @@ async function setupDefaultMocks() {
     "mockBroadcastTxId",
   );
   vi.mocked(addPendingPegin).mockReturnValue(undefined);
+  const { assertPositionAcceptsBatch } = vi.mocked(
+    await import("@/services/vault/positionCapacity"),
+  );
+  assertPositionAcceptsBatch.mockReset().mockResolvedValue(undefined);
 }
 
 // ============================================================================
@@ -905,6 +913,333 @@ describe("useDepositFlow", () => {
         expect(preparePeginTransaction).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe("Position capacity", () => {
+    // The check itself (in-flight reads, allowedToDeposit, fail-closed reads)
+    // is covered by positionCapacity.test.ts; these pin where the deposit
+    // flow asks, with what, and what a refusal leaves behind.
+
+    it("asks about the whole deposit before the chain switch", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { getWalletClientOnExpectedChain } = vi.mocked(
+        await import("@/clients/eth-contract/walletChain"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(assertPositionAcceptsBatch).toHaveBeenNthCalledWith(1, {
+        stage: "registration",
+        applicationEntryPoint: "0xAppController",
+        depositor: "0xEthAddress123",
+        vaultCount: 2,
+        amount: 200_000n,
+      });
+      expect(
+        assertPositionAcceptsBatch.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        getWalletClientOnExpectedChain.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("refuses a full position before registration without a chain switch or signing prompt and offers no resume", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { getWalletClientOnExpectedChain } = vi.mocked(
+        await import("@/clients/eth-contract/walletChain"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      assertPositionAcceptsBatch.mockRejectedValueOnce(
+        new PositionCapacityExceededError({
+          checkpoint: { stage: "registration" },
+          vaultCount: 2,
+          amount: 200_000n,
+          inFlightVaultCount: 0,
+          inFlightAmount: 0n,
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.positionCapacityExceeded,
+      );
+      expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(signProofOfPossession).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(addPendingPegin).not.toHaveBeenCalled();
+      expect(result.current.resumableVaultIds).toBeNull();
+      expect(result.current.retryDeposit).toBeNull();
+    });
+
+    it("refuses when the position cannot be checked before registration", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      assertPositionAcceptsBatch.mockRejectedValueOnce(
+        new PositionCapacityUnavailableError(
+          "Could not read the depositor's registered vaults from chain.",
+          {
+            checkpoint: { stage: "registration" },
+            cause: new Error("execution reverted"),
+          },
+        ),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.positionCapacityUnavailable,
+      );
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("refuses the registration when the position fills while the wallet prompts are open", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      // Room when the flow starts; full by the time the PoP is signed.
+      assertPositionAcceptsBatch
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new PositionCapacityExceededError({
+            checkpoint: { stage: "registration" },
+            vaultCount: 2,
+            amount: 200_000n,
+            inFlightVaultCount: 1,
+            inFlightAmount: 50_000n,
+          }),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(signProofOfPossession).toHaveBeenCalledTimes(1);
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.positionCapacityExceeded,
+      );
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("re-checks the position after an ETH balance top-up, before the derive prompt", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      ethFundsMocks.getBalance.mockResolvedValue(0n);
+      assertPositionAcceptsBatch
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new PositionCapacityExceededError({
+            checkpoint: { stage: "registration" },
+            vaultCount: 2,
+            amount: 200_000n,
+            inFlightVaultCount: 0,
+            inFlightAmount: 0n,
+          }),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
+      ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
+      await act(async () => {
+        result.current.retryDeposit?.();
+        await pending;
+      });
+
+      expect(assertPositionAcceptsBatch).toHaveBeenCalledTimes(2);
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.positionCapacityExceeded,
+      );
+    });
+
+    it("refuses a retried registration when the position filled during the ETH top-up wait", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      registerPeginBatchAndWait.mockRejectedValueOnce(
+        new InsufficientFundsError(),
+      );
+      // Step 0 and the first registration attempt find room; the attempt
+      // after the top-up does not.
+      assertPositionAcceptsBatch
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new PositionCapacityExceededError({
+            checkpoint: { stage: "registration" },
+            vaultCount: 2,
+            amount: 200_000n,
+            inFlightVaultCount: 0,
+            inFlightAmount: 0n,
+          }),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
+      await act(async () => {
+        result.current.retryDeposit?.();
+        await pending;
+      });
+
+      expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.positionCapacityExceeded,
+      );
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("raises no wallet prompt when the modal closes during the pre-registration check", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { getWalletClientOnExpectedChain } = vi.mocked(
+        await import("@/clients/eth-contract/walletChain"),
+      );
+      let answerCheck: () => void = () => {};
+      assertPositionAcceptsBatch.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            answerCheck = resolve;
+          }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() =>
+        expect(assertPositionAcceptsBatch).toHaveBeenCalledTimes(1),
+      );
+      await act(async () => {
+        result.current.abort();
+        answerCheck();
+        await pending;
+      });
+
+      expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("asks before the broadcast with the batch's own vaults named, so they are counted once", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(assertPositionAcceptsBatch).toHaveBeenCalledWith({
+        stage: "broadcast",
+        vaultId: "0xVault0Id",
+        batchVaultIds: ["0xVault0Id", "0xVault1Id"],
+        applicationEntryPoint: "0xAppController",
+        depositor: "0xEthAddress123",
+        vaultCount: 2,
+        amount: 200_000n,
+      });
+    });
+
+    it("refuses the broadcast when the position is full after registration and keeps the batch resumable", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { removePendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      assertPositionAcceptsBatch.mockImplementation(async (params) => {
+        if (params.stage === "broadcast") {
+          throw new PositionCapacityExceededError({
+            checkpoint: { stage: "broadcast", vaultId: params.vaultId },
+            vaultCount: params.vaultCount,
+            amount: params.amount,
+            inFlightVaultCount: 0,
+            inFlightAmount: 0n,
+          });
+        }
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.positionCapacityExceeded,
+      );
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+      expect(removePendingPegin).not.toHaveBeenCalled();
+    });
+
+    it("keeps the batch resumable when the position cannot be checked before the broadcast", async () => {
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      assertPositionAcceptsBatch.mockImplementation(async (params) => {
+        if (params.stage === "broadcast") {
+          throw new PositionCapacityUnavailableError(
+            "Could not read allowedToDeposit from the application.",
+            {
+              checkpoint: { stage: "broadcast", vaultId: params.vaultId },
+              cause: new Error("execution reverted"),
+            },
+          );
+        }
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.positionCapacityUnavailable,
+      );
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+    });
   });
 
   describe("Deposit identity at signing boundaries", () => {

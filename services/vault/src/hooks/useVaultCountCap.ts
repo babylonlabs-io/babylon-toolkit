@@ -13,8 +13,9 @@ import { useVaults } from "./useVaults";
 const VAULT_COUNT_CAP_KEY = "vaultCountCap";
 // maxVaultsPerPosition is a near-static governance param, so cache it long and
 // skip continuous polling — fetch on mount and rely on staleTime. A change is
-// rare; the deposit flow re-reads the position's capacity before the
-// Pre-PegIn broadcast.
+// rare; the deposit flow re-reads the position's capacity from chain, counting
+// the depositor's in-flight vaults, before the Ethereum registration and again
+// before the Pre-PegIn broadcast (`services/vault/positionCapacity.ts`).
 const STALE_TIME_MS = 10 * 60_000;
 
 export interface VaultCountCapResult {
@@ -92,8 +93,8 @@ export function useVaultCountCap(
 
   const resolved = maxVaults !== undefined;
   // maxVaults === 0 means "unlimited" on-chain — the adapter rejects only when
-  // the cap is > 0 (AaveAdapter.sol `_validatePositionSizeBoundaries`), so a 0
-  // cap must not gate.
+  // the cap is > 0 (AaveAdapter.sol `_allowedToDeposit`), so a 0 cap must not
+  // gate.
   const isAtCap = resolved && maxVaults > 0 && currentCount >= maxVaults;
 
   return {
@@ -103,7 +104,7 @@ export function useVaultCountCap(
     // Fail closed on a terminal failure of EITHER read — the cap value or the
     // vaults list — and on a list that dropped rows it could not transform. A
     // list-fetch error or a dropped row would otherwise under-count and let an
-    // at-cap user lock BTC, then revert at activation. Mirrors
+    // at-cap user lock BTC that activation then redeems. Mirrors
     // useApplicationCap (capsQuery.error ?? usageQuery.error).
     capUnavailable:
       capError ||
