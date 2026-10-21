@@ -1,9 +1,12 @@
 import { isHex, type Hex } from "viem";
 
+import featureFlags from "@/config/featureFlags";
+import { ContractStatus } from "@/models/peginStateMachine";
 import {
   getSignedGraphFingerprint,
   PendingPeginStorageReadError,
 } from "@/storage/peginStorage";
+import type { VaultActivity } from "@/types/activity";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 /** What a vault-provider artifact download needs. */
@@ -29,6 +32,39 @@ function hasSignedGraphFingerprint(ethAddress: string, vaultId: Hex): boolean {
   }
 }
 
+/** The vault fields a download is bound to, whichever list the vault is in. */
+interface DownloadSource {
+  vaultId: string;
+  providerAddress?: string;
+  peginTxHash?: string;
+  depositorBtcPubkey?: string;
+  unsignedPrePeginTx?: string;
+}
+
+function toDownloadParams(
+  source: DownloadSource,
+  ethAddress: string | undefined,
+): ArtifactDownloadParams | null {
+  if (
+    !source.providerAddress ||
+    !source.depositorBtcPubkey ||
+    !source.peginTxHash ||
+    !source.unsignedPrePeginTx ||
+    !isHex(source.vaultId) ||
+    !ethAddress ||
+    !hasSignedGraphFingerprint(ethAddress, source.vaultId)
+  ) {
+    return null;
+  }
+  return {
+    vaultId: source.vaultId,
+    providerAddress: source.providerAddress,
+    peginTxid: source.peginTxHash,
+    depositorPk: source.depositorBtcPubkey,
+    unsignedPrePeginTxHex: source.unsignedPrePeginTx,
+  };
+}
+
 /**
  * The download inputs of a real vault entry, or null when the entry cannot be
  * downloaded: a demo row (it carries a fake `vaultId` and no provider), one
@@ -40,22 +76,37 @@ export function getArtifactDownloadParams(
   vault: CollateralVaultEntry,
   ethAddress: string | undefined,
 ): ArtifactDownloadParams | null {
+  if (vault.displayOnly) return null;
+  return toDownloadParams(vault, ethAddress);
+}
+
+/**
+ * The download inputs of a vault that expired after Verified, or null. Only an
+ * activation-timeout expiry got past Verified, and the provider serves its
+ * package while the vault is Expired or, after `claimExpiredVault`, Redeemed
+ * (btc-vault #3042, `retains_depositor_artifacts`). That provider serves
+ * artifacts over HTTP only, so the download is offered only on that route.
+ */
+export function getExpiredArtifactDownloadParams(
+  activity: VaultActivity,
+  ethAddress: string | undefined,
+): ArtifactDownloadParams | null {
+  if (!featureFlags.isHttpArtifactDownloadsEnabled) return null;
+  if (activity.expirationReason !== "activation_timeout") return null;
   if (
-    vault.displayOnly ||
-    !vault.depositorBtcPubkey ||
-    !vault.peginTxHash ||
-    !vault.unsignedPrePeginTx ||
-    !isHex(vault.vaultId) ||
-    !ethAddress ||
-    !hasSignedGraphFingerprint(ethAddress, vault.vaultId)
+    activity.contractStatus !== ContractStatus.EXPIRED &&
+    activity.contractStatus !== ContractStatus.REDEEMED
   ) {
     return null;
   }
-  return {
-    vaultId: vault.vaultId,
-    providerAddress: vault.providerAddress,
-    peginTxid: vault.peginTxHash,
-    depositorPk: vault.depositorBtcPubkey,
-    unsignedPrePeginTxHex: vault.unsignedPrePeginTx,
-  };
+  return toDownloadParams(
+    {
+      vaultId: activity.id,
+      providerAddress: activity.providers[0]?.id,
+      peginTxHash: activity.peginTxHash,
+      depositorBtcPubkey: activity.depositorBtcPubkey,
+      unsignedPrePeginTx: activity.unsignedPrePeginTx,
+    },
+    ethAddress,
+  );
 }

@@ -127,8 +127,8 @@ interface RecoveryArtifactsCardProps {
   onGraphMismatch?: () => void;
   /**
    * Where the card is mounted. `activation` gates activating the vault;
-   * `vault` downloads for a vault that is already active and shows the
-   * messages without the activation clauses.
+   * `vault` downloads for an active vault, or one that expired after Verified,
+   * and shows the messages without the activation clauses.
    */
   context?: "activation" | "vault";
 }

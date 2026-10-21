@@ -33,8 +33,9 @@ interface ArtifactDownloadModalProps extends ArtifactDownloadParams {
 }
 
 /**
- * Standalone artifact download for a vault that is already active. Mounted
- * per vault by its parent, so the downloaded state seeds once from storage.
+ * Standalone artifact download for an active vault, or one that expired after
+ * Verified. Mounted per vault by its parent, so the downloaded state seeds once
+ * from storage.
  */
 export function ArtifactDownloadModal({
   onClose,

@@ -953,9 +953,10 @@ export const COPY = {
       // confirms the artifacts are on disk (collateral list); it doesn't
       // perform activation, so the label simply dismisses it.
       doneButton: "Done",
-      // Active-vault variants of the recoveryArtifacts messages that speak
-      // about activation, the risk acknowledgement, or the artifact warning.
-      // The vault is already active, so those clauses do not apply here.
+      // Variants of the recoveryArtifacts messages that speak about
+      // activation, the risk acknowledgement, or the artifact warning, for a
+      // vault that is active or expired after Verified, where those clauses
+      // do not apply.
       fallbackSaveHint:
         "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
       unverifiedSaveNotice:
@@ -1024,6 +1025,10 @@ export const COPY = {
       reauthenticating: "Re-authenticating with vault provider...",
       waitingForSignatures:
         "Waiting for vault provider to process signatures...",
+      // The provider does not say why it refuses (INVALID_STATE), so this
+      // names no cause.
+      waitingForProvider:
+        "Waiting for the vault provider to make the artifacts available...",
       notAvailable:
         "The vault provider still does not serve the artifacts. Check the vault status, then try again.",
       // Error fallbacks shown when a thrown error carries no usable message.

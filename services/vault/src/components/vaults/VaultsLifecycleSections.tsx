@@ -25,6 +25,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { IoClose } from "react-icons/io5";
+import { twMerge } from "tailwind-merge";
 import type { Address, Hex } from "viem";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -85,6 +86,11 @@ import {
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
+import {
+  getExpiredArtifactDownloadParams,
+  type ArtifactDownloadParams,
+} from "@/utils/artifactDownloadParams";
+import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 import { getBatchSiblings } from "@/utils/batchedPegin";
 import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -417,6 +423,15 @@ function PendingRow({
   );
 }
 
+function unsavedDownloadParams(
+  params: ArtifactDownloadParams | undefined,
+): ArtifactDownloadParams | null {
+  if (!params) return null;
+  return hasArtifactsDownloaded(params.vaultId, params.peginTxid)
+    ? null
+    : params;
+}
+
 function InactiveRow({
   activity,
   vaultProviders,
@@ -426,6 +441,8 @@ function InactiveRow({
   reclaimAction,
   claimTxid,
   redeemReason,
+  downloadParams,
+  onDownloadArtifacts,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
@@ -437,6 +454,9 @@ function InactiveRow({
   claimTxid: string | undefined;
   /** Why the registry redeemed the vault at activation, once read. */
   redeemReason: ActivationRedeemReason | undefined;
+  /** Set while an expired vault's artifacts are downloadable and unsaved. */
+  downloadParams: ArtifactDownloadParams | null;
+  onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
 }) {
   const result = useDepositPollingResult(activity.id);
   const provider = findProvider(vaultProviders, activity.providers[0]?.id);
@@ -507,6 +527,22 @@ function InactiveRow({
     : hasClaim
       ? COPY.vaults.claimTransactionLabel
       : undefined;
+
+  // Hidden until the row's state is known and while a refund is in flight or
+  // settled: the provider deletes the package once that spend is final.
+  const visibleDownloadParams =
+    peginState && !hasRefund ? downloadParams : null;
+  // The slot widens only for two controls, so a lone button keeps the fixed
+  // basis that aligns this row's columns with its neighbours.
+  const hasOtherAction = Boolean(
+    isRefundAvailable ||
+      blockedTooltip ||
+      isClaimExpiredAvailable ||
+      isReclaimAvailable ||
+      isReclaimWalletNeeded ||
+      isReclaiming ||
+      reclaimBlockedTooltip,
+  );
 
   const reasonText = redeemReason
     ? activationRedeemReasonText(redeemReason)
@@ -618,8 +654,22 @@ function InactiveRow({
           blocked, so an actionless row still aligns with the rows that carry a
           button. On a phone an empty slot is hidden. */}
       <div
-        className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full max-md:empty:hidden`}
+        className={twMerge(
+          LIST_ROW_ACTION_SLOT_CLASS,
+          "max-md:basis-full max-md:empty:hidden",
+          visibleDownloadParams && "gap-2 max-md:flex-col",
+          visibleDownloadParams && hasOtherAction && "basis-auto",
+        )}
       >
+        {visibleDownloadParams && (
+          <button
+            type="button"
+            onClick={() => onDownloadArtifacts(visibleDownloadParams)}
+            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
+          >
+            {COPY.vaults.actions.downloadArtifacts}
+          </button>
+        )}
         {isRefundAvailable && (
           <button
             type="button"
@@ -727,6 +777,7 @@ type ViewingBatch =
 export function VaultsLifecycleSections({
   deposits,
   returnedRedeemedActivities,
+  onDownloadArtifacts,
   children,
 }: {
   /** The page's single `usePendingDeposits` result, shared with the emptiness hook. */
@@ -736,6 +787,8 @@ export function VaultsLifecycleSections({
    * once by the page and shared with the emptiness hook.
    */
   returnedRedeemedActivities: VaultActivity[];
+  /** Opens the page's artifact download modal. */
+  onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
   children?: ReactNode;
 }) {
   // The batch whose multistepper view modal is open — the full batch for a
@@ -781,6 +834,17 @@ export function VaultsLifecycleSections({
   );
 
   const rows = [...pendingActivities, ...inactiveActivities];
+
+  // One pass over pending storage per list change, as in Active Vaults; the
+  // saved-receipt check stays per render so a row drops its button on save.
+  const expiredDownloadParams = useMemo(() => {
+    const byId = new Map<string, ArtifactDownloadParams>();
+    for (const activity of inactiveActivities) {
+      const params = getExpiredArtifactDownloadParams(activity, ethAddress);
+      if (params) byId.set(activity.id, params);
+    }
+    return byId;
+  }, [inactiveActivities, ethAddress]);
 
   const handleOpenDetails = useCallback(
     (depositId: string, requestedAction: PeginAction | null) => {
@@ -1058,6 +1122,10 @@ export function VaultsLifecycleSections({
                 reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
                 claimTxid={claimTxids.get(activity.id)}
                 redeemReason={redeemReasons.get(activity.id)}
+                downloadParams={unsavedDownloadParams(
+                  expiredDownloadParams.get(activity.id),
+                )}
+                onDownloadArtifacts={onDownloadArtifacts}
               />
             ))}
           </div>

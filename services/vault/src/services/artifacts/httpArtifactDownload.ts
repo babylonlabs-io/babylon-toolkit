@@ -59,9 +59,9 @@ const CONTENT_RANGE_RE = /^bytes (\d+)-(\d+)\/(\d+)$/;
  */
 export class ArtifactsNotReadyError extends Error {
   /**
-   * True for `INVALID_STATE`: the peg-in is not `PendingActivation` or
-   * `Activated`. The VP does not say which status it is, so this also covers
-   * a terminal status, and the hook bounds the wait.
+   * True for `INVALID_STATE`: the peg-in is in no status that retains the
+   * package. The VP does not say which status it is, so this also covers a
+   * terminal status, and the hook bounds the wait.
    */
   readonly invalidState: boolean;
 

@@ -187,6 +187,7 @@ export default function VaultsPage() {
       <VaultsLifecycleSections
         deposits={deposits}
         returnedRedeemedActivities={returnedRedeemedActivities}
+        onDownloadArtifacts={setArtifactParams}
       >
         <VaultsActiveSection
           vaults={displayVaults}
