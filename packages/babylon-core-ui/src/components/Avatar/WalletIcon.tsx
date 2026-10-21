@@ -5,6 +5,8 @@ import { Avatar } from "./Avatar";
 
 export interface WalletIconProps {
   url: string;
+  /** A same-origin icon to show if `url` fails to load, so the slot never shows a broken image. */
+  fallbackUrl?: string;
   alt?: string;
   /**
    * Brand fill for wallets whose mark is a single-colour glyph with no
@@ -22,11 +24,12 @@ export interface WalletIconProps {
  * self-coloured logo renders bare and is never clipped to a shape it wasn't
  * drawn for.
  */
-export function WalletIcon({ url, alt, background, size = "large", className }: WalletIconProps) {
+export function WalletIcon({ url, fallbackUrl, alt, background, size = "large", className }: WalletIconProps) {
   if (background) {
     return (
       <Avatar
         url={url}
+        fallbackUrl={fallbackUrl}
         alt={alt}
         size={size}
         variant="rounded"
@@ -39,6 +42,7 @@ export function WalletIcon({ url, alt, background, size = "large", className }: 
   return (
     <Avatar
       url={url}
+      fallbackUrl={fallbackUrl}
       alt={alt}
       size={size}
       variant="rounded"
