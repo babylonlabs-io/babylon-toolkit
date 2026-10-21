@@ -11,6 +11,7 @@ import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
 import { LoanCard } from "../LoanCard";
+import { showsRepay } from "../LoanCard/showsRepay";
 import { ReserveIdentityBlock } from "../ReserveIdentityBlock";
 
 import { useAaveReserveDetail } from "./hooks";
@@ -60,6 +61,9 @@ export function ReserveDetailPanel({
     assetConfig,
     vbtcReserve,
     liquidationThresholdBps,
+    borrowLiquidationThresholdBps,
+    isBorrowSplitParamsLoading,
+    borrowSplitParamsError,
     proxyContract,
     collateralValueUsd,
     currentDebtAmount,
@@ -76,6 +80,7 @@ export function ReserveDetailPanel({
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
+    refetchBorrowSplitParams,
   } = useAaveReserveDetail({ reserveId, address });
 
   // One narrowing point for everything that depends on a proven identity, so
@@ -123,7 +128,15 @@ export function ReserveDetailPanel({
     );
   }
 
-  if (isLoading) {
+  // Only the Borrow screen reads the reserve's current key, so its query must
+  // not hold a spinner or a warning over Repay.
+  const isBorrowScreen = !showsRepay(
+    tab,
+    collateralValueUsd,
+    totalDebtValueUsd,
+  );
+
+  if (isLoading || (isBorrowScreen && isBorrowSplitParamsLoading)) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-accent-secondary">{COPY.common.loading}</p>
@@ -166,6 +179,7 @@ export function ReserveDetailPanel({
     totalDebtValueUsd,
     healthFactor,
     liquidationThresholdBps,
+    borrowLiquidationThresholdBps,
     selectedReserve: verified.selectedReserve,
     tokenIdentity: verified.tokenIdentity,
     assetConfig: verified.assetConfig,
@@ -177,6 +191,7 @@ export function ReserveDetailPanel({
     isPositionDataStale,
     refetchPosition,
     refetchSplitParams,
+    refetchBorrowSplitParams,
     onBorrowSuccess: (amount: number) => onSuccess(settled("borrow", amount)),
     onRepaySuccess: (repayAmount: number) =>
       onSuccess(settled("repay", repayAmount)),
@@ -193,7 +208,11 @@ export function ReserveDetailPanel({
             ? null
             : positionError
         }
-        ancillaryError={ancillaryError ?? positionError}
+        ancillaryError={
+          ancillaryError ??
+          (isBorrowScreen ? borrowSplitParamsError : null) ??
+          positionError
+        }
         refetchPosition={refetchPosition}
       >
         <LoanCard defaultTab={tab} />

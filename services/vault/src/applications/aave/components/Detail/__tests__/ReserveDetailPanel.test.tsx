@@ -117,6 +117,9 @@ function detailState(overrides: Record<string, unknown> = {}) {
     assetConfig: { symbol: "USDC", name: "USD Coin", icon: "icon.png" },
     vbtcReserve: { reserveId: 1n },
     liquidationThresholdBps: 7500,
+    borrowLiquidationThresholdBps: 7500,
+    isBorrowSplitParamsLoading: false,
+    borrowSplitParamsError: null,
     proxyContract: "0xProxy",
     collateralValueUsd: 15000,
     currentDebtAmount: 1,
@@ -133,6 +136,7 @@ function detailState(overrides: Record<string, unknown> = {}) {
     isPositionDataStale: false,
     refetchPosition: vi.fn(),
     refetchSplitParams: vi.fn(),
+    refetchBorrowSplitParams: vi.fn(),
     ...overrides,
   };
 }
@@ -160,6 +164,77 @@ describe("ReserveDetailPanel", () => {
     );
 
     expect(screen.getByTestId("loan-card")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
+    ).toBeVisible();
+  });
+
+  it("opens Repay while the borrow-only current-key read is loading", () => {
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({ isBorrowSplitParamsLoading: true }),
+    );
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.REPAY}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("loan-card")).toBeInTheDocument();
+    expect(screen.queryByText(COPY.common.loading)).not.toBeInTheDocument();
+  });
+
+  it("shows no warning on Repay when the borrow-only current-key read fails", () => {
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({ borrowSplitParamsError: new Error("getReserve failed") }),
+    );
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.REPAY}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("loan-card")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.loans.detail.ancillaryLoadWarning),
+    ).not.toBeInTheDocument();
+  });
+
+  it("holds Borrow on the spinner while the current-key read is loading", () => {
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({ isBorrowSplitParamsLoading: true }),
+    );
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
+    expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
+  });
+
+  it("warns on Borrow when the current-key read fails", () => {
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({ borrowSplitParamsError: new Error("getReserve failed") }),
+    );
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
     expect(
       screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
     ).toBeVisible();

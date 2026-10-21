@@ -31,6 +31,8 @@ let mockChainVaultIds: string[] = [];
 let mockCollateralValueUsd = 0;
 let mockDebtValueUsd = 0;
 let mockSplitParams: VaultSplitParams | null = null;
+/** Params for the call without an address (the reserve's current key); `undefined` → `mockSplitParams`. */
+let mockCurrentKeySplitParams: VaultSplitParams | null | undefined;
 let mockSplitLoading = false;
 let mockSplitError: Error | null = null;
 let mockReorderedOrder: readonly `0x${string}`[] | null = null;
@@ -73,8 +75,11 @@ vi.mock("@/applications/aave/hooks", () => ({
     borrowedAssets: [],
     hasLoans: false,
   }),
-  useVaultSplitParams: () => ({
-    params: mockSplitParams,
+  useVaultSplitParams: (address?: string) => ({
+    params:
+      address === undefined && mockCurrentKeySplitParams !== undefined
+        ? mockCurrentKeySplitParams
+        : mockSplitParams,
     isLoading: mockSplitLoading,
     error: mockSplitError,
     refetch: async () => mockSplitParams,
@@ -139,6 +144,7 @@ describe("useDashboardState", () => {
     mockCollateralValueUsd = 0;
     mockDebtValueUsd = 0;
     mockSplitParams = null;
+    mockCurrentKeySplitParams = undefined;
     mockSplitLoading = false;
     mockSplitError = null;
     mockReorderedOrder = null;
@@ -469,6 +475,33 @@ describe("useDashboardState", () => {
     expect(result.current.availableToBorrowUsd).toBe(
       expectedMaxTotalDebtUsd - 2000,
     );
+  });
+
+  it("derives borrow capacity from the reserve's current key and the shown CF from the stored key", () => {
+    mockCollateralBtc = 1;
+    mockCollateralValueUsd = 10000;
+    mockDebtValueUsd = 2000;
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
+    mockCurrentKeySplitParams = { ...mockSplitParams, CF: 0.6 };
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    const expectedMaxTotalDebtUsd =
+      ((10000 * Math.round(0.6 * BPS_SCALE)) /
+        BPS_SCALE /
+        MIN_HEALTH_FACTOR_FOR_BORROW) *
+      (1 - BORROW_CAPACITY_HEADROOM);
+    expect(result.current.availableToBorrowUsd).toBe(
+      expectedMaxTotalDebtUsd - 2000,
+    );
+    expect(result.current.collateralFactorBps).toBe(8000);
   });
 
   it("reports zero borrow capacity while split params are unavailable", () => {

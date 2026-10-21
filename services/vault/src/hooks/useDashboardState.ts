@@ -52,18 +52,21 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
   });
 
+  // The collateral factor shown here is the one liquidation uses: the
+  // position's stored key. Borrow capacity uses the reserve's current key,
+  // because `borrow()` applies it — the same query the Borrow form reads.
+  const { params: splitParams } = useVaultSplitParams(connectedAddress);
   const {
-    params: splitParams,
+    params: borrowSplitParams,
     isLoading: isBorrowCapacityLoading,
     error: borrowCapacityError,
-  } = useVaultSplitParams(connectedAddress);
-  const liquidationThresholdBps = splitParams
-    ? Math.round(splitParams.CF * BPS_SCALE)
-    : 0;
+  } = useVaultSplitParams();
   const { availableToBorrowUsd } = calculateBorrowCapacityUsd({
     collateralValueUsd,
     currentDebtUsd: debtValueUsd,
-    liquidationThresholdBps,
+    liquidationThresholdBps: borrowSplitParams
+      ? Math.round(borrowSplitParams.CF * BPS_SCALE)
+      : 0,
   });
 
   // Borrow is offered only with at least a cent of headroom. A fully-borrowed
@@ -234,7 +237,9 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     availableToBorrowUsd,
     canBorrow,
-    collateralFactorBps: splitParams ? liquidationThresholdBps : null,
+    collateralFactorBps: splitParams
+      ? Math.round(splitParams.CF * BPS_SCALE)
+      : null,
     isBorrowCapacityLoading,
     borrowCapacityError,
     healthFactor,

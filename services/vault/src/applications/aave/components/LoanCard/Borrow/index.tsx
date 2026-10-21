@@ -82,7 +82,7 @@ export function Borrow() {
     collateralValueUsd,
     totalDebtValueUsd,
     healthFactor,
-    liquidationThresholdBps,
+    borrowLiquidationThresholdBps,
     selectedReserve,
     tokenIdentity,
     assetConfig,
@@ -92,7 +92,7 @@ export function Borrow() {
     isPriceStale,
     isPositionDataStale,
     refetchPosition,
-    refetchSplitParams,
+    refetchBorrowSplitParams,
     onBorrowSuccess,
     onProcessingChange,
   } = useLoanContext();
@@ -115,7 +115,7 @@ export function Borrow() {
     useBorrowState({
       collateralValueUsd,
       currentDebtUsd: totalDebtValueUsd,
-      liquidationThresholdBps,
+      liquidationThresholdBps: borrowLiquidationThresholdBps,
       tokenPriceUsd,
       tokenDecimals: tokenIdentity.decimals,
     });
@@ -203,7 +203,7 @@ export function Borrow() {
     borrowAmount,
     collateralValueUsd,
     currentDebtUsd: totalDebtValueUsd,
-    liquidationThresholdBps,
+    liquidationThresholdBps: borrowLiquidationThresholdBps,
     currentHealthFactor: healthFactor,
     tokenPriceUsd,
   });
@@ -288,8 +288,8 @@ export function Borrow() {
         borrowAmount,
         oracleAddress,
         reserveId: selectedReserve.reserveId,
-        liquidationThresholdBps,
-        refetchSplitParams,
+        liquidationThresholdBps: borrowLiquidationThresholdBps,
+        refetchSplitParams: refetchBorrowSplitParams,
         refetchPosition,
         chainMaxBorrowReserves,
       }),

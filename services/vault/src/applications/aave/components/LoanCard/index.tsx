@@ -14,6 +14,7 @@ import { useLoanContext } from "../context/LoanContext";
 
 import { Borrow } from "./Borrow";
 import { Repay } from "./Repay";
+import { showsRepay } from "./showsRepay";
 
 export interface LoanCardProps {
   defaultTab?: LoanTab;
@@ -22,8 +23,9 @@ export interface LoanCardProps {
 export function LoanCard({ defaultTab = LOAN_TAB.BORROW }: LoanCardProps) {
   const { collateralValueUsd, totalDebtValueUsd } = useLoanContext();
 
-  const hasPosition = totalDebtValueUsd > 0 || collateralValueUsd > 0;
-  const showRepay = defaultTab === LOAN_TAB.REPAY && hasPosition;
-
-  return showRepay ? <Repay /> : <Borrow />;
+  return showsRepay(defaultTab, collateralValueUsd, totalDebtValueUsd) ? (
+    <Repay />
+  ) : (
+    <Borrow />
+  );
 }
