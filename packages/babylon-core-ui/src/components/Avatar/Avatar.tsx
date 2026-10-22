@@ -1,6 +1,6 @@
-import { useState } from "react";
 import type { CSSProperties, PropsWithChildren } from "react";
 import { twJoin } from "tailwind-merge";
+import { AvatarImage } from "./AvatarImage";
 import "./Avatar.css";
 
 export interface AvatarProps extends PropsWithChildren {
@@ -12,19 +12,6 @@ export interface AvatarProps extends PropsWithChildren {
   style?: CSSProperties;
   size?: "tiny" | "small" | "medium" | "large" | "xlarge";
   variant?: "circular" | "rounded" | "square";
-}
-
-type AvatarImageProps = Pick<AvatarProps, "alt" | "url" | "fallbackUrl" | "children">;
-
-function AvatarImage({ alt, url, fallbackUrl, children }: AvatarImageProps) {
-  const [failedSrcs, setFailedSrcs] = useState<string[]>([]);
-  const src = [url, fallbackUrl].find((candidate) => candidate && !failedSrcs.includes(candidate));
-
-  if (!src) return <>{children}</>;
-
-  return (
-    <img className="bbn-avatar-img" src={src} alt={alt} onError={() => setFailedSrcs((failed) => [...failed, src])} />
-  );
 }
 
 export function Avatar({
