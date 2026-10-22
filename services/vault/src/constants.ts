@@ -21,7 +21,8 @@ export const WITHDRAWAL_LATENCY_DOCS_URL = "https://docs.babylonlabs.io";
 export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
 
 // Two-vault split docs link, surfaced from the split-option description in
-// UtxoSplitSelector. Points at the "decide how to split your BTC" step.
+// UtxoSplitSelector and from the deposit slider's split-minimum marker
+// tooltip. Points at the "decide how to split your BTC" step.
 export const TWO_VAULT_SPLIT_DOCS_URL =
   "https://docs.babylonlabs.io/trustless-bitcoin-vault/use-for-lending/create-a-vault/#step-1-decide-how-to-split-your-btc";
 

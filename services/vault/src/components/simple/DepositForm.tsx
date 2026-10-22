@@ -1,9 +1,16 @@
-import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import {
+  AmountSlider,
+  Card,
+  Hint,
+  InfoIcon,
+  useIsTouchFirst,
+} from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 import { IoInformationCircle } from "react-icons/io5";
 
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { TWO_VAULT_SPLIT_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
 import type { DepositSplitUnavailableReason } from "@/services/deposit/vaultCap";
@@ -282,6 +289,7 @@ export function DepositForm({
     vaultCapUsage,
   } = gatingState;
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
+  const touchFirst = useIsTouchFirst();
   const setPanelExpanded =
     (panel: "split" | "provider") => (expanded: boolean) =>
       setOpenPanel(expanded ? panel : null);
@@ -338,11 +346,32 @@ export function DepositForm({
         ? [
             {
               value: Number(minDepositForSplit),
-              label: COPY.deposit.form.splitSliderStepLabel,
+              label: (
+                <Hint
+                  attachToChildren
+                  title={COPY.deposit.form.splitSliderStepLabel}
+                  tooltip={
+                    <>
+                      {COPY.deposit.form.splitTooLowTooltip}{" "}
+                      <a
+                        href={TWO_VAULT_SPLIT_DOCS_URL}
+                        target={touchFirst ? undefined : "_blank"}
+                        rel="noopener noreferrer"
+                        className="text-secondary-main underline"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {COPY.deposit.form.learnMore}
+                      </a>
+                    </>
+                  }
+                >
+                  {COPY.deposit.form.splitSliderStepLabel}
+                </Hint>
+              ),
             },
           ]
         : [],
-    [hasTwoVaultSplit, minDepositForSplit],
+    [hasTwoVaultSplit, minDepositForSplit, touchFirst],
   );
 
   const handleSliderChange = (sats: number) => {
