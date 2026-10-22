@@ -238,7 +238,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Pattern: `NEXT_PUBLIC_FF_*`
 - Defined in `services/vault/src/config/featureFlags.ts`
-- Adding, renaming or removing a flag edits five places: `featureFlags.ts`, `services/vault/.env.example`, the flag block of the matching `service-release-*.yml`, the flag's class in `services/vault/env-manifest.json`, and the build inputs in `services/vault/project.json`. `check:env-manifest` fails when the last two disagree with the code or the workflow. A flag the code gates on `import.meta.env.DEV`, directly or through the dev-only panel it mounts inside, is classed `dev-test-only` and stays out of the workflow and the build inputs on purpose.
+- Adding, renaming or removing a flag edits five places: `featureFlags.ts`, `services/vault/.env.example`, the flag block of the matching `service-release-*.yml`, the flag's class in `services/vault/env-manifest.json`, and the build inputs in `services/vault/project.json`. `check:env-manifest` fails when the last two disagree with the code. Against the workflow it checks only that every `release-required` name is passed and that no unlisted, `removed` or `dev-test-only` name is. It does not check that a `release-optional` flag is passed, so check the workflow edit by hand: a flag missing there ships off in production. A flag the code gates on `import.meta.env.DEV`, directly or through the dev-only panel it mounts inside, is classed `dev-test-only` and stays out of the workflow and the build inputs on purpose.
 
 ### Network Profiles
 

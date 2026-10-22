@@ -283,8 +283,13 @@ separately, at full price each. Do it yourself.
    `services/simple-staking`, `packages/babylon-core-ui` and
    `packages/babylon-wallet-connector`.
    ts-sdk, packages and the WASM boundary: `packages/babylon-ts-sdk`,
-   `packages/babylon-tbv-rust-wasm`, `packages/babylon-ledger-vault-signer`
-   and `packages/babylon-proto-ts`. Backend: `services/vault/src/utils/rpc`,
+   `packages/babylon-tbv-rust-wasm`, `packages/babylon-ledger-vault-signer`,
+   `packages/babylon-proto-ts`, `packages/babylon-core-ui` and
+   `packages/babylon-wallet-connector`, and the vault's signing and value
+   paths `services/vault/src/hooks/deposit`,
+   `services/vault/src/services/deposit`, `services/vault/src/services/vault`
+   and `services/vault/src/applications/aave`. Backend:
+   `services/vault/src/utils/rpc`,
    `services/vault/src/services/providers`,
    `services/vault/src/services/artifacts` and `services/vault/src/clients`.
    Cross-repo seams: `packages/babylon-ts-sdk/src/tbv/core/contracts`,
@@ -294,10 +299,12 @@ separately, at full price each. Do it yourself.
    The Toolkit UI rows naming `copy.ts` and `featureFlags.ts`, and the
    risk-band / health-factor row, are vault-only: leave them out for a change
    with no file under `services/vault`, such as a core-ui, wallet-connector
-   or `services/simple-staking` change. The one exception: bind the
+   or `services/simple-staking` change. Two exceptions: bind the
    risk-band row also for a change under
    `packages/babylon-ts-sdk/src/tbv/integrations/aave`, where the thresholds
-   live.
+   live, and the feature-flag row also for a change to a
+   `.github/workflows/service-release-*.yml` file, whose flag block it
+   governs.
    Paste the bound text into the pack; do not summarise it. It is part of
    the binding rules, so the cold reviewer of Phase 6 gets it too.
 
