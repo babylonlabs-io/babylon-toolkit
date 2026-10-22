@@ -17,12 +17,14 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 
 import {
+  LEDGER_DEVICE_BUSY_ERROR_NAME,
   LedgerDeviceError,
   LedgerDeviceLockedError,
   LedgerSignPsbtAbortedError,
   LedgerSignPsbtProtocolError,
   LedgerUserRefusedError,
   LedgerYieldMismatchError,
+  isLedgerDeviceBusyError,
   isLedgerDeviceLockedError,
   isLedgerSignPsbtAbortedError,
   isLedgerSignPsbtIncompleteError,
@@ -325,6 +327,38 @@ describe("terminal status words mid-loop (T6)", () => {
     await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
       name: LedgerDeviceLockedError.name,
       statusWord: sw,
+      preDispatch: true,
+    });
+    expect(sent()).toBe(1);
+  });
+
+  it("a busy word on a CONTINUE frame is unproven", async () => {
+    // The first round already ran, so caps/dedup may be committed — the busy
+    // refusal stays unproven so the adapter cannot keep the intent.
+    const traceFile = loadJson<TraceFile>(join(TRACES_DIR, "generated__deposit-flow__pegin__0.json"));
+    const prepared = prepareFromVector(traceFile.vector_id);
+    const script = firstRoundScript(prepared, traceFile.traces[0], 0x6901);
+    const { send, sent } = createScriptedSender(script);
+
+    const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(isLedgerDeviceBusyError(outcome)).toBe(true);
+    expect(outcome).toMatchObject({ name: LEDGER_DEVICE_BUSY_ERROR_NAME, statusWord: 0x6901, preDispatch: false });
+    expect(sent()).toBe(2);
+  });
+
+  it("a busy word on the initial SIGN_PSBT is preDispatch", async () => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: 0x6901, respondDataHex: "" },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
+      name: LEDGER_DEVICE_BUSY_ERROR_NAME,
+      statusWord: 0x6901,
       preDispatch: true,
     });
     expect(sent()).toBe(1);

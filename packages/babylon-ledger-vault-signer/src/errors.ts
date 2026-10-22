@@ -10,6 +10,7 @@
 
 export const LEDGER_USER_REFUSED_ERROR_NAME = "LedgerUserRefusedError";
 export const LEDGER_DEVICE_LOCKED_ERROR_NAME = "LedgerDeviceLockedError";
+export const LEDGER_DEVICE_BUSY_ERROR_NAME = "LedgerDeviceBusyError";
 export const LEDGER_DEVICE_ERROR_NAME = "LedgerDeviceError";
 export const LEDGER_YIELD_MISMATCH_ERROR_NAME = "LedgerYieldMismatchError";
 export const LEDGER_SIGN_PSBT_INCOMPLETE_ERROR_NAME = "LedgerSignPsbtIncompleteError";
@@ -49,6 +50,26 @@ export class LedgerDeviceLockedError extends Error {
   constructor(statusWord: number, options?: { preDispatch?: boolean }) {
     super(`The Ledger device is locked — unlock it and retry (0x${hex4(statusWord)})`);
     this.name = LEDGER_DEVICE_LOCKED_ERROR_NAME;
+    this.statusWord = statusWord;
+    this.preDispatch = options?.preDispatch ?? false;
+  }
+}
+
+/** The device was still busy with a previous request and refused the APDU. */
+export class LedgerDeviceBusyError extends Error {
+  readonly statusWord: number;
+  /**
+   * true only when the sign loop proved the refused APDU was the initial
+   * SIGN_PSBT (no round ran). false = unproven — a CONTINUE after earlier
+   * rounds, or any other exchange — so the adapter must assume the worst.
+   */
+  readonly preDispatch: boolean;
+
+  constructor(statusWord: number, options?: { preDispatch?: boolean }) {
+    super(
+      `The Ledger device was still busy with a previous request — finish or dismiss it on the device and retry (0x${hex4(statusWord)})`,
+    );
+    this.name = LEDGER_DEVICE_BUSY_ERROR_NAME;
     this.statusWord = statusWord;
     this.preDispatch = options?.preDispatch ?? false;
   }
@@ -209,6 +230,10 @@ export function isLedgerDeviceError(error: unknown): error is LedgerDeviceError 
 
 export function isLedgerDeviceLockedError(error: unknown): error is LedgerDeviceLockedError {
   return error instanceof Error && error.name === LEDGER_DEVICE_LOCKED_ERROR_NAME;
+}
+
+export function isLedgerDeviceBusyError(error: unknown): error is LedgerDeviceBusyError {
+  return error instanceof Error && error.name === LEDGER_DEVICE_BUSY_ERROR_NAME;
 }
 
 export function isLedgerYieldMismatchError(error: unknown): error is LedgerYieldMismatchError {

@@ -19,11 +19,13 @@ import {
   isDepositorWalletMismatchError,
 } from "./depositorWalletMismatch";
 import {
+  DEVICE_BUSY_CODE,
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_DISCONNECTED_CODE,
   DEVICE_LOCKED_CODE,
   DEVICE_WRONG_APP_CODE,
   deviceErrorCodeOfFrame,
+  isDeviceBusyError,
   isDeviceCeremonyInvalidError,
   isDeviceDisconnectedError,
   isDeviceLockedError,
@@ -610,6 +612,8 @@ export function formatPayoutSignatureError(error: unknown): {
       return PSE.deviceCeremonyInvalid;
     case DEVICE_LOCKED_CODE:
       return PSE.deviceLocked;
+    case DEVICE_BUSY_CODE:
+      return PSE.deviceBusy;
     case DEVICE_WRONG_APP_CODE:
       return PSE.deviceWrongApp;
     case DEVICE_DISCONNECTED_CODE:
@@ -636,6 +640,9 @@ export function formatPayoutSignatureError(error: unknown): {
   }
   if (isDeviceLockedError(error)) {
     return PSE.deviceLocked;
+  }
+  if (isDeviceBusyError(error)) {
+    return PSE.deviceBusy;
   }
   if (isDeviceWrongAppError(error)) {
     return PSE.deviceWrongApp;

@@ -32,6 +32,7 @@ export {
 } from "./dmkSession";
 export { assertDepositTermsDeviceCompatible } from "./envelope";
 export {
+  LEDGER_DEVICE_BUSY_ERROR_NAME,
   LEDGER_DEVICE_ERROR_NAME,
   LEDGER_DEVICE_LOCKED_ERROR_NAME,
   LEDGER_SIGN_PSBT_ABORTED_ERROR_NAME,
@@ -39,6 +40,7 @@ export {
   LEDGER_SIGN_PSBT_PROTOCOL_ERROR_NAME,
   LEDGER_USER_REFUSED_ERROR_NAME,
   LEDGER_YIELD_MISMATCH_ERROR_NAME,
+  LedgerDeviceBusyError,
   LedgerDeviceError,
   LedgerDeviceLockedError,
   LedgerSignPsbtAbortedError,
@@ -46,6 +48,7 @@ export {
   LedgerSignPsbtProtocolError,
   LedgerUserRefusedError,
   LedgerYieldMismatchError,
+  isLedgerDeviceBusyError,
   isLedgerDeviceError,
   isLedgerDeviceLockedError,
   isLedgerSignPsbtAbortedError,
@@ -74,6 +77,7 @@ export {
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
   SW_CLA_NOT_SUPPORTED,
+  SW_DEVICE_BUSY,
   SW_INS_NOT_SUPPORTED,
   type Apdu,
   type AppIdentity,

@@ -10,6 +10,8 @@ import { chainCarriesCode } from "./causeChain";
 export const DEVICE_CEREMONY_INVALID_CODE = "DEVICE_CEREMONY_INVALID";
 /** Hardware device is PIN-locked. */
 export const DEVICE_LOCKED_CODE = "DEVICE_LOCKED";
+/** Device still finishing a previous command; the app never saw this one. */
+export const DEVICE_BUSY_CODE = "DEVICE_BUSY";
 /** Wrong app open on the hardware device. */
 export const DEVICE_WRONG_APP_CODE = "DEVICE_WRONG_APP";
 /** Hardware device session lost — only a reconnect from a user gesture recovers. */
@@ -18,6 +20,7 @@ export const DEVICE_DISCONNECTED_CODE = "DEVICE_DISCONNECTED";
 const DEVICE_CODES = [
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_LOCKED_CODE,
+  DEVICE_BUSY_CODE,
   DEVICE_WRONG_APP_CODE,
   DEVICE_DISCONNECTED_CODE,
 ] as const;
@@ -42,6 +45,10 @@ export function isDeviceCeremonyInvalidError(error: unknown): boolean {
 
 export function isDeviceLockedError(error: unknown): boolean {
   return chainCarriesCode(error, DEVICE_LOCKED_CODE);
+}
+
+export function isDeviceBusyError(error: unknown): boolean {
+  return chainCarriesCode(error, DEVICE_BUSY_CODE);
 }
 
 export function isDeviceWrongAppError(error: unknown): boolean {
