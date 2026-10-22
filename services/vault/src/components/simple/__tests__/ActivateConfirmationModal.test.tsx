@@ -561,7 +561,7 @@ describe("ActivateConfirmationModal", () => {
     renderModal();
 
     expect(screen.getByTestId("download-artifacts-button")).toBeEnabled();
-    expect(screen.queryByText("Continue without")).toBeNull();
+    expect(screen.getByText("Continue without")).toBeDisabled();
     expect(screen.queryByText("Activate BTCVault")).toBeNull();
     expect(
       screen.getByText("Checking that your vault provider is responding..."),
@@ -590,7 +590,7 @@ describe("ActivateConfirmationModal", () => {
     renderModal();
 
     expect(screen.getByTestId("download-artifacts-button")).toBeEnabled();
-    expect(screen.getByText("Continue without")).toBeTruthy();
+    expect(screen.getByText("Continue without")).toBeEnabled();
     expect(
       screen.queryByText("Checking that your vault provider is responding..."),
     ).toBeNull();
@@ -780,7 +780,7 @@ describe("ActivateConfirmationModal", () => {
     liveness.status = "probing";
     renderModal({ simulateProviderLiveness: true });
 
-    expect(screen.getByText("Continue without")).toBeTruthy();
+    expect(screen.getByText("Continue without")).toBeEnabled();
     expect(
       screen.queryByText("Checking that your vault provider is responding..."),
     ).toBeNull();

@@ -105,7 +105,7 @@ export const POSITION_UNCHECKED_RETRY_INTERVAL_MS = 15_000;
 /**
  * How many times to click the Activate modal's "Check again" while it reports the vault provider as
  * unconfirmed. The modal probes the provider when it opens and, until a result comes back, offers
- * neither "Continue without" nor Activate — so without this the walk would idle to the step-machine
+ * no enabled "Continue without" and no Activate — so without this the walk would idle to the step-machine
  * budget. A short outage clears within a few clicks; a provider that is down, or a proxy that does not
  * allow-list the probe method, exhausts them and the run aborts with the reason.
  */

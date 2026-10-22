@@ -479,12 +479,13 @@ export function ActivateConfirmationModal({
           </>
         ) : (
           <>
-            {!graphMismatch && vpReachable && (
+            {!graphMismatch && (
               <Button
                 variant="outlined"
                 size="medium"
                 className="h-10 flex-1 rounded-lg"
                 onClick={() => setStep("confirmSkip")}
+                disabled={!vpReachable}
               >
                 {COPY.deposit.activateConfirmation.continueWithoutButton}
               </Button>
