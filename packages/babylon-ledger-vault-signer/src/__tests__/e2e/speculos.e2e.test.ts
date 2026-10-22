@@ -106,7 +106,7 @@ type SdkVerifier = Awaited<ReturnType<typeof loadSdkVerifier>>;
 
 /** App version of the ELF pinned in `FIRMWARE.md`. Stage 1 asserts it, which rules out a
  * differently-versioned build only — the app exposes no commit; `FIRMWARE.md` is the pin. */
-const PINNED_APP_VERSION = "0.11.0";
+const PINNED_APP_VERSION = "0.11.1";
 
 /** Live-verified nanosp review-screen texts (reference driver `lsk_ceremony2.py`). */
 const DERIVE_APPROVAL_TEXT = "Allow derivation";

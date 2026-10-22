@@ -53,6 +53,7 @@ const TERMINAL_CONNECT_ERROR_TITLES: ReadonlyMap<string, (walletName: string) =>
   [ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, (walletName: string) => `Update ${walletName}`],
   [ERROR_CODES.DEVICE_WRONG_APP, () => "Wrong App on Device"],
   [ERROR_CODES.DEVICE_LOCKED, () => "Signing Device Locked"],
+  [ERROR_CODES.DEVICE_BUSY, () => "Signing Device Busy"],
 ]);
 
 export interface BTCAddressValidation {
@@ -290,7 +291,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
       connector.on("error", (error: Error) => {
         onError?.(error);
 
-        // Terminal errors (wallet too old, wrong app or locked device) need an
+        // Terminal errors (wallet too old, wrong app, locked or busy device) need an
         // in-dialog message so the user can act on them. Anything else
         // falls through to the existing "bounce back to chains" behaviour
         // — host apps' `onError` callbacks still get the raw error.

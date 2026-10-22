@@ -137,7 +137,7 @@ export async function runSignPsbtLoop(
       ...opts.appIdentity,
       ins: lastSentApdu.ins,
       p1: lastSentApdu.p1,
-      // Only the initial APDU's refusal proves no round ran; a lock on a
+      // Only the initial APDU's refusal proves no round ran; a refusal on a
       // CONTINUE leaves caps possibly committed, so it stays unproven.
       preDispatch: lastSentApdu === signPsbtApdu,
     });

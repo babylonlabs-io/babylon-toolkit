@@ -44,6 +44,7 @@ export const ERROR_CODES = {
   QR_SCAN_ERROR: "QR_SCAN_ERROR", // QR scan failed
   DEVICE_CEREMONY_INVALID: "DEVICE_CEREMONY_INVALID", // Device ceremony state unusable — restart from derivation
   DEVICE_LOCKED: "DEVICE_LOCKED", // Hardware device is PIN-locked
+  DEVICE_BUSY: "DEVICE_BUSY", // Device still finishing a previous command; the app never saw this one
   DEVICE_WRONG_APP: "DEVICE_WRONG_APP", // Wrong app open on the hardware device
   DEVICE_DISCONNECTED: "DEVICE_DISCONNECTED", // Hardware device session lost — reconnect from a user gesture
 

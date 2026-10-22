@@ -207,6 +207,17 @@ describe("connect-time errors the user must see in the dialog", () => {
     expect(harness.displayChains).not.toHaveBeenCalled();
   });
 
+  it("shows the busy-device message instead of returning to chain selection", async () => {
+    await fireError(
+      new WalletError({ code: ERROR_CODES.DEVICE_BUSY, message: "Device is busy", wallet: "Ledger Vault" }),
+    );
+
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Signing Device Busy", description: "Device is busy" }),
+    );
+    expect(harness.displayChains).not.toHaveBeenCalled();
+  });
+
   it("keeps the update title for an outdated wallet", async () => {
     await fireError(
       new WalletError({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, message: "Too old", wallet: "Unisat" }),

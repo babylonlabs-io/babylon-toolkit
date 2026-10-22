@@ -620,6 +620,17 @@ describe("mapDepositError", () => {
     ).toEqual(ERRORS.deviceLocked);
   });
 
+  it("maps DEVICE_BUSY to its dedicated copy", () => {
+    expect(
+      mapDepositError(
+        new FakeWalletError(
+          "DEVICE_BUSY",
+          "The Ledger device was still busy with a previous request — finish or dismiss it on the device and retry (0x6901)",
+        ),
+      ),
+    ).toEqual(ERRORS.deviceBusy);
+  });
+
   it("maps DEVICE_WRONG_APP to its dedicated copy", () => {
     expect(
       mapDepositError(
@@ -647,6 +658,13 @@ describe("mapDepositError", () => {
       cause: new FakeWalletError("DEVICE_DISCONNECTED", "device unplugged"),
     });
     expect(mapDepositError(wrapped)).toEqual(ERRORS.deviceDisconnected);
+  });
+
+  it("finds DEVICE_BUSY through a sign-stage wrapper's cause chain", () => {
+    const wrapped = new Error("Failed to sign Pre-Pegin transaction", {
+      cause: new FakeWalletError("DEVICE_BUSY", "device busy (0x6901)"),
+    });
+    expect(mapDepositError(wrapped)).toEqual(ERRORS.deviceBusy);
   });
 
   it("lets a top-frame device code win over an inner unsupported-method cause", () => {
@@ -962,6 +980,10 @@ describe("isResumableDepositError", () => {
     expect(isResumableDepositError(ERRORS.deviceDisconnected)).toBe(true);
     expect(isDeviceDisconnectedContent(ERRORS.deviceDisconnected)).toBe(true);
     expect(isDeviceDisconnectedContent(ERRORS.deviceWrongApp)).toBe(false);
+  });
+
+  it("treats a busy signing device as resumable after registration, like a locked one", () => {
+    expect(isResumableDepositError(ERRORS.deviceBusy)).toBe(true);
   });
 
   it("recognises the payout path's rebuilt lost-session content", () => {

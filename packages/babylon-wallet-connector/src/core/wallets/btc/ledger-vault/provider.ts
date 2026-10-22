@@ -33,6 +33,7 @@ import {
   getVaultState,
   getXOnlyPublicKeyHex,
   intentFingerprint,
+  isLedgerDeviceBusyError,
   isLedgerDeviceError,
   isLedgerDeviceLockedError,
   isLedgerSignPsbtAbortedError,
@@ -97,10 +98,9 @@ export const APP_NAME_BY_NETWORK: Record<Network, string> = {
   [Network.SIGNET]: "Babylon Vault Testnet",
 };
 
-// Floor: 0.11.0 is the first app that takes Pre-PegIn change at the depositor's `/0/0`
-// address, which this host sends; older apps reject it, so they cannot fund a deposit. A
-// product decision released with Ledger's deployment, not the pin in the signer's FIRMWARE.md.
-const MIN_APP_VERSION = "0.11.0";
+// Floor: 0.11.1 is the first app whose Screen 2 shows every vault group before the approval page can be reached;
+// 0.11.0 let a touch-device user skip them. A product decision released with Ledger's deployment, not the signer pin.
+const MIN_APP_VERSION = "0.11.1";
 // Exclusive ceiling. Raise only after the host intent encoding and device caps are checked
 // against the new firmware; a minor bump has changed device semantics before (0.10 → 0.11).
 const FIRST_UNSUPPORTED_APP_VERSION = "0.12.0";
@@ -1632,13 +1632,16 @@ export class LedgerVaultProvider implements IBTCProvider {
   /**
    * One device ceremony; every failure is classified against the mirror.
    *
-   * Locked-device words on the INITIAL SIGN_PSBT keep the intent because the app
-   * never ran it: 0x5515 is sent only by the SDK IO layer before dispatch
+   * Locked-device and busy words on the INITIAL SIGN_PSBT keep the intent because
+   * the app never ran it: 0x5515 is sent only by the SDK IO layer before dispatch
    * (`io_exchange`'s receive loop, which the base app's dispatcher reads from);
    * 0x6982 exists in the SDK only under ENABLE_ADDRESS_BOOK (unset in both
    * Makefiles) and 0x5303 is not defined at all; neither the app nor the base
-   * app ever sends any of the three. Only the
-   * sign loop proves the initial APDU was the refused one (`preDispatch`); a lock on
+   * app ever sends any of the three. 0x6901 is the same IO layer's
+   * `SWO_COMMAND_NOT_ACCEPTED`, sent while a previous command still awaits its
+   * reply; accepted risk: that pending command may still change the device
+   * state, which the next sign surfaces as `SW_BAD_STATE`. Only the
+   * sign loop proves the initial APDU was the refused one (`preDispatch`); a refusal on
    * a CONTINUE or any other exchange is unproven — rounds may have run, caps may be
    * committed — and takes the pessimistic reset below.
    */
@@ -1646,8 +1649,8 @@ export class LedgerVaultProvider implements IBTCProvider {
     const { prepared, fingerprintKey, label, standalone } = staged;
     const { session, rawSend, generation } = ctx;
     // Recorded before the send: a failure after dispatch may still have been
-    // counted. A pre-dispatch lock proves it was not, so that path removes it
-    // again unless an earlier attempt had already sent it.
+    // counted. A pre-dispatch lock or busy proves it was not, so that path
+    // removes it again unless an earlier attempt had already sent it.
     const recordedEarlier = this.dispatchedSinceCounterReset.has(fingerprintKey);
     if (!standalone) this.dispatchedSinceCounterReset.add(fingerprintKey);
     try {
@@ -1668,16 +1671,17 @@ export class LedgerVaultProvider implements IBTCProvider {
       const walletError = this.classifySignFailure(error, generation, label);
       // Mirror reset is signPsbt-only (PoP failures don't invalidate the vault
       // context); stale rejections and cancels were already handled in classify.
-      // Pre-dispatch lock keeps the intent (provenance in the method doc); an
-      // unproven lock is treated like any other sign failure.
-      const lockedBeforeDispatch = isLedgerDeviceLockedError(error) && error.preDispatch === true;
-      if (lockedBeforeDispatch && !standalone && !recordedEarlier && generation === this.connectionGeneration) {
+      // A pre-dispatch lock or busy keeps the intent (provenance in the method
+      // doc); an unproven one is treated like any other sign failure.
+      const refusedBeforeDispatch =
+        (isLedgerDeviceLockedError(error) || isLedgerDeviceBusyError(error)) && error.preDispatch === true;
+      if (refusedBeforeDispatch && !standalone && !recordedEarlier && generation === this.connectionGeneration) {
         this.dispatchedSinceCounterReset.delete(fingerprintKey);
       }
       if (
         generation === this.connectionGeneration &&
         !isLedgerSignPsbtAbortedError(error) &&
-        !lockedBeforeDispatch &&
+        !refusedBeforeDispatch &&
         // Standalone signs keep the mirror: NOTHING on the device's refund
         // or delegated-claim paths invalidates the vault context — not the
         // validators' rejects (every `vault_context_invalidate` site sits on
@@ -1985,6 +1989,12 @@ function toSignerWalletError(error: unknown): WalletError | undefined {
   if (isLedgerDeviceLockedError(error)) {
     return new WalletError(
       { code: ERROR_CODES.DEVICE_LOCKED, message: error.message, wallet: WALLET_PROVIDER_NAME },
+      { cause: error },
+    );
+  }
+  if (isLedgerDeviceBusyError(error)) {
+    return new WalletError(
+      { code: ERROR_CODES.DEVICE_BUSY, message: error.message, wallet: WALLET_PROVIDER_NAME },
       { cause: error },
     );
   }

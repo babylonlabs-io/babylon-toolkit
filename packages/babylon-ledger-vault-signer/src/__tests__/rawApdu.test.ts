@@ -7,7 +7,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { LEDGER_DEVICE_ERROR_NAME, LEDGER_DEVICE_LOCKED_ERROR_NAME, LEDGER_USER_REFUSED_ERROR_NAME } from "../errors";
+import {
+  LEDGER_DEVICE_BUSY_ERROR_NAME,
+  LEDGER_DEVICE_ERROR_NAME,
+  LEDGER_DEVICE_LOCKED_ERROR_NAME,
+  LEDGER_USER_REFUSED_ERROR_NAME,
+} from "../errors";
 import { classifyStatusWord, createThrowingApduSender, type Apdu, type RawApduSender } from "../rawApdu";
 
 const context = { ins: 0x80, p1: 0x02 };
@@ -42,11 +47,24 @@ describe("classifyStatusWord", () => {
     expect(classifyStatusWord(0x5515, context)).toMatchObject({ preDispatch: false });
   });
 
+  it("classifies 0x6901 as a busy device carrying the status word", () => {
+    const error = classifyStatusWord(0x6901, context);
+    expect(error).toMatchObject({ name: LEDGER_DEVICE_BUSY_ERROR_NAME, statusWord: 0x6901 });
+    expect(error?.message).toMatch(/still busy/);
+  });
+
+  it("marks a busy device preDispatch when the context proves it", () => {
+    expect(classifyStatusWord(0x6901, { ...context, preDispatch: true })).toMatchObject({ preDispatch: true });
+  });
+
+  it("leaves a busy device unproven (preDispatch false) when the context carries no proof", () => {
+    expect(classifyStatusWord(0x6901, context)).toMatchObject({ preDispatch: false });
+  });
+
   it.each([
     [0x6a80, /rejected the data as invalid/],
     [0xb007, /not in the expected state/],
     [0xb00a, /maximum number of these transactions/],
-    [0x6901, /still busy with the previous request/],
   ])("maps 0x%s to a readable device error naming the instruction", (sw, expected) => {
     const error = classifyStatusWord(sw, context);
     expect(error).toMatchObject({ name: LEDGER_DEVICE_ERROR_NAME, statusWord: sw });

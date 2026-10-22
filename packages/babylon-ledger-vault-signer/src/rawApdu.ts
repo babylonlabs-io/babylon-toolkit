@@ -11,7 +11,7 @@
  * @module ledger-vault-signer/rawApdu
  */
 
-import { LedgerDeviceError, LedgerDeviceLockedError, LedgerUserRefusedError } from "./errors";
+import { LedgerDeviceBusyError, LedgerDeviceError, LedgerDeviceLockedError, LedgerUserRefusedError } from "./errors";
 
 /** One APDU in the wire form the senders serialise: CLA ‖ INS ‖ P1 ‖ P2 ‖ Lc ‖ DATA. */
 export interface Apdu {
@@ -48,6 +48,12 @@ const SW_USER_REFUSED = new Set([0x5501, 0x6985]);
 /** Mirrored from DMK 1.7.1 `CommandUtils.isLockedDeviceResponse`. */
 const SW_DEVICE_LOCKED = new Set([0x5515, 0x6982, 0x5303]);
 
+/**
+ * SWO_COMMAND_NOT_ACCEPTED: the secure SDK's IO layer answers it before dispatch while a previous
+ * request is still in flight — never the app or the base app, so the refused command never ran.
+ */
+export const SW_DEVICE_BUSY = 0x6901;
+
 /** CLA not supported — what the dashboard or a wrong app returns. */
 export const SW_CLA_NOT_SUPPORTED = 0x6e00;
 /**
@@ -77,12 +83,6 @@ const STATUS_WORDS: Record<number, string> = {
   0x6a86: "The device rejected the instruction parameters",
   0x6a87: "The device rejected the payload length",
   [SW_INS_NOT_SUPPORTED]: "The running app does not support this instruction",
-  // SWO_COMMAND_NOT_ACCEPTED: sent by the SDK IO layer before dispatch, so the
-  // app never ran the command, when an APDU lands mid-approval or while a
-  // reply is still pending.
-  // Retry advice omitted on purpose: a 0x6901 currently takes the provider's
-  // pessimistic reset, so retrying fails until #2530 keeps the intent.
-  0x6901: "The device was still busy with the previous request",
   // Network-agnostic on purpose: the app is "Babylon Vault" on mainnet and
   // "Babylon Vault Testnet" on test networks (dmkSession.readAppAndVersion).
   [SW_CLA_NOT_SUPPORTED]:
@@ -134,7 +134,7 @@ export interface StatusWordContext extends AppIdentity {
 export function classifyStatusWord(
   sw: number,
   context: StatusWordContext,
-): LedgerUserRefusedError | LedgerDeviceLockedError | LedgerDeviceError | undefined {
+): LedgerUserRefusedError | LedgerDeviceLockedError | LedgerDeviceBusyError | LedgerDeviceError | undefined {
   if (sw === SW_OK) {
     return undefined;
   }
@@ -145,6 +145,9 @@ export function classifyStatusWord(
   }
   if (SW_DEVICE_LOCKED.has(sw)) {
     return new LedgerDeviceLockedError(sw, { preDispatch: context.preDispatch === true });
+  }
+  if (sw === SW_DEVICE_BUSY) {
+    return new LedgerDeviceBusyError(sw, { preDispatch: context.preDispatch === true });
   }
   const known = STATUS_WORDS[sw];
   // Name the app seen at connect ("BOLOS" = dashboard); the user may have

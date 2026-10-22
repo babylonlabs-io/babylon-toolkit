@@ -1017,6 +1017,17 @@ describe("Error Formatting", () => {
       ).toEqual(COPY.deposit.payoutSignatureErrors.deviceLocked);
     });
 
+    it("maps DEVICE_BUSY to its dedicated payout copy", () => {
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(
+            "DEVICE_BUSY",
+            "The Ledger device was still busy with a previous request — finish or dismiss it on the device and retry (0x6901)",
+          ),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceBusy);
+    });
+
     it("maps DEVICE_WRONG_APP to its dedicated payout copy", () => {
       expect(
         formatPayoutSignatureError(
@@ -1084,6 +1095,24 @@ describe("Error Formatting", () => {
       ).toEqual(COPY.deposit.payoutSignatureErrors.deviceLocked);
     });
 
+    it("inlined DEVICE_BUSY code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_BUSY:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_BUSY");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceBusy);
+    });
+
     it("inlined DEVICE_WRONG_APP code matches wallet-connector source", () => {
       const codesPath = resolve(
         __dirname,
@@ -1148,6 +1177,17 @@ describe("Error Formatting", () => {
       const wrapped = new Error("payout signing failed", { cause: inner });
       expect(formatPayoutSignatureError(wrapped)).toEqual(
         COPY.deposit.payoutSignatureErrors.deviceCeremonyInvalid,
+      );
+    });
+
+    it("finds DEVICE_BUSY nested in a wrapper's cause chain", () => {
+      const inner = new FakeWalletError(
+        "DEVICE_BUSY",
+        "signPsbts[1]: The Ledger device was still busy with a previous request — finish or dismiss it on the device and retry (0x6901)",
+      );
+      const wrapped = new Error("payout signing failed", { cause: inner });
+      expect(formatPayoutSignatureError(wrapped)).toEqual(
+        COPY.deposit.payoutSignatureErrors.deviceBusy,
       );
     });
 

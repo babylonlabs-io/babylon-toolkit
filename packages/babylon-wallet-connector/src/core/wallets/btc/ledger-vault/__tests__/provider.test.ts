@@ -13,11 +13,13 @@
 
 import type { DepositTerms, InputSigExpectation } from "@babylonlabs-io/ledger-vault-signer";
 import {
+  LedgerDeviceBusyError,
   LedgerDeviceError,
   LedgerDeviceLockedError,
   LedgerSignPsbtAbortedError,
   LedgerSignPsbtProtocolError,
   LedgerUserRefusedError,
+  SW_DEVICE_BUSY,
 } from "@babylonlabs-io/ledger-vault-signer";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, payments, Psbt } from "bitcoinjs-lib";
@@ -42,7 +44,7 @@ const ACCOUNT_XPUB =
   "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U";
 
 const h = vi.hoisted(() => ({
-  session: { dmk: {}, sessionId: "s1", appName: "Babylon Vault Testnet", appVersion: "0.11.0" },
+  session: { dmk: {}, sessionId: "s1", appName: "Babylon Vault Testnet", appVersion: "0.11.1" },
   sent: [] as { ins: number; p1: number; data: Uint8Array }[],
   failNext: undefined as Error | undefined,
 }));
@@ -59,7 +61,7 @@ const dmkSessionMock = vi.hoisted(() => ({
  * real `refreshSessionApp`, a failed read echoes the handle it was given.
  */
 async function vaultAppOpen(session: object) {
-  return { ...session, appName: "Babylon Vault Testnet", appVersion: "0.11.0" };
+  return { ...session, appName: "Babylon Vault Testnet", appVersion: "0.11.1" };
 }
 
 const derivationMock = vi.hoisted(() => ({
@@ -521,7 +523,7 @@ describe("LedgerVaultProvider", () => {
       // The connect-time app identity reaches the loop's diagnostics.
       expect(signMock.signPreparedVaultPsbt.mock.calls[0][2].appIdentity).toEqual({
         appName: "Babylon Vault Testnet",
-        appVersion: "0.11.0",
+        appVersion: "0.11.1",
       });
     });
 
@@ -858,6 +860,45 @@ describe("LedgerVaultProvider", () => {
       signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515));
 
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("a pre-dispatch busy sign failure keeps the approved intent, so the retry signs without a re-ceremony", async () => {
+      const provider = await approved();
+      const approvalsBefore = approveApdus().length;
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(
+        new LedgerDeviceBusyError(SW_DEVICE_BUSY, { preDispatch: true }),
+      );
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_BUSY });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+
+      await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+      expect(approveApdus().length).toBe(approvalsBefore);
+    });
+
+    it("a pre-dispatch busy does not probe the open app", async () => {
+      // Every sign reads the app once in its gate; reclassifyAfterAppSwitch would read it
+      // again through refreshSessionApp, and a busy device would refuse that read too.
+      const provider = await approved();
+      const readsBeforeSuccess = dmkSessionMock.refreshSessionApp.mock.calls.length;
+      await provider.signPsbt(PSBT_B);
+      const readsPerSign = dmkSessionMock.refreshSessionApp.mock.calls.length - readsBeforeSuccess;
+      const readsBefore = dmkSessionMock.refreshSessionApp.mock.calls.length;
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(
+        new LedgerDeviceBusyError(SW_DEVICE_BUSY, { preDispatch: true }),
+      );
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_BUSY });
+      expect(dmkSessionMock.refreshSessionApp.mock.calls.length - readsBefore).toBe(readsPerSign);
+    });
+
+    it("an unproven busy drops the intent like any other sign failure", async () => {
+      const provider = await approved();
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceBusyError(SW_DEVICE_BUSY));
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_BUSY });
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
       await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
     });
@@ -2472,6 +2513,29 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.signPsbt(never)).resolves.toBe(`signed:${never}`);
     });
 
+    it("a resumed intent signs a Pre-PegIn the device refused as busy before dispatch", async () => {
+      // Only the host record could refuse it as already signed; a pre-dispatch busy must not leave one behind.
+      await deviceHoldsTerms();
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      const prePegin = "aa".repeat(40);
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(prePegin, TERMS.prepeginTxid));
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(
+        new LedgerDeviceBusyError(SW_DEVICE_BUSY, { preDispatch: true }),
+      );
+      await expect(provider.signPsbt(prePegin)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_BUSY });
+      // Lose the host mirror the way a USB reconnect does; the next approval re-adopts the device-held intent.
+      await provider.disconnect();
+      await provider.connectWallet();
+      h.sent.length = 0;
+
+      await expect(provider.approveDepositTerms(TERMS)).resolves.toBeUndefined();
+      expect(h.sent.filter((apdu) => apdu.ins === 0x80 || apdu.ins === 0x81)).toHaveLength(0);
+
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(prePegin, TERMS.prepeginTxid));
+      await expect(provider.signPsbt(prePegin)).resolves.toBe(`signed:${prePegin}`);
+    });
+
     it("does not query the device while the host record already holds the intent", async () => {
       const provider = await derived();
       await provider.approveDepositTerms(TERMS);
@@ -2671,12 +2735,12 @@ describe("LedgerVaultProvider", () => {
   });
 
   it("rejects an app older than the floor as an incompatible version", async () => {
-    const stale = { ...h.session, appVersion: "0.10.1" };
+    const stale = { ...h.session, appVersion: "0.11.0" };
     dmkSessionMock.connectDmkSession.mockResolvedValue(stale);
 
     const call = new LedgerVaultProvider(Network.SIGNET).connectWallet();
-    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, version: "0.10.1" });
-    await expect(call).rejects.toThrow(/0\.11\.0/);
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, version: "0.11.0" });
+    await expect(call).rejects.toThrow(/0\.11\.1/);
     expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(stale);
   });
 
@@ -2697,13 +2761,13 @@ describe("LedgerVaultProvider", () => {
   });
 
   it("refuses a non-canonical version without claiming it is out of date", async () => {
-    dmkSessionMock.connectDmkSession.mockResolvedValue({ ...h.session, appVersion: "0.11.0-rc1" });
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ ...h.session, appVersion: "0.11.1-rc1" });
 
     const call = new LedgerVaultProvider(Network.SIGNET).connectWallet();
     await expect(call).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, version: undefined });
     await expect(call).rejects.toThrow(/Unable to verify/);
     // The device's own string is not echoed back into dialog copy.
-    await expect(call).rejects.not.toThrow(/0\.11\.0-rc1/);
+    await expect(call).rejects.not.toThrow(/0\.11\.1-rc1/);
   });
 
   it("connects when the app preflight yielded nothing, but refuses the account key until an app read confirms the vault app", async () => {
@@ -2799,7 +2863,7 @@ describe("LedgerVaultProvider", () => {
     dmkSessionMock.refreshSessionApp.mockResolvedValueOnce({
       ...bare,
       appName: "Babylon Vault Testnet",
-      appVersion: "0.11.0",
+      appVersion: "0.11.1",
     });
     const provider = new LedgerVaultProvider(Network.SIGNET);
     await provider.connectWallet();
@@ -2817,7 +2881,7 @@ describe("LedgerVaultProvider", () => {
     dmkSessionMock.refreshSessionApp.mockResolvedValueOnce({
       ...bare,
       appName: "Babylon Vault Testnet",
-      appVersion: "0.11.0",
+      appVersion: "0.11.1",
     });
 
     await expect(provider.connectWallet()).resolves.toBeUndefined();

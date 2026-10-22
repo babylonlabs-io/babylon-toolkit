@@ -101,11 +101,13 @@ import {
   isDepositorWalletMismatchError,
 } from "./depositorWalletMismatch";
 import {
+  DEVICE_BUSY_CODE,
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_DISCONNECTED_CODE,
   DEVICE_LOCKED_CODE,
   DEVICE_WRONG_APP_CODE,
   deviceErrorCodeOfFrame,
+  isDeviceBusyError,
   isDeviceCeremonyInvalidError,
   isDeviceDisconnectedError,
   isDeviceLockedError,
@@ -154,6 +156,7 @@ const ERRORS = COPY.deposit.errors;
  */
 const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   ERRORS.deviceLocked,
+  ERRORS.deviceBusy,
   ERRORS.deviceWrongApp,
   ERRORS.deviceCeremonyInvalid,
   // Resumes through a reconnect first (the modal's Reconnect action).
@@ -478,6 +481,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
       return ERRORS.deviceCeremonyInvalid;
     case DEVICE_LOCKED_CODE:
       return ERRORS.deviceLocked;
+    case DEVICE_BUSY_CODE:
+      return ERRORS.deviceBusy;
     case DEVICE_WRONG_APP_CODE:
       return ERRORS.deviceWrongApp;
     case DEVICE_DISCONNECTED_CODE:
@@ -502,6 +507,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
   if (isDeviceLockedError(err)) {
     return ERRORS.deviceLocked;
+  }
+  if (isDeviceBusyError(err)) {
+    return ERRORS.deviceBusy;
   }
   if (isDeviceWrongAppError(err)) {
     return ERRORS.deviceWrongApp;

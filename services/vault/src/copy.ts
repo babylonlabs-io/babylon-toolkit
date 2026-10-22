@@ -107,6 +107,9 @@ const DEVICE_CEREMONY_INVALID_BODY =
 const DEVICE_LOCKED_TITLE = "Signing device locked";
 const DEVICE_LOCKED_BODY =
   "Your signing device is locked. Unlock it with your PIN and try again.";
+const DEVICE_BUSY_TITLE = "Signing device busy";
+const DEVICE_BUSY_BODY =
+  "Your Ledger is still finishing a previous action. Finish or dismiss it on the device, then try again.";
 const DEVICE_WRONG_APP_TITLE = "Wrong app on device";
 // Network-agnostic on purpose: the app is named "Babylon Vault" on mainnet
 // and "Babylon Vault Testnet" on test networks.
@@ -1655,6 +1658,10 @@ export const COPY = {
         title: DEVICE_LOCKED_TITLE,
         body: DEVICE_LOCKED_BODY,
       },
+      deviceBusy: {
+        title: DEVICE_BUSY_TITLE,
+        body: DEVICE_BUSY_BODY,
+      },
       deviceWrongApp: {
         title: DEVICE_WRONG_APP_TITLE,
         body: DEVICE_WRONG_APP_BODY,
@@ -1838,6 +1845,10 @@ export const COPY = {
       deviceLocked: {
         title: DEVICE_LOCKED_TITLE,
         message: DEVICE_LOCKED_BODY,
+      },
+      deviceBusy: {
+        title: DEVICE_BUSY_TITLE,
+        message: DEVICE_BUSY_BODY,
       },
       deviceWrongApp: {
         title: DEVICE_WRONG_APP_TITLE,
