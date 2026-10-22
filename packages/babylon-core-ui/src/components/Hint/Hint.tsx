@@ -7,11 +7,13 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { InfoIcon } from "../Icons";
 import { MobileDialog } from "../Dialog";
 import { Heading } from "../Heading";
 import { Text } from "../Text";
 import { useIsTouchFirst } from "../../hooks/useIsTouchFirst";
+import { useCoreUI } from "../../providers/CoreUIProvider";
 import { Tooltip } from "react-tooltip";
 import { twJoin } from "tailwind-merge";
 
@@ -87,6 +89,7 @@ export function Hint({
 }: PropsWithChildren<HintProps>) {
   const id = useId();
   const isTouchFirst = useIsTouchFirst();
+  const { portalContainer } = useCoreUI();
   const [sheetOpen, setSheetOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const statusColor = STATUS_COLORS[status];
@@ -221,6 +224,28 @@ export function Hint({
     );
   }
 
+  const tooltipPortal = createPortal(
+    <span className="contents" onClick={stopPropagation} onMouseDown={stopPropagation}>
+      <Tooltip
+        id={id}
+        className={twJoin(
+          "react-tooltip",
+          tooltipVariant === "secondary" && "react-tooltip--secondary"
+        )}
+        openOnClick={false}
+        clickable={true}
+        place={placement}
+        style={{ zIndex: 99999 }}
+        positionStrategy="fixed"
+        middlewares={[customOffset]}
+        offset={0}
+      >
+        {typeof tooltip !== "string" && tooltip}
+      </Tooltip>
+    </span>,
+    portalContainer ?? document.body,
+  );
+
   return (
     attachToChildren ? (
       <span className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
@@ -237,22 +262,7 @@ export function Hint({
           {children}
         </span>
 
-        <Tooltip
-          id={id}
-          className={twJoin(
-            "react-tooltip",
-            tooltipVariant === "secondary" && "react-tooltip--secondary"
-          )}
-          openOnClick={false}
-          clickable={true}
-          place={placement}
-          style={{ zIndex: 99999 }}
-          positionStrategy="fixed"
-          middlewares={[customOffset]}
-          offset={0}
-        >
-          {typeof tooltip !== "string" && tooltip}
-        </Tooltip>
+        {tooltipPortal}
       </span>
     ) : (
       <span className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
@@ -270,22 +280,7 @@ export function Hint({
           {tooltipIcon}
         </span>
 
-        <Tooltip
-          id={id}
-          className={twJoin(
-            "react-tooltip",
-            tooltipVariant === "secondary" && "react-tooltip--secondary"
-          )}
-          openOnClick={false}
-          clickable={true}
-          place={placement}
-          style={{ zIndex: 99999 }}
-          positionStrategy="fixed"
-          middlewares={[customOffset]}
-          offset={0}
-        >
-          {typeof tooltip !== "string" && tooltip}
-        </Tooltip>
+        {tooltipPortal}
       </span>
     )
   );
