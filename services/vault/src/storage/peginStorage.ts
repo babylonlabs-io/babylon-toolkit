@@ -1082,15 +1082,27 @@ export function markRefundBroadcast(
 }
 
 /**
+ * Contract statuses at which a removed entry's presign fingerprint is kept.
+ * EXPIRED and REDEEMED cover a vault that expired after Verified, whose
+ * artifacts stay downloadable (`getExpiredArtifactDownloadParams`).
+ */
+const FINGERPRINT_RETAINED_STATUSES: ReadonlySet<ContractStatus> = new Set([
+  ContractStatus.VERIFIED,
+  ContractStatus.ACTIVE,
+  ContractStatus.EXPIRED,
+  ContractStatus.REDEEMED,
+]);
+
+/**
  * Filter and clean up old pending peg-ins
  *
  * Uses peginStateMachine.shouldRemoveFromLocalStorage() for cleanup logic:
  * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
  * - Remove entries for contract status 2+ (ACTIVE, REDEEMED)
  * - Remove when contract status has progressed beyond local status
- * - Keep the presign graph fingerprint of an entry removed as VERIFIED or
- *   ACTIVE (see `saveSignedGraphFingerprint`); keep the entry itself while
- *   that write fails
+ * - Keep the presign graph fingerprint of an entry removed as VERIFIED,
+ *   ACTIVE, EXPIRED or REDEEMED (see `saveSignedGraphFingerprint`); keep the
+ *   entry itself while that write fails
  *
  * This ensures localStorage stays in sync with the state machine
  */
@@ -1125,15 +1137,15 @@ export function filterPendingPegins(
       pegin.status,
       pegin.refundBroadcastAt,
     );
-    // An active vault can still download its artifacts, and that download is
-    // checked against this fingerprint, so it outlives the entry. VERIFIED
-    // counts too: an entry still PENDING locally (the tab closed between
-    // recording the fingerprint and marking it signed) is removed there,
-    // before activation. A failed write keeps the entry for the next pass.
+    // An active vault, or one that expired after Verified, can still download
+    // its artifacts, and that download is checked against this fingerprint,
+    // so it outlives the entry. VERIFIED counts too: an entry still PENDING
+    // locally (the tab closed between recording the fingerprint and marking
+    // it signed) is removed there, before activation. A failed write keeps
+    // the entry for the next pass.
     if (
       remove &&
-      (confirmedPegin.status === ContractStatus.VERIFIED ||
-        confirmedPegin.status === ContractStatus.ACTIVE) &&
+      FINGERPRINT_RETAINED_STATUSES.has(confirmedPegin.status) &&
       pegin.signedGraphFingerprint !== undefined
     ) {
       return !saveSignedGraphFingerprint(

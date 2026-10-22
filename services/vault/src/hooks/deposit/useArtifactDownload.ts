@@ -66,7 +66,7 @@ const ARTIFACT_STALL_EVENT_ATTEMPTS = 30;
 /**
  * How long the HTTP path waits on a VP `INVALID_STATE` answer. The VP sends
  * it before activation (normal after signing) and for terminal statuses such
- * as expired, without saying which, so the wait must end.
+ * as a cleaned-up expiry, without saying which, so the wait must end.
  */
 const ARTIFACT_INVALID_STATE_MAX_WAIT_MS = 2 * 60 * 60_000;
 
@@ -646,7 +646,10 @@ export function useArtifactDownload(options?: {
             }
             setState((prev) => ({
               ...prev,
-              progress: COPY.deposit.recoveryArtifacts.waitingForSignatures,
+              progress:
+                err instanceof ArtifactsNotReadyError && err.invalidState
+                  ? COPY.deposit.recoveryArtifacts.waitingForProvider
+                  : COPY.deposit.recoveryArtifacts.waitingForSignatures,
               receivedBytes: 0,
               totalBytes: 0,
             }));

@@ -1262,11 +1262,19 @@ describe("useArtifactDownload — funnel telemetry", () => {
   });
 
   it.each([
-    { invalidState: true, stops: true },
-    { invalidState: false, stops: false },
+    {
+      invalidState: true,
+      stops: true,
+      waiting: COPY.deposit.recoveryArtifacts.waitingForProvider,
+    },
+    {
+      invalidState: false,
+      stops: false,
+      waiting: COPY.deposit.recoveryArtifacts.waitingForSignatures,
+    },
   ])(
     "waits on ArtifactsNotReadyError(invalidState=$invalidState); stops after 2h: $stops",
-    async ({ invalidState, stops }) => {
+    async ({ invalidState, stops, waiting }) => {
       vi.useFakeTimers();
       try {
         seedHotCache();
@@ -1287,9 +1295,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
         await act(async () => {
           await vi.advanceTimersByTimeAsync(0);
         });
-        expect(result.current.progress).toBe(
-          COPY.deposit.recoveryArtifacts.waitingForSignatures,
-        );
+        expect(result.current.progress).toBe(waiting);
         expect(result.current.error).toBeNull();
 
         await act(async () => {

@@ -21,10 +21,14 @@ import {
   type PeginState,
 } from "@/models/peginStateMachine";
 import type { ActivationRedeemReason } from "@/services/vault/activationRedeemReason";
-import type { RemovePendingPeginsResult } from "@/storage/peginStorage";
+import {
+  getSignedGraphFingerprint,
+  type RemovePendingPeginsResult,
+} from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import { truncateHash } from "@/utils/addressUtils";
+import { saveArtifactDownloadReceipt } from "@/utils/artifactDownloadStorage";
 import { formatDurationShort } from "@/utils/formatting";
 
 /** A redeemed vault's payout destination, as the indexer and the row show it. */
@@ -113,6 +117,13 @@ vi.mock("@/hooks/useActivationRedeemReasons", () => ({
   useActivationRedeemReasons: vi.fn(
     () => new Map<string, ActivationRedeemReason>(),
   ),
+}));
+
+// No presign fingerprint by default, so no row offers a download unless a
+// test opts in.
+vi.mock("@/storage/peginStorage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/storage/peginStorage")>()),
+  getSignedGraphFingerprint: vi.fn(() => ({ status: "no-entry" })),
 }));
 
 // The decode itself is covered in utils/btc; here only the row's use of it.
@@ -296,6 +307,7 @@ function renderPendingRow(
     <VaultsLifecycleSections
       deposits={deposits}
       returnedRedeemedActivities={returnedRedeemedActivities}
+      onDownloadArtifacts={vi.fn()}
     />,
   );
 
@@ -307,6 +319,7 @@ function renderPendingRow(
         <VaultsLifecycleSections
           deposits={makeDeposits({ ...options, ...next }, removePendingPegins)}
           returnedRedeemedActivities={returnedRedeemedActivities}
+          onDownloadArtifacts={vi.fn()}
         />,
       ),
     ...view,
@@ -847,6 +860,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       <VaultsLifecycleSections
         deposits={deposits}
         returnedRedeemedActivities={[]}
+        onDownloadArtifacts={vi.fn()}
       />,
     );
 
@@ -913,6 +927,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       <VaultsLifecycleSections
         deposits={deposits}
         returnedRedeemedActivities={[]}
+        onDownloadArtifacts={vi.fn()}
       />,
     );
 
@@ -989,6 +1004,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       <VaultsLifecycleSections
         deposits={deposits}
         returnedRedeemedActivities={[]}
+        onDownloadArtifacts={vi.fn()}
       />,
     );
     expect(
@@ -1031,6 +1047,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
           <VaultsLifecycleSections
             deposits={deposits}
             returnedRedeemedActivities={[]}
+            onDownloadArtifacts={vi.fn()}
           />,
         );
       }
@@ -1265,6 +1282,7 @@ describe("VaultsLifecycleSections expired refunds", () => {
           expiredActivities: [...deposits.expiredActivities],
         }}
         returnedRedeemedActivities={[]}
+        onDownloadArtifacts={vi.fn()}
       />,
     );
 
@@ -1333,6 +1351,125 @@ describe("VaultsLifecycleSections expired redeem", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: COPY.vaults.actions.redeem }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("VaultsLifecycleSections expired artifact download", () => {
+  const EXPIRED_ID = `0x${"aa".repeat(32)}` as Hex;
+  const PEGIN_TXID = "bb".repeat(32);
+  const EXPIRED_ACTIVITY: VaultActivity = {
+    ...ACTIVITY,
+    id: EXPIRED_ID,
+    contractStatus: ContractStatus.EXPIRED,
+    displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+    peginTxHash: `0x${PEGIN_TXID}` as Hex,
+    expirationReason: "activation_timeout",
+  };
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_FF_HTTP_ARTIFACT_DOWNLOADS", "true");
+    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
+      status: "found",
+      fingerprint: "ee".repeat(32),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
+      status: "no-entry",
+    });
+    window.localStorage.clear();
+  });
+
+  function renderExpiredRow(
+    onDownloadArtifacts = vi.fn(),
+    peginState: PeginState | null = getPeginState(ContractStatus.EXPIRED, {}),
+  ) {
+    mockUseDepositPollingResult.mockReturnValue(
+      peginState
+        ? pollingResult(peginState, { depositId: EXPIRED_ID })
+        : undefined,
+    );
+    render(
+      <VaultsLifecycleSections
+        deposits={makeDeposits(
+          {
+            pendingActivities: [],
+            expiredActivities: [EXPIRED_ACTIVITY],
+            allActivities: [EXPIRED_ACTIVITY],
+          },
+          vi.fn((): RemovePendingPeginsResult => "removed"),
+        )}
+        returnedRedeemedActivities={[]}
+        onDownloadArtifacts={onDownloadArtifacts}
+      />,
+    );
+    return onDownloadArtifacts;
+  }
+
+  it("opens the download for a vault that expired at activation timeout", () => {
+    const onDownloadArtifacts = renderExpiredRow();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.actions.downloadArtifacts,
+      }),
+    );
+
+    expect(onDownloadArtifacts).toHaveBeenCalledWith({
+      vaultId: EXPIRED_ID,
+      providerAddress: "0xprovider",
+      peginTxid: `0x${PEGIN_TXID}`,
+      depositorPk: ACTIVITY.depositorBtcPubkey,
+      unsignedPrePeginTxHex: ACTIVITY.unsignedPrePeginTx,
+    });
+  });
+
+  it("hides the download until the row's state is known", () => {
+    renderExpiredRow(vi.fn(), null);
+
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.vaults.actions.downloadArtifacts,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the download once the HTLC refund is broadcast", () => {
+    renderExpiredRow(
+      vi.fn(),
+      getPeginState(ContractStatus.EXPIRED, { refundSettlement: "pending" }),
+    );
+
+    expect(
+      screen.getByText(PEGIN_DISPLAY_LABELS.REFUNDING),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.vaults.actions.downloadArtifacts,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the download once this pegin's artifacts are saved", () => {
+    saveArtifactDownloadReceipt(EXPIRED_ID, {
+      version: 1,
+      peginTxid: PEGIN_TXID,
+      filename: "artifacts.json",
+      byteLength: 1,
+      sha256: "cc".repeat(32),
+      savedAt: 1,
+      method: "browser-download",
+    });
+
+    renderExpiredRow();
+
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.vaults.actions.downloadArtifacts,
+      }),
     ).not.toBeInTheDocument();
   });
 });

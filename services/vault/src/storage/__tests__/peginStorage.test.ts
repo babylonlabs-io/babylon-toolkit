@@ -6,10 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/infrastructure";
 
 import { STORAGE_UPDATE_EVENT } from "../../constants";
-import { LocalStorageStatus } from "../../models/peginStateMachine";
+import {
+  ContractStatus,
+  LocalStorageStatus,
+} from "../../models/peginStateMachine";
 import {
   __resetLegacyKeyChecksForTests,
   addPendingPegin,
+  filterPendingPegins,
   getPendingPegins,
   getPendingPeginsStorageKey,
   getSignedGraphFingerprint,
@@ -1192,6 +1196,47 @@ describe("recordSignedGraphFingerprint", () => {
     );
 
     expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+  });
+});
+
+describe("filterPendingPegins fingerprint retention", () => {
+  const FINGERPRINT = "4e".repeat(32);
+  const signedEntry: PendingPeginRequest = {
+    ...validPegin,
+    status: LocalStorageStatus.CONFIRMED,
+    signedGraphFingerprint: FINGERPRINT,
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it.each([
+    ["expired", ContractStatus.EXPIRED],
+    ["redeemed", ContractStatus.REDEEMED],
+  ])(
+    "keeps the presign fingerprint after removing a %s vault's entry",
+    (_label, status) => {
+      expect(
+        filterPendingPegins([signedEntry], [{ id: VALID_VAULT_ID, status }]),
+      ).toEqual([]);
+
+      expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+        status: "found",
+        fingerprint: FINGERPRINT,
+      });
+    },
+  );
+
+  it("drops the presign fingerprint with a liquidated vault's entry", () => {
+    filterPendingPegins(
+      [signedEntry],
+      [{ id: VALID_VAULT_ID, status: ContractStatus.LIQUIDATED }],
+    );
+
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "no-entry",
+    });
   });
 });
 
