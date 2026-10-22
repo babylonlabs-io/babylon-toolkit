@@ -27,8 +27,8 @@ For every test in the diff, name the production line whose deletion or
 inversion turns it red. No such line is a finding, and the recommendation is
 to delete the test, not to fix it. For every guard in the diff, name the test
 that goes red when the guard is removed; no such test is a finding, and the
-recommendation is to add that test. No pass recommends deleting a guard or a
-test that a CRITICAL PATHS rule in CLAUDE.md requires.
+recommendation is to add that test. No pass or row recommends deleting a
+guard or a test that a CRITICAL PATHS rule in CLAUDE.md requires.
 
 The pass targets four of the six most recurrent human-found defects in this
 repository: a test that compares production output against itself
@@ -71,10 +71,10 @@ reinvention.
 ### Change type
 
 - **Bugfix**: the regression test fails without the fix. A visual-only fix
-  needs none: its only test would be a render or snapshot test, which the
-  Tests section rejects. Production lines added, test files excluded, should
+  needs no unit test; an `e2e/visual` capture covering the changed surface
+  takes its place (see Tests). Production lines added, test files excluded, should
   not exceed production lines removed; if they do, say what the extra code
-  buys.
+  buys. Count them from the diff: the pack's `change` totals include tests.
 - **Refactor**: every deletion and replacement has preserved-behavior
   evidence. New observable behavior makes it a feature or a fix.
 - **Feature**: every new option, flag and extension point has a current use in
@@ -118,6 +118,10 @@ that turns it red. Missing either, and the test should not exist.
   button existing or a modal opening is not end-to-end.
 - One journey per end-to-end test, asserted at the end state. Intermediate
   render assertions belong in unit tests.
+- The visual-regression capture specs in
+  `services/vault/e2e/visual/*.visual.spec.ts` are exempt from the render and
+  end-to-end rules above: their `toBeVisible` stops position the capture that
+  CI diffs. Judge one by whether its captures cover the changed surface.
 - An end-to-end test that passes with the feature flag off, or with the mock
   server returning nothing, is not testing the feature.
 - A `data-testid` is load-bearing for a journey the E2E CLI runs. Adding one
@@ -166,9 +170,9 @@ that turns it red. Missing either, and the test should not exist.
   verified against the firmware source, and reject before any device I/O
   ([#2495](https://github.com/babylonlabs-io/babylon-toolkit/pull/2495)).
 - Depositor keys, payout amounts and challenger sets are re-derived at every
-  signing site from on-chain or WASM-computed sources, as CLAUDE.md critical
-  path 3 states, never taken from a cache, a `localStorage` value or a
-  vault-provider response
+  signing site from on-chain or WASM-computed sources, never taken from a
+  cache, a `localStorage` value or a vault-provider response. CLAUDE.md
+  critical path 3 states this for payout amounts and challenger sets
   ([#2508](https://github.com/babylonlabs-io/babylon-toolkit/pull/2508)).
 - The funding-input cap and the UTXO selector agree with the on-chain accepted
   prefix, and the duplicate-outpoint assertion runs before any slicing
@@ -257,17 +261,31 @@ accepts, and sets the claim aside only then.
   marked accepted with a tracking issue, is accepted as written; a change
   that widens it is not. A model still pending owner review is informative: its deviations
   are raised, not dropped.
-- Ordinals and inscription filtering behaves as designed.
-- Artifacts are not a hard precondition for the flows that use the
-  acknowledgement checkbox; that UX was chosen deliberately.
-- Unreachable branches proven unreachable by call-site invariants
+- Inscription filtering fails open: after the ordinals lookup fails,
+  `services/vault/src/hooks/useUTXOs.ts` treats every confirmed UTXO as
+  available and logs a warning
+  ([#1503](https://github.com/babylonlabs-io/babylon-toolkit/pull/1503)
+  reverted the fail-closed gate). While the lookup loads with inscriptions
+  excluded, `ordinalsCheckPending` keeps the deposit button disabled. A change
+  that makes a failed lookup block the deposit, or that lets a deposit submit
+  while the lookup loads, is not accepted.
+- Activation does not require the recovery artifacts: the depositor may
+  continue without them after ticking the risk acknowledgement in
+  `services/vault/src/components/simple/ActivateConfirmationModal.tsx`. A
+  change that activates with neither the download nor the acknowledgement is
+  not accepted.
+- A branch shown unreachable by the invariant at every call site is accepted
   ([#2499](https://github.com/babylonlabs-io/babylon-toolkit/pull/2499),
   [#2500](https://github.com/babylonlabs-io/babylon-toolkit/pull/2500)).
+  An input an exported function admits is reachable, whatever today's
+  callers pass.
 - Mixed-batch bearer-token forwarding in the proxy
   ([proxy #178](https://github.com/babylonlabs-io/vault-provider-proxy/pull/178)).
 - Leading-zero cache-key variants in the indexer
   ([indexer #161](https://github.com/babylonlabs-io/babylon-vault-indexer/pull/161)).
-- The `/pre-review` branch-key format
-  ([#2525](https://github.com/babylonlabs-io/babylon-toolkit/pull/2525)).
+- The `/pre-review` branch key replaces `/` with `__`, so two branch names
+  can share one key; Phase 0 asks before touching a state whose `branch`
+  differs ([#2525](https://github.com/babylonlabs-io/babylon-toolkit/pull/2525)).
+  A change that drops that check is not accepted.
 - Checked arithmetic on a value the reviewer can show is bounded is
   accepted; a concrete input that reaches a bound is not.
