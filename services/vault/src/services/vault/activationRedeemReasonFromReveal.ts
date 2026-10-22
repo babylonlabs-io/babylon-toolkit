@@ -30,7 +30,6 @@ export function activationRedeemReasonFromReveal({
       classifyActivationRedeem({
         logs: receipt.logs,
         vaultId,
-        calledFunction: "activateVaultWithSecret",
         gatePresentAtReceipt: minActivationGasAtSend !== null,
         capInferenceAllowed: isCapInferenceAllowed(applicationEntryPoint),
       }) ?? { kind: "unknown" }

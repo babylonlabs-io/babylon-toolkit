@@ -19,6 +19,8 @@ import {
   VALID_HEX_PATTERN,
 } from "../../utils/validation";
 
+import { redeemReasonFromIndexer } from "./indexerRedeemReason";
+
 /**
  * Common vault fields fragment
  */
@@ -52,6 +54,8 @@ const VAULT_FIELDS = `
   activatedAt
   expiredAt
   expirationReason
+  activationRedeemReason
+  activationFailedData
   blockNumber
   transactionHash
 `;
@@ -167,6 +171,8 @@ interface GraphQLVaultItem {
   activatedAt: string | null;
   expiredAt: string | null;
   expirationReason: string | null;
+  activationRedeemReason: string | null;
+  activationFailedData: string | null;
   blockNumber: string;
   transactionHash: string;
 }
@@ -404,6 +410,10 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
     expirationReason: isValidExpirationReason(item.expirationReason)
       ? item.expirationReason
       : undefined,
+    activationRedeemReason: redeemReasonFromIndexer(
+      item.activationRedeemReason,
+      item.activationFailedData,
+    ),
     isInUse: item.inUse,
   };
 }

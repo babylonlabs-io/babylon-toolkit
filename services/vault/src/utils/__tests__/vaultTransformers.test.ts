@@ -116,6 +116,16 @@ describe("vaultTransformers", () => {
       expect(activity.displayLabel).toBe("Expired");
     });
 
+    it("passes the indexer's activation redeem reason through", () => {
+      const vault = makeVault({
+        status: ContractStatus.REDEEMED,
+        activationRedeemReason: { kind: "cap_exceeded" },
+      });
+      const activity = transformVaultToActivity(vault);
+
+      expect(activity.redeemReason).toEqual({ kind: "cap_exceeded" });
+    });
+
     it("does not include position or borrowing data", () => {
       const activity = transformVaultToActivity(makeVault());
 

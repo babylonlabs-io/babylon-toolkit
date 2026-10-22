@@ -468,7 +468,7 @@ export type OnSkippedOffchainParamsVersion = (
 
 /** Interface for reading protocol parameters from the ProtocolParams contract. */
 export interface ProtocolParamsReader {
-  getTBVProtocolParams(blockNumber?: bigint): Promise<TBVProtocolParams>;
+  getTBVProtocolParams(): Promise<TBVProtocolParams>;
   getOffchainParamsByVersion(version: number): Promise<VersionedOffchainParams>;
   getLatestOffchainParams(): Promise<VersionedOffchainParams>;
   getLatestOffchainParamsVersion(): Promise<number>;

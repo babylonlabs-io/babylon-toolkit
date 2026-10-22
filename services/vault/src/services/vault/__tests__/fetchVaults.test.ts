@@ -1,3 +1,5 @@
+import { VAULT_ERROR_ABI } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { encodeErrorResult } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
@@ -66,6 +68,8 @@ function makeGraphQLVaultItem(
     activatedAt: null,
     expiredAt: null,
     expirationReason: null,
+    activationRedeemReason: null,
+    activationFailedData: null,
     blockNumber: "100",
     transactionHash: "0x" + "ff".repeat(32),
     ...overrides,
@@ -375,6 +379,27 @@ describe("fetchVaults", () => {
 
       const vault = await fetchVaultById(VALID_VAULT_ID as `0x${string}`);
       expect(vault?.status).toBe(VaultStatus.NON_DEPOSITOR_SPEND);
+    });
+
+    it("maps an app_reverted activation redeem reason with its revert data onto the vault", async () => {
+      // AaveAdapter.activateVault's own revert (AaveAdapter.sol:149 @102e78c5).
+      const data = encodeErrorResult({
+        abi: VAULT_ERROR_ABI,
+        errorName: "InvalidPositionSizes",
+      });
+      mockedRequest.mockResolvedValueOnce({
+        vault: makeGraphQLVaultItem({
+          activationRedeemReason: "app_reverted",
+          activationFailedData: data,
+        }),
+      });
+
+      const vault = await fetchVaultById(VALID_VAULT_ID as `0x${string}`);
+
+      expect(vault?.activationRedeemReason).toEqual({
+        kind: "app_rejected",
+        errorName: "InvalidPositionSizes",
+      });
     });
 
     it("throws when vault has unknown GraphQL status", async () => {

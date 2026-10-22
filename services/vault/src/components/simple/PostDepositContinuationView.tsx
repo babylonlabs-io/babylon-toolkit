@@ -344,10 +344,24 @@ export function PostDepositContinuationView({
       states.some((state) => isVaultActivationReturned(state)) &&
       states.every((state) => isVaultPastActivation(state));
     if (showReturned) {
-      // A reason is shown only when it names the batch's one returned vault.
       const returnedIds = vaultIds.filter((_, index) =>
         isVaultActivationReturned(states[index]),
       );
+      const returnedId = returnedIds.length === 1 ? returnedIds[0] : undefined;
+      const sessionReason =
+        returnedId === undefined
+          ? undefined
+          : activationReturnedReasons.get(returnedId);
+      const storedReason =
+        returnedId === undefined
+          ? undefined
+          : activities.find((a) => a.id === returnedId)?.redeemReason;
+      // The session's receipt reading wins unless it settled on unknown; the
+      // indexer's stored reason covers a reload, which re-marks with no reason.
+      const returnedReason =
+        sessionReason === undefined || sessionReason.kind === "unknown"
+          ? (storedReason ?? sessionReason)
+          : sessionReason;
       return (
         <VaultReturnedView
           variant={
@@ -355,11 +369,7 @@ export function PostDepositContinuationView({
               ? "full"
               : "partial"
           }
-          reason={
-            returnedIds.length === 1
-              ? activationReturnedReasons.get(returnedIds[0])
-              : undefined
-          }
+          reason={returnedReason}
           onGoToDashboard={handleGoToDashboard}
         />
       );

@@ -279,20 +279,6 @@ describe("ViemProtocolParamsReader", () => {
     expect(widths).toEqual([9, 8, 6]);
   });
 
-  it("passes the block number through to the multicall", async () => {
-    const publicClient = createMockPublicClient();
-    const reader = new ViemProtocolParamsReader(
-      publicClient as never,
-      MOCK_ADDRESS,
-    );
-
-    await reader.getTBVProtocolParams(123n);
-
-    expect(publicClient.multicall).toHaveBeenCalledWith(
-      expect.objectContaining({ blockNumber: 123n }),
-    );
-  });
-
   it("carries minActivationGas into the peg-in configuration", async () => {
     const publicClient = createMockPublicClient();
     const reader = new ViemProtocolParamsReader(

@@ -377,16 +377,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-re
 ##### getTBVProtocolParams()
 
 ```ts
-getTBVProtocolParams(blockNumber?): Promise<TBVProtocolParams>;
+getTBVProtocolParams(): Promise<TBVProtocolParams>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts)
-
-###### Parameters
-
-###### blockNumber?
-
-`bigint`
 
 ###### Returns
 
@@ -4034,16 +4028,10 @@ Interface for reading protocol parameters from the ProtocolParams contract.
 ##### getTBVProtocolParams()
 
 ```ts
-getTBVProtocolParams(blockNumber?): Promise<TBVProtocolParams>;
+getTBVProtocolParams(): Promise<TBVProtocolParams>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
-
-###### Parameters
-
-###### blockNumber?
-
-`bigint`
 
 ###### Returns
 

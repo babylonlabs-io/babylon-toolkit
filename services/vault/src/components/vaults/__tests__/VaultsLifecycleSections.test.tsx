@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProtocolGateState } from "@/components/shared/protocolStatus";
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { COPY } from "@/copy";
-import { useActivationRedeemReasons } from "@/hooks/useActivationRedeemReasons";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
@@ -20,7 +19,6 @@ import {
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
-import type { ActivationRedeemReason } from "@/services/vault/activationRedeemReason";
 import {
   getSignedGraphFingerprint,
   type RemovePendingPeginsResult,
@@ -110,13 +108,6 @@ vi.mock("@/hooks/useReclaimVaultChainData", () => ({
 // resolves is driven per test.
 vi.mock("@/hooks/useRedeemClaimTxids", () => ({
   useRedeemClaimTxids: vi.fn(() => new Map<string, string>()),
-}));
-
-// Same reason as the claim links: the redeem-reason queries need a QueryClient.
-vi.mock("@/hooks/useActivationRedeemReasons", () => ({
-  useActivationRedeemReasons: vi.fn(
-    () => new Map<string, ActivationRedeemReason>(),
-  ),
 }));
 
 // No presign fingerprint by default, so no row offers a download unless a
@@ -816,14 +807,28 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     vi.mocked(useReclaimVaultChainData).mockReturnValue(new Map());
   });
 
-  function renderReclaim() {
+  function renderReclaim(activity: Partial<VaultActivity> = {}) {
     return renderPendingRow(pollingResult(PROCESSING_STATE), {
       pendingActivities: [],
       reclaimableCandidates: [
-        { ...ACTIVITY, contractStatus: ContractStatus.DEPOSITOR_WITHDRAWN },
+        {
+          ...ACTIVITY,
+          contractStatus: ContractStatus.DEPOSITOR_WITHDRAWN,
+          ...activity,
+        },
       ],
     });
   }
+
+  it("shows no reason on a reclaim row even when its activity carries one", () => {
+    // The indexer's reason explains the hand-back at activation; only the
+    // REDEEMED row reports that hand-back.
+    renderReclaim({ redeemReason: { kind: "cap_exceeded" } });
+
+    expect(screen.getByTestId("row-hint").textContent).toBe(
+      COPY.pegin.messages.payoutSignaturesSubmitted,
+    );
+  });
 
   it("offers Reclaim for a settled vault with an unspent reserve", () => {
     wallet.connected = true;
@@ -1074,7 +1079,6 @@ describe("VaultsLifecycleSections returned vault", () => {
 
   afterEach(() => {
     vi.mocked(useRedeemClaimTxids).mockReturnValue(new Map());
-    vi.mocked(useActivationRedeemReasons).mockReturnValue(new Map());
   });
 
   function renderReturnedRow(activity = REDEEMED_ACTIVITY) {
@@ -1136,12 +1140,11 @@ describe("VaultsLifecycleSections returned vault", () => {
     );
   });
 
-  it("the redeemed row's hint carries the reason sentence", () => {
-    vi.mocked(useActivationRedeemReasons).mockReturnValue(
-      new Map([[REDEEMED_ID, { kind: "cap_exceeded" }]]),
-    );
-
-    renderReturnedRow();
+  it("the redeemed row's hint carries the indexer's reason sentence", () => {
+    renderReturnedRow({
+      ...REDEEMED_ACTIVITY,
+      redeemReason: { kind: "cap_exceeded" },
+    });
 
     expect(screen.getByTestId("row-hint")).toHaveTextContent(
       `${COPY.pegin.messages.redemptionInProgress} ${COPY.vaults.redeemReason.capExceeded}`,
@@ -1149,11 +1152,10 @@ describe("VaultsLifecycleSections returned vault", () => {
   });
 
   it("the hint carries no sentence for an unknown reason", () => {
-    vi.mocked(useActivationRedeemReasons).mockReturnValue(
-      new Map([[REDEEMED_ID, { kind: "unknown" }]]),
-    );
-
-    renderReturnedRow();
+    renderReturnedRow({
+      ...REDEEMED_ACTIVITY,
+      redeemReason: { kind: "unknown" },
+    });
 
     expect(screen.getByTestId("row-hint").textContent).toBe(
       COPY.pegin.messages.redemptionInProgress,
