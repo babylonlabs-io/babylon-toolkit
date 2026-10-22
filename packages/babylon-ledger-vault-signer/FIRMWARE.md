@@ -16,10 +16,16 @@ checked against this revision.
 | Vendored `ledger-bitcoin` vectors | fixtures commit and oracle pin in `src/vendor/ledger-bitcoin/README.md` |
 
 The only firmware source change between 0.11.0 and 0.11.1 is `src/display.c` (Screen 1
-unverified-caller warning; Screen 2 adds the Keepers and Challengers rows, keeps the
-parameters and every vault group mandatory and makes only the key list skippable). The
+unverified-caller warning; Screen 2 adds the Keepers and Challengers rows and makes every
+vault group mandatory on touch devices too — 0.11.0 let Skip bypass the remaining groups and
+the key list — so only the key list is skippable; nano never had a skip affordance). The
 approval-screen strings the Speculos suite targets are unchanged and the suite passed
-against the pinned ELF; every other file step 2 lists is identical between the two
+against the pinned ELF. The base app moved from `78243239` to `72b5630`: comparing the two
+trees, only `src/handler/sign_psbt.c`, `src/handler/sign_psbt/preprocess_inputs.c` and
+`src/handler/sign_psbt/sign_input.h` differ — the `allow_missing_nonwitnessutxo()` weak hook
+(default false) that gates segwit v0 inputs without a non-witness UTXO, a branch the host's
+BIP-86 P2TR inputs never reach — and `bitcoin_client_js/src/lib/` is identical, so the
+step-4 vendor re-diff is a no-op. Every other file step 2 lists is identical between the two
 revisions, so no mirrored host literal moved.
 
 Comments name firmware functions and constants (`_validate_display_refund`,
@@ -71,8 +77,10 @@ wired into CI and runs by hand with `SPECULOS_URL` set.
 3. Run the Speculos suite by hand against the new ELF. Start the container with
    `docker run --rm -d -p 5055:5055 -v <extracted dir>/nanos2/bin:/app ghcr.io/ledgerhq/speculos:latest --model nanosp --display headless --api-port 5055 --seed "<the firmware's tests/conftest.py MNEMONIC>" /app/app.elf`
    and run `SPECULOS_URL=http://127.0.0.1:5055 pnpm --filter @babylonlabs-io/ledger-vault-signer exec vitest run src/__tests__/e2e/`.
-   The seed must be the firmware functional-test mnemonic: the suite's key self-check
-   compares the device's `m/86'/1'/0'/0/0` key with its fixture.
+   The seed must be the firmware functional-test mnemonic: the fixtures are built for the
+   keys it derives (`DEPOSITOR_XONLY_HEX` is the device's `m/86'/1'/0'/0/0` under it), and
+   with any other seed the sign stages fail — the device refuses the PSBT, or the assertion
+   that the yielded signer key equals the fixture does.
 4. If `build_intent_tlv`, `build_group_tlv`, the `_ktlv` and `_tlv_*` helpers or the
    `TAG_*` and `VAULT_*` constants in `tests/vault_client.py` changed, regenerate the intent TLV golden
    vectors and update that row; the rest of that file changes often and does not feed the
