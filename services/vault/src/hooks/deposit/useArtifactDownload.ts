@@ -12,7 +12,6 @@ import {
 import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
-import featureFlags from "@/config/featureFlags";
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
@@ -224,7 +223,7 @@ export function useArtifactDownload(options?: {
       // A phone browser has no save-file picker and would buffer the whole
       // artifact set in memory, so every surface is stopped here. The mock
       // writes a synthetic file of a few MB, so QA can still run it on a phone.
-      if (!demoDownload && featureFlags.isMobileEnabled && isTouchFirstNow()) {
+      if (!demoDownload && isTouchFirstNow()) {
         abortControllerRef.current?.abort();
         setState({
           ...INITIAL_STATE,

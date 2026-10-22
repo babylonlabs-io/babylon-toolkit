@@ -71,9 +71,6 @@
           "env": "NEXT_PUBLIC_FF_ENABLE_EXPLORE"
         },
         {
-          "env": "NEXT_PUBLIC_FF_ENABLE_MOBILE"
-        },
-        {
           "env": "NEXT_PUBLIC_FF_HTTP_ARTIFACT_DOWNLOADS"
         },
         {

@@ -157,7 +157,6 @@ export default defineConfig({
         ...MOCK_ENV_VARS,
         // Explicit, because process env wins over a developer's `.env.local`.
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "false",
-        NEXT_PUBLIC_FF_ENABLE_MOBILE: "true",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-full",
       },
     },
