@@ -271,9 +271,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}
       dialogActionsClassName={WALLET_DIALOG_RIGHT_INSET_CLASS}
       chainDescriptions={COPY.wallet.chainDescriptions}
-      isChainHidden={
-        featureFlags.isMobileEnabled ? isBtcChainHiddenOnTouch : undefined
-      }
+      isChainHidden={isBtcChainHiddenOnTouch}
     >
       <WalletProviders>{children}</WalletProviders>
     </WalletProvider>
