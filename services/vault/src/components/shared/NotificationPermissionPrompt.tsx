@@ -8,8 +8,8 @@
  * the design-system component.
  *
  * Shown only while `shouldPromptForPermission` is true: the browser supports
- * notifications, the user hasn't decided yet, and they
- * haven't dismissed the prompt.
+ * notifications, the user hasn't decided yet, they haven't dismissed the
+ * prompt, and permission hasn't already been requested this session.
  */
 
 import { Callout, type CalloutAction } from "@babylonlabs-io/core-ui";
