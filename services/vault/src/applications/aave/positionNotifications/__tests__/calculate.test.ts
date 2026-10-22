@@ -104,12 +104,36 @@ describe("calculate", () => {
   });
 
   it("dust — debt under $1k — single dust warning, one full-liquidation group", () => {
-    const result = calculate(makeParams([v(0.5)], { totalDebtUsd: 500 }));
+    const btc = 0.5;
+    const debt = 500;
+    const result = calculate(makeParams([v(btc)], { totalDebtUsd: debt }));
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0].type).toBe("dust");
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0].isFullLiquidation).toBe(true);
     expect(result.optimalVaultOrder).toBeNull();
+
+    const { seizedFraction } = computeSeizedFractionDetailed(
+      DEFAULT_CF,
+      DEFAULT_LB,
+      DEFAULT_THF,
+      DEFAULT_EHF,
+    );
+    const debtToRepay =
+      (debt * (DEFAULT_THF - DEFAULT_EHF)) /
+      (DEFAULT_THF - DEFAULT_LB * DEFAULT_CF);
+    const [group] = result.groups;
+    expect(group.targetSeizureBtc).toBeCloseTo(btc * seizedFraction, 8);
+    expect(group.overSeizureBtc).toBeCloseTo(btc * (1 - seizedFraction), 8);
+    expect(group.debtRepaid).toBe(debt);
+    expect(group.liquidatorProfitUsd).toBeCloseTo(
+      debtToRepay * (DEFAULT_LB - 1),
+      6,
+    );
+    expect(group.fairnessPaymentUsd).toBeCloseTo(
+      debt / DEFAULT_CF - debtToRepay * DEFAULT_LB - (debt - debtToRepay),
+      6,
+    );
   });
 
   it("dust — collateral under $1k", () => {
