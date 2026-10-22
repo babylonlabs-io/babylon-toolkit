@@ -405,6 +405,28 @@ async function approveAndSignPrePegin(params: {
 }
 
 /**
+ * Refuse a Bitcoin wallet whose live public key is not the depositor's key.
+ */
+export async function assertConnectedDepositorBtcKey(params: {
+  btcWalletProvider: { getPublicKeyHex: () => Promise<string> };
+  depositorBtcPubkey: string;
+  vaultId: Hex;
+}): Promise<void> {
+  const { btcWalletProvider, depositorBtcPubkey, vaultId } = params;
+  const expectedDepositorBtcPubkey = canonicalizeBtcPubkey(depositorBtcPubkey);
+  const connectedBtcPubkey = canonicalizeBtcPubkey(
+    await btcWalletProvider.getPublicKeyHex(),
+  );
+  if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+    throw new DepositorBtcKeyMismatchError({
+      vaultId,
+      expectedDepositorBtcPubkey,
+      connectedBtcPubkey,
+    });
+  }
+}
+
+/**
  * Sign and broadcast the funded Pre-PegIn transaction to the Bitcoin network
  *
  * @param params - Transaction and wallet parameters
@@ -451,18 +473,11 @@ export async function broadcastPrePeginTransaction(
   try {
     // Prevout resolution can wait on the network, so read the wallet key here,
     // immediately before the ceremony and the signing prompt.
-    const expectedDepositorBtcPubkey =
-      canonicalizeBtcPubkey(depositorBtcPubkey);
-    const connectedBtcPubkey = canonicalizeBtcPubkey(
-      await btcWalletProvider.getPublicKeyHex(),
-    );
-    if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
-      throw new DepositorBtcKeyMismatchError({
-        vaultId,
-        expectedDepositorBtcPubkey,
-        connectedBtcPubkey,
-      });
-    }
+    await assertConnectedDepositorBtcKey({
+      btcWalletProvider,
+      depositorBtcPubkey,
+      vaultId,
+    });
     signedTxHex = await approveAndSignPrePegin({
       psbtHex: psbt.toHex(),
       unsignedTxHex,

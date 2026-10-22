@@ -297,9 +297,17 @@ vi.mock("@/services/vault/resolveFundedTxFee", () => ({
   resolveFundedTxFeeAndUtxos: vi.fn(),
 }));
 
-vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
-  utxosToExpectedRecord: vi.fn(() => ({})),
-}));
+vi.mock(
+  "@/services/vault/vaultPeginBroadcastService",
+  async (importOriginal) => ({
+    assertConnectedDepositorBtcKey: (
+      await importOriginal<
+        typeof import("@/services/vault/vaultPeginBroadcastService")
+      >()
+    ).assertConnectedDepositorBtcKey,
+    utxosToExpectedRecord: vi.fn(() => ({})),
+  }),
+);
 
 vi.mock("@/models/peginStateMachine", async (importOriginal) => {
   const actual =

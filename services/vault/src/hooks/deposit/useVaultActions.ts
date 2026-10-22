@@ -61,7 +61,6 @@ import {
 } from "@/utils/activationFloor";
 import {
   ActivationNotPossibleError,
-  DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
@@ -102,7 +101,10 @@ import {
   activationAddedCollateral,
   activationRedeemedForDepositor,
 } from "../../services/vault/vaultActivationService";
-import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
+import {
+  assertConnectedDepositorBtcKey,
+  utxosToExpectedRecord,
+} from "../../services/vault/vaultPeginBroadcastService";
 import {
   verifyResumeParticipantKeys,
   verifyResumePayoutScripts,
@@ -485,8 +487,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (!depositorBtcPubkey) {
         throw new Error(COPY.deposit.errors.depositorBtcKeyMissing);
       }
-      const expectedDepositorBtcPubkey =
-        canonicalizeBtcPubkey(depositorBtcPubkey);
       const assertDepositorEthWallet = () => {
         signal.throwIfAborted();
         const connectedDepositor = getAccount(getSharedWagmiConfig()).address;
@@ -505,18 +505,16 @@ export function useVaultActions(): UseVaultActionsReturn {
           });
         }
       };
+      const assertDepositorBtcWallet = () =>
+        assertConnectedDepositorBtcKey({
+          btcWalletProvider,
+          depositorBtcPubkey,
+          vaultId,
+        });
       const assertDepositorWallet = async () => {
         signal.throwIfAborted();
-        const walletPubkey = await btcWalletProvider.getPublicKeyHex();
+        await assertDepositorBtcWallet();
         assertDepositorEthWallet();
-        const connectedBtcPubkey = canonicalizeBtcPubkey(walletPubkey);
-        if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
-          throw new DepositorBtcKeyMismatchError({
-            vaultId,
-            expectedDepositorBtcPubkey,
-            connectedBtcPubkey,
-          });
-        }
       };
 
       // The wallet may have locked since the action started. Probe it with a
