@@ -1,6 +1,7 @@
 // Generic mempool confirmation poller for a set of BTC txids. Returns raw
 // counts keyed by canonical txid (`null` when the mempool API does not find a
-// tx with no known count); the consumer applies its own threshold.
+// tx and has not found it for MAX_NOT_FOUND_CARRY_MS); the consumer applies
+// its own threshold.
 
 import {
   getTipHeight,
@@ -20,12 +21,26 @@ const POLL_INTERVAL_MS = 60 * 1000;
 const STALE_TIME_MS = 55 * 1000;
 // Cap concurrency — the public mempool.space endpoint rate-limits (429s).
 const MAX_CONCURRENT_REQUESTS = 4;
+// A known count survives a run of 404s for at most this long. A lagging
+// mempool.space node can 404 a known tx for a poll or two. A longer run means
+// the tx left the mempool, so the txid drops to not found. Other errors (429,
+// outage) say nothing about the tx and keep the count.
+const MAX_NOT_FOUND_CARRY_MS = 3 * POLL_INTERVAL_MS;
 
 // Singleton for the no-data render: same identity-stability reasoning as
 // `EMPTY_REFUNDS` in useBtcHtlcRefundStatus — a per-render `new Map()` makes
 // every consumer memo recompute on every render while the query is disabled
 // or unloaded, and React Query's structural sharing cannot share Maps.
 const EMPTY_CONFIRMATIONS = new Map<string, number | null>();
+
+interface ConfirmationsData {
+  confirmations: Map<string, number | null>;
+  // Canonical txid to the time of its first 404 since its last successful
+  // lookup. Kept in the query cache with the counts, so a remount keeps it.
+  notFoundSince: Map<string, number>;
+}
+
+const selectConfirmations = (data: ConfirmationsData) => data.confirmations;
 
 export interface BtcMempoolConfirmationsResult {
   /** Canonical txid to count. Null means not found; absent means unknown. */
@@ -62,16 +77,17 @@ export function useBtcMempoolConfirmations(
     // Preserve the prior batch across queryKey changes so list churn doesn't
     // flicker unchanged txids back to "unknown" until the next fetch lands.
     placeholderData: (prev) => prev,
-    queryFn: async () => {
+    select: selectConfirmations,
+    queryFn: async (): Promise<ConfirmationsData> => {
       const apiUrl = getMempoolApiUrl();
       const tipHeight = await getTipHeight(apiUrl);
       // Carry this query key's prior counts forward on per-txid error so a
       // transient 429 or network blip doesn't flicker a row backward for one
-      // cycle. A prior count also wins over a 404; a prior `null` is kept only
-      // on a 404.
-      const prior =
-        queryClient.getQueryData<Map<string, number | null>>(queryKey) ??
-        EMPTY_CONFIRMATIONS;
+      // cycle. A prior count wins over a 404 until MAX_NOT_FOUND_CARRY_MS; a
+      // prior `null` is kept only on a 404.
+      const prior = queryClient.getQueryData<ConfirmationsData>(queryKey);
+      const now = Date.now();
+      const notFoundSince = new Map<string, number>();
       const entries = await mapWithConcurrency(
         uniqueTxids,
         MAX_CONCURRENT_REQUESTS,
@@ -80,16 +96,28 @@ export function useBtcMempoolConfirmations(
             const confs = await fetchConfirmations(txid, apiUrl, tipHeight);
             return [txid, confs];
           } catch (error) {
-            const confs =
-              prior.get(txid) ??
-              (error instanceof MempoolNotFoundError ? null : undefined);
-            return confs !== undefined ? [txid, confs] : null;
+            const since = prior?.notFoundSince.get(txid);
+            const priorConfs = prior?.confirmations.get(txid);
+            if (!(error instanceof MempoolNotFoundError)) {
+              if (since !== undefined) notFoundSince.set(txid, since);
+              return typeof priorConfs === "number" ? [txid, priorConfs] : null;
+            }
+            const firstNotFound = since ?? now;
+            notFoundSince.set(txid, firstNotFound);
+            const carried =
+              now - firstNotFound < MAX_NOT_FOUND_CARRY_MS
+                ? priorConfs
+                : undefined;
+            return [txid, carried ?? null];
           }
         },
       );
-      return new Map(
-        entries.filter((e): e is [string, number | null] => e !== null),
-      );
+      return {
+        confirmations: new Map(
+          entries.filter((e): e is [string, number | null] => e !== null),
+        ),
+        notFoundSince,
+      };
     },
   });
 

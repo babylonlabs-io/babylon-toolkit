@@ -214,23 +214,29 @@ describe("computeDepositPollingResult — missing Pre-PegIn", () => {
     expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
   });
 
-  it("keeps Broadcast available for a PENDING deposit whose Pre-PegIn is not found", () => {
-    const result = computeDepositPollingResult(
-      makeInputs({
-        activity: {
-          ...makeExpiredActivity(),
-          displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
-          contractStatus: ContractStatus.PENDING,
-        },
-        matureRefundTxids: new Set(),
-        pendingIngestion: new Set([VAULT_ID]),
-        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, null]]),
-      }),
-    );
-    expect(result.peginState.availableActions).toContain(
-      PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-    );
-  });
+  it.each([
+    ["not found", new Map([[CANONICAL_PREPEGIN, null]])],
+    ["unknown", new Map()],
+  ])(
+    "keeps Broadcast available for a PENDING deposit whose Pre-PegIn is %s",
+    (_, prePeginConfirmationsByTxid) => {
+      const result = computeDepositPollingResult(
+        makeInputs({
+          activity: {
+            ...makeExpiredActivity(),
+            displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+            contractStatus: ContractStatus.PENDING,
+          },
+          matureRefundTxids: new Set(),
+          pendingIngestion: new Set([VAULT_ID]),
+          prePeginConfirmationsByTxid,
+        }),
+      );
+      expect(result.peginState.availableActions).toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+    },
+  );
 });
 
 describe("computeDepositPollingResult — activation deadline gate", () => {
