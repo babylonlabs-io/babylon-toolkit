@@ -20,7 +20,7 @@
  * left untouched.
  */
 
-import type { LocalStorageStatus } from "../../models/peginStateMachine";
+import { LocalStorageStatus } from "../../models/peginStateMachine";
 import type { ActivationRedeemReason } from "../../services/vault/activationRedeemReason";
 import { isWithinTtl } from "../../utils/ttl";
 
@@ -29,6 +29,11 @@ export interface OptimisticDepositState {
   statuses: ReadonlyMap<string, LocalStorageStatus>;
   /** Companion `Date.now()` for REFUND_BROADCAST, anchoring its suppression TTL. */
   refundBroadcastAt: ReadonlyMap<string, number>;
+  /**
+   * Companion `Date.now()` for CONFIRMING, anchoring its suppression TTL. A
+   * cross-device resume holds no deposit record, so this is its only stamp.
+   */
+  confirmingAt: ReadonlyMap<string, number>;
   /**
    * `Date.now()` per deposit whose WOTS public key submission resolved,
    * anchoring the suppression TTL below. WOTS has no `OffChainTrackingStatus`
@@ -96,6 +101,7 @@ const WOTS_SUBMISSION_SUPPRESSION_MS = 20 * 60 * 1000;
 const EMPTY_STATE: OptimisticDepositState = {
   statuses: new Map(),
   refundBroadcastAt: new Map(),
+  confirmingAt: new Map(),
   wotsSubmittedAt: new Map(),
   payoutSignCanceledIds: new Set(),
   activationReturnedIds: new Set(),
@@ -140,8 +146,10 @@ export function setOptimisticDepositStatus(
   // provider would re-render and re-memoize `getPollingResult` for a snapshot
   // that compares equal. Same discipline as `markWotsSubmitted` below. An
   // omitted `refundBroadcastAt` adds nothing by definition — the publish path
-  // preserves the stored value rather than clearing it.
+  // preserves the stored value rather than clearing it. CONFIRMING always
+  // publishes: a repeat broadcast must re-stamp its window.
   if (
+    status !== LocalStorageStatus.CONFIRMING &&
     currentState.statuses.get(depositId) === status &&
     (refundBroadcastAt === undefined ||
       currentState.refundBroadcastAt.get(depositId) === refundBroadcastAt)
@@ -157,6 +165,10 @@ export function setOptimisticDepositStatus(
             depositId,
             refundBroadcastAt,
           ),
+    confirmingAt:
+      status === LocalStorageStatus.CONFIRMING
+        ? new Map(currentState.confirmingAt).set(depositId, Date.now())
+        : currentState.confirmingAt,
     wotsSubmittedAt: currentState.wotsSubmittedAt,
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
     activationReturnedIds: currentState.activationReturnedIds,
@@ -179,6 +191,7 @@ export function markWotsSubmitted(depositId: string): void {
   publish({
     statuses: currentState.statuses,
     refundBroadcastAt: currentState.refundBroadcastAt,
+    confirmingAt: currentState.confirmingAt,
     wotsSubmittedAt: new Map(currentState.wotsSubmittedAt).set(
       depositId,
       Date.now(),
@@ -203,6 +216,7 @@ export function markPayoutSignCanceled(depositId: string): void {
   publish({
     statuses: currentState.statuses,
     refundBroadcastAt: currentState.refundBroadcastAt,
+    confirmingAt: currentState.confirmingAt,
     wotsSubmittedAt: currentState.wotsSubmittedAt,
     payoutSignCanceledIds: new Set(currentState.payoutSignCanceledIds).add(
       depositId,
@@ -234,6 +248,7 @@ export function markActivationReturned(
   publish({
     statuses: currentState.statuses,
     refundBroadcastAt: currentState.refundBroadcastAt,
+    confirmingAt: currentState.confirmingAt,
     wotsSubmittedAt: currentState.wotsSubmittedAt,
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
     activationReturnedIds: new Set(currentState.activationReturnedIds).add(

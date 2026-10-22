@@ -854,6 +854,32 @@ describe("getPendingPegins integrity validation", () => {
     expect(stored.payoutSignedAt).toBeUndefined();
   });
 
+  it("keeps an entry whose confirmingAt is non-numeric and drops the stamp", () => {
+    const tampered = {
+      ...validPegin,
+      status: LocalStorageStatus.CONFIRMING,
+      confirmingAt: "soon" as unknown as number,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.confirmingAt).toBeUndefined();
+  });
+
+  it("keeps an entry whose confirmingAt is negative and drops the stamp", () => {
+    const tampered = {
+      ...validPegin,
+      status: LocalStorageStatus.CONFIRMING,
+      confirmingAt: -1,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.confirmingAt).toBeUndefined();
+  });
+
   it("loads a CONFIRMED entry written before the activation outcome existed, with no outcome", () => {
     const legacy = { ...validPegin, status: LocalStorageStatus.CONFIRMED };
     localStorage.setItem(storageKey, JSON.stringify([legacy]));
@@ -973,6 +999,43 @@ describe("updatePendingPeginStatus", () => {
     const [stored] = getPendingPegins(ETH_ADDRESS);
     expect(stored.status).toBe(LocalStorageStatus.CONFIRMING);
     expect(stored.payoutSignedAt).toBeUndefined();
+  });
+
+  it("stamps confirmingAt when the status flips to CONFIRMING", () => {
+    const now = 1_700_000_123_000;
+    vi.useFakeTimers({ now });
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.CONFIRMING,
+    );
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.CONFIRMING);
+    expect(stored.confirmingAt).toBe(now);
+  });
+
+  it("clears confirmingAt when the status moves off CONFIRMING", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          ...validPegin,
+          status: LocalStorageStatus.CONFIRMING,
+          confirmingAt: 1_700_000_123_000,
+        },
+      ]),
+    );
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    expect(getPendingPegins(ETH_ADDRESS)[0].confirmingAt).toBeUndefined();
   });
 
   it("stores the returned activation outcome with CONFIRMED in one write and reads both back", () => {

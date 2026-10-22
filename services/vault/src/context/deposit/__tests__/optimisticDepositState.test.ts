@@ -56,6 +56,24 @@ describe("optimisticDepositState", () => {
     );
   });
 
+  it("stamps confirmingAt when the status is set to CONFIRMING", () => {
+    vi.useFakeTimers({ now: 1_700_000_000_000 });
+    setOptimisticDepositStatus(DEPOSIT_ID, LocalStorageStatus.CONFIRMING);
+    expect(getOptimisticDepositState().confirmingAt.get(DEPOSIT_ID)).toBe(
+      1_700_000_000_000,
+    );
+  });
+
+  it("re-stamps confirmingAt on a repeat CONFIRMING write", () => {
+    vi.useFakeTimers({ now: 1_700_000_000_000 });
+    setOptimisticDepositStatus(DEPOSIT_ID, LocalStorageStatus.CONFIRMING);
+    vi.setSystemTime(1_700_000_000_000 + 60 * 60 * 1000);
+    setOptimisticDepositStatus(DEPOSIT_ID, LocalStorageStatus.CONFIRMING);
+    expect(getOptimisticDepositState().confirmingAt.get(DEPOSIT_ID)).toBe(
+      1_700_000_000_000 + 60 * 60 * 1000,
+    );
+  });
+
   it("notifies subscribers when a status is set", () => {
     const listener = vi.fn();
     subscribeToOptimisticDepositState(listener);
