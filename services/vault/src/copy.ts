@@ -2616,6 +2616,31 @@ export const COPY = {
         "Check back soon for apps and integrations built around Bitcoin-backed liquidity.",
     },
   },
+  // Dev-only artifact slimming page (dev/artifactSlim/ArtifactSlimPage.tsx),
+  // behind NEXT_PUBLIC_FF_ARTIFACT_SLIM_TOOL.
+  devArtifactSlim: {
+    title: "Condense an artifact file",
+    description:
+      "Pick a recovery artifact file saved during a deposit. The page reads it from disk in chunks and builds the slim file: the transaction graph, the verifying key and the challenger list. Nothing is uploaded.",
+    startButton: "Condense",
+    cancelButton: "Cancel",
+    downloadButton: "Download slim file",
+    cancelled: "Cancelled.",
+    expectedFileHint:
+      "This page reads the file saved during the deposit (babylon-vault-artifacts-<txid>.json), not the watchtower artifacts.json.",
+    megabytes: (value: string) => `${value} MB`,
+    seconds: (value: string) => `${value} s`,
+    progress: (read: string, total: string, elapsed: string) =>
+      `Read ${read} of ${total} in ${elapsed}`,
+    summary: {
+      prePeginOutpoint: "Pre-PegIn outpoint",
+      challengers: "Challengers",
+      input: "Input file",
+      output: "Slim file",
+      elapsed: "Time",
+      graphSha256: "Graph SHA-256",
+    },
+  },
   // v3 Liquidation Dashboard (components/pages/Liquidations).
   liquidations: {
     tour: {

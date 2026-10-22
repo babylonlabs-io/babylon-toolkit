@@ -10,6 +10,7 @@ export const ROUTES = {
   LIQUIDATIONS: "/liquidations",
   EXPLORE: "/explore",
   MARKETS: "/markets",
+  ARTIFACT_SLIM: "/dev/artifact-slim",
 } as const;
 
 /** Path segment of `/markets/:reserveId` — see {@link getMarketDataRoute}. */

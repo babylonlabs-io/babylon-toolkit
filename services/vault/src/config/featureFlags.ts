@@ -96,6 +96,21 @@ export default {
   },
 
   /**
+   * ARTIFACT_SLIM_TOOL feature flag
+   *
+   * Purpose: Mounts /dev/artifact-slim, which reads a saved recovery artifact
+   * file (~1.4 GB) from disk and downloads the ~1.8 MB slim file the
+   * depositor-as-claimer signing needs: the graph, the verifying key and the
+   * challenger list.
+   * Why needed: Dev tool showing that the browser can do this without a
+   * backend. Never shipped.
+   * Default: false (the route is not mounted unless set to "true")
+   */
+  get isArtifactSlimToolEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ARTIFACT_SLIM_TOOL === "true";
+  },
+
+  /**
    * HTTP_ARTIFACT_DOWNLOADS feature flag
    *
    * Purpose: Downloads the recovery artifacts over the VP's authenticated

@@ -51,6 +51,9 @@ const DashboardPage = lazyWithRetry(() =>
     default: m.DashboardPage,
   })),
 );
+const ArtifactSlimPage = lazyWithRetry(
+  () => import("./dev/artifactSlim/ArtifactSlimPage"),
+);
 
 // Dev-only god-mode panel, lazily imported behind `import.meta.env.DEV` so the
 // whole dev subtree is dropped from production builds (the dynamic import sits
@@ -241,6 +244,18 @@ export const Router = () => {
             </Suspense>
           }
         />
+        {/* Dev tool: no Aave providers needed. With the flag off the path
+            falls through to NotFound. */}
+        {featureFlags.isArtifactSlimToolEnabled && (
+          <Route
+            path={ROUTES.ARTIFACT_SLIM}
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ArtifactSlimPage />
+              </Suspense>
+            }
+          />
+        )}
       </Route>
       {guardedSubtreePaths.map((path) => (
         <Route
