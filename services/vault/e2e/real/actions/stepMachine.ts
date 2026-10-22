@@ -111,7 +111,10 @@ async function handleActivateConfirmation(
   const continueWithout = page
     .getByRole("button", { name: CONTINUE_WITHOUT_LABEL, exact: true })
     .first();
-  if (await continueWithout.isVisible().catch(() => false)) {
+  if (
+    (await continueWithout.isVisible().catch(() => false)) &&
+    (await continueWithout.isEnabled().catch(() => false))
+  ) {
     await continueWithout.click({ timeout: STEP_TIMEOUT_MS });
   }
 
