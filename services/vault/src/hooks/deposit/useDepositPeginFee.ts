@@ -21,6 +21,7 @@ import { usePrice } from "@/hooks/usePrices";
 
 const WEI_PER_ETH = 10n ** 18n;
 const STALE_TIME_MS = 30_000;
+export const DEPOSIT_PEGIN_FEE_QUERY_KEY = "depositPeginFee";
 
 export interface DepositPeginFee {
   feeWei: bigint | null;
@@ -44,7 +45,7 @@ export function useDepositPeginFee(
     isError,
   } = useQuery({
     queryKey: [
-      "depositPeginFee",
+      DEPOSIT_PEGIN_FEE_QUERY_KEY,
       getETHChain().id,
       address,
       chainId,

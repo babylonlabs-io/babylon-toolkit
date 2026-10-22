@@ -122,6 +122,11 @@ export interface RegisterPeginOnChainParams {
   depositorPayoutScriptPubKey: string;
   quotedCommissionBps?: number;
   /**
+   * Total ETH fee (wei) shown to the depositor; registration throws if the chain now requires more.
+   * Optional; when omitted the chain-current fee is sent unchecked.
+   */
+  quotedPeginFeeWei?: bigint;
+  /**
    * `keccak256(abi.encode(...))` over the protocol state the Pre-PegIn was
    * built against — see the SDK's `pegin-fingerprint` module.
    *
@@ -160,6 +165,8 @@ export interface RegisterPeginBatchOnChainParams {
   /** Raw x-only, compressed, or uncompressed BTC pubkey from the PoP wallet. */
   depositorBtcPubkeyRaw: string;
   quotedCommissionBps?: number;
+  /** See {@link RegisterPeginOnChainParams.quotedPeginFeeWei}: the total for every request in the batch. */
+  quotedPeginFeeWei?: bigint;
   /**
    * See {@link RegisterPeginOnChainParams.expectedFingerprint}. One value for
    * the whole batch: the fingerprint takes no per-request input and a batch
@@ -214,7 +221,11 @@ export class ViemPeginRegistrationClient {
       normalized.vaultId,
       normalized.peginTxHash,
     );
-    const peginFee = await this.readPeginFee(request.vaultProvider);
+    const peginFeeTotal = await this.readPeginFee(
+      request.vaultProvider,
+      1,
+      request.quotedPeginFeeWei,
+    );
     const maxCommission = await this.resolveMaxAcceptableCommissionBps(
       request.vaultProvider,
       request.quotedCommissionBps,
@@ -242,7 +253,7 @@ export class ViemPeginRegistrationClient {
 
     const ethTxHash = await this.sendAndWait(
       callData,
-      peginFee,
+      peginFeeTotal,
       false,
       depositor,
     );
@@ -315,7 +326,11 @@ export class ViemPeginRegistrationClient {
       await this.assertVaultDoesNotExist(vault.vaultId, vault.peginTxHash);
     }
 
-    const peginFee = await this.readPeginFee(batch.vaultProvider);
+    const peginFeeTotal = await this.readPeginFee(
+      batch.vaultProvider,
+      batch.requests.length,
+      batch.quotedPeginFeeWei,
+    );
     const maxCommission = await this.resolveMaxAcceptableCommissionBps(
       batch.vaultProvider,
       batch.quotedCommissionBps,
@@ -335,7 +350,7 @@ export class ViemPeginRegistrationClient {
     });
     const ethTxHash = await this.sendAndWait(
       callData,
-      peginFee * BigInt(batch.requests.length),
+      peginFeeTotal,
       true,
       depositor,
     );
@@ -436,9 +451,22 @@ export class ViemPeginRegistrationClient {
     }
   }
 
-  private async readPeginFee(vaultProvider: Address): Promise<bigint> {
+  private async readPeginFee(
+    vaultProvider: Address,
+    requestCount: number,
+    quotedPeginFeeWei?: bigint,
+  ): Promise<bigint> {
+    if (
+      quotedPeginFeeWei !== undefined &&
+      (typeof quotedPeginFeeWei !== "bigint" || quotedPeginFeeWei < 0n)
+    ) {
+      throw new Error(
+        `quotedPeginFeeWei must be a non-negative bigint in wei; received ${String(quotedPeginFeeWei)}.`,
+      );
+    }
+    let peginFee: bigint;
     try {
-      return (await this.config.publicClient.readContract({
+      peginFee = (await this.config.publicClient.readContract({
         address: this.config.btcVaultRegistry,
         abi: BTCVaultRegistryABI,
         functionName: "getPegInFee",
@@ -451,6 +479,14 @@ export class ViemPeginRegistrationClient {
         { cause: error },
       );
     }
+    const totalFee = peginFee * BigInt(requestCount);
+    if (quotedPeginFeeWei !== undefined && totalFee > quotedPeginFeeWei) {
+      throw new Error(
+        `Pegin fee changed since quote: quoted ${quotedPeginFeeWei} wei, ` +
+          `chain currently requires ${totalFee} wei. Please refresh and try again.`,
+      );
+    }
+    return totalFee;
   }
 
   private async resolveMaxAcceptableCommissionBps(

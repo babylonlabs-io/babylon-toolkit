@@ -31,6 +31,8 @@ export interface UseDepositPageFlowResult {
   selectedProviders: string[];
   /** VP commission (bps) frozen at commit time; `undefined` if it hadn't loaded. */
   quotedCommissionBps: number | undefined;
+  /** Total registration fee (wei) frozen at commit time; `null` if not loaded. */
+  quotedPeginFeeWei: bigint | null;
   feeRate: number;
 
   // Wallet data
@@ -62,6 +64,7 @@ export interface UseDepositPageFlowResult {
     application: string,
     providers: string[],
     quotedCommissionBps: number | undefined,
+    quotedPeginFeeWei: bigint | null,
   ) => void;
   setFeeRate: (feeRate: number) => void;
 }
@@ -82,6 +85,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     selectedApplication,
     selectedProviders,
     quotedCommissionBps,
+    quotedPeginFeeWei,
     feeRate,
     goToStep,
     setDepositData,
@@ -151,6 +155,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     selectedApplication,
     selectedProviders,
     quotedCommissionBps,
+    quotedPeginFeeWei,
     feeRate,
     btcWalletProvider,
     ethAddress,

@@ -1952,6 +1952,17 @@ Bounds the registration's maxAcceptableCommissionBps (#1691). REQUIRED
 when the wallet approved terms — the ceiling must anchor to the approved
 quote. Optional otherwise; falls back to chain-current.
 
+##### quotedPeginFeeWei?
+
+```ts
+optional quotedPeginFeeWei: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
+
+Total ETH fee (wei) shown to the depositor; registration throws if the fee rose since the quote.
+Optional; when omitted the chain-current fee is sent unchecked.
+
 ##### expectedFingerprint
 
 ```ts
@@ -2129,6 +2140,16 @@ optional quotedCommissionBps: number;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
 See [RegisterPeginParams.quotedCommissionBps](#quotedcommissionbps).
+
+##### quotedPeginFeeWei?
+
+```ts
+optional quotedPeginFeeWei: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
+
+See [RegisterPeginParams.quotedPeginFeeWei](#quotedpeginfeewei).
 
 ##### expectedFingerprint
 

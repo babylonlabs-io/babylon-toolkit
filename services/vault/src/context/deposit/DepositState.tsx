@@ -21,6 +21,8 @@ interface DepositStateContext {
    * `undefined` if the commission had not loaded at commit time.
    */
   quotedCommissionBps: number | undefined;
+  /** Total Ethereum registration fee (wei) shown on the form, frozen at commit like the commission. `null` if not loaded. */
+  quotedPeginFeeWei: bigint | null;
   feeRate: number;
   isSplitDeposit: boolean;
   splitVaultAmounts: bigint[] | null;
@@ -30,6 +32,7 @@ interface DepositStateContext {
     application: string,
     providers: string[],
     quotedCommissionBps: number | undefined,
+    quotedPeginFeeWei: bigint | null,
   ) => void;
   setFeeRate: (feeRate: number) => void;
   setIsSplitDeposit: (v: boolean) => void;
@@ -44,6 +47,7 @@ const { StateProvider, useState: useDepositState } =
     selectedApplication: "",
     selectedProviders: [],
     quotedCommissionBps: undefined,
+    quotedPeginFeeWei: null,
     feeRate: 0,
     isSplitDeposit: false,
     splitVaultAmounts: null,
@@ -63,6 +67,9 @@ export function DepositState({ children }: PropsWithChildren) {
   const [quotedCommissionBps, setQuotedCommissionBps] = useState<
     number | undefined
   >(undefined);
+  const [quotedPeginFeeWei, setQuotedPeginFeeWei] = useState<bigint | null>(
+    null,
+  );
   const [feeRate, setFeeRate] = useState(0);
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
   const [splitVaultAmounts, setSplitVaultAmounts] = useState<bigint[] | null>(
@@ -79,11 +86,13 @@ export function DepositState({ children }: PropsWithChildren) {
       application: string,
       providers: string[],
       commissionBps: number | undefined,
+      peginFeeWei: bigint | null,
     ) => {
       setAmount(newAmount);
       setSelectedApplication(application);
       setSelectedProviders(providers);
       setQuotedCommissionBps(commissionBps);
+      setQuotedPeginFeeWei(peginFeeWei);
     },
     [],
   );
@@ -98,6 +107,7 @@ export function DepositState({ children }: PropsWithChildren) {
     setSelectedApplication("");
     setSelectedProviders([]);
     setQuotedCommissionBps(undefined);
+    setQuotedPeginFeeWei(null);
     setFeeRate(0);
     setIsSplitDeposit(false);
     setSplitVaultAmounts(null);
@@ -110,6 +120,7 @@ export function DepositState({ children }: PropsWithChildren) {
       selectedApplication,
       selectedProviders,
       quotedCommissionBps,
+      quotedPeginFeeWei,
       feeRate,
       isSplitDeposit,
       splitVaultAmounts,
@@ -126,6 +137,7 @@ export function DepositState({ children }: PropsWithChildren) {
       selectedApplication,
       selectedProviders,
       quotedCommissionBps,
+      quotedPeginFeeWei,
       feeRate,
       isSplitDeposit,
       splitVaultAmounts,

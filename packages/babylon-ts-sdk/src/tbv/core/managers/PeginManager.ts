@@ -475,6 +475,11 @@ export interface RegisterPeginParams {
    * quote. Optional otherwise; falls back to chain-current.
    */
   quotedCommissionBps?: number;
+  /**
+   * Total ETH fee (wei) shown to the depositor; registration throws if the fee rose since the quote.
+   * Optional; when omitted the chain-current fee is sent unchecked.
+   */
+  quotedPeginFeeWei?: bigint;
 
   /**
    * Peg-in configuration fingerprint from the SDK's `computePeginFingerprint`,
@@ -542,6 +547,8 @@ export interface RegisterPeginBatchParams {
   popSignature: PopSignature;
   /** See {@link RegisterPeginParams.quotedCommissionBps}. */
   quotedCommissionBps?: number;
+  /** See {@link RegisterPeginParams.quotedPeginFeeWei}. */
+  quotedPeginFeeWei?: bigint;
   /**
    * See {@link RegisterPeginParams.expectedFingerprint}. One value covers the
    * batch — the fingerprint has no per-request input and a batch fixes one
@@ -1439,6 +1446,7 @@ export class PeginManager {
       depositorWotsPkHash: params.depositorWotsPkHash,
       popSignature: params.popSignature,
       quotedCommissionBps: params.quotedCommissionBps,
+      quotedPeginFeeWei: params.quotedPeginFeeWei,
       expectedFingerprint: params.expectedFingerprint,
     });
   }
@@ -1490,6 +1498,7 @@ export class PeginManager {
       popSignature: params.popSignature,
       depositorBtcPubkeyRaw: verifiedBtcPubkeyRaw,
       quotedCommissionBps: params.quotedCommissionBps,
+      quotedPeginFeeWei: params.quotedPeginFeeWei,
       expectedFingerprint: params.expectedFingerprint,
       requests: params.requests.map((request, index) => ({
         depositorSignedPeginTx: request.depositorSignedPeginTx,

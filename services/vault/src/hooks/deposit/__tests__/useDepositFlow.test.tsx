@@ -568,6 +568,7 @@ const MOCK_PARAMS = {
   selectedApplication: "0xAppController",
   selectedProviders: ["0xProvider123"],
   quotedCommissionBps: 250,
+  quotedPeginFeeWei: 3n,
   vaultProviderBtcPubkey: "ab".repeat(32),
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
@@ -1687,6 +1688,7 @@ describe("useDepositFlow", () => {
         // The commission the depositor saw is forwarded as the quote that
         // bounds maxAcceptableCommissionBps on-chain.
         expect(callArgs?.quotedCommissionBps).toBe(250);
+        expect(callArgs?.quotedPeginFeeWei).toBe(3n);
 
         // First vault: htlcVout = 0
         expect(callArgs?.requests[0]).toEqual(

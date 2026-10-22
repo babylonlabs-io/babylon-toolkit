@@ -253,6 +253,10 @@ const LIVENESS_BODIES = [
 export const COMMISSION_UNAVAILABLE_ERROR =
   "Vault provider commission unavailable at submit";
 
+/** Thrown by the deposit flow when the registration fee quote never loaded. */
+export const PEGIN_FEE_UNAVAILABLE_ERROR =
+  "Pegin registration fee unavailable at submit";
+
 /**
  * Extract a lowercase message from an unknown error for substring matching.
  * Includes viem's `shortMessage` (often where "insufficient funds" lives)
@@ -565,11 +569,11 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.broadcastAckWindowUnavailable;
   }
 
-  // 4c. VP commission drift / unavailability. The SDK throws "...commission
-  // changed since quote..." when the on-chain commission rose above the quoted
-  // value plus headroom; the flow throws COMMISSION_UNAVAILABLE_ERROR when the
-  // commission never loaded. Both are recoverable by refreshing, so they get
-  // their own titles instead of the generic fallback.
+  // 4c. VP commission / pegin fee drift or unavailability. The SDK throws
+  // "...changed since quote..." when the on-chain commission or pegin fee rose
+  // above the quote; the flow throws COMMISSION_UNAVAILABLE_ERROR /
+  // PEGIN_FEE_UNAVAILABLE_ERROR when a quote never loaded. All are recoverable
+  // by refreshing, so they get their own titles instead of the generic fallback.
   if (msg.includes("commission changed since quote")) {
     return ERRORS.commissionChanged;
   }
@@ -584,6 +588,12 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
   if (msg.includes(COMMISSION_UNAVAILABLE_ERROR.toLowerCase())) {
     return ERRORS.commissionUnavailable;
+  }
+  if (msg.includes("pegin fee changed since quote")) {
+    return ERRORS.peginFeeChanged;
+  }
+  if (msg.includes(PEGIN_FEE_UNAVAILABLE_ERROR.toLowerCase())) {
+    return ERRORS.peginFeeUnavailable;
   }
 
   // 5. Wallet not connected / client unavailable. Before the stage buckets so
