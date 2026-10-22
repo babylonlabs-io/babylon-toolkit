@@ -949,7 +949,7 @@ describe("DepositProgressView", () => {
         <DepositProgressView
           {...baseProps}
           isComplete
-          currentStep={DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
         />,
       );
 
@@ -964,7 +964,7 @@ describe("DepositProgressView", () => {
         <DepositProgressView
           {...baseProps}
           terminalMessage="Ready to activate."
-          currentStep={DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
         />,
       );
 

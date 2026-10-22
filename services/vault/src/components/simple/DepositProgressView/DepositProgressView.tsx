@@ -58,6 +58,7 @@ import {
   buildStepItems,
   getStepFillPercent,
   getVisualStep,
+  isBtcWaitStep,
   STEP_GROUPS,
   TOTAL_VISUAL_STEPS,
   TRUNK_END_VISUAL_STEP,
@@ -379,9 +380,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     onAppWaitCanceled,
   } = props;
 
-  // Every flow that renders this view requires the BTC wallet, so surface a
-  // silent lock here (as a Callout) regardless of which flow —
-  // deposit, resume/broadcast, payout signing, or continuation — mounted it.
+  // Every flow that renders this view uses the BTC wallet, so a silent lock
+  // is surfaced here (as a Callout) whichever flow — deposit,
+  // resume/broadcast, payout signing, or continuation — mounted it, but only
+  // while the current step can prompt the wallet.
   const { locked: walletLocked } = useBTCWallet();
   const { unlock, isUnlocking } = useBtcWalletUnlock(
     "Wallet unlock from deposit progress",
@@ -481,6 +483,14 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     !showCancelAppWait &&
     continuePrompt !== null &&
     !error &&
+    !isComplete &&
+    !isTerminalSuccess;
+
+  // A wait step never prompts the wallet, so a lock there is not what the
+  // deposit waits on.
+  const showWalletLocked =
+    walletLocked &&
+    !isBtcWaitStep(currentStep) &&
     !isComplete &&
     !isTerminalSuccess;
 
@@ -627,7 +637,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         // Callouts live here (not in the scrollable body) so error/success
         // banners stay pinned above the CTA, always visible.
         <div className="flex flex-col gap-4">
-          {walletLocked && !isComplete && !isTerminalSuccess && (
+          {showWalletLocked && (
             <Callout
               variant="accent"
               role="alert"

@@ -290,3 +290,31 @@ export function getVisualStep(currentStep: DepositFlowStep): number {
     }
   }
 }
+
+/** The step only waits on Bitcoin, the vault provider or the indexer and never prompts the BTC wallet. */
+export function isBtcWaitStep(step: DepositFlowStep): boolean {
+  switch (step) {
+    case DepositFlowStep.AWAIT_BTC_CONFIRMATION:
+    case DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS:
+    case DepositFlowStep.AWAIT_VP_VERIFICATION:
+    case DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION:
+      return true;
+    case DepositFlowStep.DERIVE_VAULT_SECRET:
+    case DepositFlowStep.SIGN_PEGIN_BTC:
+    case DepositFlowStep.SIGN_POP:
+    case DepositFlowStep.SUBMIT_PEGIN:
+    case DepositFlowStep.BROADCAST_PRE_PEGIN:
+    case DepositFlowStep.SUBMIT_WOTS_KEYS:
+    case DepositFlowStep.SIGN_AUTH_ANCHOR:
+    case DepositFlowStep.SIGN_PAYOUTS:
+    case DepositFlowStep.SIGN_DEPOSITOR_GRAPH:
+    case DepositFlowStep.RETRIEVE_SECRET:
+    case DepositFlowStep.ACTIVATE_VAULT:
+    case DepositFlowStep.COMPLETED:
+      return false;
+    default: {
+      const _exhaustive: never = step;
+      return _exhaustive;
+    }
+  }
+}
