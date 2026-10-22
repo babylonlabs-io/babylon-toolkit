@@ -13,7 +13,10 @@ import {
 
 /**
  * Get the ordinals API URL from environment variable.
- * This is optional - if not set, the hook will rely on wallet's getInscriptions().
+ * Optional, but it is the only inscription check for a wallet that cannot list
+ * inscriptions itself: one with no inscription index (Ledger Vault, Keystone),
+ * or one whose getInscriptions() fails or times out. Without it, such a
+ * wallet's UTXOs are treated as clean.
  */
 function getOrdinalsApiUrl(): string | undefined {
   return process.env.NEXT_PUBLIC_TBV_ORDINALS_API_URL;
