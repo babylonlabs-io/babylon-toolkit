@@ -25,10 +25,12 @@ import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, payments, Psbt } from "bitcoinjs-lib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DeviceAppState, SigningProgress } from "@/core/types";
+import type { DeviceAppState, SigningProgress, UTXO } from "@/core/types";
 import { Network } from "@/core/types";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
+import { fetchOrdinals, OrdinalsClassifierUnavailableError } from "@/hooks/useOrdinals";
+import { LOW_VALUE_UTXO_THRESHOLD } from "@/utils/utxoFiltering";
 
 /** BIP-86 first-address vector: x-only key and its published P2TR address. */
 const VECTOR_XONLY = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
@@ -3128,12 +3130,74 @@ describe("LedgerVaultProvider", () => {
     });
   });
 
-  it("has no inscriptions and no account-change event to subscribe to", async () => {
+  it("rejects getInscriptions with WALLET_METHOD_NOT_SUPPORTED, as the device keeps no inscription index", async () => {
     const provider = await connected();
 
-    await expect(provider.getInscriptions()).resolves.toEqual([]);
+    await expect(provider.getInscriptions()).rejects.toMatchObject({
+      code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+      wallet: "Ledger Vault",
+    });
+  });
+
+  it("has no account-change event to subscribe to", async () => {
+    const provider = await connected();
+
     expect(() => provider.on()).not.toThrow();
     expect(() => provider.off()).not.toThrow();
+  });
+
+  describe("inscription classification through fetchOrdinals", () => {
+    const ORDINALS_API_URL = "https://ordinals.test";
+    const INSCRIBED_UTXO: UTXO = {
+      txid: "5e".repeat(32),
+      vout: 1,
+      // Above the dust floor, so fetchOrdinals sends it to the API instead of dropping it.
+      value: LOW_VALUE_UTXO_THRESHOLD + 1,
+      // fetchOrdinals sends only the outpoint; the script is never read.
+      scriptPubKey: "",
+    };
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("sends the UTXOs to the ordinals API and returns the outpoints it flags", async () => {
+      const fetchMock = vi.fn<typeof fetch>(
+        async () =>
+          new Response(
+            JSON.stringify({ data: [{ txid: INSCRIBED_UTXO.txid, vout: INSCRIBED_UTXO.vout, inscription: true }] }),
+          ),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const provider = await connected();
+      const address = await provider.getAddress();
+
+      // Default wallet timeout on purpose: with 0 the already-settled timeout
+      // wins the race, and even a wallet that resolves [] would reach the API.
+      const inscriptions = await fetchOrdinals({
+        address,
+        utxos: [INSCRIBED_UTXO],
+        btcProvider: provider,
+        ordinalsApiUrl: ORDINALS_API_URL,
+      });
+
+      expect(inscriptions).toEqual([{ txid: INSCRIBED_UTXO.txid, vout: INSCRIBED_UTXO.vout }]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe(`${ORDINALS_API_URL}/v1/ordinals/verify-utxos`);
+      expect(JSON.parse(String(init?.body))).toEqual({
+        address,
+        utxos: [{ txid: INSCRIBED_UTXO.txid, vout: INSCRIBED_UTXO.vout }],
+      });
+    });
+
+    it("fails with OrdinalsClassifierUnavailableError when no ordinals API is configured", async () => {
+      const provider = await connected();
+
+      await expect(
+        fetchOrdinals({ address: await provider.getAddress(), utxos: [INSCRIBED_UTXO], btcProvider: provider }),
+      ).rejects.toBeInstanceOf(OrdinalsClassifierUnavailableError);
+    });
   });
 
   describe("device app wait", () => {

@@ -191,8 +191,14 @@ interface IBTCProvider extends IProvider {
   ): Promise<string>;
 
   /**
-   * Retrieves the inscriptions for the connected wallet.
-   * @returns A promise that resolves to an array of inscriptions.
+   * Lists the wallet's inscribed outpoints, read from the wallet's own
+   * inscription index, so callers can keep those UTXOs out of funding.
+   *
+   * Resolve only from a real index. An empty array means "checked, none
+   * inscribed", and `fetchOrdinals` then skips the ordinals API, which it uses
+   * only when this call rejects or times out. A wallet without an inscription
+   * index must reject, never resolve `[]`.
+   * @returns A promise that resolves to the inscribed outpoints.
    */
   getInscriptions(): Promise<InscriptionIdentifier[]>;
 

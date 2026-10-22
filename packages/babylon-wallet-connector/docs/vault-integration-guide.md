@@ -46,7 +46,7 @@ nice-to-have.
 | BIP-322 simple message signing | MUST | Proof of possession ([`PeginManager.ts`][peginManager]); the return value is the consensus-encoded witness, see [PoP message format](#pop-message-format) |
 | `deriveContextHash` (HKDF-SHA-256 over the BIP-32 hardened key at `m/73681862'`; MPC wallets see [deriveContextHash](#derivecontexthash)) | MUST | Vault secret derivation (hashlock secrets, WOTS seeds, auth anchor) — see [deriveContextHash](#derivecontexthash) for the algorithm and [the conformance vectors][vectors] |
 | `signPsbts` with one approval for the whole batch | STRONGLY RECOMMENDED | `signPsbts` is a required member of `IBTCProvider`; a wallet without native batch signing implements it as a loop over `signPsbt`, and the SDK also tolerates a missing method ([`signPsbtsWithFallback.ts`][fallback]). Without one-approval batching, depositors approve N PSBTs one by one |
-| `getInscriptions` | OPTIONAL | Required member of `IBTCProvider`, used only to exclude inscription-bearing UTXOs from funding |
+| `getInscriptions` | OPTIONAL | Required member of `IBTCProvider`, used only to exclude inscription-bearing UTXOs from funding. A wallet with no inscription index must reject: the dApp reads an empty list as "no inscriptions" and skips its own check |
 
 [signing]: ../../babylon-ts-sdk/src/tbv/core/utils/signing.ts
 [peginInput]: ../../babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts
@@ -143,7 +143,7 @@ are in [`src/core/types.ts`][types].
 | `on` / `off` | `(eventName: string, cb: () => void) => void` | Register/unregister event listener |
 | `getWalletProviderName` | `() => Promise<string>` | Display name of the wallet. Required by the interface. |
 | `getWalletProviderIcon` | `() => Promise<string>` | Icon URL or data URI of the wallet. Required by the interface. |
-| `getInscriptions` | `() => Promise<InscriptionIdentifier[]>` | Used only to exclude inscription-bearing UTXOs from funding. |
+| `getInscriptions` | `() => Promise<InscriptionIdentifier[]>` | Used only to exclude inscription-bearing UTXOs from funding. A wallet with no inscription index must reject: the dApp reads an empty list as "no inscriptions" and skips its own check. |
 | `cancelSigning` | `() => void` | Optional. Requests cancellation of the in-flight ceremony, or of an operation held waiting for the device app; a ceremony settles at the next device exchange, a wait at once. Feature-detect. |
 | `subscribeSigningProgress` | `(listener: (p: SigningProgress) => void) => () => void` | Optional. Per-PSBT ticks inside `signPsbts` for providers that run one device ceremony per PSBT. Fires after each committed ceremony; a failed ceremony emits no tick and earlier ticks stand. Feature-detect; returns the unsubscribe. Outlives the batch; dropped on session teardown. Listener is sync; an overlapping `signPsbts` is rejected, never queued; never fires for `signPsbt`. |
 | `subscribeDeviceAppState` | `(listener: (s: DeviceAppState) => void) => () => void` | Optional. For hardware providers that can read the open device app: `awaiting-app` (with the expected app name) while an operation is held until the user opens that app, `ready` when the wait ends. The operation continues by itself shortly after the app opens. Survives teardown and reconnect. Feature-detect; returns the unsubscribe. |

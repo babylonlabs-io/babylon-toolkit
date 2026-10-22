@@ -1827,8 +1827,19 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   getNetwork = async (): Promise<Network> => this.network;
 
-  /** Hardware wallets hold no inscription index. */
-  getInscriptions = async (): Promise<InscriptionIdentifier[]> => [];
+  /**
+   * Always rejects: the device keeps no inscription index. Resolving `[]`
+   * would read as "checked, none inscribed" and callers would skip their own
+   * classifier; `fetchOrdinals` falls back to the ordinals API only when this
+   * call fails. Touches no device state.
+   */
+  getInscriptions = async (): Promise<InscriptionIdentifier[]> => {
+    throw new WalletError({
+      code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+      message: `${WALLET_PROVIDER_NAME} keeps no inscription index; check UTXOs with an ordinals API.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+  };
 
   /** A USB device has no account-switch event to subscribe to. */
   on = (): void => {};

@@ -144,6 +144,9 @@ export default {
    * (`navigator.hid` — desktop Chromium only (not on Android), and only in
    * a secure context, so it is absent on Firefox/Safari and on plain-http LAN
    * origins). Without it the wallet stays hidden regardless of this flag.
+   * Inscription exclusion for this wallet runs only through the ordinals API
+   * (`NEXT_PUBLIC_TBV_ORDINALS_API_URL`), because the device keeps no
+   * inscription index; without that URL its UTXOs are treated as clean.
    * Default: false (hidden unless explicitly set to "true")
    */
   get isLedgerVaultWalletEnabled() {

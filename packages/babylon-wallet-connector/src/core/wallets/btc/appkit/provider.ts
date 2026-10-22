@@ -451,8 +451,18 @@ export class AppKitBTCProvider implements IBTCProvider {
     return icon;
   }
 
+  /**
+   * Always rejects: AppKit exposes no inscription index. Resolving `[]` would
+   * read as "checked, none inscribed" and callers would skip their own
+   * classifier; `fetchOrdinals` falls back to the ordinals API only when this
+   * call fails.
+   */
   async getInscriptions(): Promise<InscriptionIdentifier[]> {
-    return [];
+    throw new WalletError({
+      code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
+      message: "AppKit Bitcoin exposes no inscription index; check UTXOs with an ordinals API.",
+      wallet: APPKIT_PROVIDER_NAME,
+    });
   }
 
   deriveContextHash = unsupportedDeriveContextHash("AppKit Bitcoin");
