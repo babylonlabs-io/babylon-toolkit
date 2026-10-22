@@ -186,6 +186,30 @@ describe("buildLiquidationChartData", () => {
     expect(bands[1].cumulativeLabel).toBe("100% seized");
   });
 
+  it("shows the whole-vault amount in the Seizes popover row, not the target seizure", () => {
+    // A liquidation seizes whole vaults, so the event takes all 0.6 BTC even
+    // though the debt target alone would need only 0.48 BTC.
+    const result = makeResult([
+      makeGroup(1, {
+        vaults: [{ id: "v1", name: "Vault 1", btc: 0.6 }],
+        combinedBtc: 0.6,
+        targetSeizureBtc: 0.48,
+        overSeizureBtc: 0.12,
+      }),
+    ]);
+    const { bands } = buildLiquidationChartData(result, {
+      vaultsTotal: vaultCount(result),
+      btcPrice: 90_000,
+      collateralFactor: CF,
+    });
+
+    const seizesRow = (bands[0].popoverMetrics ?? []).find(
+      (r) => r.label === COPY.liquidations.popover.seizes,
+    );
+    expect(seizesRow?.value).toBe(formatBtcAmount(0.6));
+    expect(seizesRow?.value).toBe(bands[0].amountLabel);
+  });
+
   it("keys titles off array position, not the calculator's 1-based index", () => {
     // calculate() emits group.index starting at 1.
     const result = makeResult([

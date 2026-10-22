@@ -527,7 +527,7 @@ export function buildLiquidationChartData(
         },
         {
           label: COPY.liquidations.popover.seizes,
-          value: formatBtcAmount(group.targetSeizureBtc),
+          value: formatBtcAmount(group.combinedBtc),
         },
       ],
       cumulativeLabel: COPY.liquidations.cumulativeSeized(
