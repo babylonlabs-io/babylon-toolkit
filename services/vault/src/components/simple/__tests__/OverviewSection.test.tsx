@@ -79,10 +79,12 @@ describe("OverviewSection", () => {
     expect(screen.getByText("$5,000")).toBeInTheDocument();
     expect(screen.getByText("USDC")).toBeInTheDocument();
     expect(screen.getByText(COPY.overview.positionTitle)).toBeInTheDocument();
-    // Collateral USD and its BTC amount share one line: the BTC amount is a
-    // nested secondary span inside the value, not a separate caption row.
+    const collateralUsd = screen.getByText("$10,000");
     const collateralBtc = screen.getByText("0.5 BTC");
-    expect(collateralBtc.parentElement).toHaveTextContent("$10,000 0.5 BTC");
+    expect(collateralBtc).toHaveAttribute("title", "0.5 BTC");
+    expect(collateralUsd.closest("[title]")).not.toContainElement(
+      collateralBtc,
+    );
 
     expect(
       screen.getByRole("button", { name: COPY.overview.depositAction }),
@@ -95,11 +97,11 @@ describe("OverviewSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("titles the collateral card with both the USD total and the BTC amount", () => {
+  it("titles the collateral value with the USD total", () => {
     renderSection();
 
-    const collateralValue = screen.getByText("0.5 BTC").closest("[title]");
-    expect(collateralValue).toHaveAttribute("title", "$10,000 0.5 BTC");
+    const collateralValue = screen.getByText("$10,000").closest("[title]");
+    expect(collateralValue).toHaveAttribute("title", "$10,000");
   });
 
   it("fires the matching callback when each action is clicked", () => {
