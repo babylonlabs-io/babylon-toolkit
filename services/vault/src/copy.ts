@@ -2733,6 +2733,7 @@ export const COPY = {
       heading: "Liquidation Events",
       subheading:
         "BTCVaults are seized in order. Each BTCVault group is one liquidation event. To change the order, open the Vaults page.",
+      liquidatedInSimulation: "Liquidated in simulation",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: PCT_TO_LIQUIDATION_LABEL,
