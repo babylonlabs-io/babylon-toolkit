@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { twJoin } from "tailwind-merge";
 import "./Slider.css";
 
 export interface SliderStep {
   value: number;
-  label?: string;
+  label?: ReactNode;
 }
 
 export interface SliderProps {
@@ -168,7 +168,7 @@ export function Slider({
                 }}
               >
                 {stepItem.label && (
-                  <span className="absolute bottom-full left-1/2 mb-2.5 -translate-x-1/2 whitespace-nowrap rounded bg-primary-contrast px-2 py-1 text-xs text-accent-primary after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-primary-contrast after:content-['']">
+                  <span className="pointer-events-auto absolute bottom-full left-1/2 mb-2.5 -translate-x-1/2 whitespace-nowrap rounded bg-primary-contrast px-2 py-1 text-xs text-accent-primary after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-primary-contrast after:content-['']">
                     {stepItem.label}
                   </span>
                 )}

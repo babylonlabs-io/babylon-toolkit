@@ -1154,7 +1154,7 @@ export const COPY = {
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
           : TWO_VAULT_SPLIT_NAME,
       splitOptionRecommended: "(Recommended)",
-      splitSliderStepLabel: "Minimum for 2 BTCVaults",
+      splitSliderStepLabel: "Partial Liquidation",
       // Shown inside the expanded split selector, under the two-vault option,
       // when the deposit is below the minimum needed to split across two
       // vaults; that option stays visible but disabled. `minBtc` already
@@ -1186,7 +1186,8 @@ export const COPY = {
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTCVault.",
       // "Learn more here." link appended to the split-option description in
-      // UtxoSplitSelector, pointing at the partial-liquidation docs.
+      // UtxoSplitSelector and to the deposit slider's split-minimum marker
+      // tooltip, pointing at the partial-liquidation docs.
       learnMore: "Learn more here.",
       // CollateralFactorRow: leads with the max-borrowable USD, CF in parens.
       maxToBorrowLabel: "Max to Borrow:",
@@ -3072,7 +3073,7 @@ export const COPY = {
       tooltip: "The minimum amount of BTC required to make a deposit.",
     },
     minForSplit: {
-      label: "Effective Minimum for Split",
+      label: "Effective Minimum for Partial Liquidation",
       tooltip:
         "The minimum amount of BTC required to enable partial-position liquidation via splitting a deposit into two BTCVaults.",
     },
