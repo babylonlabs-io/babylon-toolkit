@@ -145,13 +145,14 @@ function BorrowedAssetPlaceholder() {
  * "Borrowed Asset" — shared by the Overview position summary and the Loans
  * page.
  *
- * Aave caps how many reserves a position may borrow, so the second card names
- * the asset the position is tied to rather than totalling its debt. The cap
- * itself only reaches the tooltip, and only while the spoke sets one.
+ * Aave caps how many reserves a position may borrow, so the second card shows
+ * the asset the position is tied to next to its total debt. The cap itself only
+ * reaches the tooltip, and only while the spoke sets one.
  */
 export function buildBorrowCapacityCards({
   availableToBorrow,
   borrowedAssets,
+  borrowedValue,
   maxBorrowReserves,
   borrowCount,
   borrowCapacityLoading,
@@ -166,6 +167,8 @@ export function buildBorrowCapacityCards({
   availableToBorrow: string;
   /** Assets the position currently owes; empty before the first borrow. */
   borrowedAssets: Pick<BorrowedAsset, "symbol" | "name" | "icon">[];
+  /** The position's total debt, formatted as USD. */
+  borrowedValue: string;
   /** The spoke's borrow-reserve cap; `null` when it sets none. */
   maxBorrowReserves: BorrowReserveLimit;
   /**
@@ -244,9 +247,7 @@ export function buildBorrowCapacityCards({
             <span>{borrowedTooltipBefore.body}</span>
           </span>
         ) : undefined,
-      value: firstBorrowed
-        ? COPY.overview.borrowedAssetValue(borrowedAssets.map((a) => a.symbol))
-        : COPY.overview.borrowedAssetEmpty,
+      value: firstBorrowed ? borrowedValue : COPY.overview.borrowedAssetEmpty,
       actionLabel: COPY.overview.repayAction,
       onAction: onRepay,
       actionDisabled: !canRepay,

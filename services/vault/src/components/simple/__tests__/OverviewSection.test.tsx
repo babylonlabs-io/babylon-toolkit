@@ -34,6 +34,7 @@ function renderSection(overrides: Record<string, unknown> = {}) {
     <OverviewSection
       totalCollateralValue="$10,000"
       borrowedAssets={BORROWED_ASSETS}
+      borrowedValue="$2,000.00 USD"
       maxBorrowReserves={1}
       borrowCount={1n}
       availableToBorrow="$5,000"
@@ -77,7 +78,7 @@ describe("OverviewSection", () => {
 
     expect(screen.getByText("$10,000")).toBeInTheDocument();
     expect(screen.getByText("$5,000")).toBeInTheDocument();
-    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(screen.getByText("$2,000.00 USD")).toBeInTheDocument();
     expect(screen.getByText(COPY.overview.positionTitle)).toBeInTheDocument();
     // Collateral USD and its BTC amount share one line: the BTC amount is a
     // nested secondary span inside the value, not a separate caption row.
@@ -139,13 +140,13 @@ describe("OverviewSection", () => {
     renderSection({ borrowCapacityLoading: true });
 
     expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
-    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(screen.getByText("$2,000.00 USD")).toBeInTheDocument();
   });
 
   it("shows an empty placeholder for available when borrow capacity errors", () => {
     renderSection({ borrowCapacityError: new Error("split params failed") });
 
     expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
-    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(screen.getByText("$2,000.00 USD")).toBeInTheDocument();
   });
 });

@@ -2758,13 +2758,10 @@ export const COPY = {
     totalCollateralValueLabel: "Total Collateral Value",
     availableToBorrowLabel: "Available to Borrow",
     // Aave caps how many reserves one position may borrow, so the position bar
-    // names the asset the position is tied to rather than a debt total.
+    // names the asset the position is tied to, next to its total debt.
     borrowedAssetLabel: "Borrowed Asset",
     // Before the first borrow, when no asset is tied to the position yet.
     borrowedAssetEmpty: "Not Selected",
-    // Two hubs can list the same symbol, so a position holding both reads
-    // "USDC, USDC". The hub is named on the Loans rows, not here.
-    borrowedAssetValue: (symbols: string[]) => symbols.join(", "),
     // Borrowed Asset tooltip before the first borrow. Phrased from the cap the
     // Spoke reports, never a hardcoded 1 — Aave may raise it.
     borrowedAssetTooltipBefore: (limit: number) => ({
