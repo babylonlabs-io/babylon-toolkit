@@ -3,7 +3,8 @@
  *
  * Guards that picking a row navigates by the reserve's on-chain id rather than
  * its indexer-supplied symbol, so two reserves sharing a symbol can't steer the
- * switch to the wrong one (audit F7), and that each entry names its hub.
+ * switch to the wrong one (audit F7), and that it lists only the open
+ * reserve's hub.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -69,7 +70,7 @@ describe("AssetPill", () => {
       <AssetPill
         symbol="USDC"
         icon="icon.png"
-        selectedReserveId={2n}
+        selectedReserve={reserves[0]}
         reserves={reserves}
         mode={LOAN_TAB.BORROW}
       />,
@@ -84,24 +85,21 @@ describe("AssetPill", () => {
     );
   });
 
-  it("names each entry's hub so one token's reserves are told apart", () => {
+  it("lists only the reserves on the open reserve's hub", () => {
     render(
       <AssetPill
         symbol="USDC"
         icon="icon.png"
-        selectedReserveId={2n}
+        selectedReserve={reserves[0]}
         reserves={reserves}
         mode={LOAN_TAB.BORROW}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /USDC/ }));
-    fireEvent.click(screen.getByText("USDC on Core Hub"));
 
-    expect(navigate).toHaveBeenCalledWith(
-      { pathname: "/loans", search: "?reserve=4&tab=borrow" },
-      { replace: true },
-    );
+    expect(screen.getAllByText("USDC on Babylon Hub")).toHaveLength(2);
+    expect(screen.queryByText("USDC on Core Hub")).toBeNull();
   });
 
   it("keeps the current tab when switching asset", () => {
@@ -109,7 +107,7 @@ describe("AssetPill", () => {
       <AssetPill
         symbol="USDC"
         icon="icon.png"
-        selectedReserveId={9n}
+        selectedReserve={reserves[2]}
         reserves={reserves}
         mode={LOAN_TAB.REPAY}
       />,
