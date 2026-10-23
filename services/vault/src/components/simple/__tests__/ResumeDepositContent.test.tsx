@@ -57,6 +57,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   expandHashlockSecret: vi.fn(() => new Uint8Array(32)),
   expandWotsSeed: vi.fn(() => new Uint8Array(32)),
   hexToUint8Array: vi.fn(() => new Uint8Array(32)),
+  isDepositNotAllowedError: vi.fn(() => false),
   isDepositTermsRejectedError: vi.fn(() => false),
   isWotsMismatchError: vi.fn(() => false),
   isRegisteredVaultVersionMismatchError: vi.fn(() => false),

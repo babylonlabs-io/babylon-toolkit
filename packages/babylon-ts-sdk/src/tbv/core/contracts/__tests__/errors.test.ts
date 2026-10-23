@@ -1,14 +1,17 @@
+import { toFunctionSelector } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
 import manifest from "../abis/vaultErrors.manifest.json";
 import {
   CONTRACT_ERRORS,
+  DEPOSIT_NOT_ALLOWED_SELECTOR,
   EMPTY_REVERT_MESSAGE,
   PEGIN_FINGERPRINT_CHANGED_SELECTOR,
   PeginFingerprintChangedError,
   extractErrorData,
   getContractErrorMessage,
   handleContractError,
+  isDepositNotAllowedError,
   isKnownContractError,
   isPeginFingerprintChangedError,
 } from "../errors";
@@ -256,6 +259,65 @@ describe("CONTRACT_ERRORS table", () => {
     expect(
       CONTRACT_ERRORS[PEGIN_FINGERPRINT_CHANGED_SELECTOR],
     ).toBeUndefined();
+  });
+
+  it("has no DepositNotAllowed entry: it is typed, not a message", () => {
+    expect(CONTRACT_ERRORS[DEPOSIT_NOT_ALLOWED_SELECTOR]).toBeUndefined();
+  });
+});
+
+describe("DepositNotAllowed", () => {
+  it("pins the selector to the error signature the vault contracts declare", () => {
+    expect(DEPOSIT_NOT_ALLOWED_SELECTOR).toBe(
+      toFunctionSelector("DepositNotAllowed()"),
+    );
+    expect(
+      manifest.errors.some(
+        (entry) => entry.selector === DEPOSIT_NOT_ALLOWED_SELECTOR,
+      ),
+    ).toBe(true);
+  });
+
+  it("throws the typed error for the allow-list revert", () => {
+    let caught: unknown;
+    try {
+      handleContractError({ data: DEPOSIT_NOT_ALLOWED_SELECTOR });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(isDepositNotAllowedError(caught)).toBe(true);
+  });
+
+  it("classifies the revert when its data is upper-case hex", () => {
+    let caught: unknown;
+    try {
+      handleContractError({ data: "0x3D90E2A0" });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(isDepositNotAllowedError(caught)).toBe(true);
+  });
+
+  it("does not classify a different selector as an allow-list refusal", () => {
+    let caught: unknown;
+    try {
+      handleContractError({ data: DUPLICATE_HASHLOCK_SELECTOR });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(isDepositNotAllowedError(caught)).toBe(false);
+  });
+
+  it("recognizes a cross-realm copy by name, not by message", () => {
+    const crossRealm = new Error("Deposit not allowed");
+    crossRealm.name = "DepositNotAllowedError";
+    expect(isDepositNotAllowedError(crossRealm)).toBe(true);
+
+    const lookalike = new Error("Deposit not allowed");
+    expect(isDepositNotAllowedError(lookalike)).toBe(false);
   });
 });
 

@@ -6,7 +6,9 @@
  */
 
 import {
+  DepositNotAllowedError,
   DepositTermsRejectedError,
+  handleContractError,
   PeginRegistrationMissingError,
   PeginRegistrationNotFinalError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -16,7 +18,7 @@ import {
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 
@@ -178,6 +180,42 @@ describe("mapDepositError", () => {
 
     expect(mapDepositError(lookalike).title).not.toBe(
       ERRORS.peginFingerprintChanged.title,
+    );
+  });
+
+  it("maps the allow-list refusal from the pre-flight check to the allow-list callout", () => {
+    const err = new DepositNotAllowedError(
+      "The depositor is not on the application's allow-list",
+    );
+
+    expect(mapDepositError(err)).toEqual(ERRORS.depositorNotAllowListed);
+  });
+
+  it("maps the registry's DepositNotAllowed revert at the gas estimate to the allow-list callout", () => {
+    // The registration client hands every estimate failure to the SDK's
+    // handleContractError; what it throws is what reaches the mapper.
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    let thrown: unknown;
+    try {
+      handleContractError({ data: "0x3d90e2a0" });
+    } catch (err) {
+      thrown = err;
+    } finally {
+      consoleError.mockRestore();
+    }
+
+    expect(mapDepositError(thrown)).toEqual(ERRORS.depositorNotAllowListed);
+  });
+
+  it("does not treat a same-worded error with another name as an allow-list refusal", () => {
+    const lookalike = new Error(
+      "Deposit not allowed: Your address is not on this application's allow list.",
+    );
+
+    expect(mapDepositError(lookalike).title).not.toBe(
+      ERRORS.depositorNotAllowListed.title,
     );
   });
 

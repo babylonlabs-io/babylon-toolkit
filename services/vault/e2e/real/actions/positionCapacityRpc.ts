@@ -57,6 +57,8 @@ export async function watchPositionCapacity(
     adapter: string;
     registry: string;
     injection: PositionFullInjection | undefined;
+    /** `--inject-not-allow-listed`: answer the depositor's allow-list read "not allowed" from Sign. */
+    notAllowListed?: boolean;
     /** Refuse a registration estimate that no capacity read preceded. */
     enforce: boolean;
     startBlock: bigint;
@@ -70,6 +72,7 @@ export async function watchPositionCapacity(
     registry: params.registry,
     multicall3: sepolia.contracts.multicall3.address,
     injection: params.injection,
+    notAllowListed: params.notAllowListed,
     startBlock: params.startBlock,
   });
   let seq = 0;

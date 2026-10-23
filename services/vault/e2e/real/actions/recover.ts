@@ -78,6 +78,7 @@ type BtcNetwork = Parameters<typeof reconstructPeginParams>[0]["network"];
 const BTC_NETWORK: Record<NetworkName, BtcNetwork> = {
   devnet: "signet" as BtcNetwork,
   testnet: "signet" as BtcNetwork,
+  "testnet-3": "signet" as BtcNetwork,
 };
 
 /**

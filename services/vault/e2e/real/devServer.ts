@@ -1,10 +1,10 @@
 /**
  * Localhost dev-server handling (auto: reuse or spawn).
  *
- * If the vault dev server is already serving on its port, reuse it. Otherwise spawn `pnpm dev`
- * (devnet) / `pnpm dev:testnet` (testnet) from the vault dir, wait until it answers HTTP, and return a
- * disposer that tears down the spawned process group. Used only for the `localhost` target — the
- * `website` target skips this entirely.
+ * If the vault dev server is already serving on its port, reuse it. Otherwise spawn the network's dev
+ * script (`pnpm dev` unless it names another) from the vault dir with its profile pinned, wait until
+ * it answers HTTP, and return a disposer that tears down the spawned process group. Used only for the
+ * `localhost` target — the `website` target skips this entirely.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { dirname, join } from "node:path";

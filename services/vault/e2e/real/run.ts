@@ -12,9 +12,10 @@ import {
   ETH_WALLET_TO_CONNECTOR,
   NETWORKS,
   resolveTargetUrl,
+  websiteUrlOf,
   type RunConfig,
 } from "./config";
-import { launchWalletContext } from "./connector";
+import { addrMatches, launchWalletContext } from "./connector";
 import { ensureDevServer, type DevServerHandle } from "./devServer";
 import { fetchVaultCountCap } from "./peginParams";
 import {
@@ -68,6 +69,7 @@ export async function runE2E(config: RunConfig): Promise<void> {
       config.btcWallet,
       config.ethWallet,
       secrets,
+      config.ethAccount,
       artifacts.log,
     );
 
@@ -77,7 +79,7 @@ export async function runE2E(config: RunConfig): Promise<void> {
       devServer = await ensureDevServer(config.network, artifacts.log);
       baseUrl = devServer.baseUrl;
     } else {
-      baseUrl = NETWORKS[config.network].websiteUrl;
+      baseUrl = websiteUrlOf(config.network);
     }
     const targetUrl = resolveTargetUrl(config, baseUrl);
 
@@ -91,6 +93,13 @@ export async function runE2E(config: RunConfig): Promise<void> {
     );
     for (const warning of balanceWarnings(balances))
       artifacts.log(`BALANCE WARNING: ${warning}`);
+
+    // The wallet must run as the account every Ethereum check derives. A mismatch means the import
+    // selected another account, so nothing downstream would test what it claims to.
+    if (!addrMatches(imported.ethAddress, balances.eth.address))
+      throw new Error(
+        `${config.ethWallet} shows ${imported.ethAddress}, but Account ${config.ethAccount} of the mnemonic is ${balances.eth.address}.`,
+      );
 
     // Max-BTC-Vaults pre-flight (pegin only). A position has an on-chain cap on how many BTC Vaults it
     // can hold; the app blocks the deposit ("Maximum BTC Vaults reached") once full. Read the cap +

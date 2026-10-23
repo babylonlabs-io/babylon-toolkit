@@ -450,6 +450,14 @@ export const COPY = {
       splitUnavailable:
         "The protocol is near its BTCVault limit. BTCVault split unavailable.",
     },
+    // The application's depositor allow-list does not include the connected
+    // Ethereum account. Only the Ethereum account is checked, so the label
+    // names it: switching the BTC wallet cannot help.
+    allowList: {
+      cta: "Ethereum wallet not on the allow list",
+    },
+    // The deposit CTA while the click-time BTC wallet liveness probe runs.
+    checkingWalletCta: "Checking wallet...",
     // Split sizing and the deposit flow's pre-sign vault-amount checks: the
     // form hint when the SDK's `findSplitSizingViolation` refuses a split,
     // and the errors when submitted vault amounts are out of order or do not
@@ -1497,6 +1505,17 @@ export const COPY = {
       positionCapacityUnavailable: {
         title: "Couldn't check your position",
         body: "We couldn't confirm that your Aave position has room for this deposit. This attempt didn't broadcast anything. Please try again in a few minutes.",
+      },
+      // A new deposit's registration refused because the connected Ethereum
+      // account is not on the application's depositor allow-list: either the
+      // check before the first signing prompt or before the registration read
+      // it from chain, or the registration's gas estimate reverted with
+      // `DepositNotAllowed`. Always before the registration, so this attempt
+      // broadcast nothing. Stage-neutral on purpose, like the entry above: the
+      // check before registration runs after the derive and PoP prompts.
+      depositorNotAllowListed: {
+        title: "Wallet not on the allow list",
+        body: "Deposits are open only to Ethereum wallets on the allow list, and the connected wallet isn't on it. This attempt didn't broadcast anything. Connect an allow-listed Ethereum wallet to deposit.",
       },
       // A BTCVault the indexer lists under this Pre-Pegin is registered on
       // Ethereum to a different Pre-Pegin, depositor or application, so the
