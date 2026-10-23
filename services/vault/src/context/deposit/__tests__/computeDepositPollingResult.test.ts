@@ -69,12 +69,82 @@ function makeInputs(
     isLoading: false,
     optimisticStatuses: new Map(),
     optimisticRefundBroadcastAt: new Map(),
+    optimisticConfirmingAt: new Map(),
     wotsSubmittedAt: new Map(),
     activationReturnedIds: new Set(),
     btcPublicKey: PUBKEY,
     ...overrides,
   };
 }
+
+describe("computeDepositPollingResult — confirming anchor", () => {
+  const CONFIRMING_AT = 1_700_000_000_000;
+
+  function makeConfirmingInputs(now: number): DepositPollingInputs {
+    return makeInputs({
+      activity: {
+        ...makeExpiredActivity(),
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        contractStatus: ContractStatus.PENDING,
+      },
+      matureRefundTxids: new Set(),
+      pendingIngestion: new Set([VAULT_ID]),
+      // The mempool answered 404: the only evidence that a broadcast was lost.
+      prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, null]]),
+      pendingPegins: [
+        {
+          id: VAULT_ID,
+          peginTxHash: PEGIN_TX,
+          timestamp: CONFIRMING_AT,
+          status: LocalStorageStatus.CONFIRMING,
+          confirmingAt: CONFIRMING_AT,
+          unsignedTxHex: "0x00",
+        },
+      ],
+      now,
+    });
+  }
+
+  it("hides broadcast while the stored confirmingAt is inside the window", () => {
+    const result = computeDepositPollingResult(
+      makeConfirmingInputs(CONFIRMING_AT + 5 * 60 * 1000),
+    );
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+    );
+  });
+
+  it("re-offers broadcast once the stored confirmingAt is past the window", () => {
+    const result = computeDepositPollingResult(
+      makeConfirmingInputs(CONFIRMING_AT + 31 * 60 * 1000),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+    );
+  });
+
+  it("keeps broadcast hidden past the window while the mempool count is not loaded", () => {
+    const result = computeDepositPollingResult({
+      ...makeConfirmingInputs(CONFIRMING_AT + 31 * 60 * 1000),
+      prePeginConfirmationsByTxid: new Map(),
+    });
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+    );
+  });
+
+  it("hides broadcast after an in-session broadcast that has no deposit record", () => {
+    const result = computeDepositPollingResult({
+      ...makeConfirmingInputs(CONFIRMING_AT + 5 * 60 * 1000),
+      pendingPegins: [],
+      optimisticStatuses: new Map([[VAULT_ID, LocalStorageStatus.CONFIRMING]]),
+      optimisticConfirmingAt: new Map([[VAULT_ID, CONFIRMING_AT]]),
+    });
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+    );
+  });
+});
 
 describe("computeDepositPollingResult — payout-signed anchor", () => {
   it("carries the stored payoutSignedAt onto the pegin state", () => {

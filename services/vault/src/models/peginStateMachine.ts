@@ -199,6 +199,12 @@ export interface GetPeginStateOptions {
    * `prePeginBroadcastConfirmed` (confirmed ⇒ seen).
    */
   prePeginBroadcastSeen?: boolean;
+  /**
+   * True when the mempool API answered that it does not know the Pre-PegIn
+   * (a 404). A count that is not loaded yet is no answer, so it is not "not
+   * found". Only this lets an expired CONFIRMING marker re-offer the broadcast.
+   */
+  prePeginBroadcastNotFound?: boolean;
   expirationReason?: ExpirationReason;
   expiredAt?: number;
   /**
@@ -302,6 +308,11 @@ export interface GetPeginStateOptions {
   refundBroadcastAt?: number;
   payoutSignedAt?: number;
   /**
+   * `Date.now()` value captured when this browser marked the Pre-PegIn
+   * CONFIRMING. Anchors the TTL on the CONFIRMING broadcast suppression.
+   */
+  confirmingAt?: number;
+  /**
    * The vault's activation receipt carried the registry's `VaultClaimableBy`
    * log making it claimable by the depositor's key: the registry redeemed it
    * for the depositor instead of handing it to the application. Known from
@@ -349,6 +360,18 @@ const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
  * signing step shows again instead of a sticky floor for the life of the entry.
  */
 const PAYOUT_SIGNED_SUPPRESSION_MS = 20 * 60 * 1000;
+
+/**
+ * How long a CONFIRMING marker hides the broadcast action while the provider
+ * still reports pending ingestion. A seen tx drops the action on its own. Past
+ * this window the action comes back only when the mempool API reports the
+ * Pre-PegIn as not found. A count that is not loaded yet (cold load, mempool
+ * API outage, a vault this wallet does not own) keeps the action hidden. A
+ * healthy broadcast shows in the mempool within seconds, so this window only
+ * covers propagation and indexer lag. A repeat broadcast of a live tx is
+ * harmless.
+ */
+const CONFIRMING_SUPPRESSION_MS = 30 * 60 * 1000;
 
 // ============================================================================
 // Expiration helpers
@@ -531,6 +554,8 @@ export function getPeginState(
       pendingIngestion: options.pendingIngestion,
     },
     options.refundBroadcastAt,
+    options.confirmingAt,
+    options.prePeginBroadcastNotFound,
     options.now,
   );
   // Chain ground truth overrides the localStorage-gated broadcast action:
@@ -636,6 +661,8 @@ function applyTrackingOverrides(
   localStatus?: LocalStorageStatus,
   vpState?: VpReconciliationState,
   refundBroadcastAt?: number,
+  confirmingAt?: number,
+  prePeginBroadcastNotFound?: boolean,
   now?: number,
 ): SdkPeginAction[] {
   if (!localStatus) return sdkActions;
@@ -658,6 +685,12 @@ function applyTrackingOverrides(
       // If VP explicitly reports no pending ingestion (broadcast not
       // detected), the local status is stale — ignore the override.
       if (vpState?.pendingIngestion === false) return sdkActions;
+      // A lost broadcast must not hide the retry until the vault expires.
+      if (
+        prePeginBroadcastNotFound === true &&
+        !isWithinTtl(confirmingAt, now, CONFIRMING_SUPPRESSION_MS)
+      )
+        return sdkActions;
       return sdkActions.filter(
         (a) => a !== SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       );
