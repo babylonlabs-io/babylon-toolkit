@@ -61,6 +61,7 @@ export default function Loans() {
     position,
     indexerError,
     availableToBorrowUsd,
+    debtValueUsd,
     canBorrow,
     borrowedAssets,
     hasLoans,
@@ -187,6 +188,7 @@ export default function Loans() {
           <LoansSummary
             availableToBorrow={formatUsdValue(availableToBorrowUsd)}
             borrowedAssets={shownBorrowedAssets}
+            borrowedValue={formatUsdValue(debtValueUsd)}
             maxBorrowReserves={maxBorrowReserves}
             borrowCount={cardBorrowCount(demoLoans, {
               position,
