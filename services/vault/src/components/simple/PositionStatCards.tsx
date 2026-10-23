@@ -1,4 +1,4 @@
-import { Avatar, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import { Avatar, AvatarGroup, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { Fragment, type ReactNode } from "react";
 
 import type { BorrowedAsset } from "@/applications/aave/hooks/useAaveBorrowedAssets";
@@ -165,7 +165,10 @@ export function buildBorrowCapacityCards({
 }: {
   availableToBorrow: string;
   /** Assets the position currently owes; empty before the first borrow. */
-  borrowedAssets: Pick<BorrowedAsset, "symbol" | "name" | "icon">[];
+  borrowedAssets: Pick<
+    BorrowedAsset,
+    "reserveId" | "symbol" | "name" | "icon"
+  >[];
   /** The spoke's borrow-reserve cap; `null` when it sets none. */
   maxBorrowReserves: BorrowReserveLimit;
   /**
@@ -225,13 +228,17 @@ export function buildBorrowCapacityCards({
     {
       label: COPY.overview.borrowedAssetLabel,
       leading: firstBorrowed ? (
-        <Avatar
-          url={firstBorrowed.icon}
-          alt={firstBorrowed.name}
-          size="large"
-          variant="circular"
-          className={`${BORROWED_ASSET_AVATAR_CLASS} bg-white`}
-        />
+        <AvatarGroup variant="circular" className="shrink-0">
+          {borrowedAssets.map((asset) => (
+            <Avatar
+              key={asset.reserveId}
+              url={asset.icon}
+              alt={asset.name}
+              size="large"
+              className={`${BORROWED_ASSET_AVATAR_CLASS} bg-white`}
+            />
+          ))}
+        </AvatarGroup>
       ) : (
         <BorrowedAssetPlaceholder />
       ),
