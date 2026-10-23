@@ -55,8 +55,6 @@ export function ActivityListWithRefund({
 }: ActivityListWithRefundProps) {
   const {
     expiredActivities,
-    ethAddress,
-    broadcastModal,
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,
@@ -140,12 +138,10 @@ export function ActivityListWithRefund({
     <ProtocolParamsProvider>
       {list}
       <PendingDepositModals
-        broadcastModal={broadcastModal}
         refundModal={refundModal}
         reclaimModal={reclaimModal}
         emergencyWithdrawModal={emergencyWithdrawModal}
         claimExpiredModal={claimExpiredModal}
-        ethAddress={ethAddress}
       />
     </ProtocolParamsProvider>
   );

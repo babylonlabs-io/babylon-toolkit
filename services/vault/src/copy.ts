@@ -674,14 +674,6 @@ export const COPY = {
       secretNotHeld:
         "The retrieved secret is no longer available. Try again to retrieve it from your Ledger.",
     },
-    broadcastSuccess: {
-      heading: "Pre-Pegin Broadcast",
-      body: (amount: string, symbol: string) =>
-        `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your BTCVault is not active yet. This is just one step in the deposit lifecycle.`,
-      footnote:
-        "Once confirmed, you'll be asked to submit a WOTS key, sign payout authorizations, and activate your BTCVault.",
-      doneButton: "Done",
-    },
     refundSuccess: {
       heading: "Expired BTCVault withdrawal broadcast",
       body: "Your expired BTCVault withdrawal transaction has been broadcast successfully.",

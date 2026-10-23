@@ -9,10 +9,10 @@
  *  - reclaimableCandidates: settled deposits (contractStatus 6=DEPOSITOR_WITHDRAWN or 8=NON_DEPOSITOR_SPEND)
  *    whose depositor-claim reserve may still be unspent. Candidates only —
  *    eligibility is decided on Bitcoin, not from this status.
- * Provides wallet state and modal handlers for broadcast/refund actions on
- * pending and expired deposits. The post-broadcast actions (WOTS, payout
- * signing, activation, artifact download) are owned by the deposit
- * multistepper opened from the card body, not per-action modals.
+ * Provides wallet state and modal handlers for refund and recovery actions on
+ * pending and expired deposits. Every other per-vault action (Pre-PegIn
+ * broadcast, WOTS, payout signing, activation, artifact download) is owned by
+ * the deposit multistepper, not per-action modals.
  *
  * Polling infrastructure moved to `AppPeginPollingProvider`.
  */
@@ -23,7 +23,6 @@ import type { Address } from "viem";
 import { selectPendingActivities } from "@/context/deposit/pendingDepositCount";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
-import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useClaimExpiredModal } from "@/hooks/deposit/useClaimExpiredModal";
 import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useReclaimModal } from "@/hooks/deposit/useReclaimModal";
@@ -63,7 +62,7 @@ export function usePendingDeposits() {
   // God-mode demo deposit (dev only; null unless NEXT_PUBLIC_FF_GOD_MODE_PANEL
   // is on and enabled). Injected into the render lists below — but NOT into
   // `allActivities` — so the real section renders it while it is never polled.
-  // Broadcast/refund click handlers resolve ids against `allActivities` and so
+  // Refund click handlers resolve ids against `allActivities` and so
   // no-op for it; only the activation walk opts in, by resolving demo ids from
   // the `demo` aggregate returned below (see PendingDepositSection). When
   // `demo.hideReal` is set, the real deposits are dropped from the render lists
@@ -109,11 +108,6 @@ export function usePendingDeposits() {
     () => (demo ? [demo.provider, ...vaultProviders] : vaultProviders),
     [demo, vaultProviders],
   );
-
-  const broadcastModal = useBroadcastModal({
-    allActivities: activities,
-    onSuccess: refetchActivities,
-  });
 
   const refundModal = useRefundModal({
     allActivities: activities,
@@ -166,7 +160,6 @@ export function usePendingDeposits() {
      * Stored status of each browser-local record, keyed by lowercased vault id.
      */
     localRecordStatuses,
-    broadcastModal,
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,

@@ -34,7 +34,6 @@ import {
   resolveDepositSplitUnavailableReason,
   resolveVaultCapState,
 } from "@/services/deposit/vaultCap";
-import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
@@ -49,41 +48,20 @@ import { DepositForm } from "./DepositForm";
 import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./DepositProgressView/layout";
 import { DepositSignContent } from "./DepositSignContent";
 import { FadeTransition } from "./FadeTransition";
-import { ResumeBroadcastContent } from "./ResumeDepositContent";
 
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
-type SimpleDepositBaseProps = {
+// Resuming a deposit (Pre-PegIn broadcast, WOTS key, payout signing,
+// activation) is owned by the deposit multistepper
+// (PostDepositContinuationView). SimpleDeposit only handles the new-deposit flow.
+type SimpleDepositProps = {
   open: boolean;
   onClose: () => void;
   /** Optional pre-filled BTC amount (e.g. from position notification suggestions) */
   initialAmountBtc?: string;
 };
-
-type NewDepositProps = SimpleDepositBaseProps & {
-  resumeMode?: undefined;
-};
-
-type ResumeBroadcastProps = SimpleDepositBaseProps & {
-  resumeMode: "broadcast_btc";
-  activity: VaultActivity;
-  /**
-   * Every vault ID believed to share this Pre-PegIn transaction (batched
-   * pegin). Includes `activity.id`; a standalone deposit is a single-element
-   * list. Only chain-verified ids are marked broadcast.
-   */
-  batchVaultIds: string[];
-  depositorEthAddress: string;
-  onResumeSuccess: (confirmedVaultIds: readonly string[]) => void;
-};
-
-// The post-broadcast resume actions (submit WOTS key, sign payouts, activate)
-// are owned by the deposit multistepper (PostDepositContinuationView), which
-// renders the Resume*Content components directly. SimpleDeposit only handles
-// the new-deposit flow and the shared Pre-PegIn broadcast resume.
-export type SimpleDepositProps = NewDepositProps | ResumeBroadcastProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -93,7 +71,7 @@ function SimpleDepositContent({
   open,
   onClose,
   initialAmountBtc,
-}: SimpleDepositBaseProps) {
+}: SimpleDepositProps) {
   const gate = useProtocolGateState();
   const { requireBtcWallet } = useBtcAction();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
@@ -695,35 +673,12 @@ function SimpleDepositContent({
 }
 
 // ---------------------------------------------------------------------------
-// Public component — single modal for new deposits and resume flows
+// Public component — new deposit modal
 // ---------------------------------------------------------------------------
 
 export default function SimpleDeposit(props: SimpleDepositProps) {
-  const { open, onClose, resumeMode } = props;
+  const { open, onClose } = props;
 
-  // Resume mode: skip form/state providers and render the broadcast resume
-  // content directly. (Other post-broadcast actions live in the multistepper.)
-  if (resumeMode) {
-    return (
-      <ProtocolParamsProvider>
-        <V3ModalShell
-          open={open}
-          onClose={onClose}
-          contentClassName={DEPOSIT_VIEW_MAX_WIDTH_CLASS}
-        >
-          <ResumeBroadcastContent
-            activity={props.activity}
-            batchVaultIds={props.batchVaultIds}
-            depositorEthAddress={props.depositorEthAddress}
-            onClose={onClose}
-            onSuccess={props.onResumeSuccess}
-          />
-        </V3ModalShell>
-      </ProtocolParamsProvider>
-    );
-  }
-
-  // New deposit flow
   return (
     <ProtocolParamsProvider requireUniversalChallengers>
       <DepositState>
