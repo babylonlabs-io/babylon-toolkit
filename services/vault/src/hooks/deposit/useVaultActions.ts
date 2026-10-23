@@ -637,9 +637,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           ...forwardDepositApproval(btcWalletProvider),
           getPublicKeyHex: () => btcWalletProvider.getPublicKeyHex(),
           signPsbt: async (psbtHex: string) => {
-            // Input resolution can wait on the network. The service re-reads
-            // the Bitcoin key; re-check the Ethereum account here.
-            await assertDepositorEthWallet();
+            signal.throwIfAborted();
             return btcWalletProvider.signPsbt(psbtHex);
           },
         },

@@ -1427,7 +1427,8 @@ export function useDepositFlow(
           depositorBtcPubkey: batchResult.depositorBtcPubkey,
           expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
           depositTerms: batchResult.depositTerms,
-          // One Pre-PegIn funds the batch; vaultId only labels a key refusal.
+          // Every vault in the batch shares this one Pre-PegIn, so any member names it.
+          // vaultId is only echoed in the key-mismatch error; nothing stores or keys on it.
           vaultId: batchRegistration.vaults[0].vaultId as Hex,
         });
 

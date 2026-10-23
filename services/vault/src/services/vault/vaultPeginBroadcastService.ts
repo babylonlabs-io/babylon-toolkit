@@ -33,7 +33,6 @@ import { getMempoolApiUrl } from "../../clients/btc/config";
 import {
   DepositorBtcKeyMismatchError,
   isDepositorBtcKeyMismatchError,
-  isDepositorWalletMismatchError,
 } from "../../utils/errors/depositorWalletMismatch";
 import { isDeviceCeremonyInvalidError } from "../../utils/errors/deviceErrors";
 
@@ -471,8 +470,8 @@ export async function broadcastPrePeginTransaction(
   // Stage 2: sign. Includes the ceremony so device failures read as signing.
   let signedTxHex: string;
   try {
-    // Prevout resolution can wait on the network, so read the wallet key here,
-    // immediately before the ceremony and the signing prompt.
+    // Read the wallet key last, immediately before the ceremony and the
+    // signing prompt.
     await assertConnectedDepositorBtcKey({
       btcWalletProvider,
       depositorBtcPubkey,
@@ -487,11 +486,10 @@ export async function broadcastPrePeginTransaction(
       signal,
     });
   } catch (error) {
-    // The device-envelope rejection and the depositor wallet checks are typed,
-    // user-actionable refusals: pass them unwrapped.
+    // The device-envelope rejection and the depositor Bitcoin-key refusal are
+    // typed, user-actionable refusals: pass them unwrapped.
     if (
       isDepositTermsRejectedError(error) ||
-      isDepositorWalletMismatchError(error) ||
       isDepositorBtcKeyMismatchError(error)
     ) {
       throw error;

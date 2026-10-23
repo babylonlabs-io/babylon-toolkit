@@ -9,10 +9,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  DepositorBtcKeyMismatchError,
-  DepositorWalletMismatchError,
-} from "@/utils/errors/depositorWalletMismatch";
+import { DepositorBtcKeyMismatchError } from "@/utils/errors/depositorWalletMismatch";
 
 // Use vi.hoisted so mocks can reference these before module initialization
 const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
@@ -379,26 +376,6 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
       message: expect.stringContaining("Failed to sign Pre-Pegin transaction"),
       cause: inner,
     });
-  });
-
-  it("rethrows a depositor Ethereum-wallet mismatch from signing unwrapped, without broadcasting", async () => {
-    const mismatch = new DepositorWalletMismatchError({
-      vaultId: "0xabc",
-      expectedDepositor: "0x1111111111111111111111111111111111111111",
-      connectedDepositor: "0x2222222222222222222222222222222222222222",
-    });
-    const signPsbt = vi.fn().mockRejectedValue(mismatch);
-    vi.mocked(pushTx).mockClear();
-
-    await expect(
-      broadcastPrePeginTransaction({
-        ...baseParams,
-        btcWalletProvider: { ...baseParams.btcWalletProvider, signPsbt },
-        expectedUtxos: undefined,
-      }),
-    ).rejects.toBe(mismatch);
-
-    expect(pushTx).not.toHaveBeenCalled();
   });
 
   it("refuses before the ceremony and signing when the wallet key is not the depositor key", async () => {
