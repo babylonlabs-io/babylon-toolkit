@@ -276,7 +276,9 @@
 /* ---- Plot-width bands (Timeline `bandPlacement="plot"`) ---------- */
 /* The bands sit under the candles here, so they tint rather than fill, and
  * the level lines and price rule thin out to read over them. `fill-opacity`,
- * not `opacity`, keeps the band label at full strength. */
+ * not `opacity`, keeps the band label at full strength. The label sits on that
+ * tint, which is close to the chart surface, so it takes the surface text
+ * colour rather than the white used on solid fills. */
 .bbn-liq-timeline--plot .bbn-liq-band__rect {
   fill-opacity: 0.2;
 }
@@ -286,6 +288,9 @@
 }
 .bbn-liq-timeline--plot .bbn-liq-price-line {
   stroke-width: 1;
+}
+.bbn-liq-timeline--plot .bbn-liq-band__text text {
+  fill: var(--liq-surface-text);
 }
 /* The safe zone spans the candle region over the interaction rect; it has no
  * hover of its own, so it lets the crosshair/pan/zoom through. */
