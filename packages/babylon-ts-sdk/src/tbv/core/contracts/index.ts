@@ -15,12 +15,15 @@ export { VAULT_ERROR_ABI } from "./abis/VaultErrors.abi";
 
 export {
   CONTRACT_ERRORS,
+  DEPOSIT_NOT_ALLOWED_SELECTOR,
+  DepositNotAllowedError,
   EMPTY_REVERT_MESSAGE,
   PEGIN_FINGERPRINT_CHANGED_SELECTOR,
   PeginFingerprintChangedError,
   extractErrorData,
   getContractErrorMessage,
   handleContractError,
+  isDepositNotAllowedError,
   isKnownContractError,
   isPeginFingerprintChangedError,
 } from "./errors";

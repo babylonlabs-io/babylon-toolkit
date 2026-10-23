@@ -1,0 +1,250 @@
+/**
+ * The "allow-list" action: open and fill the deposit form, never submit it, and check its CTA against
+ * the depositor allow-list on chain.
+ *
+ * The run first asks the chain itself (allowListParams.ts) whether the registry would take a deposit
+ * from the connected Ethereum account, then watches the app ask the same question on its own RPC
+ * (`checkAllowed`, answered truthfully — nothing is injected). Then:
+ *   - not on the list: the CTA must read "Ethereum wallet not on the allow list" and stay disabled
+ *     through a hold longer than the form's refetch interval;
+ *   - on the list (or the gate removed): the CTA must reach the enabled "Deposit".
+ * Either way the app must have asked about this account and this application and been told the chain's
+ * answer, no wallet window may open once the wallets are connected, and the account's pending nonce must
+ * not move.
+ *
+ * Spends nothing: the form is never submitted. Run it on `--target=localhost` to test local app code;
+ * the gate is on in the `testnet-3` network's deployment and removed in devnet's.
+ */
+import type { Page, Response } from "@playwright/test";
+import { sepolia } from "viem/chains";
+
+import {
+  readAllowListVerdict,
+  type AllowListVerdict,
+} from "../allowListParams";
+import { readPendingNonce } from "../positionCapacityParams";
+import {
+  ALLOW_LIST_BLOCK_HOLD_MS,
+  DEPOSIT_CTA_ENABLE_TIMEOUT_MS,
+  FORM_SETTLE_MS,
+  STEP_TIMEOUT_MS,
+} from "../timing";
+
+import {
+  mayCarryCheckAllowed,
+  readAllowListAnswers,
+  type AllowListRead,
+} from "./allowListRpcAnswers";
+import { installPopupApprover } from "./approver";
+import { parseJsonRpcCall } from "./jsonRpcRoute";
+import { openDepositForm, waitForDepositCta } from "./pegin";
+import { startRecording } from "./recording";
+import { ALLOW_LIST_CTA_LABEL, FLUID_CTA_SELECTOR } from "./selectors";
+import { type Action, type ActionContext } from "./types";
+import { connectWallets } from "./walletConnect";
+
+const MULTICALL3 = sepolia.contracts.multicall3.address;
+
+/** Every `checkAllowed` read the page makes, with the RPC's answer. Passive: nothing is rewritten. */
+function watchAllowListReads(page: Page): {
+  reads: AllowListRead[];
+  dispose: () => void;
+} {
+  const reads: AllowListRead[] = [];
+  const onResponse = (response: Response) => {
+    const request = response.request();
+    if (!mayCarryCheckAllowed(request.postData() ?? "")) return;
+    const call = parseJsonRpcCall(request);
+    if (call?.method !== "eth_call") return;
+    void response
+      .json()
+      .then((body: unknown) => {
+        const result = (body as { result?: unknown } | null)?.result;
+        if (typeof result !== "string") return;
+        reads.push(
+          ...readAllowListAnswers(
+            call.params[0],
+            result as `0x${string}`,
+            MULTICALL3,
+          ),
+        );
+      })
+      .catch(() => {});
+  };
+  page.on("response", onResponse);
+  return { reads, dispose: () => page.off("response", onResponse) };
+}
+
+/** Wallet windows that open from now on. */
+function watchWalletWindows(ctx: ActionContext): {
+  urls: string[];
+  dispose: () => void;
+} {
+  const urls: string[] = [];
+  const onWindow = (opened: Page) => {
+    void opened
+      .waitForLoadState("domcontentloaded")
+      .catch(() => {})
+      .then(() => {
+        const url = opened.url();
+        if (url.startsWith("chrome-extension://")) urls.push(url);
+      });
+  };
+  ctx.context.on("page", onWindow);
+  return { urls, dispose: () => ctx.context.off("page", onWindow) };
+}
+
+async function readCta(
+  page: Page,
+): Promise<{ label: string; enabled: boolean }> {
+  const cta = page.locator(FLUID_CTA_SELECTOR).first();
+  return {
+    label: (await cta.textContent().catch(() => ""))?.trim() ?? "",
+    enabled: await cta.isEnabled().catch(() => false),
+  };
+}
+
+/** Wait for the blocked CTA, then require it to hold with no wallet window opening. */
+async function assertFormBlocked(
+  ctx: ActionContext,
+  windows: { urls: string[] },
+): Promise<void> {
+  const { page, log } = ctx;
+  const blocked = (cta: { label: string; enabled: boolean }) =>
+    cta.label === ALLOW_LIST_CTA_LABEL && !cta.enabled;
+
+  let lastLabel = "";
+  const deadline = Date.now() + DEPOSIT_CTA_ENABLE_TIMEOUT_MS;
+  for (;;) {
+    const cta = await readCta(page);
+    if (cta.label && cta.label !== lastLabel) {
+      log(`Deposit CTA: "${cta.label}"${cta.enabled ? "" : " (disabled)"}`);
+      lastLabel = cta.label;
+    }
+    if (blocked(cta)) break;
+    if (Date.now() > deadline)
+      throw new Error(
+        `The deposit form never blocked an account the chain says is not on the allow-list: expected a disabled "${ALLOW_LIST_CTA_LABEL}" (last CTA: "${lastLabel}").`,
+      );
+    await page.waitForTimeout(FORM_SETTLE_MS);
+  }
+
+  log(
+    `Deposit CTA blocked — holding ${ALLOW_LIST_BLOCK_HOLD_MS / 1000}s through a form refetch`,
+  );
+  const holdUntil = Date.now() + ALLOW_LIST_BLOCK_HOLD_MS;
+  while (Date.now() < holdUntil) {
+    const cta = await readCta(page);
+    if (!blocked(cta))
+      throw new Error(
+        `The deposit form unblocked an account that is not on the allow-list: the CTA became "${cta.label}"${cta.enabled ? " (enabled)" : ""}.`,
+      );
+    if (windows.urls.length > 0)
+      throw new Error(
+        `A wallet window opened on a blocked deposit form: ${windows.urls.join(", ")}.`,
+      );
+    await page.waitForTimeout(FORM_SETTLE_MS);
+  }
+}
+
+/**
+ * The app must have asked the chain about this account in this application, and heard the chain's
+ * answer. A read is recorded only once its response body is parsed, after the form may already show
+ * the enabled "Deposit" (the form fails open while its read is in flight), so wait for it first.
+ */
+async function assertAppAsked(
+  page: Page,
+  verdict: AllowListVerdict,
+  reads: readonly AllowListRead[],
+): Promise<AllowListRead[]> {
+  const isOurs = (read: AllowListRead) =>
+    read.depositor === verdict.depositor &&
+    read.appEntryPoint === verdict.appEntryPoint;
+  const deadline = Date.now() + STEP_TIMEOUT_MS;
+  while (!reads.some(isOurs) && Date.now() < deadline)
+    await page.waitForTimeout(FORM_SETTLE_MS);
+
+  const ours = reads.filter(isOurs);
+  if (ours.length === 0)
+    throw new Error(
+      `The app never asked checkAllowed(${verdict.appEntryPoint}, ${verdict.depositor}) on its RPC, so the form's CTA was not decided by the allow-list (${reads.length} other checkAllowed read(s)).`,
+    );
+  const elsewhere = ours.find((read) => read.policy !== verdict.policy);
+  if (elsewhere)
+    throw new Error(
+      `The app asked a different allow-list policy (${elsewhere.policy}) than the registry names (${verdict.policy}).`,
+    );
+  const mismatch = ours.find((read) => read.answer !== verdict.allowed);
+  if (mismatch)
+    throw new Error(
+      `The app's checkAllowed read was answered ${String(mismatch.answer)}, but the chain says ${String(verdict.allowed)}.`,
+    );
+  return ours;
+}
+
+export const allowListAction: Action = {
+  id: "allow-list",
+  async run(ctx: ActionContext): Promise<void> {
+    const { page, context, config, log } = ctx;
+    const amountBtc = config.peginAmountBtc?.trim();
+    if (!amountBtc)
+      throw new Error(
+        "allow-list: no deposit amount resolved — the minimum-deposit fetch failed and no --amount was given. Re-run with --amount=<btc>.",
+      );
+
+    const verdict = await readAllowListVerdict(config.network, ctx.eth.address);
+    log(
+      `Allow-list on chain: policy ${verdict.policy}, gate ${verdict.gateRemoved ? "removed" : "on"} for ${verdict.appEntryPoint}; ${verdict.depositor} is ${verdict.allowed ? "allowed" : "NOT allowed"} → the form must ${verdict.allowed ? 'reach "Deposit"' : `show "${ALLOW_LIST_CTA_LABEL}"`}`,
+    );
+
+    // Watched from before the connect: the form reads the list as soon as an account is connected.
+    const appReads = watchAllowListReads(page);
+    const approver = installPopupApprover(context, log);
+    const recorder = await startRecording(context, page, ctx.artifactsDir, log);
+    let windows: ReturnType<typeof watchWalletWindows> | undefined;
+    try {
+      await connectWallets(ctx);
+      context.off("page", approver);
+      windows = watchWalletWindows(ctx);
+      const nonceBefore = await readPendingNonce(
+        config.network,
+        ctx.eth.address,
+      );
+
+      // From the overview: the gate under test lives in the deposit modal, whichever page opens it,
+      // and /vaults shows no deposit button while its indexed vault list cannot load.
+      await openDepositForm(
+        page,
+        log,
+        amountBtc,
+        config.peginProvider?.trim() || undefined,
+        false,
+        "overview",
+      );
+      if (verdict.allowed) await waitForDepositCta(page, log);
+      else await assertFormBlocked(ctx, windows);
+
+      const asked = await assertAppAsked(page, verdict, appReads.reads);
+      if (windows.urls.length > 0)
+        throw new Error(
+          `A wallet window opened while only the deposit form was filled: ${windows.urls.join(", ")}.`,
+        );
+      const nonceAfter = await readPendingNonce(
+        config.network,
+        ctx.eth.address,
+      );
+      if (nonceAfter !== nonceBefore)
+        throw new Error(
+          `The account sent a transaction during the run (pending nonce ${nonceBefore} → ${nonceAfter}).`,
+        );
+      log(
+        `Allow-list verified ✅ (the app asked ${asked.length} time(s) and was answered ${String(verdict.allowed)}; the form ${verdict.allowed ? 'reached "Deposit"' : "stayed blocked"}; no wallet window, nothing sent)`,
+      );
+    } finally {
+      await recorder.stop();
+      windows?.dispose();
+      appReads.dispose();
+      context.off("page", approver);
+    }
+  },
+};

@@ -8,7 +8,7 @@
 import type { SupportedWallet } from "./connector";
 
 export type Target = "localhost" | "website";
-export type NetworkName = "devnet" | "testnet";
+export type NetworkName = "devnet" | "testnet" | "testnet-3";
 export type BtcWalletId = "unisat" | "okx" | "onekey";
 export type EthWalletId = "metamask";
 export type DataMode = "real" | "mock";
@@ -75,7 +75,8 @@ export type ActionId =
   | "resume"
   | "recover"
   | "reclaim"
-  | "forged-stuck";
+  | "forged-stuck"
+  | "allow-list";
 
 /** Maps our lowercase wallet ids to the connector's SupportedWallet keys. */
 export const BTC_WALLET_TO_CONNECTOR: Record<BtcWalletId, SupportedWallet> = {
@@ -88,8 +89,8 @@ export const ETH_WALLET_TO_CONNECTOR: Record<EthWalletId, SupportedWallet> = {
 };
 
 export interface NetworkConfig {
-  /** Public deployment for the `website` target. */
-  websiteUrl: string;
+  /** Public deployment for the `website` target; undefined ⇒ the network runs on localhost only. */
+  websiteUrl?: string;
   /** pnpm script that starts the local dev server for this network (undefined ⇒ `dev`). */
   devScript?: string;
   /** Signet mempool REST base used for the BTC balance pre-flight. */
@@ -97,7 +98,7 @@ export interface NetworkConfig {
   /** Sepolia RPC + chain id used for the ETH balance pre-flight. */
   sepoliaRpcUrl: string;
   ethChainId: number;
-  /** Profile in services/vault/networks the app runs on for this network (`pnpm dev` ⇒ devnet, `dev:testnet` ⇒ testnet-2). */
+  /** Profile in services/vault/networks the app runs on for this network (the dev server is started with it). */
   profile: string;
 }
 
@@ -121,6 +122,16 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
     profile: "testnet-2",
+  },
+  // The testnet-3 deployment (the `testnet` profile), where the depositor allow-list gate is on.
+  // Localhost only: no public URL is recorded for it here.
+  "testnet-3": {
+    websiteUrl: undefined,
+    devScript: undefined, // `pnpm dev` with the profile pinned (runs sync-env first)
+    mempoolApiBase: SIGNET_MEMPOOL,
+    sepoliaRpcUrl: SEPOLIA_RPC,
+    ethChainId: SEPOLIA_CHAIN_ID,
+    profile: "testnet",
   },
 };
 
@@ -195,6 +206,12 @@ export const ACTIONS: ActionOption[] = [
       "Forged stuck (a mempool API reporting a Verified vault swept must not offer Withdraw)",
     enabled: true,
   },
+  {
+    id: "allow-list",
+    label:
+      "Allow-list (the deposit form against the depositor allow-list on chain; spends nothing)",
+    enabled: true,
+  },
 ];
 
 /** A fully-resolved run: what the user chose (interactively or via flags). */
@@ -212,6 +229,11 @@ export interface RunConfig {
    * Ethereum-only actions the way a depositor with no Bitcoin wallet reaches them (#2228).
    */
   ethOnly?: boolean;
+  /**
+   * MetaMask "Account N" of the mnemonic to run as (`--eth-account`, default 1): selected in the
+   * wallet before the dApp connects, and the account every Ethereum check derives and compares.
+   */
+  ethAccount: number;
   /** Pegin only: BTC amount to deposit (`--amount`); the action defaults it when absent. */
   peginAmountBtc?: string;
   /** Pegin only: vault provider name to select (`--vp`); defaults to the first available. */
@@ -357,6 +379,12 @@ export interface RunConfig {
    * activation once the injection releases and Retry is clicked).
    */
   injectPositionFull?: PositionFullInjection;
+  /**
+   * Pegin only (`--inject-not-allow-listed`): the form loads with the account allowed, then the app's
+   * allow-list read is answered "not allowed" from the Sign click. The deposit must stop on the
+   * allow-list refusal before any signing prompt or capacity check, with nothing registered or sent.
+   */
+  injectNotAllowListed?: boolean;
 }
 
 /** Resolve the target URL a run should open. */
@@ -365,6 +393,16 @@ export function resolveTargetUrl(
   localhostBaseUrl: string,
 ): string {
   return config.target === "website"
-    ? NETWORKS[config.network].websiteUrl
+    ? websiteUrlOf(config.network)
     : localhostBaseUrl;
+}
+
+/** The network's public deployment; refuses a network that only runs on localhost. */
+export function websiteUrlOf(network: NetworkName): string {
+  const url = NETWORKS[network].websiteUrl;
+  if (url === undefined)
+    throw new Error(
+      `--network=${network} has no public deployment; run it with --target=localhost.`,
+    );
+  return url;
 }

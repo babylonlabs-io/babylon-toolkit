@@ -97,7 +97,7 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  * page). A regeneration made before the CLI records these queries drops them:
  * add them back the same way.
  *
- * The last four RPC lines are archive reads from rpc.sentio.xyz/sepolia at
+ * The last five RPC lines are archive reads from rpc.sentio.xyz/sepolia at
  * block 11313642 (2026-07-20T15:38:36Z), before the final deposit-form
  * response. The block hash is
  * 0x6bf92724bbb383ceccbac05cb26c352193ff48c27ea7ec9a948f8401a4977474.
@@ -113,7 +113,11 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  * (0x7edb14cb66a4948556ef5e1b8fcac7b845782369): releaseSettledVaults(1), then
  * getAvailableLiveVaultCapacity(), twice. That deployment predates the
  * live-vault cap, so every call reverts at this block and the form blocks
- * nothing. These
+ * nothing. The fifth is the deposit form's depositor allow-list read:
+ * allowListPolicy() on the recorded BTCVaultRegistry, which answers
+ * 0x4ba8129906cb2e5d56eceb51e985861197e2717e, then checkAllowed(recorded
+ * application, recorded depositor) on that policy, which answers true, so the
+ * form blocks nothing. These
  * are supplemental historical reads, not the original latest responses.
  *
  * A single named constant rather than a glob: which run is replayed decides

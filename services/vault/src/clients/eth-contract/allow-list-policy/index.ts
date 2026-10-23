@@ -1,0 +1,1 @@
+export { readDepositorAllowed } from "./query";

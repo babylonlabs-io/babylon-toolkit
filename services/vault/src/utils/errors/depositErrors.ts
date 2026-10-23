@@ -40,6 +40,11 @@
  *    callout, or to the can't-complete callout when the ack window has no
  *    room; the gate's own chain-read failures map to the window-unavailable
  *    callout, by body).
+ *  - Depositor allow-list — the connected Ethereum account is not on the
+ *    application's allow-list: the typed refusal from the check before the
+ *    first signing prompt, after an ETH top-up and before each registration
+ *    attempt, and the SDK's typed `DepositNotAllowed` revert from the
+ *    registration's gas estimate. Never resumable: nothing was registered.
  *  - Position capacity - refuse a new deposit's registration, or a new or
  *    resumed broadcast before signing, if the position cannot take the batch
  *    on top of the depositor's other unactivated vaults or the check is
@@ -74,6 +79,7 @@
 
 import {
   isApplicationEntryPointMismatchError,
+  isDepositNotAllowedError,
   isDepositTermsRejectedError,
   isParticipantKeyDriftError,
   isPeginFingerprintChangedError,
@@ -378,6 +384,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return err.reason === "vault-count"
       ? ERRORS.vaultCountLimitChanged
       : ERRORS.depositLimitsChanged;
+  }
+
+  // 3a''''-allow. The depositor allow-list, which the registry checks ahead of
+  // its deposit caps. Raised by the check before the first signing prompt,
+  // after an ETH top-up and before each registration attempt, and by the SDK
+  // when the registration's gas estimate reverts with `DepositNotAllowed`. A revert
+  // that only surfaces once the transaction is mined carries no revert data
+  // (see 3b') and falls through to the generic fallback.
+  if (isDepositNotAllowedError(err)) {
+    return ERRORS.depositorNotAllowListed;
   }
 
   // 3a''''. The other limit a deposit can run into: the depositor's own

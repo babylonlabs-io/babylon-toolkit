@@ -169,6 +169,12 @@ export interface DepositGatingState {
   /** True if the address block comes only from a failed screening request. */
   isAddressScreeningUnavailable: boolean;
   /**
+   * True when the chain says the connected Ethereum account is not on the
+   * application's depositor allow-list, so the registration would revert —
+   * disables the deposit CTA.
+   */
+  isDepositorNotAllowListed?: boolean;
+  /**
    * True while the inscription (ordinals) check is still in flight. Blocks
    * submission so the user cannot deposit before the spendable set has been
    * filtered against inscriptions.
@@ -281,6 +287,7 @@ export function DepositForm({
     isGeoBlocked,
     isAddressBlocked,
     isAddressScreeningUnavailable,
+    isDepositorNotAllowListed = false,
     ordinalsCheckPending = false,
     isVaultCapReached = false,
     vaultCountCapUnavailable = false,
@@ -448,6 +455,7 @@ export function DepositForm({
     isGeoBlocked,
     isAddressBlocked,
     isAddressScreeningUnavailable,
+    isDepositorNotAllowListed,
     isWalletConnected,
     canConnectBtcWallet,
     hasProvider: !!selectedProvider,
@@ -625,13 +633,17 @@ export function DepositForm({
         }
         onClick={onDeposit}
       >
-        {isVaultCapReached
-          ? COPY.deposit.maxVaultsReached.cta
-          : vaultCountCapUnavailable
-            ? COPY.deposit.maxVaultsReached.unavailableCta
-            : isVerifyingWallet
-              ? "Checking wallet..."
-              : cta.label}
+        {/* An account off the allow-list is refused whatever its position holds, so its own reason
+            stays on the button ahead of the vault-cap labels: freeing a slot cannot help it. */}
+        {isDepositorNotAllowListed
+          ? cta.label
+          : isVaultCapReached
+            ? COPY.deposit.maxVaultsReached.cta
+            : vaultCountCapUnavailable
+              ? COPY.deposit.maxVaultsReached.unavailableCta
+              : isVerifyingWallet
+                ? COPY.deposit.checkingWalletCta
+                : cta.label}
       </DepositButton>
 
       {/* Fee breakdown */}
