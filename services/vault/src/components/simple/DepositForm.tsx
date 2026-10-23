@@ -84,9 +84,11 @@ export interface DepositFeeState {
   /** Per-vault P2A anchor value; null while loading (CTA waits on it). */
   p2aAnchorValueSats: bigint | null;
   /**
-   * BTC/USD price for the USD values on this form. Null when no usable price
-   * is available (loading, stale round, failed fetch); USD values then render
-   * as their placeholder.
+   * BTC/USD price for the BTC-priced USD values on this form: the amount, max
+   * to borrow and the BTC fee lines. Null when no usable price is available
+   * (loading, stale round, failed fetch); max to borrow then shows `--`, and
+   * the amount's USD value and the BTC fee-line USD suffixes are omitted. The
+   * deposit fee's USD value is ETH-priced and unaffected.
    */
   btcPriceUsd: number | null;
   estimatedFeeSats: bigint | null;

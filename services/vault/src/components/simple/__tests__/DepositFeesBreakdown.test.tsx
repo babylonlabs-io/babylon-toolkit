@@ -198,11 +198,12 @@ describe("DepositFeesBreakdown USD values", () => {
     expect(screen.getByText("($97,500.00 USD)")).toBeInTheDocument();
   });
 
-  it("omits every USD value when no usable BTC price is available", () => {
+  it("omits the USD value on every BTC-priced line when no usable BTC price is available, keeping the ETH-priced deposit fee's", () => {
     render(
       <DepositFeesBreakdown
         {...baseProps}
         btcPriceUsd={null}
+        protocolFeePrice="($4.20 USD)"
         amountSats={100_000_000n}
         depositorClaimValue={3_000_000n}
         commissionBaseValues={[100_000_000n]}
@@ -211,6 +212,7 @@ describe("DepositFeesBreakdown USD values", () => {
       />,
     );
 
-    expect(screen.queryByText(/USD/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/USD/)).toHaveLength(1);
+    expect(screen.getByText("($4.20 USD)")).toBeInTheDocument();
   });
 });

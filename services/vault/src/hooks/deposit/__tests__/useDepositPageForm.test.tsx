@@ -734,7 +734,7 @@ describe("useDepositPageForm", () => {
 
     it("withholds the BTC price from USD display when its price fetch failed", () => {
       vi.mocked(usePrices).mockReturnValue({
-        prices: {},
+        prices: { BTC: 95000.5 },
         metadata: {
           BTC: { isStale: false, ageSeconds: 0, fetchFailed: true },
         },

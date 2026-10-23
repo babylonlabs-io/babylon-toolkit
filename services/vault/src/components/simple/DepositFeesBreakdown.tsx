@@ -18,7 +18,10 @@ const METRIC_PLACEHOLDER = "--";
 
 interface DepositFeesBreakdownProps {
   depositorClaimValue?: bigint;
-  /** Usable BTC/USD price; null omits every USD suffix. */
+  /**
+   * Usable BTC/USD price; null omits the USD suffix on every BTC-priced line.
+   * The deposit fee's suffix (`protocolFeePrice`) is ETH-priced and unaffected.
+   */
   btcPriceUsd: number | null;
   protocolFeeAmount: string;
   protocolFeePrice: string;

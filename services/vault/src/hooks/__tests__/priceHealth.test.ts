@@ -51,8 +51,8 @@ describe("usablePriceUsd", () => {
     expect(usablePriceUsd({ BTC: 95_000 }, { BTC: stale }, "BTC")).toBeNull();
   });
 
-  it("returns null when its price fetch failed", () => {
-    expect(usablePriceUsd({}, { BTC: failed }, "BTC")).toBeNull();
+  it("returns null when its price fetch failed, even with a price present", () => {
+    expect(usablePriceUsd({ BTC: 95_000 }, { BTC: failed }, "BTC")).toBeNull();
   });
 
   it("returns null when a fresh round answers zero", () => {
