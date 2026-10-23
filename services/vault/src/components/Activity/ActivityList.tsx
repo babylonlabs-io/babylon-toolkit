@@ -37,7 +37,6 @@ function groupByDate(
   const labels = {
     today: COPY.activity.dateToday,
     yesterday: COPY.activity.dateYesterday,
-    lastWeek: COPY.activity.dateLastWeek,
   };
   const ordered: ActivityDateGroup[] = [];
   const byLabel = new Map<string, ActivityDateGroup>();
