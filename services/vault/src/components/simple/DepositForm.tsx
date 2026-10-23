@@ -83,8 +83,12 @@ export interface DepositFeeState {
   appVersionUnsupported: boolean;
   /** Per-vault P2A anchor value; null while loading (CTA waits on it). */
   p2aAnchorValueSats: bigint | null;
-  btcPrice: number;
-  hasPriceFetchError: boolean;
+  /**
+   * BTC/USD price for the USD values on this form. Null when no usable price
+   * is available (loading, stale round, failed fetch); USD values then render
+   * as their placeholder.
+   */
+  btcPriceUsd: number | null;
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
   isLoadingFee: boolean;
@@ -247,8 +251,7 @@ export function DepositForm({
     minPeginFeeError,
     appVersionUnsupported,
     p2aAnchorValueSats,
-    btcPrice,
-    hasPriceFetchError,
+    btcPriceUsd,
     estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
@@ -387,14 +390,14 @@ export function DepositForm({
   };
 
   const usdValue = useMemo(() => {
-    if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
+    if (btcPriceUsd === null || !amount || amount === "0") return "";
     const btcNum = parseFloat(amount);
     if (isNaN(btcNum)) return "";
-    return `$${(btcNum * btcPrice).toLocaleString("en-US", {
+    return `$${(btcNum * btcPriceUsd).toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })} USD`;
-  }, [amount, btcPrice, hasPriceFetchError]);
+  }, [amount, btcPriceUsd]);
 
   const pendingConfirmationNotice =
     unconfirmedBalance > 0n ? (
@@ -504,8 +507,7 @@ export function DepositForm({
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}
-          btcPrice={btcPrice}
-          hasPriceFetchError={hasPriceFetchError}
+          btcPriceUsd={btcPriceUsd}
         />
         {fundingInputCapExceeded && (
           <div
@@ -637,8 +639,7 @@ export function DepositForm({
       {/* Fee breakdown */}
       <DepositFeesBreakdown
         depositorClaimValue={depositorClaimValue}
-        btcPrice={btcPrice}
-        hasPriceFetchError={hasPriceFetchError}
+        btcPriceUsd={btcPriceUsd}
         protocolFeeAmount={protocolFeeAmount}
         protocolFeePrice={protocolFeePrice}
         protocolFeeIsError={protocolFeeIsError}

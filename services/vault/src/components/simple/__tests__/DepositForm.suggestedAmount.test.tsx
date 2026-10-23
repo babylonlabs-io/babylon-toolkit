@@ -69,8 +69,7 @@ function amountState(
 const feeState: DepositFeeState = {
   minPeginFee: 0n,
   minPeginFeeError: null,
-  btcPrice: 60_000,
-  hasPriceFetchError: false,
+  btcPriceUsd: 60_000,
   estimatedFeeSats: 0n,
   estimatedFeeRate: 1,
   isLoadingFee: false,

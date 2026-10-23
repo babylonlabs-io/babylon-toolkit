@@ -8,7 +8,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { fragmentUtxos, useUtxoFragmentCountOverride } from "@/overrides/utxos";
 import { resolveFundingInputCap } from "@/services/deposit/fundingInputCap";
@@ -33,9 +32,10 @@ import {
   assertMinPeginFee,
   assertNumLocalChallengers,
 } from "../../utils/wasm";
+import { usablePriceUsd } from "../priceHealth";
 import { useApplicationCap } from "../useApplicationCap";
 import { useApplications } from "../useApplications";
-import { usePrice, usePrices } from "../usePrices";
+import { usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 import { useVaultProviderCommissions } from "../useVaultProviderCommissions";
 import { useVaultProviderStats } from "../useVaultProviderStats";
@@ -114,10 +114,11 @@ export interface UseDepositPageFormResult {
   btcBalanceFormatted: number;
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
-  btcPrice: number;
-  priceMetadata: Record<string, PriceMetadata>;
-  hasStalePrices: boolean;
-  hasPriceFetchError: boolean;
+  /**
+   * BTC/USD price for the form's display-only USD values. Null while prices
+   * load, or when the BTC oracle round is stale or its fetch failed.
+   */
+  usableBtcPriceUsd: number | null;
   applications: Array<{
     id: string;
     name: string;
@@ -252,8 +253,8 @@ export function useDepositPageForm({
   const { config, latestUniversalChallengers } = useProtocolParamsContext();
   const fundingInputCap = resolveFundingInputCap(config.maxFundingInputCount);
   const { config: aaveConfig } = useAaveConfig();
-  const btcPriceUSD = usePrice("BTC");
-  const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
+  const { prices, metadata } = usePrices();
+  const usableBtcPriceUsd = usablePriceUsd(prices, metadata, "BTC");
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
@@ -797,10 +798,7 @@ export function useDepositPageForm({
     btcBalance,
     btcBalanceFormatted,
     unconfirmedBalance,
-    btcPrice: btcPriceUSD,
-    priceMetadata: metadata,
-    hasStalePrices,
-    hasPriceFetchError,
+    usableBtcPriceUsd,
     applications,
     isLoadingApplications,
     providers,

@@ -13,15 +13,14 @@ const FORM_COPY = COPY.deposit.form;
 interface CollateralFactorRowProps {
   collateralFactor: number | null;
   amountBtc: string;
-  btcPrice: number;
-  hasPriceFetchError: boolean;
+  /** Usable BTC/USD price; null renders the max-to-borrow placeholder. */
+  btcPriceUsd: number | null;
 }
 
 export function CollateralFactorRow({
   collateralFactor,
   amountBtc,
-  btcPrice,
-  hasPriceFetchError,
+  btcPriceUsd,
 }: CollateralFactorRowProps) {
   if (collateralFactor === null) return null;
 
@@ -30,9 +29,10 @@ export function CollateralFactorRow({
   // other.
   const percent = formatBasisPointsAsPercent(collateralFactor * BPS_SCALE);
 
-  const maxBorrowUsd = hasPriceFetchError
-    ? null
-    : computeMaxBorrowUsd(amountBtc, btcPrice, collateralFactor);
+  const maxBorrowUsd =
+    btcPriceUsd === null
+      ? null
+      : computeMaxBorrowUsd(amountBtc, btcPriceUsd, collateralFactor);
 
   return (
     <div className="flex items-center justify-between text-sm">

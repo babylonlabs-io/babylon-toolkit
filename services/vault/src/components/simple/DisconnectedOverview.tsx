@@ -17,6 +17,7 @@ import {
 } from "@/applications/aave/hooks";
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
+import { usablePriceUsd } from "@/hooks/priceHealth";
 import { usePrices } from "@/hooks/usePrices";
 import type { CapSnapshot } from "@/services/deposit";
 import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
@@ -65,27 +66,20 @@ function maxCfStatValue(splitParams: VaultSplitParams | null): string {
 }
 
 // TVL is the BTC locked across the application priced in USD. Suppressed rather
-// than approximated whenever an input is untrustworthy — a stale or failed
-// oracle round, a zero answer from a fresh one (nothing upstream rejects it),
-// or an errored usage read, whose snapshot falls back to a 0n total. `$0 TVL`
-// on the landing screen reads as a fact rather than as a failure.
+// than approximated whenever an input is untrustworthy — no usable BTC price
+// (a stale or failed oracle round, or a non-positive answer), or an errored
+// usage read, whose snapshot falls back to a 0n total. `$0 TVL` on the landing
+// screen reads as a fact rather than as a failure.
 function tvlStatValue(
   capSnapshot: CapSnapshot | null,
   capError: Error | null,
-  btcPriceUsd: number | undefined,
-  isBtcPriceUsable: boolean,
+  usableBtcPriceUsd: number | null,
 ): string {
-  if (
-    !capSnapshot ||
-    capError ||
-    !isBtcPriceUsable ||
-    btcPriceUsd === undefined ||
-    btcPriceUsd <= 0
-  ) {
+  if (!capSnapshot || capError || usableBtcPriceUsd === null) {
     return COPY.common.emptyValue;
   }
   return formatCompactUsd(
-    satoshiToBtcNumber(capSnapshot.totalBTC) * btcPriceUsd,
+    satoshiToBtcNumber(capSnapshot.totalBTC) * usableBtcPriceUsd,
     true,
   );
 }
@@ -166,12 +160,7 @@ export function DisconnectedOverview({
   const { prices, metadata } = usePrices();
   const [expandedTitle, setExpandedTitle] = useState<string | null>(null);
 
-  const btcPriceUsd = prices["BTC"];
-  const btcMetadata = metadata["BTC"];
-  const isBtcPriceUsable =
-    btcMetadata !== undefined &&
-    !btcMetadata.isStale &&
-    !btcMetadata.fetchFailed;
+  const usableBtcPriceUsd = usablePriceUsd(prices, metadata, "BTC");
 
   const aprStats: AprStat[] = useMemo(
     () => [
@@ -198,12 +187,7 @@ export function DisconnectedOverview({
     () => [
       {
         label: COPY_OVERVIEW.stats.tvlLabel,
-        value: tvlStatValue(
-          capSnapshot,
-          capError,
-          btcPriceUsd,
-          isBtcPriceUsable,
-        ),
+        value: tvlStatValue(capSnapshot, capError, usableBtcPriceUsd),
       },
       {
         label: COPY_OVERVIEW.stats.capLabel,
@@ -214,7 +198,7 @@ export function DisconnectedOverview({
         value: maxCfStatValue(splitParams),
       },
     ],
-    [capSnapshot, capError, splitParams, btcPriceUsd, isBtcPriceUsable],
+    [capSnapshot, capError, splitParams, usableBtcPriceUsd],
   );
 
   const featureCards = useMemo(() => {

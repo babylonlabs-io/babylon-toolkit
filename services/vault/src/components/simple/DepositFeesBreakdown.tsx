@@ -18,8 +18,8 @@ const METRIC_PLACEHOLDER = "--";
 
 interface DepositFeesBreakdownProps {
   depositorClaimValue?: bigint;
-  btcPrice: number;
-  hasPriceFetchError: boolean;
+  /** Usable BTC/USD price; null omits every USD suffix. */
+  btcPriceUsd: number | null;
   protocolFeeAmount: string;
   protocolFeePrice: string;
   protocolFeeIsError: boolean;
@@ -40,8 +40,7 @@ interface DepositFeesBreakdownProps {
 
 export function DepositFeesBreakdown({
   depositorClaimValue,
-  btcPrice,
-  hasPriceFetchError,
+  btcPriceUsd,
   protocolFeeAmount,
   protocolFeePrice,
   protocolFeeIsError,
@@ -53,7 +52,8 @@ export function DepositFeesBreakdown({
 }: DepositFeesBreakdownProps) {
   // Format a satoshi value as a BTC amount plus an optional "($X USD)" suffix,
   // matching the existing fee-line presentation. `null` sats render as the
-  // metric placeholder (value not yet known).
+  // metric placeholder (value not yet known); the suffix is omitted when there
+  // is no usable BTC price.
   const formatSatsLine = (
     sats: bigint | null,
   ): { amount: string; price: string } => {
@@ -61,13 +61,13 @@ export function DepositFeesBreakdown({
       return { amount: METRIC_PLACEHOLDER, price: "" };
     }
     const btc = satoshiToBtcNumber(sats);
-    const hasPrice = !hasPriceFetchError && btcPrice > 0;
-    const price = hasPrice
-      ? `($${(btc * btcPrice).toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USD)`
-      : "";
+    const price =
+      btcPriceUsd === null
+        ? ""
+        : `($${(btc * btcPriceUsd).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} USD)`;
     return { amount: formatBtcAmount(btc), price };
   };
 

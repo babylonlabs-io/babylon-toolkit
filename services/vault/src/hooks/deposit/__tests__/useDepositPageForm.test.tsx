@@ -73,6 +73,7 @@ vi.mock("../../../applications/aave/context", () => ({
 
 import { useApplications } from "../../useApplications";
 import { useBtcPublicKey } from "../../useBtcPublicKey";
+import { usePrices } from "../../usePrices";
 import { useUTXOs } from "../../useUTXOs";
 import { useAllocationPlanning } from "../useAllocationPlanning";
 import { useDepositPageForm } from "../useDepositPageForm";
@@ -139,14 +140,11 @@ vi.mock("../../../context/wallet", () => ({
 }));
 
 vi.mock("../../usePrices", () => ({
-  usePrice: vi.fn(() => 95000.5),
   usePrices: vi.fn(() => ({
     prices: { BTC: 95000.5 },
-    metadata: {},
+    metadata: { BTC: { isStale: false, ageSeconds: 30, fetchFailed: false } },
     isLoading: false,
     error: null,
-    hasStalePrices: false,
-    hasPriceFetchError: false,
   })),
 }));
 
@@ -401,6 +399,7 @@ describe("useDepositPageForm", () => {
     });
     vi.clearAllMocks();
     vi.mocked(useConnection).mockReset();
+    vi.mocked(usePrices).mockReset();
     // Reset fee mock (clearAllMocks only clears call history, not implementations)
     vi.mocked(useEstimatedBtcFee).mockReturnValue({
       fee: 1500n,
@@ -697,13 +696,58 @@ describe("useDepositPageForm", () => {
       expect(result.current.providers[0].btcPubkey).toBe("pubkey1");
     });
 
-    it("should expose BTC price", () => {
+    it("exposes the BTC price for USD display when its oracle round is fresh", () => {
+      vi.mocked(usePrices).mockReturnValue({
+        prices: { BTC: 95000.5 },
+        metadata: {
+          BTC: { isStale: false, ageSeconds: 30, fetchFailed: false },
+        },
+        isLoading: false,
+        error: null,
+      });
+
       const { result } = renderHook(
         () => useDepositPageForm({ isSplitPermitted: true }),
         { wrapper },
       );
 
-      expect(result.current.btcPrice).toBe(95000.5);
+      expect(result.current.usableBtcPriceUsd).toBe(95000.5);
+    });
+
+    it("withholds the BTC price from USD display when its oracle round is stale", () => {
+      vi.mocked(usePrices).mockReturnValue({
+        prices: { BTC: 95000.5 },
+        metadata: {
+          BTC: { isStale: true, ageSeconds: 7200, fetchFailed: false },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      expect(result.current.usableBtcPriceUsd).toBeNull();
+    });
+
+    it("withholds the BTC price from USD display when its price fetch failed", () => {
+      vi.mocked(usePrices).mockReturnValue({
+        prices: {},
+        metadata: {
+          BTC: { isStale: false, ageSeconds: 0, fetchFailed: true },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      expect(result.current.usableBtcPriceUsd).toBeNull();
     });
 
     it("should expose estimated fee values from useEstimatedBtcFee", () => {
