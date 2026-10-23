@@ -27,6 +27,26 @@
  * extension is still installed and imported — only the app-side Bitcoin connect is skipped, which is
  * exactly what the app gates on.
  *
+ * `--eth-account=<n>` runs as MetaMask's "Account n" of the mnemonic instead of Account 1 (the BIP-44
+ * address index n-1). The import adds accounts until Account n exists and selects it before the app
+ * connects, and every Ethereum check derives that account; the run stops if MetaMask shows another.
+ * `--action=connect` alone confirms the app connects with it:
+ *
+ *   pnpm --filter vault run e2e:cli --yes \
+ *     --target=localhost --network=devnet --btc=unisat --eth=metamask --eth-account=3 --action=connect
+ *
+ * `--network=testnet-3` runs the local app on the testnet-3 deployment (the `testnet` profile), where
+ * the depositor allow-list gate is on. It has no `website` target.
+ *
+ * Allow-list fills the deposit form (honoring `--amount` / `--vp`, single vault) and never submits it.
+ * It asks the chain whether the account is on the allow-list, watches the app ask the same, and then
+ * requires a blocked CTA ("Ethereum wallet not on the allow list", disabled through a hold) for an
+ * account that is not on it, or the enabled "Deposit" for one that is — with no wallet window and
+ * nothing sent either way. It spends nothing:
+ *
+ *   pnpm --filter vault run e2e:cli --yes \
+ *     --target=localhost --network=testnet-3 --btc=unisat --eth=metamask --eth-account=3 --action=allow-list
+ *
  * Pegin accepts two optional extras: `--amount=<btc>` and `--vp=<name>`. When omitted, the CLI fetches
  * the network's real values (protocol minimum deposit + provider list) and offers them as defaults —
  * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.
@@ -56,6 +76,13 @@
  * It needs `--btc=unisat` (one wallet window per prompt, so every prompt is counted) and does not combine
  * with `--inject-pegin-psbt-extras`. Run it on `--target=localhost` to test local app code (see
  * actions/positionCapacity.ts).
+ *
+ * Pegin also accepts `--inject-not-allow-listed`: the deposit form loads with the account allowed, then
+ * the app's RPC answers its allow-list read (`checkAllowed`) "not allowed" from the Sign click. The
+ * deposit must stop on "Wallet not on the allow list" before any signing prompt and before it asks the
+ * position for room, with nothing registered or sent (spends nothing). Run it where the account is
+ * allowed for real — on devnet, where the gate is removed — with `--btc=unisat`, UniSat unlocked, on
+ * `--target=localhost`.
  *
  * Borrow accepts `--pegin-first` (peg in fresh collateral before borrowing — then also honors the pegin
  * extras above), `--borrow-token=<symbol>` (from the live borrowable list; an interactive run asks, a
@@ -157,9 +184,11 @@ import {
   isNonceTooLowInjection,
   isPositionFullInjection,
   isReorgInjection,
+  NETWORKS,
   NONCE_TOO_LOW_INJECTIONS,
   POSITION_FULL_INJECTIONS,
   REORG_INJECTIONS,
+  websiteUrlOf,
   type ActionId,
   type BtcWalletId,
   type DataMode,
@@ -222,6 +251,7 @@ const VALUE_FLAGS = [
   "inject-nonce-too-low",
   "inject-reorg",
   "inject-position-full",
+  "eth-account",
 ] as const;
 
 /**
@@ -376,7 +406,7 @@ async function resolveConfig(
 
   // Valid values derived from config so the flag validator can't drift from the interactive menu.
   const TARGETS: readonly Target[] = ["website", "localhost"];
-  const NETWORKS_LIST: readonly NetworkName[] = ["devnet", "testnet"];
+  const NETWORKS_LIST = Object.keys(NETWORKS) as NetworkName[];
   // Only enabled wallets are selectable (disabled ones — e.g. OneKey — are hidden + rejected).
   const enabledBtcWallets = BTC_WALLETS.filter((w) => w.enabled);
   const enabledEthWallets = ETH_WALLETS.filter((w) => w.enabled);
@@ -416,12 +446,17 @@ async function resolveConfig(
       flags.network,
       NETWORKS_LIST,
       () =>
-        select<NetworkName>(rl, "2. Which network?", [
-          { value: "devnet", label: "devnet" },
-          { value: "testnet", label: "testnet" },
-        ]),
+        select<NetworkName>(
+          rl,
+          "2. Which network?",
+          NETWORKS_LIST.filter(
+            (name) => target === "localhost" || NETWORKS[name].websiteUrl,
+          ).map((name) => ({ value: name, label: name })),
+        ),
       "network",
     );
+    // A localhost-only network passed as a flag with --target=website: refuse before any prompt.
+    if (target === "website") websiteUrlOf(network);
 
     const btcWallet = await pick<BtcWalletId>(
       flags.btc,
@@ -470,6 +505,18 @@ async function resolveConfig(
       throw new Error(
         `--eth-only cannot run --action=${action}; it needs a Bitcoin wallet. Supported: ${ETH_ONLY_ACTIONS.join(", ")}.`,
       );
+
+    // Which MetaMask account of the mnemonic to run as. A flag, not a menu entry: nearly every run is
+    // Account 1, and a malformed value must stop the run rather than fall back to it.
+    const ethAccountFlag = flags["eth-account"];
+    let ethAccount = 1;
+    if (typeof ethAccountFlag === "string") {
+      ethAccount = Number(ethAccountFlag);
+      if (!Number.isInteger(ethAccount) || ethAccount < 1)
+        throw new Error(
+          `--eth-account must be a whole number from 1, MetaMask's "Account N" (got "${ethAccountFlag}").`,
+        );
+    }
 
     // Optional: default to real/0 when not supplied (no error non-interactively).
     const dataMode =
@@ -631,8 +678,10 @@ async function resolveConfig(
     // pre-flight) and offer them as defaults — amount ⇒ minimum, provider ⇒ first available. Collected
     // for a `pegin` run, any pegin-first borrow (`borrow --pegin-first` or
     // `repay --borrow-first --pegin-first`), AND `resume --interrupt-fresh` (which pegs in then resumes).
+    // `allow-list` fills the deposit form with the same amount and provider, and never submits it.
     const needsPeginParams =
       action === "pegin" ||
+      action === "allow-list" ||
       (willBorrow && peginFirst) ||
       (action === "resume" && (interruptFresh || interruptOnly)) ||
       (action === "forged-stuck" && peginFirst);
@@ -643,8 +692,13 @@ async function resolveConfig(
     if (needsPeginParams) {
       if (flags.split !== undefined) {
         split = flagBool(flags.split);
-      } else if (interactive && action !== "forged-stuck") {
-        // forged-stuck pegs in a single vault (refused below), so it never asks.
+      } else if (
+        interactive &&
+        action !== "forged-stuck" &&
+        action !== "allow-list"
+      ) {
+        // forged-stuck pegs in a single vault and allow-list fills a single-vault form (both refuse
+        // --split below), so neither asks.
         split =
           (await select<"single" | "split">(rl, "Deposit type", [
             { value: "single", label: "Single-vault deposit" },
@@ -656,6 +710,10 @@ async function resolveConfig(
     if (action === "forged-stuck" && split)
       throw new Error(
         "forged-stuck --pegin-first pegs in a single vault; drop --split.",
+      );
+    if (action === "allow-list" && split)
+      throw new Error(
+        "allow-list fills a single-vault deposit form; drop --split.",
       );
     // A plain resume (no --interrupt-fresh) of a batched/split deposit still needs --split so the step
     // machine and the dashboard cross-check expect the right vault count — the block above only resolves
@@ -842,6 +900,21 @@ async function resolveConfig(
         );
       injectPositionFull = positionFullFlag;
     }
+    const injectNotAllowListed = flagBool(flags["inject-not-allow-listed"]);
+    if (injectNotAllowListed) {
+      if (action !== "pegin")
+        throw new Error(
+          "--inject-not-allow-listed only applies to --action=pegin.",
+        );
+      if (btcWallet !== "unisat")
+        throw new Error(
+          "--inject-not-allow-listed needs --btc=unisat: the run counts wallet prompts by the windows they open, and UniSat opens one per prompt.",
+        );
+      if (injectPositionFull !== undefined || injectPeginPsbtExtras)
+        throw new Error(
+          "--inject-not-allow-listed cannot be combined with --inject-position-full or --inject-pegin-psbt-extras: the allow-list refuses the deposit before either applies.",
+        );
+    }
     if (willBorrow) {
       // Fetch the live borrowable list up front so an explicit --borrow-token (+ --borrow-hub) is
       // VALIDATED before a (possibly funded, pegin-first) run — an unselectable token would otherwise
@@ -1021,7 +1094,7 @@ async function resolveConfig(
       const debts = await (async () =>
         fetchRepayableDebts(
           network,
-          deriveEthAddress(loadWalletSecrets().mnemonic),
+          deriveEthAddress(loadWalletSecrets().mnemonic, ethAccount),
         ))().catch((error) => {
         // eslint-disable-next-line no-console
         console.warn(
@@ -1090,6 +1163,7 @@ async function resolveConfig(
       dataMode,
       delayMs,
       ethOnly,
+      ethAccount,
       peginAmountBtc,
       peginProvider,
       split,
@@ -1119,6 +1193,7 @@ async function resolveConfig(
       injectReorg,
       injectPeginPsbtExtras,
       injectPositionFull,
+      injectNotAllowListed,
     };
   } finally {
     rl.close();

@@ -85,6 +85,13 @@ export const PEGIN_POLL_INTERVAL_MS = 3_000;
  */
 export const PEGIN_TX_FAILURE_RETRY_LIMIT = 3;
 
+// ── allow-list: the deposit form against the depositor allow-list ────────────────
+/**
+ * How long a blocked deposit form must keep its allow-list label and disabled CTA, with no wallet
+ * window opening. Longer than the form's allow-list refetch interval (60s), so a re-read is covered.
+ */
+export const ALLOW_LIST_BLOCK_HOLD_MS = 75_000;
+
 // ── pegin: position-capacity injection (`--inject-position-full`) ────────────────
 /** Sign → the refusal when it comes before registration: the wallet liveness probe and a few chain reads. */
 export const POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS = 60_000;

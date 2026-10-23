@@ -137,6 +137,12 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isAddressBlocked: boolean;
   /** True if the address block comes only from a failed screening request. */
   isAddressScreeningUnavailable: boolean;
+  /**
+   * True when the chain says the connected Ethereum account is not on the
+   * application's depositor allow-list, so the registration would revert with
+   * `DepositNotAllowed`. False while the read loads or after it fails.
+   */
+  isDepositorNotAllowListed: boolean;
   isWalletConnected: boolean;
   /**
    * True when the session is confirmed and Bitcoin is absent. Keeps the
@@ -374,6 +380,13 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
         ? COPY.wallet.addressScreeningBanner.unavailableTitle
         : COPY.wallet.walletNotEligibleTooltip,
     };
+  }
+
+  // A lasting block like the screening one above, but on the Ethereum account
+  // alone: no wait and no BTC wallet change lifts it, so it stays ahead of the
+  // protocol-capacity and wallet branches below.
+  if (params.isDepositorNotAllowListed) {
+    return { disabled: true, label: COPY.deposit.allowList.cta };
   }
 
   // Protocol capacity, so it comes after the lasting blocks above. It comes

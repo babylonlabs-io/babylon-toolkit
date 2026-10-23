@@ -26,7 +26,15 @@ const BTC_IMPORTERS: Record<BtcWalletId, Importer> = {
   onekey: setupOneKeyWallet,
 };
 
-const ETH_IMPORTERS: Record<EthWalletId, Importer> = {
+/** An Ethereum importer also selects which account of the mnemonic the wallet runs as. */
+type EthImporter = (
+  context: BrowserContext,
+  mnemonic: string,
+  password: string,
+  accountNumber: number,
+) => Promise<string>;
+
+const ETH_IMPORTERS: Record<EthWalletId, EthImporter> = {
   metamask: setupMetaMaskWallet,
 };
 
@@ -40,6 +48,7 @@ export async function importWallets(
   btc: BtcWalletId,
   eth: EthWalletId,
   secrets: WalletSecrets,
+  ethAccount: number,
   log: (m: string) => void,
 ): Promise<ImportedWallets> {
   log(`Importing BTC wallet: ${btc}`);
@@ -50,11 +59,12 @@ export async function importWallets(
   );
   log(`  ${btc} signet taproot: ${btcAddress}`);
 
-  log(`Importing ETH wallet: ${eth}`);
+  log(`Importing ETH wallet: ${eth} (Account ${ethAccount})`);
   const ethAddress = await ETH_IMPORTERS[eth](
     context,
     secrets.mnemonic,
     secrets.password,
+    ethAccount,
   );
   log(`  ${eth} address: ${ethAddress}`);
 

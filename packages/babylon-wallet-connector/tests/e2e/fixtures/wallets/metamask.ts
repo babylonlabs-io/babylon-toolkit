@@ -19,12 +19,13 @@
  *    switches it back to pop-up mode (see `usePopupApprovals`).
  *  - A fresh home.html tab opens locked/at a residual onboarding step — settle it (unlock/passkey).
  */
-import { type BrowserContext, type Page } from "@playwright/test";
+import { type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
+import { deriveEthAddress } from "../../setup/eth";
 import { runtimeExtensionId } from "../../utils/extensionId";
 import { SETTLE, TYPE_DELAY_MS, WAIT_FOR } from "../../utils/timing";
-import { clickText, clickWhenEnabled, scanEthAddress } from "../../utils/walletUi";
+import { addrMatches, clickText, clickWhenEnabled, scanEthAddress } from "../../utils/walletUi";
 
 /** MetaMask-specific timeouts/loop bounds (values preserved from the verified onboarding flow). */
 const WALLET_SETTLE_STEPS = 15; // settleWallet loop: drive residual onboarding until the home renders
@@ -34,6 +35,7 @@ const DISMISS_CLICK_MS = 2000; // click timeout for optional dismiss buttons
 const OPEN_WALLET_CLICK_MS = 5000; // click timeout for the "Open wallet" button
 const SIDE_PANEL_APPEAR_MS = 8000; // wait for the side panel to open after "Open wallet"
 const SIDE_PANEL_RECHECK_MS = 3000; // shorter re-check in case a panel re-opened
+const ADD_ACCOUNT_MS = 20000; // account-tree sync to finish, or one "Add account" to land
 
 /** Close MetaMask's docked side panel via CDP (browser-level; LavaMoat can't block it). Optionally
  * poll for it to appear first — its presence also signals onboarding has finalized. */
@@ -90,6 +92,177 @@ async function settleWallet(page: Page, base: string, password: string): Promise
     await page.waitForTimeout(SETTLE.MODAL);
   }
   return false;
+}
+
+/**
+ * Backup and sync, as onboarding offers it. When the completion screen's "Open wallet" finishes
+ * onboarding, MetaMask restores the accounts of the SRP's synced profile — with the profile's own
+ * names, and with the accounts the profile hides left off the list — unless Backup and sync is off by
+ * then; with it off, later account adds are not pushed to that profile either. Onboarding keeps the
+ * choice in page state only and applies it on that click, so it has to be made on the completion
+ * screen and the click has to follow in the same document: a reload resets it to on, and so does a
+ * completion MetaMask performs itself after an unlock.
+ */
+const MM_ONBOARDING_COMPLETE_TESTID = "parent-selector-onboarding-complete";
+const MM_MANAGE_DEFAULT_SETTINGS_TESTID = "manage-default-settings";
+const MM_PRIVACY_SETTINGS_TESTID = "parent-selector-onboarding-privacy-settings";
+const MM_GENERAL_SETTINGS_TESTID = "category-item-General";
+const MM_CATEGORY_BACK_TESTID = "category-back-button";
+const MM_PRIVACY_SETTINGS_BACK_TESTID = "privacy-settings-back-button";
+const MM_ONBOARDING_DONE_TESTID = "onboarding-complete-done";
+/** The toggle's real checkbox is visually hidden; the container takes the click, as MetaMask's own
+ * page objects do. Its label carries the state as a class. */
+const MM_BACKUP_AND_SYNC_TOGGLE_TESTID = "backup-and-sync-toggle-container";
+const MM_TOGGLE_ON_SELECTOR = ".toggle-button--on";
+const MM_TOGGLE_OFF_SELECTOR = ".toggle-button--off";
+const MM_BACKUP_AND_SYNC_SETTINGS_ROUTE = "#/settings/backup-and-sync";
+
+/** On the onboarding completion screen, switch Backup and sync off and come back to it. */
+async function turnOffBackupAndSync(page: Page): Promise<void> {
+  const step = async (testid: string, what: string) =>
+    page
+      .getByTestId(testid)
+      .waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS })
+      .catch(() => {
+        throw new Error(`MetaMask: ${what} (${testid}) never appeared while turning Backup and sync off.`);
+      });
+
+  await step(MM_ONBOARDING_COMPLETE_TESTID, "the onboarding completion screen");
+  await page.getByTestId(MM_MANAGE_DEFAULT_SETTINGS_TESTID).click({ timeout: WAIT_FOR.ACTION_MS });
+  await step(MM_PRIVACY_SETTINGS_TESTID, "the default settings screen");
+  await page.getByTestId(MM_GENERAL_SETTINGS_TESTID).click({ timeout: WAIT_FOR.ACTION_MS });
+
+  const toggle = page.getByTestId(MM_BACKUP_AND_SYNC_TOGGLE_TESTID);
+  await step(MM_BACKUP_AND_SYNC_TOGGLE_TESTID, "the Backup and sync toggle");
+  if ((await toggle.locator(MM_TOGGLE_ON_SELECTOR).count()) > 0) await toggle.click({ timeout: WAIT_FOR.ACTION_MS });
+  await toggle
+    .locator(MM_TOGGLE_OFF_SELECTOR)
+    .waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS })
+    .catch(() => {
+      throw new Error("MetaMask: Backup and sync did not switch off on the default settings screen.");
+    });
+
+  await page.getByTestId(MM_CATEGORY_BACK_TESTID).click({ timeout: WAIT_FOR.ACTION_MS });
+  await page.getByTestId(MM_PRIVACY_SETTINGS_BACK_TESTID).click({ timeout: WAIT_FOR.ACTION_MS });
+  await step(MM_ONBOARDING_COMPLETE_TESTID, "the onboarding completion screen, on the way back");
+}
+
+/** Refuse to touch the account list unless Backup and sync really ended up off. */
+async function assertBackupAndSyncOff(page: Page, base: string): Promise<void> {
+  await page.goto(`${base}/home.html${MM_BACKUP_AND_SYNC_SETTINGS_ROUTE}`).catch(() => {});
+  const toggle = page.getByTestId(MM_BACKUP_AND_SYNC_TOGGLE_TESTID);
+  await toggle.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {
+    throw new Error(`MetaMask: the Backup and sync setting (${MM_BACKUP_AND_SYNC_SETTINGS_ROUTE}) never rendered.`);
+  });
+  if ((await toggle.locator(MM_TOGGLE_OFF_SELECTOR).count()) === 0)
+    throw new Error(
+      "MetaMask: Backup and sync is on after onboarding, so the account list is the synced profile's and an added account would be pushed to it.",
+    );
+}
+
+/**
+ * MetaMask's account list (13.50+): one cell per account of the imported SRP. A cell's testid ends
+ * in its address index (`multichain-account-cell-entropy:<srp id>/<index>`), and it shows the
+ * account's truncated address. With Backup and sync off the indexes run from 0 without a gap: on
+ * import MetaMask only discovers accounts in order, up to the first one with no Ethereum mainnet
+ * transactions. Names are still no guide to the index, so cells are matched by address.
+ *
+ * The list is virtualized: only the rows in or just past the viewport are in the DOM, and "Add
+ * account" is its last row. So this reaches the first several accounts of a fresh import, not an
+ * arbitrary N — past the rendered window neither the target nor the add control can be found.
+ */
+const MM_ACCOUNT_LIST_ROUTE = "#/account-list";
+const MM_ACCOUNT_LIST_PAGE_TESTID = "parent-selector-account-list-page";
+const MM_ACCOUNT_CELL_TESTID_PREFIX = "multichain-account-cell-";
+const MM_ACCOUNT_CELL_ADDRESS_TESTID = "multichain-account-cell-hovered-addresses";
+const MM_ACCOUNT_CELL_INDEX_RX = /\/(\d+)$/;
+/** A Box, not a <button>. It is a silent no-op while the account tree syncs or an add is in flight,
+ * and its label then reads "Adding account..." — so wait for the idle label before every click. It
+ * always adds the index after the highest one listed. Discovery can still be adding accounts in the
+ * background, where an add may return one discovery made instead of a new one — so every add is
+ * judged by re-reading the list, never by its own outcome. */
+const MM_ADD_ACCOUNT_TESTID = "add-multichain-account-button";
+const MM_ADD_ACCOUNT_IDLE_LABEL = "Add account";
+
+interface ListedAccount {
+  index: number;
+  address: string;
+  cell: Locator;
+}
+
+/** Poll until `check` holds, up to `timeoutMs`. */
+async function waitUntil(page: Page, check: () => Promise<boolean>, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return true;
+    await page.waitForTimeout(SETTLE.SHORT);
+  }
+  return check();
+}
+
+/** The accounts the list shows, with each one's address index and truncated address. */
+async function readAccountList(page: Page): Promise<ListedAccount[]> {
+  const cells = page
+    .locator(`[data-testid^="${MM_ACCOUNT_CELL_TESTID_PREFIX}"]`)
+    .filter({ has: page.getByTestId(MM_ACCOUNT_CELL_ADDRESS_TESTID) });
+  const accounts: ListedAccount[] = [];
+  for (let i = 0; i < (await cells.count()); i++) {
+    const cell = cells.nth(i);
+    const index = ((await cell.getAttribute("data-testid")) ?? "").match(MM_ACCOUNT_CELL_INDEX_RX);
+    const address = (await cell.getByTestId(MM_ACCOUNT_CELL_ADDRESS_TESTID).innerText().catch(() => "")).trim();
+    if (index && address) accounts.push({ index: Number(index[1]), address, cell });
+  }
+  return accounts;
+}
+
+/**
+ * Make the account at `addressIndex` the selected one, found by its derived address, adding accounts
+ * until it is listed. Selecting it before the dApp connects is what the dApp gets: MetaMask's connect
+ * page pre-ticks the selected account. Only call this with Backup and sync off (see
+ * assertBackupAndSyncOff): with it on, the list can have gaps an add never fills, and every add is
+ * pushed to the SRP's synced profile.
+ */
+async function selectAccount(page: Page, base: string, addressIndex: number, expected: string): Promise<void> {
+  await page.goto(`${base}/home.html${MM_ACCOUNT_LIST_ROUTE}`).catch(() => {});
+  await page
+    .getByTestId(MM_ACCOUNT_LIST_PAGE_TESTID)
+    .waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS })
+    .catch(() => {
+      throw new Error(`MetaMask: the account list (${MM_ACCOUNT_LIST_ROUTE}) never rendered.`);
+    });
+
+  const addButton = page.getByTestId(MM_ADD_ACCOUNT_TESTID);
+  const addIdle = async () =>
+    ((await addButton.innerText().catch(() => "")) ?? "").trim() === MM_ADD_ACCOUNT_IDLE_LABEL;
+  // One add per missing index, each allowed its own wait, plus one for the list to settle.
+  const deadline = Date.now() + ADD_ACCOUNT_MS * (addressIndex + 2);
+
+  for (;;) {
+    if (!(await waitUntil(page, addIdle, ADD_ACCOUNT_MS)))
+      throw new Error(
+        `MetaMask: "${MM_ADD_ACCOUNT_IDLE_LABEL}" never read idle: it is busy, or not rendered (the account list is virtualized, so a long list pushes it out of the DOM).`,
+      );
+    const listed = await readAccountList(page);
+    if (listed.length === 0)
+      throw new Error(
+        `MetaMask: the account list shows no readable account cell (${MM_ACCOUNT_CELL_TESTID_PREFIX}… with ${MM_ACCOUNT_CELL_ADDRESS_TESTID}).`,
+      );
+    const target = listed.find((account) => addrMatches(account.address, expected));
+    if (target) {
+      await target.cell.click({ timeout: WAIT_FOR.ACTION_MS });
+      await page.waitForTimeout(SETTLE.MODAL);
+      return;
+    }
+    const highest = Math.max(...listed.map((account) => account.index));
+    if (addressIndex <= highest)
+      throw new Error(
+        `MetaMask: account index ${addressIndex} (${expected}) is missing although index ${highest} is listed.`,
+      );
+    if (Date.now() > deadline)
+      throw new Error(`MetaMask: account index ${addressIndex} is still not listed (highest is ${highest}).`);
+    await addButton.click({ timeout: WAIT_FOR.ACTION_MS });
+    await waitUntil(page, async () => (await readAccountList(page)).length > listed.length, ADD_ACCOUNT_MS);
+  }
 }
 
 /** Read the account address. The home shows a truncated pill (0xAAA…ZZZ), which is enough for the
@@ -211,10 +384,16 @@ async function usePopupApprovals(
 }
 
 /**
- * Import `mnemonic` into MetaMask, close its side panel, and return the account's Ethereum address.
- * The extension must already be loaded into `context` (see `launchWalletContext`).
+ * Import `mnemonic` into MetaMask, select "Account `accountNumber`", close its side panel, and return
+ * that account's Ethereum address. The extension must already be loaded into `context` (see
+ * `launchWalletContext`).
  */
-export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: string, password: string): Promise<string> {
+export async function setupMetaMaskWallet(
+  context: BrowserContext,
+  mnemonic: string,
+  password: string,
+  accountNumber = 1,
+): Promise<string> {
   if (!mnemonic) throw new Error("Missing E2E_WALLET_MNEMONIC");
   if (!password) throw new Error("Missing E2E_WALLET_PASSWORD");
 
@@ -299,7 +478,14 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
   }
 
   // Finalize onboarding by clicking "Open wallet" (also opens the side panel), then close the panel.
-  await onboardingTab.getByRole("button", { name: /Open wallet/i }).first().click({ timeout: OPEN_WALLET_CLICK_MS }).catch(() => {});
+  // Any account but the first needs Backup and sync off first, and then this click must land: a
+  // completion that happens any other way applies the default, sync on (see turnOffBackupAndSync).
+  if (accountNumber !== 1) {
+    await turnOffBackupAndSync(onboardingTab);
+    await onboardingTab.getByTestId(MM_ONBOARDING_DONE_TESTID).click({ timeout: OPEN_WALLET_CLICK_MS });
+  } else {
+    await onboardingTab.getByRole("button", { name: /Open wallet/i }).first().click({ timeout: OPEN_WALLET_CLICK_MS }).catch(() => {});
+  }
   await onboardingTab.waitForTimeout(SETTLE.MODAL);
   await closeSidePanel(onboardingTab, SIDE_PANEL_APPEAR_MS);
 
@@ -311,6 +497,13 @@ export async function setupMetaMaskWallet(context: BrowserContext, mnemonic: str
 
   await onboardingTab.close().catch(() => {}); // completion tab no longer needed
   await closeSidePanel(walletPage, SIDE_PANEL_RECHECK_MS); // in case a panel re-opened
+
+  if (accountNumber !== 1) {
+    await assertBackupAndSyncOff(walletPage, base);
+    await selectAccount(walletPage, base, accountNumber - 1, deriveEthAddress(mnemonic, accountNumber));
+    await walletPage.goto(`${base}/home.html#/`).catch(() => {});
+    await settleWallet(walletPage, base, password);
+  }
 
   const address = await readAddress(walletPage);
 

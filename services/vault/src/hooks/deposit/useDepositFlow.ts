@@ -62,6 +62,7 @@ import {
   markWotsSubmitted,
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
+import { DEPOSITOR_ALLOWED_QUERY_KEY } from "@/hooks/useDepositorAllowed";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
@@ -80,6 +81,7 @@ import {
   assertBuildConfigMatchesForm,
   isBuildConfigDriftError,
 } from "@/services/vault/buildConfigConsistency";
+import { assertDepositorAllowListed } from "@/services/vault/depositorAllowList";
 import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
@@ -676,6 +678,21 @@ export function useDepositFlow(
 
         const depositAmountTotal = vaultAmounts.reduce((sum, a) => sum + a, 0n);
 
+        // Depositor allow-list, live. The registry checks it ahead of its
+        // deposit caps, so an unlisted depositor stops here, at the same
+        // point as the position check below and ahead of it. Re-run after
+        // the same waits as the position check, an ETH top-up and each
+        // registration attempt: the list can change while they last. Fails
+        // open (depositorAllowList.ts).
+        const assertDepositorAllowListedNow = async () => {
+          await assertDepositorAllowListed({
+            applicationEntryPoint: selectedApplication as Address,
+            depositor: confirmedEthAddress,
+          });
+          assertDepositIdentity();
+        };
+        await assertDepositorAllowListedNow();
+
         // Position capacity, live, counting the depositor's other registered
         // but unactivated vaults. The submit gate read a cached cap and an
         // indexer count; a position that is already full must stop here,
@@ -969,6 +986,7 @@ export function useDepositFlow(
             await waitForEthTopUp(
               new Error(COPY.deposit.errors.insufficientEthForGas.body),
             );
+            await assertDepositorAllowListedNow();
             await assertPositionAcceptsRegistration();
             continue;
           }
@@ -1092,6 +1110,7 @@ export function useDepositFlow(
         let batchRegistration;
         for (;;) {
           assertDepositIdentity();
+          await assertDepositorAllowListedNow();
           await assertPositionAcceptsRegistration();
           try {
             batchRegistration = await registerPeginBatchAndWait({
@@ -2008,6 +2027,14 @@ export function useDepositFlow(
           if (content === COPY.deposit.errors.peginFeeChanged) {
             void queryClient.invalidateQueries({
               queryKey: [DEPOSIT_PEGIN_FEE_QUERY_KEY],
+            });
+          }
+          // The flow's allow-list answer is fresher than the form's cached
+          // one, which can still read "allowed" (or nothing, failing open):
+          // re-read it so the form blocks the depositor it just refused.
+          if (content === COPY.deposit.errors.depositorNotAllowListed) {
+            void queryClient.invalidateQueries({
+              queryKey: [DEPOSITOR_ALLOWED_QUERY_KEY],
             });
           }
           // Post-registration the vaults are on-chain, so a self-cancel, a

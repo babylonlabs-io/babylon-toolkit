@@ -24,6 +24,12 @@ import {
 
 import { type PositionFullInjection } from "../config";
 
+import {
+  CHECK_ALLOWED_SELECTOR,
+  decodeCheckAllowedAnswer,
+  decodeCheckAllowedCall,
+  notAllowListedOutcome,
+} from "./allowListRpcAnswers";
 import { isRecord } from "./writeRpcAnswers";
 
 export const ALLOWED_TO_DEPOSIT_ABI = parseAbi([
@@ -55,6 +61,15 @@ export interface CapacityRead extends CapacityArgs {
   servedAnswer: boolean | null;
 }
 
+/** One depositor allow-list (`checkAllowed`) read for the depositor in the deposit's application. */
+export interface AllowListWatchRead {
+  seq: number;
+  /** What the chain answered, or null when the inner call failed. */
+  realAnswer: boolean | null;
+  /** What the app was served: the real answer, or `false` under `--inject-not-allow-listed`. */
+  servedAnswer: boolean | null;
+}
+
 /** What the watch has seen of the app's traffic, and what it is doing to it. */
 export interface CapacityRpcState {
   /** All lowercased. */
@@ -71,6 +86,12 @@ export interface CapacityRpcState {
   retryClickSeq: number | null;
   capacityReads: CapacityRead[];
   vaultIdsReadSeqs: number[];
+  /**
+   * `--inject-not-allow-listed`: from the Sign click, answer the depositor's allow-list read with
+   * "not allowed". Matched by selector, whatever policy address the app resolved.
+   */
+  notAllowListed: boolean;
+  allowListReads: AllowListWatchRead[];
   /** The registration's `eth_estimateGas` (before the MetaMask prompt). */
   registrationPreparedSeq: number | null;
   /** The first successful registration receipt for this run. */
@@ -99,6 +120,7 @@ export function createCapacityRpcState(params: {
   registry: string;
   multicall3: string;
   injection: PositionFullInjection | undefined;
+  notAllowListed?: boolean;
   startBlock: bigint;
 }): CapacityRpcState {
   return {
@@ -113,6 +135,8 @@ export function createCapacityRpcState(params: {
     retryClickSeq: null,
     capacityReads: [],
     vaultIdsReadSeqs: [],
+    notAllowListed: params.notAllowListed ?? false,
+    allowListReads: [],
     registrationPreparedSeq: null,
     registrationMined: null,
     broadcastSeqs: [],
@@ -136,13 +160,44 @@ export function mayCarryWatchedCall(postData: string): boolean {
   const body = postData.toLowerCase();
   return (
     body.includes(ALLOWED_TO_DEPOSIT_SELECTOR.slice(2)) ||
-    body.includes(GET_DEPOSITOR_VAULT_IDS_SELECTOR.slice(2))
+    body.includes(GET_DEPOSITOR_VAULT_IDS_SELECTOR.slice(2)) ||
+    body.includes(CHECK_ALLOWED_SELECTOR.slice(2))
   );
 }
 
 interface CallOutcome {
   success: boolean;
   returnData: Hex;
+}
+
+/** Record the depositor's allow-list read, and answer "not allowed" under the injection from Sign. */
+function answerAllowListCall(
+  state: CapacityRpcState,
+  seq: number,
+  target: string,
+  callData: Hex,
+  outcome: CallOutcome,
+): CallOutcome | null {
+  const asked = decodeCheckAllowedCall(target, callData);
+  if (!asked) return null;
+  if (
+    asked.depositor !== state.depositor ||
+    asked.appEntryPoint !== state.adapter
+  )
+    return outcome;
+  const realAnswer = decodeCheckAllowedAnswer(outcome);
+  // As for capacity, a failed read stays failed: the app fails open on it, which is not a verdict
+  // this watch may fake.
+  const rewrite =
+    outcome.success && state.notAllowListed && state.signClickSeq !== null;
+  state.allowListReads.push({
+    seq,
+    realAnswer,
+    servedAnswer: rewrite ? false : realAnswer,
+  });
+  if (!rewrite) return outcome;
+  state.tampered += 1;
+  return notAllowListedOutcome();
 }
 
 /** Record one call if it is a watched one, and return the outcome the app should see. */
@@ -153,6 +208,9 @@ function answerWatchedCall(
   callData: Hex,
   outcome: CallOutcome,
 ): CallOutcome {
+  const allowList = answerAllowListCall(state, seq, target, callData, outcome);
+  if (allowList) return allowList;
+
   const to = target.toLowerCase();
   const selector = callData.slice(0, 10).toLowerCase();
 
@@ -473,6 +531,55 @@ export function assertRefusedBeforeRegistration(
   if (state.registrationPreparedSeq !== null)
     throw new Error(
       "The app prepared the Ethereum registration although the position-capacity check refused the deposit.",
+    );
+  if (state.broadcastSeqs.length > 0)
+    throw new Error("A Pre-PegIn broadcast was sent for a refused deposit.");
+  return first;
+}
+
+/**
+ * The allow-list refusal (`--inject-not-allow-listed`): the app asked the allow-list after Sign, before
+ * the position's capacity, was told "not allowed" by the injection, and prompted, prepared and sent
+ * nothing.
+ */
+export function assertRefusedNotAllowListed(
+  state: CapacityRpcState,
+): AllowListWatchRead {
+  const signClickSeq = state.signClickSeq;
+  if (signClickSeq === null)
+    throw new Error("The watch never saw the Sign click.");
+  const afterSign = state.allowListReads.filter(
+    (read) => read.seq > signClickSeq,
+  );
+  // Checked first, as for capacity: a "no" or a failure from the chain itself is not the injection's.
+  const realRefusal = afterSign.find((read) => read.realAnswer !== true);
+  if (realRefusal)
+    throw new Error(
+      `The chain itself answered the depositor's allow-list read with ${String(realRefusal.realAnswer)}, so the refusal did not come from the injection. Run it where the gate is removed (devnet) or with an allow-listed account.`,
+    );
+  const tampered = afterSign.filter(
+    (read) => read.servedAnswer !== read.realAnswer,
+  );
+  if (tampered.length === 0)
+    throw new Error(
+      "The injection never answered an allow-list read after Sign, so this run tested nothing: the app did not check the allow-list before its first signing prompt.",
+    );
+  const [first] = tampered;
+  const capacityAfterSign = state.capacityReads.filter(
+    (read) => read.seq > signClickSeq,
+  );
+  if (capacityAfterSign.length > 0)
+    throw new Error(
+      `The app asked the position for room (${describeRead(capacityAfterSign[0])}) although the allow-list already refused the deposit, which the registry checks first.`,
+    );
+  const prompts = state.popups.filter((popup) => popup.seq > signClickSeq);
+  if (prompts.length > 0)
+    throw new Error(
+      `A wallet window opened after Sign although the deposit was refused before any signing prompt (with UniSat unlocked none may open): ${prompts.map((popup) => popup.url).join(", ")}.`,
+    );
+  if (state.registrationPreparedSeq !== null)
+    throw new Error(
+      "The app prepared the Ethereum registration although the allow-list refused the deposit.",
     );
   if (state.broadcastSeqs.length > 0)
     throw new Error("A Pre-PegIn broadcast was sent for a refused deposit.");
