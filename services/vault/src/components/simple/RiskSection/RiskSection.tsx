@@ -63,7 +63,7 @@ function StatCell({
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-2 p-4 max-md:flex-none max-md:flex-row max-md:items-start max-md:justify-between max-md:gap-4 max-md:px-0 max-md:py-3">
-      <span className="flex items-center gap-1 whitespace-nowrap text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+      <span className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
         {tooltip ? (
           <Hint
             tooltip={tooltip}
