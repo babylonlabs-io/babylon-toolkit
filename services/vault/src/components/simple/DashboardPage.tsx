@@ -23,6 +23,7 @@ import {
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
+import { usablePriceUsd } from "@/hooks/priceHealth";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
@@ -160,16 +161,7 @@ export function DashboardPage() {
   // Note this does not cover the brief transient while the cascade is still
   // loading: a freshly-fetched BTC price can render beside placeholder stats.
   const firstLiquidationGroup = positionNotifications?.groups[0] ?? null;
-  const btcPriceUsd = prices["BTC"];
-  const btcMetadata = metadata["BTC"];
-  const isBtcPriceUsable =
-    btcMetadata !== undefined &&
-    !btcMetadata.isStale &&
-    !btcMetadata.fetchFailed;
-  const usableBtcPriceUsd =
-    isBtcPriceUsable && btcPriceUsd !== undefined && btcPriceUsd > 0
-      ? btcPriceUsd
-      : null;
+  const usableBtcPriceUsd = usablePriceUsd(prices, metadata, "BTC");
   const btcPrice =
     usableBtcPriceUsd !== null
       ? formatUsdPrice(usableBtcPriceUsd)

@@ -15,8 +15,7 @@ import { COPY } from "@/copy";
 import { DepositFeesBreakdown } from "../DepositFeesBreakdown";
 
 const baseProps = {
-  btcPrice: 0,
-  hasPriceFetchError: false,
+  btcPriceUsd: null,
   protocolFeeAmount: "0.0001 BTC",
   protocolFeePrice: "",
   protocolFeeIsError: false,
@@ -176,5 +175,44 @@ describe("DepositFeesBreakdown reserve tooltip", () => {
     );
 
     expect(reserveRowTooltip()).toContain("you can reclaim it");
+  });
+});
+
+describe("DepositFeesBreakdown USD values", () => {
+  it("shows the USD value beside each BTC fee line when a BTC price is supplied", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        btcPriceUsd={100_000}
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+        networkFeeSats={1_500n}
+      />,
+    );
+
+    expect(screen.getByText("($1.50 USD)")).toBeInTheDocument();
+    expect(screen.getByText("($3,000.00 USD)")).toBeInTheDocument();
+    expect(screen.getByText("($2,500.00 USD)")).toBeInTheDocument();
+    expect(screen.getByText("($97,500.00 USD)")).toBeInTheDocument();
+  });
+
+  it("omits the USD value on every BTC-priced line when no usable BTC price is available, keeping the ETH-priced deposit fee's", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        btcPriceUsd={null}
+        protocolFeePrice="($4.20 USD)"
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+        networkFeeSats={1_500n}
+      />,
+    );
+
+    expect(screen.getAllByText(/USD/)).toHaveLength(1);
+    expect(screen.getByText("($4.20 USD)")).toBeInTheDocument();
   });
 });
