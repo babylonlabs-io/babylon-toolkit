@@ -1,3 +1,4 @@
+import { HEALTH_FACTOR_LIQUIDATION_THRESHOLD } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -31,6 +32,12 @@ export type PositionNotificationsStatus =
 
 export interface UsePositionNotificationsResult {
   result: CalculatorResult | null;
+  /**
+   * Urgent warning from the Spoke's live health factor, computed even when
+   * `result` is null. When it is the urgent warning in `result.warnings` it
+   * is this same object, not a copy: the top banner compares by reference to
+   * tell that the live health factor, not the calculator, made it red.
+   */
   liveUrgentWarning: Warning | null;
   status: PositionNotificationsStatus;
   isLoading: boolean;
@@ -56,8 +63,10 @@ export interface UsePositionNotificationsResult {
  * Aligned with the calculator's own `URGENT_DISTANCE_PCT = 5%` rule —
  * a position whose live oracle health factor sits at or below 1.05 is
  * within the same band the calculator already considers urgent, so we
- * surface the warning even when stale indexed data inflated `totalBtc`
- * enough to suppress it.
+ * surface the warning even when the calculator's inputs suppress it. The
+ * calculator prices the position from the dApp's own BTC feed, indexed vault
+ * amounts and cached risk parameters, while the Spoke prices it from its own
+ * oracle, so the two can disagree.
  */
 const LIVE_HF_URGENT_THRESHOLD = 1.05;
 
@@ -221,20 +230,40 @@ export function usePositionNotifications(
 
     const calculatorResult = calculate(calculatorParams);
 
-    // Live-HF urgency guardrail. Even when the calculator's own
-    // distance check did not surface urgent (e.g. because stale indexed
-    // rows inflated `totalBtc`), force one based on the on-chain
-    // oracle's health factor. Trigger window aligns with the
-    // calculator's `URGENT_DISTANCE_PCT`. No duplicate if the
-    // calculator already produced an `urgent` warning.
-    const hasUrgent = calculatorResult.warnings.some(
+    // Live-HF urgency guardrail. At most one urgent warning is shown, and it
+    // never shows a buffer once the Spoke's health factor allows liquidation:
+    // - the calculator has no urgent warning: the live one is added;
+    // - the calculator still shows a buffer ("approaching") while the Spoke
+    //   can already liquidate: the live one takes its place, rather than
+    //   sitting under it as a secondary that contradicts it;
+    // - otherwise the calculator's warning stays, since it names the
+    //   liquidation price. While both sit in the urgent band above 1.0, its
+    //   distance can still exceed the Spoke's, by less than the calculator's
+    //   `URGENT_DISTANCE_PCT`.
+    // The live warning goes in as the returned `liveUrgentWarning` object
+    // itself, never a copy: the top banner compares by reference.
+    const calculatorUrgent = calculatorResult.warnings.find(
       (w) => w.type === "urgent",
     );
+    const firstGroup = calculatorResult.groups[0];
+    // A negative distance is the calculator's "approaching" case.
+    const calculatorShowsBuffer =
+      firstGroup !== undefined && firstGroup.distancePct < 0;
+    const isLiveHfLiquidatable =
+      healthFactor !== null &&
+      healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD;
     const resultWithLiveHf: CalculatorResult =
-      !hasUrgent && liveUrgentWarning
+      liveUrgentWarning &&
+      (calculatorUrgent === undefined ||
+        (isLiveHfLiquidatable && calculatorShowsBuffer))
         ? {
             ...calculatorResult,
-            warnings: [liveUrgentWarning, ...calculatorResult.warnings],
+            warnings: [
+              liveUrgentWarning,
+              ...calculatorResult.warnings.filter(
+                (w) => w !== calculatorUrgent,
+              ),
+            ],
           }
         : calculatorResult;
 
@@ -262,6 +291,7 @@ export function usePositionNotifications(
     btcMetadata,
     collateralVaults,
     debtValueUsd,
+    healthFactor,
     indexerError,
     liveUrgentWarning,
   ]);

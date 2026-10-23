@@ -26,15 +26,27 @@ const WARNING_ICON_SIZE_PX = 20;
 interface CriticalLiquidationTopBannerProps {
   /**
    * Effective position-notification result (debug override ?? live). The banner
-   * shows only when this resolves to a `red` (urgent) banner severity.
+   * shows when this resolves to a `red` (urgent) banner severity, or, with no
+   * result, when `liveUrgentWarning` is set.
    */
   result: CalculatorResult | null;
+  /**
+   * The live Spoke health-factor warning from the same `usePositionNotifications`
+   * call as `result`; null under a debug cascade override. When the hook puts it
+   * into `result.warnings` it is this same object, so comparing by reference
+   * tells whether the live health factor, not the calculator, made it red.
+   */
   liveUrgentWarning?: Warning | null;
 }
 
 /**
  * Full-bleed critical (near-liquidation) banner shown above the header when the
- * position is at `red` severity. A non-interactive `role="alert"` (core-ui's
+ * position is at `red` severity. When the calculator's own urgent warning made
+ * it red, the message is the first group's distance to liquidation. When the
+ * live Spoke health factor did, or there is no calculated result, the message
+ * is the live health-factor warning: the calculated distance comes from an
+ * independent price and cached risk parameters, and is the figure the Spoke
+ * contradicts. A non-interactive `role="alert"` (core-ui's
  * `critical` Banner variant applies it) so assistive tech announces it;
  * non-dismissible by design — an imminent liquidation warning the user must not
  * be able to hide. The actionable Add Collateral / Repay Debt controls live on
@@ -53,12 +65,18 @@ export function CriticalLiquidationTopBanner({
 
   const bannerState = result ? deriveBannerState(result) : null;
   const firstGroup = result?.groups[0] ?? null;
+  // Only the calculator's own urgent warning is backed by the first group's
+  // distance. When the live health-factor warning is primary, the Spoke made
+  // the position red and the distance is the figure it contradicts.
+  const isCalculatorUrgent =
+    bannerState?.severity === "red" &&
+    bannerState.primaryWarning !== liveUrgentWarning;
 
   // distancePct is negative while approaching liquidation and >= 0 once the
   // position is already liquidatable (same sign convention the dashboard gauge
   // uses), so negate it before formatting the remaining buffer.
   const message =
-    firstGroup && bannerState?.severity === "red"
+    firstGroup && isCalculatorUrgent
       ? firstGroup.distancePct >= 0
         ? COPY.topBanner.liquidatable
         : COPY.topBanner.critical(
