@@ -12,12 +12,19 @@ import {
 
 import { FAST_POLL_INTERVAL, NORMAL_POLL_INTERVAL } from "@/constants";
 
-import { LocalStorageStatus } from "../../models/peginStateMachine";
+import {
+  ContractStatus,
+  LocalStorageStatus,
+} from "../../models/peginStateMachine";
 import type { RemovePendingPeginsResult } from "../../storage/peginStorage";
 import { useVaultDeposits } from "../useVaultDeposits";
 
 vi.mock("../useVaults", () => ({
   useVaults: vi.fn(),
+}));
+const mockUseActiveVaultChainCheck = vi.hoisted(() => vi.fn());
+vi.mock("../useActiveVaultChainCheck", () => ({
+  useActiveVaultChainCheck: mockUseActiveVaultChainCheck,
 }));
 vi.mock("../../storage/usePeginStorage", () => ({
   usePeginStorage: vi.fn(() => ({
@@ -51,6 +58,10 @@ beforeEach(async () => {
     isLoading: false,
     error: null,
     refetch: vi.fn(),
+  });
+  mockUseActiveVaultChainCheck.mockReturnValue({
+    statuses: new Map(),
+    pendingIds: new Set(),
   });
   setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 });
@@ -131,6 +142,122 @@ describe("useVaultDeposits", () => {
     const { result } = renderHook(() => useVaultDeposits(ADDRESS));
 
     expect(result.current.indexedVaultIds).toBeNull();
+  });
+
+  it("replaces an indexer ACTIVE with the Verified status the chain still reports", async () => {
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [
+          {
+            id: "0xAbCdEf",
+            amount: 0n,
+            status: ContractStatus.ACTIVE,
+            isInUse: false,
+          },
+          {
+            id: "0x123456",
+            amount: 0n,
+            status: ContractStatus.ACTIVE,
+            isInUse: false,
+          },
+        ],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseActiveVaultChainCheck.mockReturnValue({
+      statuses: new Map([["0xabcdef", ContractStatus.VERIFIED]]),
+      pendingIds: new Set(),
+    });
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(mockUseActiveVaultChainCheck).toHaveBeenLastCalledWith([
+      "0xAbCdEf",
+      "0x123456",
+    ]);
+    const { confirmedPegins } = vi.mocked(usePeginStorage).mock.lastCall![0];
+    expect(
+      confirmedPegins.map(({ id, contractStatus }) => ({ id, contractStatus })),
+    ).toEqual([
+      { id: "0xAbCdEf", contractStatus: ContractStatus.VERIFIED },
+      { id: "0x123456", contractStatus: ContractStatus.ACTIVE },
+    ]);
+  });
+
+  it("holds back an indexer-ACTIVE vault whose registry read has not settled", async () => {
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [
+          {
+            id: "0xAbCdEf",
+            amount: 0n,
+            status: ContractStatus.ACTIVE,
+            isInUse: false,
+          },
+        ],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseActiveVaultChainCheck.mockReturnValue({
+      statuses: new Map(),
+      pendingIds: new Set(["0xabcdef"]),
+    });
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(
+      vi.mocked(usePeginStorage).mock.lastCall![0].confirmedPegins,
+    ).toEqual([]);
+    expect(result.current.indexedVaultIds).toBeNull();
+  });
+
+  it("keeps a vault's last status while its new registry read has not settled", async () => {
+    const verifiedVault = {
+      id: "0xAbCdEf",
+      amount: 0n,
+      status: ContractStatus.VERIFIED,
+      isInUse: false,
+    };
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [verifiedVault], droppedCount: 0 },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+    const { rerender } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [{ ...verifiedVault, status: ContractStatus.ACTIVE }],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseActiveVaultChainCheck.mockReturnValue({
+      statuses: new Map(),
+      pendingIds: new Set(["0xabcdef"]),
+    });
+    rerender();
+
+    const { confirmedPegins } = vi.mocked(usePeginStorage).mock.lastCall![0];
+    expect(confirmedPegins.map(({ contractStatus }) => contractStatus)).toEqual(
+      [ContractStatus.VERIFIED],
+    );
   });
 
   it("keeps fast polling off when the stored records cannot be read", async () => {
