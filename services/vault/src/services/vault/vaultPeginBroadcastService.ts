@@ -20,17 +20,19 @@ import {
 import {
   assertPsbtUnsignedTxMatches,
   assertReturnedKeyPathSignatures,
+  canonicalizeBtcPubkey,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { getPsbtInputFields } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
+import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
 import {
+  DepositorBtcKeyMismatchError,
   isDepositorBtcKeyMismatchError,
-  isDepositorWalletMismatchError,
 } from "../../utils/errors/depositorWalletMismatch";
 import { isDeviceCeremonyInvalidError } from "../../utils/errors/deviceErrors";
 
@@ -78,14 +80,23 @@ export interface BroadcastPrePeginParams {
   unsignedTxHex: string;
 
   /**
-   * BTC wallet provider with signing capability. May also implement the
-   * intent-approval methods (`deriveContextHash`/`approveDepositTerms`); when it
-   * does, `depositTerms` is required and the approval ceremony runs before
-   * signing.
+   * BTC wallet provider with signing capability. `getPublicKeyHex` is read
+   * once more before the ceremony and signing, so a wallet whose account no
+   * longer matches `depositorBtcPubkey` is refused before any prompt. May also
+   * implement the intent-approval methods (`deriveContextHash`/
+   * `approveDepositTerms`); when it does, `depositTerms` is required and the
+   * approval ceremony runs before signing.
    */
   btcWalletProvider: {
     signPsbt: (psbtHex: string) => Promise<string>;
+    getPublicKeyHex: () => Promise<string>;
   } & PrePeginApprovalWallet;
+
+  /**
+   * Vault the refusal is reported against. One Pre-PegIn funds every vault in
+   * a batch, so a batch passes its first member.
+   */
+  vaultId: Hex;
 
   /**
    * Approved deposit terms — required when `btcWalletProvider` supports deposit
@@ -393,6 +404,28 @@ async function approveAndSignPrePegin(params: {
 }
 
 /**
+ * Refuse a Bitcoin wallet whose live public key is not the depositor's key.
+ */
+export async function assertConnectedDepositorBtcKey(params: {
+  btcWalletProvider: { getPublicKeyHex: () => Promise<string> };
+  depositorBtcPubkey: string;
+  vaultId: Hex;
+}): Promise<void> {
+  const { btcWalletProvider, depositorBtcPubkey, vaultId } = params;
+  const expectedDepositorBtcPubkey = canonicalizeBtcPubkey(depositorBtcPubkey);
+  const connectedBtcPubkey = canonicalizeBtcPubkey(
+    await btcWalletProvider.getPublicKeyHex(),
+  );
+  if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+    throw new DepositorBtcKeyMismatchError({
+      vaultId,
+      expectedDepositorBtcPubkey,
+      connectedBtcPubkey,
+    });
+  }
+}
+
+/**
  * Sign and broadcast the funded Pre-PegIn transaction to the Bitcoin network
  *
  * @param params - Transaction and wallet parameters
@@ -410,6 +443,7 @@ export async function broadcastPrePeginTransaction(
     expectedUtxos,
     depositTerms,
     signal,
+    vaultId,
   } = params;
 
   // Stage 1: prepare.
@@ -436,6 +470,13 @@ export async function broadcastPrePeginTransaction(
   // Stage 2: sign. Includes the ceremony so device failures read as signing.
   let signedTxHex: string;
   try {
+    // Read the wallet key last, immediately before the ceremony and the
+    // signing prompt.
+    await assertConnectedDepositorBtcKey({
+      btcWalletProvider,
+      depositorBtcPubkey,
+      vaultId,
+    });
     signedTxHex = await approveAndSignPrePegin({
       psbtHex: psbt.toHex(),
       unsignedTxHex,
@@ -445,11 +486,10 @@ export async function broadcastPrePeginTransaction(
       signal,
     });
   } catch (error) {
-    // The device-envelope rejection and the caller's `signPsbt` depositor
-    // re-checks are typed, user-actionable refusals: pass them unwrapped.
+    // The device-envelope rejection and the depositor Bitcoin-key refusal are
+    // typed, user-actionable refusals: pass them unwrapped.
     if (
       isDepositTermsRejectedError(error) ||
-      isDepositorWalletMismatchError(error) ||
       isDepositorBtcKeyMismatchError(error)
     ) {
       throw error;

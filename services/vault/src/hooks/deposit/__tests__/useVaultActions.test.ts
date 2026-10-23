@@ -297,9 +297,17 @@ vi.mock("@/services/vault/resolveFundedTxFee", () => ({
   resolveFundedTxFeeAndUtxos: vi.fn(),
 }));
 
-vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
-  utxosToExpectedRecord: vi.fn(() => ({})),
-}));
+vi.mock(
+  "@/services/vault/vaultPeginBroadcastService",
+  async (importOriginal) => ({
+    assertConnectedDepositorBtcKey: (
+      await importOriginal<
+        typeof import("@/services/vault/vaultPeginBroadcastService")
+      >()
+    ).assertConnectedDepositorBtcKey,
+    utxosToExpectedRecord: vi.fn(() => ({})),
+  }),
+);
 
 vi.mock("@/models/peginStateMachine", async (importOriginal) => {
   const actual =
@@ -1225,7 +1233,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
 });
 
 // Resume binds both wallets to the contract record, not to the indexer. The
-// hook checks them before the broadcast and again when the service signs.
+// hook checks them before the broadcast; the service re-reads the Bitcoin key
+// before it signs.
 describe("useVaultActions — handleBroadcast depositor wallet binding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1337,7 +1346,7 @@ describe("useVaultActions — handleBroadcast depositor wallet binding", () => {
     expect(mockGetPublicKeyHex).not.toHaveBeenCalled();
   });
 
-  it("signs with the connected wallet when both wallets still match at signing", async () => {
+  it("signs with the connected wallet when both wallets match before the broadcast", async () => {
     mockBroadcastPrePeginTransaction.mockImplementationOnce(
       async ({ btcWalletProvider }) =>
         btcWalletProvider.signPsbt(TRUSTED_TX_HEX),
@@ -1353,79 +1362,6 @@ describe("useVaultActions — handleBroadcast depositor wallet binding", () => {
     ).toHaveBeenCalledExactlyOnceWith({
       confirmedVaultIds: ["0xvaultId"],
     });
-  });
-
-  it("refuses to sign when the ETH account switches after the broadcast starts", async () => {
-    mockBroadcastPrePeginTransaction.mockImplementationOnce(
-      async ({ btcWalletProvider }) => {
-        vi.mocked(getAccount).mockReturnValue({
-          address: "0xother_depositor",
-        } as never);
-        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
-      },
-    );
-
-    const { result } = renderHook(() => useVaultActions());
-    await act(() => result.current.handleBroadcast(baseBroadcastParams));
-
-    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-    expect(mockSignPsbt).not.toHaveBeenCalled();
-    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toEqual(
-      COPY.deposit.errors.wrongDepositorWallet,
-    );
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      expect.any(DepositorWalletMismatchError),
-      expect.anything(),
-    );
-  });
-
-  it("refuses to sign when the BTC wallet switches after the broadcast starts", async () => {
-    mockBroadcastPrePeginTransaction.mockImplementationOnce(
-      async ({ btcWalletProvider }) => {
-        mockGetPublicKeyHex.mockResolvedValue(OTHER_BTC_KEY);
-        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
-      },
-    );
-
-    const { result } = renderHook(() => useVaultActions());
-    await act(() => result.current.handleBroadcast(baseBroadcastParams));
-
-    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-    expect(mockSignPsbt).not.toHaveBeenCalled();
-    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toEqual(
-      COPY.deposit.errors.wrongDepositorBtcWallet,
-    );
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      expect.any(DepositorBtcKeyMismatchError),
-      expect.anything(),
-    );
-  });
-
-  it("refuses to sign when the ETH wallet disconnects after the broadcast starts", async () => {
-    mockBroadcastPrePeginTransaction.mockImplementationOnce(
-      async ({ btcWalletProvider }) => {
-        vi.mocked(getAccount).mockReturnValue({ address: undefined } as never);
-        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
-      },
-    );
-
-    const { result } = renderHook(() => useVaultActions());
-    await act(() => result.current.handleBroadcast(baseBroadcastParams));
-
-    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-    expect(mockSignPsbt).not.toHaveBeenCalled();
-    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toEqual(
-      COPY.deposit.errors.walletNotConnected,
-    );
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: COPY.deposit.errors.ethWalletNotConnected,
-      }),
-      expect.anything(),
-    );
   });
 
   // The hook is unmounted, so it sets no broadcast error.
