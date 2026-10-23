@@ -39,7 +39,10 @@ import {
 } from "@/utils/notifications/browserNotification";
 
 interface SigningNotificationContextValue {
-  /** Request OS notification permission. Call from a user gesture. */
+  /**
+   * Request OS notification permission. Call from a user gesture. Also hides
+   * the enable-prompt for the rest of the session.
+   */
   requestPermission: () => void;
   /**
    * Fire a "signing required" notification the first time `key` is seen while
@@ -52,7 +55,10 @@ interface SigningNotificationContextValue {
   /**
    * Whether to show the "enable notifications" prompt: the browser supports
    * notifications, the user hasn't decided yet (neither
-   * granted nor blocked), and they haven't dismissed the prompt.
+   * granted nor blocked), they haven't dismissed the prompt, and permission
+   * hasn't already been requested this session, whatever the browser answered
+   * (a closed or ignored native prompt, or Chrome's quiet UI, leaves permission
+   * at "default").
    */
   shouldPromptForPermission: boolean;
   /** Dismiss the prompt and remember it across reloads. */
@@ -84,10 +90,12 @@ export function SigningNotificationProvider({
   const [promptDismissed, setPromptDismissed] = useState<boolean>(
     loadNotificationPromptDismissed,
   );
+  const [promptRequested, setPromptRequested] = useState(false);
   const [activeFlow, setActiveFlow] = useState(false);
   const documentHidden = useDocumentHidden();
 
   const requestPermission = useCallback(() => {
+    setPromptRequested(true);
     void requestBrowserNotificationPermission()
       .then((result) => {
         if (result) setPermission(result);
@@ -135,7 +143,7 @@ export function SigningNotificationProvider({
   }, [documentHidden]);
 
   const shouldPromptForPermission =
-    permission === "default" && !promptDismissed;
+    permission === "default" && !promptDismissed && !promptRequested;
 
   const value = useMemo(
     () => ({
