@@ -7,6 +7,7 @@ import { renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { parseBtcToSatoshis } from "@/utils/btcConversion";
 
@@ -234,7 +235,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(result.current.result).toBeNull();
   });
 
-  it("forces an urgent warning when live HF is below 1.0", () => {
+  it("forces the returned live warning itself into the result when live HF is below 1.0", () => {
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
       // Tiny debt → calculator alone would not flag urgent.
@@ -245,9 +246,11 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     const { result } = renderHook(() => usePositionNotifications(USER));
 
     expect(result.current.status).toBe("ready");
-    expect(
-      result.current.result?.warnings.some((w) => w.type === "urgent"),
-    ).toBe(true);
+    expect(result.current.liveUrgentWarning).not.toBeNull();
+    // Same object, not a copy: the top banner compares by reference.
+    expect(result.current.result?.warnings[0]).toBe(
+      result.current.liveUrgentWarning,
+    );
   });
 
   it("forces an urgent warning when live HF is at the 1.05 threshold", () => {
@@ -264,8 +267,10 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     ).toBe(true);
   });
 
-  it("does not duplicate the urgent warning when the calculator already produced one", () => {
-    // Large debt → calculator's own URGENT_DISTANCE_PCT rule fires.
+  it("keeps only the calculator's approaching warning when the live HF is exactly 1.0", () => {
+    // Large debt → calculator's own URGENT_DISTANCE_PCT rule fires (4.8%
+    // away). The Spoke cannot liquidate at exactly 1.0, so its warning does
+    // not replace the calculator's.
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
       debtValueUsd: 40_000,
@@ -274,10 +279,49 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
 
     const { result } = renderHook(() => usePositionNotifications(USER));
 
-    const urgentCount =
-      result.current.result?.warnings.filter((w) => w.type === "urgent")
-        .length ?? 0;
-    expect(urgentCount).toBe(1);
+    const urgentTitles = result.current.result?.warnings
+      .filter((w) => w.type === "urgent")
+      .map((w) => w.title);
+    expect(urgentTitles).toEqual([
+      COPY.liquidationWarnings.urgent.approachingTitle("4.8"),
+    ]);
+  });
+
+  it("replaces the calculator's approaching warning with the live warning when the live HF is below 1.0", () => {
+    // The calculator still sees a 4.8% buffer at the dApp's price while the
+    // Spoke's health factor already allows liquidation.
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 0.98,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const warnings = result.current.result?.warnings;
+    // Only the calculator's urgent warning is replaced: the single-vault cliff
+    // warning, which carries the add-BTC action, stays.
+    expect(warnings?.map((w) => w.type)).toEqual(["urgent", "cliff"]);
+    expect(warnings?.[0]).toBe(result.current.liveUrgentWarning);
+  });
+
+  it("keeps the calculator's liquidatable warning when the live HF is also below 1.0", () => {
+    // Debt above the collateral's borrowing power at the dApp's price → the
+    // calculator itself says liquidation can trigger now.
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 43_000,
+      healthFactor: 0.98,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const urgentTitles = result.current.result?.warnings
+      .filter((w) => w.type === "urgent")
+      .map((w) => w.title);
+    expect(urgentTitles).toEqual([
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    ]);
   });
 
   it("does not force urgent for a healthy live HF", () => {
