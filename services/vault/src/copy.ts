@@ -3023,7 +3023,6 @@ export const COPY = {
     pendingLabel: "Pending",
     dateToday: "Today",
     dateYesterday: "Yesterday",
-    dateLastWeek: "Last week",
   },
   banner: {
     addCollateral: "Add Collateral",
