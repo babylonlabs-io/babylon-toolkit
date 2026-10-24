@@ -48,11 +48,16 @@ export function LoanSuccessPanel({
         <Avatar
           url={assetIcon}
           size="large"
-          className="!h-[130px] !w-[130px]"
+          className="!h-[108px] !w-[108px]"
         />
 
-        <div className="flex flex-col gap-4">
-          <Heading variant="h4">{copy.title}</Heading>
+        <div className="flex flex-col gap-2">
+          <Heading
+            variant="h4"
+            className="text-[28px] leading-[1.334] tracking-normal"
+          >
+            {copy.title}
+          </Heading>
 
           <Text as="div" className="text-accent-secondary">
             {copy
