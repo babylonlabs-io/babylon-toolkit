@@ -10,7 +10,8 @@ import type { LiquidationEventCard as EventCardData } from "./liquidationChartDa
  * every value arrives pre-formatted from `buildLiquidationChartData`.
  *
  * The top rule carries the event's identity, matching the band's colour lane
- * in the chart.
+ * in the chart. A card liquidated in simulation swaps it for the error rule,
+ * adds a status strip and steps its text colours down a level.
  */
 
 const TONE_BORDER: Record<EventCardData["tone"], string> = {
@@ -20,7 +21,7 @@ const TONE_BORDER: Record<EventCardData["tone"], string> = {
 };
 
 const SECTION_TITLE_CLASS =
-  "text-base uppercase leading-[1.5] tracking-[0.15px] text-accent-secondary";
+  "text-base uppercase leading-[1.5] tracking-[0.15px]";
 const ROW_CLASS = "flex w-full items-center justify-between text-sm";
 const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
 // `Hint` renders a block-level wrapper, so a label that carries one must be a
@@ -32,25 +33,29 @@ function DetailRow({
   value,
   labelClassName,
   tooltip,
+  muted,
 }: {
   label: string;
   value: string;
   labelClassName?: string;
   tooltip?: string;
+  muted?: boolean;
 }) {
   return (
     <div className={ROW_CLASS}>
       <div
         className={twJoin(
           HINTED_LABEL_CLASS,
-          "text-accent-primary",
+          muted ? "text-accent-secondary" : "text-accent-primary",
           labelClassName,
         )}
       >
         {label}
         {tooltip ? <Hint tooltip={tooltip} title={label} /> : null}
       </div>
-      <span className="text-accent-primary">{value}</span>
+      <span className={muted ? "text-accent-secondary" : "text-accent-primary"}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -59,14 +64,21 @@ function Stat({
   label,
   value,
   className,
+  muted,
 }: {
   label: string;
   value: string;
   className?: string;
+  muted?: boolean;
 }) {
   return (
     <div className="flex min-w-0 grow basis-[110px] flex-col">
-      <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+      <span
+        className={twJoin(
+          "text-sm leading-[1.43] tracking-[0.17px]",
+          muted ? "text-risk-muted" : "text-accent-secondary",
+        )}
+      >
         {label}
       </span>
       <span
@@ -87,12 +99,14 @@ function SeizureRow({
   unit,
   emphasis,
   tooltip,
+  muted,
 }: {
   label: string;
   amount: string;
   unit: string;
   emphasis?: boolean;
   tooltip?: string;
+  muted?: boolean;
 }) {
   return (
     <div
@@ -106,15 +120,29 @@ function SeizureRow({
         className={twJoin(
           HINTED_LABEL_CLASS,
           emphasis
-            ? "text-base leading-[1.5] tracking-[0.15px] text-accent-primary"
-            : "text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary",
+            ? twJoin(
+                "text-base leading-[1.5] tracking-[0.15px]",
+                muted ? "text-accent-secondary" : "text-accent-primary",
+              )
+            : twJoin(
+                "text-sm leading-[1.43] tracking-[0.17px]",
+                muted ? "text-risk-muted" : "text-accent-secondary",
+              ),
         )}
       >
         {label}
         {tooltip ? <Hint tooltip={tooltip} title={label} /> : null}
       </div>
-      <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-        {amount} <span className="text-accent-secondary">{unit}</span>
+      <span
+        className={twJoin(
+          "text-base leading-[1.5] tracking-[0.15px]",
+          muted ? "text-accent-secondary" : "text-accent-primary",
+        )}
+      >
+        {amount}{" "}
+        <span className={muted ? "text-risk-muted" : "text-accent-secondary"}>
+          {unit}
+        </span>
       </span>
     </div>
   );
@@ -127,124 +155,176 @@ export function LiquidationEventCard({
   card: EventCardData;
   outcomesId?: string;
 }) {
-  const { triggered } = card;
+  const { triggered, liquidatedInSimulation: muted } = card;
 
   return (
     <article
       className={twJoin(
-        "flex flex-col gap-4 rounded-lg border-t-4 bg-background-secondary p-6",
-        TONE_BORDER[card.tone],
+        "flex flex-col overflow-hidden rounded-lg border-t-4 bg-background-secondary",
+        muted ? "border-t-risk-red-dark" : TONE_BORDER[card.tone],
       )}
     >
-      <h3 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
-        {card.title}
-      </h3>
-
-      <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
-        <Stat
-          label={COPY.liquidations.events.collateral}
-          value={card.collateralLabel}
-          className="text-xl text-accent-primary"
-        />
-        <Stat
-          label={COPY.liquidations.events.liqPrice}
-          value={card.liqPriceLabel}
-          className={twJoin(
-            "text-xl",
-            triggered ? "text-error-light" : "text-success-light",
-          )}
-        />
-        <Stat
-          label={COPY.liquidations.events.distance}
-          value={card.distanceLabel}
-          className={twJoin(
-            "text-xl",
-            triggered ? "text-error-light" : "text-success-light",
-          )}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <p className={SECTION_TITLE_CLASS}>
-          {COPY.liquidations.events.seizedVaultsSection}
+      {muted ? (
+        <p className="bg-background-contrast px-3 py-2 text-center text-base uppercase leading-[1.5] tracking-[0.15px] text-accent-secondary">
+          {COPY.liquidations.events.liquidatedInSimulation}
         </p>
-        <div className="overflow-hidden rounded-lg border border-secondary-strokeLight">
-          {card.seizedVaults.map((vault) => (
-            <SeizureRow
-              key={vault.name}
-              label={vault.name}
-              amount={vault.amount}
-              unit={vault.unit}
-              emphasis
-            />
-          ))}
-          <SeizureRow
-            label={COPY.liquidations.events.targetSeizure}
-            tooltip={COPY.liquidations.events.targetSeizureTooltip}
-            amount={card.targetSeizure.amount}
-            unit={card.targetSeizure.unit}
+      ) : null}
+      <div className="flex flex-col gap-4 p-6">
+        <h3
+          className={twJoin(
+            "text-xl leading-[1.6] tracking-[0.15px]",
+            muted ? "text-accent-secondary" : "text-accent-primary",
+          )}
+        >
+          {card.title}
+        </h3>
+
+        <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
+          <Stat
+            label={COPY.liquidations.events.collateral}
+            value={card.collateralLabel}
+            className={twJoin(
+              "text-xl",
+              muted ? "text-accent-secondary" : "text-accent-primary",
+            )}
+            muted={muted}
           />
-          <SeizureRow
-            label={COPY.liquidations.events.overSeizure}
-            tooltip={COPY.liquidations.events.overSeizureTooltip}
-            amount={card.overSeizure.amount}
-            unit={card.overSeizure.unit}
+          <Stat
+            label={COPY.liquidations.events.liqPrice}
+            value={card.liqPriceLabel}
+            className={twJoin(
+              "text-xl",
+              triggered ? "text-error-light" : "text-success-light",
+            )}
+            muted={muted}
+          />
+          <Stat
+            label={COPY.liquidations.events.distance}
+            value={card.distanceLabel}
+            className={twJoin(
+              "text-xl",
+              triggered ? "text-error-light" : "text-success-light",
+            )}
+            muted={muted}
           />
         </div>
-      </div>
 
-      <div className={DIVIDER_CLASS} />
-
-      <div id={outcomesId} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <p className={SECTION_TITLE_CLASS}>
-            {COPY.liquidations.events.estimatedLiquidationSection}
+          <p
+            className={twJoin(
+              SECTION_TITLE_CLASS,
+              muted ? "text-risk-muted" : "text-accent-secondary",
+            )}
+          >
+            {COPY.liquidations.events.seizedVaultsSection}
           </p>
-          <div className="flex flex-col gap-2">
-            <DetailRow
-              label={COPY.liquidations.events.collateralLiquidated}
-              value={card.collateralLiquidatedLabel}
+          <div className="overflow-hidden rounded-lg border border-secondary-strokeLight">
+            {card.seizedVaults.map((vault) => (
+              <SeizureRow
+                key={vault.name}
+                label={vault.name}
+                amount={vault.amount}
+                unit={vault.unit}
+                emphasis
+                muted={muted}
+              />
+            ))}
+            <SeizureRow
+              label={COPY.liquidations.events.targetSeizure}
+              tooltip={COPY.liquidations.events.targetSeizureTooltip}
+              amount={card.targetSeizure.amount}
+              unit={card.targetSeizure.unit}
+              muted={muted}
             />
-            <DetailRow
-              label={COPY.liquidations.events.debtRepaid}
-              value={card.debtRepaidLabel}
-              labelClassName="text-warning-main"
-            />
-            <DetailRow
-              label={COPY.liquidations.events.liquidatorProfit}
-              value={card.liquidatorProfitLabel}
-            />
-            <DetailRow
-              label={card.fairness.label}
-              value={card.fairness.value}
-              tooltip={card.fairness.tooltip}
-              labelClassName="text-info-light"
+            <SeizureRow
+              label={COPY.liquidations.events.overSeizure}
+              tooltip={COPY.liquidations.events.overSeizureTooltip}
+              amount={card.overSeizure.amount}
+              unit={card.overSeizure.unit}
+              muted={muted}
             />
           </div>
         </div>
 
         <div className={DIVIDER_CLASS} />
 
-        <div className="flex flex-col gap-2">
-          <p className={SECTION_TITLE_CLASS}>
-            {COPY.liquidations.events.positionAfterSection}
-          </p>
-          <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
-            <Stat
-              label={COPY.liquidations.events.btcRemaining}
-              value={card.btcRemainingLabel}
-              className="text-base text-accent-primary"
-            />
-            <Stat
-              label={COPY.liquidations.events.debtRemaining}
-              value={card.debtRemainingLabel}
-              className="text-base text-accent-primary"
-            />
-            <Stat
-              label={COPY.liquidations.events.hfAfterLiquidation}
-              value={card.hfAfterLabel}
-              className="text-base text-risk-amber"
-            />
+        <div id={outcomesId} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <p
+              className={twJoin(
+                SECTION_TITLE_CLASS,
+                muted ? "text-risk-muted" : "text-accent-secondary",
+              )}
+            >
+              {COPY.liquidations.events.estimatedLiquidationSection}
+            </p>
+            <div className="flex flex-col gap-2">
+              <DetailRow
+                label={COPY.liquidations.events.collateralLiquidated}
+                value={card.collateralLiquidatedLabel}
+                muted={muted}
+              />
+              <DetailRow
+                label={COPY.liquidations.events.debtRepaid}
+                value={card.debtRepaidLabel}
+                labelClassName="text-warning-main"
+                muted={muted}
+              />
+              <DetailRow
+                label={COPY.liquidations.events.liquidatorProfit}
+                value={card.liquidatorProfitLabel}
+                muted={muted}
+              />
+              <DetailRow
+                label={card.fairness.label}
+                value={card.fairness.value}
+                tooltip={card.fairness.tooltip}
+                labelClassName="text-info-light"
+                muted={muted}
+              />
+            </div>
+          </div>
+
+          <div className={DIVIDER_CLASS} />
+
+          <div className="flex flex-col gap-2">
+            <p
+              className={twJoin(
+                SECTION_TITLE_CLASS,
+                muted ? "text-risk-muted" : "text-accent-secondary",
+              )}
+            >
+              {COPY.liquidations.events.positionAfterSection}
+            </p>
+            <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
+              <Stat
+                label={COPY.liquidations.events.btcRemaining}
+                value={card.btcRemainingLabel}
+                className={twJoin(
+                  "text-base",
+                  muted ? "text-accent-secondary" : "text-accent-primary",
+                )}
+                muted={muted}
+              />
+              <Stat
+                label={COPY.liquidations.events.debtRemaining}
+                value={card.debtRemainingLabel}
+                className={twJoin(
+                  "text-base",
+                  muted ? "text-accent-secondary" : "text-accent-primary",
+                )}
+                muted={muted}
+              />
+              <Stat
+                label={COPY.liquidations.events.hfAfterLiquidation}
+                value={card.hfAfterLabel}
+                className={twJoin(
+                  "text-base",
+                  muted ? "text-accent-secondary" : "text-risk-amber",
+                )}
+                muted={muted}
+              />
+            </div>
           </div>
         </div>
       </div>
