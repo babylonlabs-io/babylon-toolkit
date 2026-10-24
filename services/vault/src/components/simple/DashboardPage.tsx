@@ -92,6 +92,7 @@ export function DashboardPage() {
     position,
     collateralBtc,
     collateralValueUsd,
+    debtValueUsd,
     availableToBorrowUsd,
     canBorrow,
     collateralFactorBps,
@@ -138,6 +139,7 @@ export function DashboardPage() {
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const availableToBorrow = formatUsdValue(availableToBorrowUsd);
+  const borrowedValue = formatUsdValue(debtValueUsd);
   const collateralBtcText = formatBtcAmount(collateralBtc);
   // The Overview is purely a financial summary: an empty position renders every
   // row as a placeholder ("Health factor –", "$0 USD", "$0 USD"), so suppress
@@ -257,6 +259,7 @@ export function DashboardPage() {
         <OverviewSection
           totalCollateralValue={totalCollateralValue}
           borrowedAssets={cardBorrowedAssets(demoLoans, borrowedAssets)}
+          borrowedValue={borrowedValue}
           maxBorrowReserves={maxBorrowReserves}
           borrowCount={cardBorrowCount(demoLoans, {
             position,

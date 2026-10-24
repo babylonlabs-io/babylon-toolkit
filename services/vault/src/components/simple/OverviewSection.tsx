@@ -21,6 +21,7 @@ import {
 interface OverviewSectionProps {
   totalCollateralValue: string;
   borrowedAssets: BorrowedAsset[];
+  borrowedValue: string;
   maxBorrowReserves: BorrowReserveLimit;
   borrowCount: bigint | null;
   availableToBorrow: string;
@@ -39,6 +40,7 @@ interface OverviewSectionProps {
 export function OverviewSection({
   totalCollateralValue,
   borrowedAssets,
+  borrowedValue,
   maxBorrowReserves,
   borrowCount,
   availableToBorrow,
@@ -72,6 +74,7 @@ export function OverviewSection({
       ...buildBorrowCapacityCards({
         availableToBorrow,
         borrowedAssets,
+        borrowedValue,
         maxBorrowReserves,
         borrowCount,
         borrowCapacityLoading,
@@ -93,6 +96,7 @@ export function OverviewSection({
       onBorrow,
       canBorrow,
       borrowedAssets,
+      borrowedValue,
       maxBorrowReserves,
       borrowCount,
       onRepay,
