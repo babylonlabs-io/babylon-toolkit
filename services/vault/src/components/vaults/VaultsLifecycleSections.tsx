@@ -32,11 +32,12 @@ import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { getActionStatus } from "@/components/deposit/actionStatus";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import {
-  LIST_ROW_ACTION_SLOT_CLASS,
   LIST_ROW_COLUMN_CLASS,
   LIST_ROW_LEADING_COLUMN_CLASS,
   LIST_ROW_MIN_HEIGHT_CLASS,
   LIST_ROW_STATUS_COLUMN_CLASS,
+  LIST_ROW_TRAILING_CLASS,
+  LIST_ROW_UNFILLED_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
@@ -102,11 +103,7 @@ const PROGRESS_FILL_COLOR = "rgb(var(--risk-amber))";
  */
 const RECLAIM_BUTTON_TEST_ID = "vault-reclaim-button";
 
-/**
- * Reserve-figure cell width. Sits outside the fixed action slot, whose basis is
- * what keeps every row's columns aligned, so it needs a width of its own; 82px
- * is the design's, and fits "999,999 sats" at `text-sm`.
- */
+/** Reserve-figure cell width: the design's 82px, which fits "999,999 sats" at `text-sm`. */
 const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
 
 const DISMISS_ICON_SIZE = 20;
@@ -354,11 +351,12 @@ function PendingRow({
         )}
       </div>
 
-      {/* Primary action or details. Pending labels are the widest the rows
-          produce ("Broadcast Pre-Pegin"), which is what the slot's fixed basis
-          is sized to — routing them through it keeps this row's columns level
-          with the Active and Inactive rows. */}
-      <div className={`${LIST_ROW_ACTION_SLOT_CLASS} max-md:basis-full`}>
+      {/* Primary action or details, then the dismiss control, inside the same
+          fixed trailing cell the Active and Inactive rows use so this row's
+          columns stay level with theirs. */}
+      <div
+        className={`${LIST_ROW_TRAILING_CLASS} max-md:basis-full max-md:flex-col max-md:items-stretch`}
+      >
         {actionStatus.type === "available" ? (
           // This control's data-testid is a real-wallet E2E hook
           // (e2e/real/actions/resume.ts, e2e/real/actions/forgedStuck.ts) —
@@ -396,19 +394,18 @@ function PendingRow({
             {COPY.vaults.actions.viewDetails}
           </button>
         )}
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={() => onDismiss(activity.id)}
+            aria-label={COPY.vaults.dismissPending.rowLabel}
+            data-testid="pending-deposit-dismiss-button"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125 max-md:self-end"
+          >
+            <IoClose size={DISMISS_ICON_SIZE} />
+          </button>
+        )}
       </div>
-
-      {onDismiss && (
-        <button
-          type="button"
-          onClick={() => onDismiss(activity.id)}
-          aria-label={COPY.vaults.dismissPending.rowLabel}
-          data-testid="pending-deposit-dismiss-button"
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125 max-md:ml-auto"
-        >
-          <IoClose size={DISMISS_ICON_SIZE} />
-        </button>
-      )}
     </div>
   );
 }
@@ -519,17 +516,6 @@ function InactiveRow({
   // settled: the provider deletes the package once that spend is final.
   const visibleDownloadParams =
     peginState && !hasRefund ? downloadParams : null;
-  // The slot widens only for two controls, so a lone button keeps the fixed
-  // basis that aligns this row's columns with its neighbours.
-  const hasOtherAction = Boolean(
-    isRefundAvailable ||
-      blockedTooltip ||
-      isClaimExpiredAvailable ||
-      isReclaimAvailable ||
-      isReclaimWalletNeeded ||
-      isReclaiming ||
-      reclaimBlockedTooltip,
-  );
 
   // The indexer's reason explains the hand-back at activation, which only the
   // REDEEMED row reports; a reclaim row carries the field but not the state.
@@ -542,7 +528,9 @@ function InactiveRow({
     : null;
 
   return (
-    <ListRowCard className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}>
+    <ListRowCard
+      className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap ${LIST_ROW_UNFILLED_CLASS}`}
+    >
       {/* Amount + refund maturity */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
@@ -567,7 +555,7 @@ function InactiveRow({
       </div>
 
       {/* Status */}
-      <div className={`flex items-center ${LIST_ROW_COLUMN_CLASS}`}>
+      <div className={`flex items-center ${LIST_ROW_STATUS_COLUMN_CLASS}`}>
         {peginState ? (
           <span className="flex items-center gap-1">
             <span
@@ -625,35 +613,28 @@ function InactiveRow({
         )}
       </div>
 
-      {/* Reclaimable reserve figure, sitting left of the action slot rather
-          than inside it: the slot's fixed basis is what keeps every row's
-          columns aligned, and the design's amount + button pair is wider than
-          that basis. Rendered on every inactive row — empty for refund rows —
-          so both row kinds still line up. */}
-      <div className={`flex shrink-0 flex-col ${RECLAIM_METRIC_COLUMN_CLASS}`}>
+      {/* From xl up, the cell keeps its fixed width even when no figure or
+          action is shown, so an actionless row still aligns with the rows
+          that carry a button. Below `xl`, where the row wraps, an empty cell
+          is hidden so it does not take a line of its own. */}
+      <div
+        className={twMerge(
+          LIST_ROW_TRAILING_CLASS,
+          "max-xl:empty:hidden max-md:basis-full max-md:flex-col max-md:items-stretch",
+        )}
+      >
         {reclaimableSats !== null && (
-          <>
+          <div
+            className={`flex shrink-0 flex-col ${RECLAIM_METRIC_COLUMN_CLASS}`}
+          >
             <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
               {COPY.reclaim.rowAmount(formatSats(reclaimableSats))}
             </span>
             <span className="text-xs leading-[1.4] tracking-[0.4px] text-accent-secondary">
               {COPY.reclaim.rowMetricLabel}
             </span>
-          </>
+          </div>
         )}
-      </div>
-
-      {/* From md up, reserved even when neither action is available nor
-          blocked, so an actionless row still aligns with the rows that carry a
-          button. On a phone an empty slot is hidden. */}
-      <div
-        className={twMerge(
-          LIST_ROW_ACTION_SLOT_CLASS,
-          "max-md:basis-full max-md:empty:hidden",
-          visibleDownloadParams && "gap-2 max-md:flex-col",
-          visibleDownloadParams && hasOtherAction && "basis-auto",
-        )}
-      >
         {visibleDownloadParams && (
           <button
             type="button"
@@ -1077,7 +1058,7 @@ export function VaultsLifecycleSections({
       {children}
 
       {inactiveActivities.length > 0 && (
-        <section className="w-full space-y-3">
+        <section className="w-full space-y-2">
           <Heading
             variant="h6"
             as="h2"

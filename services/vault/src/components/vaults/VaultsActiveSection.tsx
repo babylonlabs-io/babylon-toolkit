@@ -26,10 +26,11 @@ import {
 } from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import {
-  LIST_ROW_ACTION_SLOT_CLASS,
   LIST_ROW_COLUMN_CLASS,
   LIST_ROW_LEADING_COLUMN_CLASS,
   LIST_ROW_MIN_HEIGHT_CLASS,
+  LIST_ROW_STATUS_COLUMN_CLASS,
+  LIST_ROW_TRAILING_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
 import { ArtifactReminderCard } from "@/components/vaults/ArtifactReminderCard";
@@ -122,7 +123,7 @@ function ActiveVaultRow({
       </div>
 
       {/* Status */}
-      <div className={`flex items-center ${LIST_ROW_COLUMN_CLASS}`}>
+      <div className={`flex items-center ${LIST_ROW_STATUS_COLUMN_CLASS}`}>
         {vault.lifecycle === "activating" && (
           <span className="flex items-center gap-2 text-sm text-accent-secondary">
             <Loader size={16} />
@@ -178,9 +179,8 @@ function ActiveVaultRow({
 
       <div
         className={twMerge(
-          LIST_ROW_ACTION_SLOT_CLASS,
+          LIST_ROW_TRAILING_CLASS,
           "max-md:basis-full max-md:flex-col max-md:items-stretch",
-          showDownloadParams && "basis-auto gap-2",
         )}
       >
         {showDownloadParams && (

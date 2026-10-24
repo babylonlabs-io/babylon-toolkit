@@ -19,10 +19,12 @@ import { CARD_SHELL_CLASS } from "@/components/shared/layoutClasses";
  * cell and opening a gap before the trailing action button.
  *
  * The basis is the widest cell's intrinsic content — the status cell's 12px
- * dot and 108px label with their 4px gap. The bases are the lever that fits a
- * lifecycle row on one line: they sum (with the gaps and the action slot) to
- * less than the row's width from `xl` up, where the rows are
- * `xl:flex-nowrap`. Below `xl` the row wraps instead.
+ * dot and 108px label with their 4px gap. From `xl` up the lifecycle rows are
+ * `xl:flex-nowrap`: when the bases plus the gaps and the fixed trailing cell
+ * exceed the row's width (below about a 1392px viewport, with the 242px
+ * sidebar), the data cells shrink in proportion to their bases — identically
+ * in every row, so the columns still line up — and their text truncates or
+ * wraps. Below `xl` the row wraps instead.
  */
 export const LIST_ROW_COLUMN_CLASS = "min-w-0 grow basis-[144px]";
 
@@ -40,31 +42,40 @@ export const LIST_ROW_STATUS_COLUMN_CLASS = "min-w-0 grow-[2] basis-[144px]";
  * block. The basis fits the amount and the sub-lines the rows produce in the
  * common case; longer interpolated sub-lines (notably
  * `COPY.pegin.messages.refundMaturing`) truncate rather than widen the cell,
- * because widening it would push the bases past the row's width and break the
- * one-line fit from `xl` up. It takes a double share of any remaining slack.
+ * because widening it would take width from the other data cells in every row.
+ * It takes a double share of any remaining slack.
  */
 export const LIST_ROW_LEADING_COLUMN_CLASS = "min-w-0 grow-[2] basis-[240px]";
 
 /**
- * Trailing action cell. Every lifecycle and activity row routes its action
- * through this slot — including rows that have no action at all — and the slot
- * neither grows nor shrinks. That is what keeps the columns aligned: the slack
+ * The Activity row's action cell. It neither grows nor shrinks, so the slack
  * the data cells divide is `card width - gaps - bases - 168`, identical in
- * every row, so a row whose button says "Broadcast Pre-Pegin" starts its
- * columns in the same place as one that says "Withdraw" or has no button.
+ * every Activity row that carries an action, whatever the button says.
  *
- * Sizing an auto-width slot to its own button instead would hand each row a
- * different amount of slack and skew that row's columns by tens of pixels.
- * The one exception is a row with two actions: a Vaults page row that shows
- * Download artifacts beside another action widens its slot to fit both.
- *
- * The 168px basis is the widest 36px row action rounded up: "Broadcast
- * Pre-Pegin" measures 167px at `text-sm` + `tracking-[0.17px]` + `px-4` in Px
- * Grotesk Regular. Adding a longer label to `COPY.pegin.primaryAction` or
- * `COPY.vaults.actions` means re-measuring and widening this.
+ * The 168px basis fits any 36px row action — the widest label, "Broadcast
+ * Pre-Pegin", measures 167px at `text-sm` + `tracking-[0.17px]` + `px-4` in Px
+ * Grotesk Regular. The Activity row renders `COPY.vaults.actions` labels here;
+ * adding a longer one means re-measuring and widening this.
  */
 export const LIST_ROW_ACTION_SLOT_CLASS =
   "flex shrink-0 grow-0 basis-[168px] justify-end";
+
+/**
+ * The trailing cell of every vault lifecycle row. Each row reserves the same
+ * 300px, so the data columns share identical slack and line up across the
+ * Pending / Total Collateral / Inactive sections. 300 is the widest trailing
+ * content a row renders today — Download artifacts beside a 120px action,
+ * about 298px — rounded up, so the rows fit without squeezing the data cells
+ * from about a 1392px viewport (with the 242px sidebar) up. Content wider
+ * still (e.g. a longer action label beside Download artifacts) widens that one
+ * row through flex `min-width: auto` rather than clipping, so this carries no
+ * overflow or `min-w-0`. The row buttons carry `ml-auto` (buttonClasses.ts)
+ * for wrapped rows; inside this justify-end cell those auto margins would
+ * split the free space between two controls, so `*:ml-0` cancels them and the
+ * cell's gap spaces its children.
+ */
+export const LIST_ROW_TRAILING_CLASS =
+  "flex shrink-0 grow-0 basis-[300px] items-center justify-end gap-2 *:ml-0";
 
 /**
  * Every lifecycle row stands the same height so the Pending / Active /
@@ -80,6 +91,14 @@ export const LIST_ROW_ACTION_SLOT_CLASS =
  * pages' layout.
  */
 export const LIST_ROW_MIN_HEIGHT_CLASS = "min-h-[78px]";
+
+/**
+ * `ListRowCard` override for a row the design draws without the card fill —
+ * the inactive vault row (the pending row is its own unfilled div and does not
+ * use this); merged via twMerge so it beats `CARD_SHELL_CLASS`'s light and
+ * dark fills.
+ */
+export const LIST_ROW_UNFILLED_CLASS = "bg-transparent dark:bg-transparent";
 
 /**
  * Bordered row card shared by the vault, activity and loan lists. `className`
