@@ -391,6 +391,9 @@ function SimpleDepositContent({
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetAll);
 
+  const needsPageReload =
+    walletConnectionError === COPY.wallet.liveness.extensionDisconnected;
+
   const handleReconnectWallet = async () => {
     if (isReconnectingWallet) return;
     setIsReconnectingWallet(true);
@@ -451,6 +454,14 @@ function SimpleDepositContent({
     // once the user successfully reconnects and the error/lock state clears.
     // Runs before the Bitcoin prompt while a wallet is attached, so the form
     // keeps its own unlock state and an absent wallet still gets the prompt.
+    // A dead extension channel is the exception: only a page reload recovers
+    // it, so the CTA reloads instead of reconnecting. The reload applies while
+    // the wallet is still connected; a disconnected wallet keeps the Connect
+    // action its CTA label shows.
+    if (isWalletConnected && needsPageReload) {
+      window.location.reload();
+      return;
+    }
     if (
       isWalletConnected &&
       (walletConnectionError || isBtcWalletLocked || btcPublicKeyError)
@@ -605,11 +616,14 @@ function SimpleDepositContent({
                   // promotes the CTA to the reconnect/unlock action. A lock
                   // relabels the CTA to "Unlock Wallet to Deposit" (see
                   // getDepositCtaState) instead of showing a red inline string; a
-                  // liveness failure keeps its detail message.
+                  // liveness failure keeps its detail message. A dead
+                  // extension channel (`needsPageReload`) promotes it to a
+                  // page reload instead.
                   hasWalletConnectionError:
                     Boolean(walletConnectionError) ||
                     isBtcWalletLocked ||
                     btcPublicKeyError !== null,
+                  needsPageReload,
                   walletConnectionErrorMessage:
                     walletConnectionError ??
                     (btcPublicKeyError

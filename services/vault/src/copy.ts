@@ -2051,6 +2051,8 @@ export const COPY = {
       errorTitle: "Wallet not responding",
       unresponsive:
         "Your BTC wallet is not responding. Please open your wallet extension to confirm it is unlocked and connected, then try again.",
+      extensionDisconnected:
+        "Your BTC wallet extension stopped responding to this page. Reload the page, then try again.",
       emptyAddress:
         "Your BTC wallet did not return an address. Please reconnect your wallet and try again.",
       addressMismatch:
