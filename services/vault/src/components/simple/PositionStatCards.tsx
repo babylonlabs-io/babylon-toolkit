@@ -80,7 +80,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
           onClick={() => card.onAction?.()}
           disabled={card.actionDisabled}
           data-testid={card.actionTestId}
-          className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-secondary max-md:w-full xl:max-[1439px]:w-[100px]"
+          className="flex h-10 w-[120px] shrink-0 items-center justify-center rounded-lg bg-secondary-strokeLight text-sm leading-[1.43] tracking-[0.17px] text-accent-primary transition-[filter] enabled:hover:brightness-90 disabled:cursor-not-allowed disabled:text-risk-muted max-md:w-full xl:max-[1439px]:w-[100px]"
         >
           {card.actionLabel}
         </button>
