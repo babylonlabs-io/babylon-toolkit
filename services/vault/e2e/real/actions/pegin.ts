@@ -35,7 +35,8 @@
  *
  * Every run also watches the deposit's position-capacity checks on the app's RPC and requires them —
  * one before the registration, one before the Pre-PegIn broadcast (see actions/positionCapacity.ts).
- * `--inject-position-full=before-registration|before-broadcast` runs the unhappy paths instead.
+ * `--inject-position-full=before-registration|before-broadcast` runs the unhappy paths instead, and
+ * `--inject-not-allow-listed` the depositor allow-list refusal before the first signing prompt.
  *
  * NEVER run without an explicit go-ahead: it spends real signet BTC + Sepolia ETH and is not
  * idempotent (a crash after the Pre-PegIn broadcast leaves an on-chain in-flight deposit).
@@ -61,6 +62,7 @@ import {
   judgeCapacityChecks,
   runPeginRefusedBeforeBroadcast,
   runPeginRefusedBeforeRegistration,
+  runPeginRefusedNotAllowListed,
   startCapacityProbe,
   writeCapacityArtifact,
   type CapacityDeposit,
@@ -84,9 +86,10 @@ import { connectWallets } from "./walletConnect";
 // The /vaults deposit CTA — rendered by both the summary card (VaultsSummaryCard) and the empty state
 // (VaultsEmptyState), so `.first()` picks whichever the page is showing.
 const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]';
+const OVERVIEW_DEPOSIT_LABEL = "Deposit"; // COPY.overview.depositAction (the position card's action)
 const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
-const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
+export const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
 // The fluid CTA also renders these at-cap states (COPY.deposit.maxVaultsReached) — detect them so an
 // at-cap position fails fast with a clear message instead of hitting the 90s CTA-enable timeout.
 const MAX_VAULTS_CTA_LABEL = "Maximum BTCVaults reached"; // COPY.deposit.maxVaultsReached.cta
@@ -111,14 +114,38 @@ export async function fillDepositForm(
   provider: string | undefined,
   split: boolean,
 ): Promise<void> {
-  await goToSection(page, "vaults", log);
+  await openDepositForm(page, log, amountBtc, provider, split);
+
+  const cta = await waitForDepositCta(page, log);
+  log("Deposit CTA enabled — submitting the form");
+  await cta.click();
+}
+
+/**
+ * Open the deposit form and fill it (amount → provider), leaving its CTA unclicked: the caller decides
+ * what the CTA should say. Opened from /vaults by default, or from the overview's position card, which
+ * does not wait on the indexed vault list.
+ */
+export async function openDepositForm(
+  page: Page,
+  log: (m: string) => void,
+  amountBtc: string,
+  provider: string | undefined,
+  split: boolean,
+  from: "vaults" | "overview" = "vaults",
+): Promise<void> {
+  await goToSection(page, from, log);
   log(
-    `Opening deposit form (${split ? "two-vault split, " : ""}amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
+    `Opening deposit form from ${from} (${split ? "two-vault split, " : ""}amount ${amountBtc} sBTC, provider ${provider ?? "first available"})`,
   );
-  await page
-    .locator(DEPOSIT_BUTTON_TESTID)
-    .first()
-    .click({ timeout: STEP_TIMEOUT_MS });
+  const opener =
+    from === "vaults"
+      ? page.locator(DEPOSIT_BUTTON_TESTID)
+      : page.getByRole("button", {
+          name: OVERVIEW_DEPOSIT_LABEL,
+          exact: true,
+        });
+  await opener.first().click({ timeout: STEP_TIMEOUT_MS });
 
   const amount = page.getByPlaceholder(AMOUNT_PLACEHOLDER).first();
   await amount.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
@@ -128,10 +155,6 @@ export async function fillDepositForm(
   if (split) await enableTwoVaultSplit(page, log, amountBtc);
 
   await selectVaultProvider(page, log, provider);
-
-  const cta = await waitForDepositCta(page, log);
-  log("Deposit CTA enabled — submitting the form");
-  await cta.click();
 }
 
 /**
@@ -248,7 +271,7 @@ async function selectVaultProvider(
  * inscriptions…" → "Deposit"), and is `disabled` throughout — so we wait for BOTH the exact "Deposit"
  * label AND enabled, logging each label change (this doubles as the fee-estimation progress log).
  */
-async function waitForDepositCta(
+export async function waitForDepositCta(
   page: Page,
   log: (m: string) => void,
 ): Promise<Locator> {
@@ -528,7 +551,16 @@ export const peginAction: Action = {
         : undefined;
       await connectWallets(ctx);
       const injection = ctx.config.injectPositionFull;
-      if (injection === undefined) {
+      if (ctx.config.injectNotAllowListed) {
+        const inputs = resolvePeginInputs(ctx);
+        await runPeginRefusedNotAllowListed(
+          ctx,
+          inputs,
+          depositFormDriver(ctx, inputs),
+          onStep,
+          () => context.off("page", handler),
+        );
+      } else if (injection === undefined) {
         await runPeginFlow(ctx, onStep);
         await psbtExtras?.assertTampered();
       } else {

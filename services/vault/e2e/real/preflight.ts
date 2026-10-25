@@ -71,7 +71,7 @@ export async function checkBalances(
 ): Promise<BalanceReport> {
   const net = NETWORKS[config.network];
   const btcAddress = deriveSignetTaproot(mnemonic);
-  const ethAddress = deriveEthAddress(mnemonic);
+  const ethAddress = deriveEthAddress(mnemonic, config.ethAccount);
 
   const report: BalanceReport = {
     btc: { address: btcAddress, sats: 0n },

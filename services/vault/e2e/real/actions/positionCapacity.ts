@@ -64,6 +64,7 @@ import {
   assertCheckedBeforeBroadcast,
   assertCheckedBeforeRegistration,
   assertRefusedBeforeRegistration,
+  assertRefusedNotAllowListed,
   describeExpected,
   describeRead,
   expectedCapacityArgs,
@@ -71,6 +72,7 @@ import {
   type CapacityArgs,
 } from "./positionCapacityRpcAnswers";
 import {
+  ALLOW_LIST_REFUSED_TITLE,
   closeCtaButton,
   POSITION_CAPACITY_EXCEEDED_TITLE,
   POSITION_CAPACITY_UNAVAILABLE_TITLE,
@@ -133,6 +135,7 @@ export async function startCapacityProbe(
   ctx: ActionContext,
   deposit: CapacityDeposit,
   injection: PositionFullInjection | undefined,
+  notAllowListed = false,
 ): Promise<CapacityProbe> {
   const { network, target } = ctx.config;
   const batch: Batch = {
@@ -149,7 +152,8 @@ export async function startCapacityProbe(
       `The chain already says the position has no room for this deposit (${describeRead(expected)} → false). Withdraw a vault, wait for unactivated deposits to activate or expire, or use another ETH account.`,
     );
 
-  const enforce = target === "localhost" || injection !== undefined;
+  const enforce =
+    target === "localhost" || injection !== undefined || notAllowListed;
   if (!enforce)
     ctx.log(
       "Position-capacity checks are watched but not enforced: --target=website drives the deployed build.",
@@ -160,6 +164,7 @@ export async function startCapacityProbe(
     adapter: appController,
     registry,
     injection,
+    notAllowListed,
     enforce,
     startBlock: await readBlockNumber(network),
     log: ctx.log,
@@ -305,7 +310,7 @@ async function logResumeCommand(
     const [vault] = await readRegisteredVaults(config.network, own);
     if (!vault) throw new Error("the registry lists no new vault yet");
     log(
-      `The deposit is registered (Pre-PegIn ${vault.prePeginTxHash}). If the run stops before activation, resume it with: pnpm --filter vault run e2e:cli --yes --target=localhost --network=${config.network} --btc=${config.btcWallet} --eth=${config.ethWallet} --action=resume --txid=${vault.prePeginTxHash.replace(/^0x/, "")}${deposit.split ? " --split" : ""}`,
+      `The deposit is registered (Pre-PegIn ${vault.prePeginTxHash}). If the run stops before activation, resume it with: pnpm --filter vault run e2e:cli --yes --target=localhost --network=${config.network} --btc=${config.btcWallet} --eth=${config.ethWallet} --eth-account=${config.ethAccount} --action=resume --txid=${vault.prePeginTxHash.replace(/^0x/, "")}${deposit.split ? " --split" : ""}`,
     );
     return true;
   } catch (error) {
@@ -410,6 +415,109 @@ export async function runPeginRefusedBeforeRegistration(
       );
     log(
       "✅ Refused before registration: the refusal and Close showed, no wallet window opened, nothing was sent or registered.",
+    );
+  } finally {
+    await probe.watch.dispose();
+    writeCapacityArtifact(ctx, probe);
+  }
+}
+
+/**
+ * `--inject-not-allow-listed`: the form loads with the account on the list, then the watch answers the
+ * deposit flow's allow-list read "not allowed" from the Sign click. The deposit must stop on the
+ * allow-list refusal before any signing prompt and before it asks the position for room, with nothing
+ * registered or sent and nothing to resume; with UniSat unlocked no wallet window may open at all.
+ * `removeApprover` stops auto-approving wallet windows.
+ */
+export async function runPeginRefusedNotAllowListed(
+  ctx: ActionContext,
+  deposit: CapacityDeposit,
+  form: DepositFormDriver,
+  onStep: (step: string) => void,
+  removeApprover: () => void,
+): Promise<void> {
+  const { page, log, config } = ctx;
+
+  onStep("deposit-form");
+  await form.fill();
+  const probe = await startCapacityProbe(ctx, deposit, undefined, true);
+  try {
+    const nonceBefore = await readPendingNonce(config.network, ctx.eth.address);
+    removeApprover();
+
+    onStep("sign-transaction");
+    await form.sign(probe.watch.markSignClick);
+
+    onStep("refusal");
+    const deadline =
+      Date.now() + POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS;
+    for (;;) {
+      const state = probe.watch.state();
+      const signClickSeq = state.signClickSeq ?? 0;
+      const prompt = state.popups.find((popup) => popup.seq > signClickSeq);
+      if (prompt) {
+        const beforePrompt = state.allowListReads.filter(
+          (read) => read.seq > signClickSeq && read.seq < prompt.seq,
+        );
+        // The liveness probe runs before the allow-list check, as before the capacity one. A read the
+        // RPC failed is passed through unanswered, and the app fails open on it, so only a "not
+        // allowed" it was served makes the prompt the app's fault.
+        throw new Error(
+          beforePrompt.some((read) => read.servedAnswer === false)
+            ? `A wallet window opened after the app's allow-list check (${prompt.url}) although it was answered "not allowed": the deposit was not refused before its first signing prompt.`
+            : beforePrompt.length > 0
+              ? `A wallet window opened after Sign (${prompt.url}) after the app's allow-list read failed on its RPC: the app fails open on an unreadable list, so the injection had no answer to replace. Re-run.`
+              : `A wallet window opened after Sign (${prompt.url}) before the app asked the allow-list: either UniSat asked to unlock for the app's liveness probe, which runs before the check, or the app prompted without checking. Unlock UniSat and re-run; if a window opens again, the check before the first prompt is missing.`,
+        );
+      }
+      if (await shows(ctx, ALLOW_LIST_REFUSED_TITLE)) break;
+      if (Date.now() > deadline)
+        throw new Error(
+          state.allowListReads.some(
+            (read) => read.seq > signClickSeq && read.servedAnswer === false,
+          )
+            ? `The deposit did not stop on "${ALLOW_LIST_REFUSED_TITLE}" within ${POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS} ms of Sign, though its allow-list read was answered "not allowed".`
+            : `The deposit did not stop on "${ALLOW_LIST_REFUSED_TITLE}" within ${POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS} ms of Sign, and no allow-list read after Sign was answered "not allowed".`,
+        );
+      await page.waitForTimeout(FORM_SETTLE_MS);
+    }
+
+    await expect(
+      closeCtaButton(page),
+      "An allow-list refusal leaves nothing to resume, so the deposit must end with Close.",
+    ).toBeVisible({ timeout: STEP_TIMEOUT_MS });
+    await expect(retryButton(page)).toHaveCount(0);
+    assertRefusedNotAllowListed(probe.watch.state());
+    log(
+      `Refused on the allow-list before the first prompt — holding ${POSITION_REFUSAL_HOLD_MS} ms to make sure nothing follows.`,
+    );
+
+    await page.waitForTimeout(POSITION_REFUSAL_HOLD_MS);
+    assertRefusedNotAllowListed(probe.watch.state());
+    expect(
+      await shows(ctx, ALLOW_LIST_REFUSED_TITLE),
+      "The refusal must still be on screen after the hold.",
+    ).toBe(true);
+    expect(
+      await readPrePeginTxid(page),
+      "A refused deposit must not link a Pre-PegIn.",
+    ).toBeUndefined();
+
+    const nonceAfter = await readPendingNonce(config.network, ctx.eth.address);
+    if (nonceAfter !== nonceBefore)
+      throw new Error(
+        `The account's transaction count moved from ${nonceBefore} to ${nonceAfter} during a deposit refused on the allow-list.`,
+      );
+    const listedAfter = await readDepositorVaultIds(
+      config.network,
+      ctx.eth.address,
+    );
+    if (listedAfter.length !== probe.before.depositorVaultIds.length)
+      throw new Error(
+        `The registry lists ${listedAfter.length} vault(s) for the depositor after the refusal, ${probe.before.depositorVaultIds.length} before: a vault was registered.`,
+      );
+    log(
+      "✅ Refused on the allow-list: the refusal and Close showed before any signing prompt or capacity check, no wallet window opened, nothing was sent or registered.",
     );
   } finally {
     await probe.watch.dispose();

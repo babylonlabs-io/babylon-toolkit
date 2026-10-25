@@ -327,6 +327,7 @@ describe("Deposit Validations", () => {
       isGeoBlocked: false,
       isAddressBlocked: false,
       isAddressScreeningUnavailable: false,
+      isDepositorNotAllowListed: false,
       isWalletConnected: true,
       canConnectBtcWallet: false,
       hasProvider: true,
@@ -923,6 +924,71 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label: COPY.wallet.walletNotEligibleTooltip,
+      });
+    });
+
+    it("disables with the allow-list label when the Ethereum account is not on the allow-list", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isDepositorNotAllowListed: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.allowList.cta,
+      });
+    });
+
+    it("keeps the wallet-not-eligible label ahead of the allow-list", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isAddressBlocked: true,
+        isDepositorNotAllowListed: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.wallet.walletNotEligibleTooltip,
+      });
+    });
+
+    it("keeps the allow-list label ahead of the live-vault limit", () => {
+      // A free slot would not let an unlisted account deposit, so waiting is
+      // the wrong instruction.
+      const result = getDepositCtaState({
+        ...readyParams,
+        isDepositorNotAllowListed: true,
+        isLiveVaultCapReached: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.allowList.cta,
+      });
+    });
+
+    it("disables the Bitcoin wallet connect CTA for an Ethereum account not on the allow-list", () => {
+      // Connecting a Bitcoin wallet cannot lift a block on the Ethereum
+      // account, so an enabled connect button would only lead to a refusal.
+      const result = getDepositCtaState({
+        ...readyParams,
+        isWalletConnected: false,
+        canConnectBtcWallet: true,
+        isDepositorNotAllowListed: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.allowList.cta,
+      });
+    });
+
+    it("keeps the allow-list label for a locked wallet", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasWalletConnectionError: true,
+        isWalletLocked: true,
+        isDepositorNotAllowListed: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.allowList.cta,
       });
     });
 

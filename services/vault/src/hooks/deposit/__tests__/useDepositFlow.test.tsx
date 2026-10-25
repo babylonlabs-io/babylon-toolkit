@@ -6,9 +6,10 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type {
-  DepositTerms,
-  DepositTermsApprover,
+import {
+  DepositNotAllowedError,
+  type DepositTerms,
+  type DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -195,6 +196,10 @@ vi.mock("@/services/vault/prePeginBroadcastAckWindow", () => ({
 
 vi.mock("@/services/vault/positionCapacity", () => ({
   assertPositionAcceptsBatch: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/services/vault/depositorAllowList", () => ({
+  assertDepositorAllowListed: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Local override of the global gate mock so we can drive a frozen/paused scope.
@@ -708,6 +713,10 @@ async function setupDefaultMocks() {
     await import("@/services/vault/positionCapacity"),
   );
   assertPositionAcceptsBatch.mockReset().mockResolvedValue(undefined);
+  const { assertDepositorAllowListed } = vi.mocked(
+    await import("@/services/vault/depositorAllowList"),
+  );
+  assertDepositorAllowListed.mockReset().mockResolvedValue(undefined);
 }
 
 // ============================================================================
@@ -914,6 +923,147 @@ describe("useDepositFlow", () => {
         expect(preparePeginTransaction).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe("Depositor allow-list", () => {
+    // The check itself (the read, fail-open on an unreadable list) is covered
+    // by depositorAllowList.test.ts; these pin where the deposit flow asks,
+    // with what, and what a refusal leaves behind.
+
+    it("asks about the depositor before the position check and the chain switch", async () => {
+      const { assertDepositorAllowListed } = vi.mocked(
+        await import("@/services/vault/depositorAllowList"),
+      );
+      const { assertPositionAcceptsBatch } = vi.mocked(
+        await import("@/services/vault/positionCapacity"),
+      );
+      const { getWalletClientOnExpectedChain } = vi.mocked(
+        await import("@/clients/eth-contract/walletChain"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(assertDepositorAllowListed).toHaveBeenNthCalledWith(1, {
+        applicationEntryPoint: "0xAppController",
+        depositor: "0xEthAddress123",
+      });
+      expect(
+        assertDepositorAllowListed.mock.invocationCallOrder[0],
+      ).toBeLessThan(assertPositionAcceptsBatch.mock.invocationCallOrder[0]);
+      expect(
+        assertDepositorAllowListed.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        getWalletClientOnExpectedChain.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("refuses an unlisted depositor without a chain switch or signing prompt and offers no resume", async () => {
+      const { assertDepositorAllowListed } = vi.mocked(
+        await import("@/services/vault/depositorAllowList"),
+      );
+      const { getWalletClientOnExpectedChain } = vi.mocked(
+        await import("@/clients/eth-contract/walletChain"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      assertDepositorAllowListed.mockRejectedValueOnce(
+        new DepositNotAllowedError("not on the allow-list"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.depositorNotAllowListed,
+      );
+      expect(getWalletClientOnExpectedChain).not.toHaveBeenCalled();
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(signProofOfPossession).not.toHaveBeenCalled();
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(addPendingPegin).not.toHaveBeenCalled();
+      expect(result.current.resumableVaultIds).toBeNull();
+      expect(result.current.retryDeposit).toBeNull();
+    });
+
+    it("refuses the registration when the depositor leaves the list while the wallet prompts are open", async () => {
+      const { assertDepositorAllowListed } = vi.mocked(
+        await import("@/services/vault/depositorAllowList"),
+      );
+      const { registerPeginBatchAndWait, signProofOfPossession } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      // Listed when the flow starts; removed by the time the PoP is signed.
+      assertDepositorAllowListed
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new DepositNotAllowedError("not on the allow-list"),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(signProofOfPossession).toHaveBeenCalledTimes(1);
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.depositorNotAllowListed,
+      );
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("re-checks the allow-list after an ETH balance top-up, before the derive prompt", async () => {
+      const { assertDepositorAllowListed } = vi.mocked(
+        await import("@/services/vault/depositorAllowList"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      ethFundsMocks.getBalance.mockResolvedValue(0n);
+      // Listed when the flow starts; removed while the depositor tops up ETH.
+      assertDepositorAllowListed
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new DepositNotAllowedError("not on the allow-list"),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
+      ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
+      await act(async () => {
+        result.current.retryDeposit?.();
+        await pending;
+      });
+
+      expect(assertDepositorAllowListed).toHaveBeenCalledTimes(2);
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.depositorNotAllowListed,
+      );
+    });
+
+    it("refreshes the form's allow-list answer after refusing the depositor", async () => {
+      const { assertDepositorAllowListed } = vi.mocked(
+        await import("@/services/vault/depositorAllowList"),
+      );
+      assertDepositorAllowListed.mockRejectedValueOnce(
+        new DepositNotAllowedError("not on the allow-list"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(queryClientMocks.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["depositorAllowed"],
+      });
+    });
   });
 
   describe("Position capacity", () => {

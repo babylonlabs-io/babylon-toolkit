@@ -24,6 +24,7 @@ import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
 import { useBtcAction } from "@/hooks/useBtcAction";
+import { useDepositorAllowed } from "@/hooks/useDepositorAllowed";
 import { useLiveVaultSlots } from "@/hooks/useLiveVaultSlots";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
@@ -211,6 +212,13 @@ function SimpleDepositContent({
     validateForm,
     resetForm,
   } = useDepositPageForm({ isSplitPermitted });
+
+  // Depositor allow-list (AllowListPolicy): block the deposit when the chain
+  // says the connected Ethereum account would be refused at registration.
+  // Unknown (loading or unreadable) blocks nothing — see useDepositorAllowed.
+  const isDepositorNotAllowListed =
+    useDepositorAllowed(effectiveSelectedApplication, connectedEthAddress) ===
+    false;
 
   // Live commission (bps) for the selected provider, read from the current
   // providers list. Captured into the deposit snapshot at commit time
@@ -422,6 +430,12 @@ function SimpleDepositContent({
     // wallet past. Fail closed while screening is still resolving.
     if (isAddressBlocked || isScreeningLoading) return;
 
+    // Allow-list guard on the submit path, for the same entry points. Unlike
+    // screening it does not wait for the read: the deposit flow re-checks
+    // before its first signing prompt, and the registry refuses an unlisted
+    // depositor before anything is broadcast.
+    if (isDepositorNotAllowListed) return;
+
     // Per-position BTC Vault cap: never start a deposit that would push the
     // position past the on-chain cap, or when the cap couldn't be read (fail
     // closed) — defense-in-depth behind the disabled CTA. The same for a
@@ -610,6 +624,7 @@ function SimpleDepositContent({
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
                   isAddressScreeningUnavailable: isScreeningUnavailable,
+                  isDepositorNotAllowListed,
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,

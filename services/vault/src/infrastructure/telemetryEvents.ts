@@ -15,6 +15,8 @@ import { redactIdentifier } from "@/utils/telemetry";
 export const TELEMETRY_EVENT = {
   /** Depositor cleared every pre-flight guard; batchId minted (top of funnel). */
   DEPOSIT_STARTED: "deposit.started",
+  /** The deposit flow could not read the depositor allow-list and went on unchecked (fail open). */
+  DEPOSIT_ALLOW_LIST_UNREADABLE: "deposit.allow_list.unreadable",
   /** Batch registered on Ethereum; vaultIds now exist (per-vault join point). */
   DEPOSIT_REGISTERED: "deposit.registered",
   /** Pre-PegIn broadcast to Bitcoin; depositor value is now committed. */

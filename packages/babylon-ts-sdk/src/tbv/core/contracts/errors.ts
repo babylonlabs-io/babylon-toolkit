@@ -22,6 +22,15 @@ import { decodeAbiParameters, type Hex, toFunctionSelector } from "viem";
 export const PEGIN_FINGERPRINT_CHANGED_SELECTOR = "0x846c25bb";
 
 /**
+ * `DepositNotAllowed()`, the registry's depositor allow-list revert.
+ *
+ * Re-derived rather than copied: `keccak256("DepositNotAllowed()")` begins
+ * `0x3d90e2a0`. The value matches `vaultErrors.manifest.json`, and a test
+ * asserts both.
+ */
+export const DEPOSIT_NOT_ALLOWED_SELECTOR = "0x3d90e2a0";
+
+/**
  * Shown when the contract reverted with explicitly empty data (`0x`). That can
  * mean a revert with no reason or a call the contract does not recognise, so
  * the wording claims neither.
@@ -39,9 +48,9 @@ const FINGERPRINT_REVERT_DATA_LENGTH = 2 + 8 + 64 * 2;
  * against.
  *
  * Typed rather than one more entry in {@link CONTRACT_ERRORS} because the
- * consuming app has to branch on it — this is the one contract revert on the
- * peg-in path with a specific recovery, and matching an English message across
- * a package boundary to find it would be a string nobody can safely reword.
+ * consuming app has to branch on it — this revert has its own recovery on the
+ * peg-in path, and matching an English message across a package boundary to
+ * find it would be a string nobody can safely reword.
  *
  * `expected` and `actual` are the depositor's fingerprint and the registry's.
  * They are diagnostics only — the difference between "the chain moved" and
@@ -67,6 +76,32 @@ export function isPeginFingerprintChangedError(
   return (
     err instanceof PeginFingerprintChangedError ||
     (err instanceof Error && err.name === "PeginFingerprintChangedError")
+  );
+}
+
+/**
+ * The registry rejected a peg-in registration because the depositor is not on
+ * the application's allow-list.
+ *
+ * Typed rather than one more entry in {@link CONTRACT_ERRORS} for the same
+ * reason as {@link PeginFingerprintChangedError}: the consuming app branches on
+ * it, to tell the depositor that a different wallet is needed, and that must
+ * not hang on matching an English message across a package boundary.
+ */
+export class DepositNotAllowedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DepositNotAllowedError";
+  }
+}
+
+// Same cross-realm fallback as `isPeginFingerprintChangedError`.
+export function isDepositNotAllowedError(
+  err: unknown,
+): err is DepositNotAllowedError {
+  return (
+    err instanceof DepositNotAllowedError ||
+    (err instanceof Error && err.name === "DepositNotAllowedError")
   );
 }
 
@@ -144,8 +179,6 @@ const PEGIN_ERROR_MESSAGES: Record<string, string> = {
   "VaultProviderCommissionExceeded(uint16,uint16)":
     "Vault provider commission changed: The provider's commission is now above the limit you accepted. " +
     "Review the new commission and try again.",
-  "DepositNotAllowed()":
-    "Deposit not allowed: Your address is not on this application's allow list.",
   "CapExceeded()":
     "Deposit cap reached: This deposit would exceed the application's total deposit cap " +
     "or your wallet's deposit cap. Try a smaller amount.",
@@ -265,9 +298,11 @@ function walkForErrorData(
  * Get a user-friendly error message for a contract error.
  *
  * Reads {@link CONTRACT_ERRORS} only, so it reports `PeginFingerprintChanged`
- * as unrecognised even though {@link handleContractError} throws a typed error
- * for it. That revert deliberately has no message-table entry: consumers branch
- * on {@link PeginFingerprintChangedError} and supply their own copy.
+ * and `DepositNotAllowed` as unrecognised even though
+ * {@link handleContractError} throws a typed error for each. Those reverts
+ * deliberately have no message-table entry: consumers branch on
+ * {@link PeginFingerprintChangedError} and {@link DepositNotAllowedError} and
+ * supply their own copy.
  *
  * @param error - The error object from a contract call
  * @returns A user-friendly error message, or undefined if error is not recognized
@@ -288,9 +323,10 @@ export function getContractErrorMessage(error: unknown): string | undefined {
  * Check if an error is a known contract error.
  *
  * "Known" means present in {@link CONTRACT_ERRORS}, so this returns `false` for
- * `PeginFingerprintChanged` — see {@link getContractErrorMessage} for why that
- * revert is typed instead of tabled. Use
- * {@link isPeginFingerprintChangedError} to recognise it.
+ * `PeginFingerprintChanged` and `DepositNotAllowed` — see
+ * {@link getContractErrorMessage} for why those reverts are typed instead of
+ * tabled. Use {@link isPeginFingerprintChangedError} and
+ * {@link isDepositNotAllowedError} to recognise them.
  *
  * @param error - The error object to check
  * @returns True if the error is a known contract error
@@ -336,6 +372,13 @@ export function handleContractError(error: unknown): never {
         "Peg-in configuration fingerprint changed: the protocol state resolved " +
           "at inclusion differs from the state this deposit was built against.",
         decodeFingerprints(errorData),
+      );
+    }
+
+    // Typed for the same reason, and compared the same way.
+    if (selector.toLowerCase() === DEPOSIT_NOT_ALLOWED_SELECTOR) {
+      throw new DepositNotAllowedError(
+        "Deposit not allowed: Your address is not on this application's allow list.",
       );
     }
 

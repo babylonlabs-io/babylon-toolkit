@@ -7,12 +7,14 @@ import {
 } from "viem";
 import { describe, expect, it } from "vitest";
 
+import { CHECK_ALLOWED_ABI } from "../allowListRpcAnswers";
 import {
   ALLOWED_TO_DEPOSIT_ABI,
   answerEthCall,
   assertCheckedBeforeBroadcast,
   assertCheckedBeforeRegistration,
   assertRefusedBeforeRegistration,
+  assertRefusedNotAllowListed,
   createCapacityRpcState,
   GET_DEPOSITOR_VAULT_IDS_ABI,
   noteEstimateGas,
@@ -456,5 +458,188 @@ describe("verdicts", () => {
         { nVaults: 1n, amount: 100_000n },
       ]),
     ).toThrow(/wallet window opened/);
+  });
+});
+
+describe("allow-list injection", () => {
+  // Any address: the watch matches the allow-list read by selector, not by the policy the app resolved.
+  const POLICY = "0x02a49a92b93fbc60321df5b9dde7c9f8189b2e39";
+
+  function notAllowListedWatch() {
+    return createCapacityRpcState({
+      depositor: DEPOSITOR,
+      adapter: ADAPTER,
+      registry: REGISTRY,
+      multicall3: MULTICALL3,
+      injection: undefined,
+      notAllowListed: true,
+      startBlock: START_BLOCK,
+    });
+  }
+
+  function askListed(depositor: string): Hex {
+    return encodeFunctionData({
+      abi: CHECK_ALLOWED_ABI,
+      functionName: "checkAllowed",
+      args: [ADAPTER, depositor as Hex],
+    });
+  }
+
+  function listedAnswer(allowed: boolean): Hex {
+    return encodeFunctionResult({
+      abi: CHECK_ALLOWED_ABI,
+      functionName: "checkAllowed",
+      result: allowed,
+    });
+  }
+
+  it("answers the depositor's allow-list read 'not allowed' from the Sign click, whatever policy is asked", () => {
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    const { call, result } = batch(
+      [
+        { target: PRICE_FEED, callData: UNRELATED_CALL },
+        { target: POLICY, callData: askListed(DEPOSITOR) },
+      ],
+      [
+        { success: true, returnData: UNRELATED_RESULT },
+        { success: true, returnData: listedAnswer(true) },
+      ],
+    );
+
+    const served = outcomesOf(answerEthCall(watch, 2, call, result));
+
+    expect(served[0]).toEqual({ success: true, returnData: UNRELATED_RESULT });
+    expect(served[1]).toEqual({
+      success: true,
+      returnData: listedAnswer(false),
+    });
+    expect(watch.allowListReads).toEqual([
+      { seq: 2, realAnswer: true, servedAnswer: false },
+    ]);
+  });
+
+  it("answers the deposit form's allow-list read truthfully before the Sign click", () => {
+    const watch = notAllowListedWatch();
+    const { call, result } = batch(
+      [{ target: POLICY, callData: askListed(DEPOSITOR) }],
+      [{ success: true, returnData: listedAnswer(true) }],
+    );
+
+    expect(answerEthCall(watch, 1, call, result)).toBe(result);
+    expect(watch.tampered).toBe(0);
+  });
+
+  it("leaves another account's allow-list read alone", () => {
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    const { call, result } = batch(
+      [{ target: POLICY, callData: askListed(OTHER_ACCOUNT) }],
+      [{ success: true, returnData: listedAnswer(true) }],
+    );
+
+    expect(answerEthCall(watch, 2, call, result)).toBe(result);
+    expect(watch.allowListReads).toEqual([]);
+  });
+
+  it("records the allow-list read without rewriting it when the injection is off", () => {
+    const watch = state();
+    watch.signClickSeq = 1;
+    const { call, result } = batch(
+      [{ target: POLICY, callData: askListed(DEPOSITOR) }],
+      [{ success: true, returnData: listedAnswer(true) }],
+    );
+
+    expect(answerEthCall(watch, 2, call, result)).toBe(result);
+    expect(watch.allowListReads).toEqual([
+      { seq: 2, realAnswer: true, servedAnswer: true },
+    ]);
+  });
+
+  it("passes the refusal verdict when the injected read stopped the deposit before anything else", () => {
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    watch.allowListReads.push({
+      seq: 2,
+      realAnswer: true,
+      servedAnswer: false,
+    });
+
+    expect(assertRefusedNotAllowListed(watch)).toMatchObject({ seq: 2 });
+  });
+
+  it("refuses the verdict when the chain itself said 'not allowed'", () => {
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    watch.allowListReads.push({
+      seq: 2,
+      realAnswer: false,
+      servedAnswer: false,
+    });
+
+    expect(() => assertRefusedNotAllowListed(watch)).toThrow(
+      /chain itself answered/,
+    );
+  });
+
+  it("does not blame the chain for an allow-list read after Sign that went unanswered", () => {
+    // The app fails open on a failed read, so it cannot be what stopped the deposit: the injected
+    // read is, and the verdict must still pass.
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    watch.allowListReads.push({
+      seq: 2,
+      realAnswer: true,
+      servedAnswer: false,
+    });
+    watch.allowListReads.push({ seq: 3, realAnswer: null, servedAnswer: null });
+
+    expect(assertRefusedNotAllowListed(watch)).toMatchObject({ seq: 2 });
+  });
+
+  it("refuses the verdict when no allow-list read followed the Sign click", () => {
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+
+    expect(() => assertRefusedNotAllowListed(watch)).toThrow(/tested nothing/);
+  });
+
+  it("refuses the verdict when the app asked the position for room after the refusal", () => {
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    watch.allowListReads.push({
+      seq: 2,
+      realAnswer: true,
+      servedAnswer: false,
+    });
+    watch.capacityReads.push({
+      seq: 3,
+      nVaults: 1n,
+      amount: 100_000n,
+      realAnswer: true,
+      servedAnswer: true,
+    });
+
+    expect(() => assertRefusedNotAllowListed(watch)).toThrow(
+      /asked the position for room/,
+    );
+  });
+
+  it("refuses the verdict when a wallet window opened after the Sign click", () => {
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    watch.allowListReads.push({
+      seq: 2,
+      realAnswer: true,
+      servedAnswer: false,
+    });
+    watch.popups.push({
+      seq: 3,
+      url: "chrome-extension://unisat/notification.html",
+    });
+
+    expect(() => assertRefusedNotAllowListed(watch)).toThrow(
+      /wallet window opened/,
+    );
   });
 });
