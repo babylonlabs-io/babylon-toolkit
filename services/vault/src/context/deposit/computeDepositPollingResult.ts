@@ -48,13 +48,6 @@ function resolveRefundBroadcastAt(
   );
 }
 
-function resolvePayoutSignedAt(
-  depositId: string,
-  pendingPegins: PendingPeginRequest[],
-): number | undefined {
-  return pendingPegins.find((p) => p.id === depositId)?.payoutSignedAt;
-}
-
 /**
  * Either source proves the activation returned the BTCVault: this session's
  * mark, or the outcome stored with the deposit record's CONFIRMED status. The
@@ -163,6 +156,7 @@ export interface DepositPollingInputs {
   isLoading: boolean;
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
+  optimisticConfirmingAt: ReadonlyMap<string, number>;
   /**
    * When each deposit's WOTS submission resolved in this page session. The VP
    * poll keeps reporting `needsWotsKey` until the daemon advances, so without
@@ -219,6 +213,7 @@ export function computeDepositPollingResult(
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
+    optimisticConfirmingAt,
     wotsSubmittedAt,
     activationReturnedIds,
     btcPublicKey,
@@ -237,7 +232,7 @@ export function computeDepositPollingResult(
     optimisticRefundBroadcastAt,
     pendingPegins,
   );
-  const payoutSignedAt = resolvePayoutSignedAt(depositId, pendingPegins);
+  const pendingPegin = pendingPegins.find((p) => p.id === depositId);
   const activationReturned = resolveActivationReturned(
     depositId,
     activationReturnedIds,
@@ -300,6 +295,8 @@ export function computeDepositPollingResult(
   // local CONFIRMING marker. A `null` (not found) or absent entry is not seen.
   const prePeginBroadcastSeen =
     cachedAtDepth || typeof confirmations === "number";
+  // Only a mempool 404 is `null`; an unloaded or unpolled txid is `undefined`.
+  const prePeginBroadcastNotFound = !cachedAtDepth && confirmations === null;
 
   const isOwnedByCurrentWallet = isVaultOwnedByWallet(
     activity.depositorBtcPubkey,
@@ -423,6 +420,7 @@ export function computeDepositPollingResult(
     pendingIngestion: pendingIngestion?.has(depositId),
     prePeginBroadcastConfirmed,
     prePeginBroadcastSeen,
+    prePeginBroadcastNotFound,
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
     activationDeadlinePassed,
@@ -438,7 +436,11 @@ export function computeDepositPollingResult(
     refundSettlement,
     vpTerminalError,
     refundBroadcastAt,
-    payoutSignedAt,
+    payoutSignedAt: pendingPegin?.payoutSignedAt,
+    // The optimistic stamp covers a broadcast with no deposit record, and the
+    // render before localStorage is read back.
+    confirmingAt:
+      optimisticConfirmingAt.get(depositId) ?? pendingPegin?.confirmingAt,
     activationReturned,
     now,
   });

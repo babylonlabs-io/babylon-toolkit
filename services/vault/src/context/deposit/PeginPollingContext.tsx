@@ -215,6 +215,7 @@ export function PeginPollingProvider({
   const {
     statuses: optimisticStatuses,
     refundBroadcastAt: optimisticRefundBroadcastAt,
+    confirmingAt: optimisticConfirmingAt,
     wotsSubmittedAt,
     activationReturnedIds,
     activationReturnedReasons,
@@ -663,6 +664,7 @@ export function PeginPollingProvider({
         protocolParamsError: params.error,
         optimisticStatuses,
         optimisticRefundBroadcastAt,
+        optimisticConfirmingAt,
         wotsSubmittedAt,
         activationReturnedIds,
         btcPublicKey,
@@ -692,6 +694,7 @@ export function PeginPollingProvider({
       params.error,
       optimisticStatuses,
       optimisticRefundBroadcastAt,
+      optimisticConfirmingAt,
       wotsSubmittedAt,
       activationReturnedIds,
       btcPublicKey,

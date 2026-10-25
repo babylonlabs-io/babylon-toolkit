@@ -43,12 +43,64 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: true,
+        confirmingAt: 1_700_000_000_000,
+        now: 1_700_000_000_000 + 29 * 60 * 1000,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(state.message).toContain(
         "Pre-Pegin transaction has been broadcast",
       );
+    });
+
+    it("re-offers broadcast when the CONFIRMING marker is older than 30 minutes and the mempool does not find the Pre-PegIn", () => {
+      // An evicted or lost Pre-PegIn is not seen on chain, so only the TTL
+      // can bring the retry back before the vault expires.
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+        prePeginBroadcastNotFound: true,
+        confirmingAt: 1_700_000_000_000,
+        now: 1_700_000_000_000 + 30 * 60 * 1000,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+      expect(state.message).toBe(COPY.pegin.messages.broadcastMayHaveFailed);
+    });
+
+    it("re-offers broadcast when the CONFIRMING marker has no timestamp and the mempool does not find the Pre-PegIn", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+        prePeginBroadcastNotFound: true,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+    });
+
+    it("keeps broadcast hidden past the CONFIRMING TTL while the mempool has not answered", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+        confirmingAt: 1_700_000_000_000,
+        now: 1_700_000_000_000 + 60 * 60 * 1000,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.message).toBe(COPY.pegin.messages.prePeginBroadcast);
+    });
+
+    it("keeps broadcast hidden past the CONFIRMING TTL when the Pre-PegIn is seen on chain", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.CONFIRMING,
+        pendingIngestion: true,
+        prePeginBroadcastSeen: true,
+        confirmingAt: 1_700_000_000_000,
+        now: 1_700_000_000_000 + 60 * 60 * 1000,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+      expect(state.message).toBe(COPY.pegin.messages.prePeginBroadcast);
     });
 
     it("shows the VP-ingestion message at the confirming-deposit step when BTC is confirmed but VP still ingesting", () => {
@@ -913,6 +965,8 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: true,
+        confirmingAt: 1_700_000_000_000,
+        now: 1_700_000_000_000,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(getPeginDisplayStep(state)).toBe(

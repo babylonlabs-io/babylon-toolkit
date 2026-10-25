@@ -45,6 +45,9 @@ export interface PendingPeginRequest {
   refundBroadcastAt?: number;
   refundTxId?: string;
   payoutSignedAt?: number;
+  // Anchor for the CONFIRMING broadcast suppression TTL, for the same reason
+  // as `refundBroadcastAt`. Set on every write of CONFIRMING.
+  confirmingAt?: number;
   /**
    * `"returned"` when this browser's normal activation landed but its receipt
    * proved the registry redeemed the BTCVault for the depositor instead of
@@ -352,12 +355,13 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
 }
 
 /**
- * `payoutSignedAt` only floors a progress bar, so unlike every other field
- * here a malformed value is dropped rather than failing the whole entry
- * closed — losing a deposit record over a bad progress stamp is the worse
- * outcome.
+ * `payoutSignedAt` only floors a progress bar, and a missing `confirmingAt`
+ * only re-offers the broadcast. So unlike every other field here a malformed
+ * value is dropped rather than failing the whole entry closed — losing a
+ * deposit record over a bad stamp is the worse outcome.
  */
-function sanitizePayoutSignedAt(
+function sanitizeStamp(
+  field: "payoutSignedAt" | "confirmingAt",
   value: unknown,
   vaultId: string,
 ): number | undefined {
@@ -365,7 +369,7 @@ function sanitizePayoutSignedAt(
   if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
     return value;
   }
-  logger.warn("[peginStorage] Dropping corrupted payoutSignedAt stamp", {
+  logger.warn(`[peginStorage] Dropping corrupted ${field} stamp`, {
     category: "peginStorage",
     vaultId,
   });
@@ -606,7 +610,12 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     id: normalizeTransactionId(pegin.id),
     // Ensure status field exists (backward compatibility)
     status: pegin.status || LocalStorageStatus.PENDING,
-    payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt, pegin.id),
+    payoutSignedAt: sanitizeStamp(
+      "payoutSignedAt",
+      pegin.payoutSignedAt,
+      pegin.id,
+    ),
+    confirmingAt: sanitizeStamp("confirmingAt", pegin.confirmingAt, pegin.id),
   }));
 
   return normalized;
@@ -791,7 +800,7 @@ export function addPendingPegin(
  * `activationOutcome` qualifies a CONFIRMED status and lands in the same
  * write, so no reader ever sees one without the other. A status write without
  * it clears a stored outcome, the way any status but PAYOUT_SIGNED clears
- * `payoutSignedAt`.
+ * `payoutSignedAt` and any status but CONFIRMING clears `confirmingAt`.
  *
  * Operates on the raw stored array so entries the read filter hides are written
  * back untouched.
@@ -828,6 +837,8 @@ export function updatePendingPeginStatus(
             status === LocalStorageStatus.PAYOUT_SIGNED
               ? Date.now()
               : undefined,
+          confirmingAt:
+            status === LocalStorageStatus.CONFIRMING ? Date.now() : undefined,
           activationOutcome,
         }
       : entry,
