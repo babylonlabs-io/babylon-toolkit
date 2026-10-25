@@ -53,7 +53,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
             )}
           </div>
 
-          <span className="flex items-center gap-2 text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
+          <span className="flex items-center gap-2 text-xl leading-[1.6] tracking-[0.15px] text-accent-primary [overflow-wrap:anywhere]">
             {card.valueNode ?? card.value}
           </span>
 
