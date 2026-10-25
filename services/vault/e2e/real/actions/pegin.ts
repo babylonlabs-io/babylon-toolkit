@@ -89,7 +89,7 @@ const DEPOSIT_BUTTON_TESTID = '[data-testid="deposit-button"]';
 const OVERVIEW_DEPOSIT_LABEL = "Deposit"; // COPY.overview.depositAction (the position card's action)
 const AMOUNT_PLACEHOLDER = "0"; // DepositForm amount input
 const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaultProvider
-const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
+export const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
 // The fluid CTA also renders these at-cap states (COPY.deposit.maxVaultsReached) — detect them so an
 // at-cap position fails fast with a clear message instead of hitting the 90s CTA-enable timeout.
 const MAX_VAULTS_CTA_LABEL = "Maximum BTCVaults reached"; // COPY.deposit.maxVaultsReached.cta

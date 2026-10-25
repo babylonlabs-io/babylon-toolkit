@@ -456,20 +456,28 @@ export async function runPeginRefusedNotAllowListed(
       const signClickSeq = state.signClickSeq ?? 0;
       const prompt = state.popups.find((popup) => popup.seq > signClickSeq);
       if (prompt) {
-        const checkedFirst = state.allowListReads.some(
+        const beforePrompt = state.allowListReads.filter(
           (read) => read.seq > signClickSeq && read.seq < prompt.seq,
         );
-        // The liveness probe runs before the allow-list check, as before the capacity one.
+        // The liveness probe runs before the allow-list check, as before the capacity one. A read the
+        // RPC failed is passed through unanswered, and the app fails open on it, so only a "not
+        // allowed" it was served makes the prompt the app's fault.
         throw new Error(
-          checkedFirst
-            ? `A wallet window opened after the app's allow-list check (${prompt.url}) although it answered "not allowed": the deposit was not refused before its first signing prompt.`
-            : `A wallet window opened after Sign (${prompt.url}) before the app asked the allow-list: either UniSat asked to unlock for the app's liveness probe, which runs before the check, or the app prompted without checking. Unlock UniSat and re-run; if a window opens again, the check before the first prompt is missing.`,
+          beforePrompt.some((read) => read.servedAnswer === false)
+            ? `A wallet window opened after the app's allow-list check (${prompt.url}) although it was answered "not allowed": the deposit was not refused before its first signing prompt.`
+            : beforePrompt.length > 0
+              ? `A wallet window opened after Sign (${prompt.url}) after the app's allow-list read failed on its RPC: the app fails open on an unreadable list, so the injection had no answer to replace. Re-run.`
+              : `A wallet window opened after Sign (${prompt.url}) before the app asked the allow-list: either UniSat asked to unlock for the app's liveness probe, which runs before the check, or the app prompted without checking. Unlock UniSat and re-run; if a window opens again, the check before the first prompt is missing.`,
         );
       }
       if (await shows(ctx, ALLOW_LIST_REFUSED_TITLE)) break;
       if (Date.now() > deadline)
         throw new Error(
-          `The deposit did not stop on "${ALLOW_LIST_REFUSED_TITLE}" within ${POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS} ms of Sign, though its allow-list read was answered "not allowed".`,
+          state.allowListReads.some(
+            (read) => read.seq > signClickSeq && read.servedAnswer === false,
+          )
+            ? `The deposit did not stop on "${ALLOW_LIST_REFUSED_TITLE}" within ${POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS} ms of Sign, though its allow-list read was answered "not allowed".`
+            : `The deposit did not stop on "${ALLOW_LIST_REFUSED_TITLE}" within ${POSITION_REFUSAL_BEFORE_REGISTRATION_TIMEOUT_MS} ms of Sign, and no allow-list read after Sign was answered "not allowed".`,
         );
       await page.waitForTimeout(FORM_SETTLE_MS);
     }

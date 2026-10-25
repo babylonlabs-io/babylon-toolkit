@@ -9,8 +9,11 @@
  *     through a hold longer than the form's refetch interval, across at least one new answered read;
  *   - on the list (or the gate removed): the CTA must reach the enabled "Deposit".
  * Either way the app must have asked about this account and this application and been told the chain's
- * answer (a read its RPC never answered is counted, not judged: the app fails open on it), no wallet
- * window may open once the wallets are connected, and the account's pending nonce must not move.
+ * answer (a read whose call failed inside the RPC's answer is counted, not judged: the app fails open on
+ * it; a read the RPC refused outright is not recorded at all), no wallet window may open once the
+ * wallets are connected, and the account's pending nonce must not move. On the list, the CTA is read
+ * again once the app has its answer: the form fails open while the read is in flight, so "Deposit"
+ * before the answer says nothing about the list.
  *
  * Spends nothing: the form is never submitted. Run it on `--target=localhost` to test local app code;
  * the gate is on in the `testnet-3` network's deployment and removed in devnet's.
@@ -40,7 +43,7 @@ import {
 } from "./allowListRpcAnswers";
 import { installPopupApprover } from "./approver";
 import { parseJsonRpcCall } from "./jsonRpcRoute";
-import { openDepositForm, waitForDepositCta } from "./pegin";
+import { DEPOSIT_CTA_LABEL, openDepositForm, waitForDepositCta } from "./pegin";
 import { startRecording } from "./recording";
 import { ALLOW_LIST_CTA_LABEL, FLUID_CTA_SELECTOR } from "./selectors";
 import { type Action, type ActionContext } from "./types";
@@ -133,6 +136,17 @@ async function assertFormBlocked(
     if (Date.now() > deadline)
       throw new Error(
         `The deposit form never blocked an account the chain says is not on the allow-list: expected a disabled "${ALLOW_LIST_CTA_LABEL}" (last CTA: "${lastLabel}").`,
+      );
+    await page.waitForTimeout(FORM_SETTLE_MS);
+  }
+
+  // The read that blocked the form is recorded only once its response body is parsed, which can land
+  // after the CTA shows it; counted from before that, it would pass for the refetch.
+  const recordedBy = Date.now() + STEP_TIMEOUT_MS;
+  while (answeredReads() === 0) {
+    if (Date.now() > recordedBy)
+      throw new Error(
+        `The deposit form blocked, but no answered checkAllowed read about this account was recorded within ${STEP_TIMEOUT_MS / 1000}s, so the hold could not tell a refetch from the first read.`,
       );
     await page.waitForTimeout(FORM_SETTLE_MS);
   }
@@ -234,6 +248,15 @@ export const allowListAction: Action = {
         );
 
       const heard = await assertAppAsked(page, verdict, appReads.reads);
+      if (verdict.allowed) {
+        // Give the form one tick to render the answer it now has.
+        await page.waitForTimeout(FORM_SETTLE_MS);
+        const cta = await readCta(page);
+        if (cta.label !== DEPOSIT_CTA_LABEL || !cta.enabled)
+          throw new Error(
+            `The deposit form left "${DEPOSIT_CTA_LABEL}" once the app heard the account is allowed: the CTA became "${cta.label}"${cta.enabled ? "" : " (disabled)"}.`,
+          );
+      }
       if (windows.urls.length > 0)
         throw new Error(
           `A wallet window opened while only the deposit form was filled: ${windows.urls.join(", ")}.`,

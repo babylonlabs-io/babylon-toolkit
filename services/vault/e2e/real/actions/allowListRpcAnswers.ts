@@ -147,7 +147,7 @@ export function assertAppHeardChain(
     throw new Error(
       heard.unanswered.length > 0
         ? `The app asked ${asked} ${heard.unanswered.length} time(s) but its RPC never answered, so the form's CTA was not decided by the allow-list.`
-        : `The app never asked ${asked} on its RPC, so the form's CTA was not decided by the allow-list (${reads.length} other checkAllowed read(s)).`,
+        : `No ${asked} read was recorded: either the app never asked on its RPC, or the RPC refused every such read outright, which leaves no answer to record. Either way the form's CTA was not decided by the allow-list (${reads.length} other checkAllowed read(s)).`,
     );
   const mismatch = heard.answered.find(
     (read) => read.answer !== expected.allowed,
