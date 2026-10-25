@@ -6,11 +6,11 @@
  * from the connected Ethereum account, then watches the app ask the same question on its own RPC
  * (`checkAllowed`, answered truthfully — nothing is injected). Then:
  *   - not on the list: the CTA must read "Ethereum wallet not on the allow list" and stay disabled
- *     through a hold longer than the form's refetch interval;
+ *     through a hold longer than the form's refetch interval, across at least one new answered read;
  *   - on the list (or the gate removed): the CTA must reach the enabled "Deposit".
  * Either way the app must have asked about this account and this application and been told the chain's
- * answer, no wallet window may open once the wallets are connected, and the account's pending nonce must
- * not move.
+ * answer (a read its RPC never answered is counted, not judged: the app fails open on it), no wallet
+ * window may open once the wallets are connected, and the account's pending nonce must not move.
  *
  * Spends nothing: the form is never submitted. Run it on `--target=localhost` to test local app code;
  * the gate is on in the `testnet-3` network's deployment and removed in devnet's.
@@ -31,9 +31,12 @@ import {
 } from "../timing";
 
 import {
+  appAllowListAnswers,
+  assertAppHeardChain,
   mayCarryCheckAllowed,
   readAllowListAnswers,
   type AllowListRead,
+  type AppAllowListAnswers,
 } from "./allowListRpcAnswers";
 import { installPopupApprover } from "./approver";
 import { parseJsonRpcCall } from "./jsonRpcRoute";
@@ -104,10 +107,15 @@ async function readCta(
   };
 }
 
-/** Wait for the blocked CTA, then require it to hold with no wallet window opening. */
+/**
+ * Wait for the blocked CTA, then require it to hold with no wallet window opening, across at least one
+ * new answered read: the hold exists to cover the form re-reading the list, so a hold without one has
+ * not tested what it claims to.
+ */
 async function assertFormBlocked(
   ctx: ActionContext,
   windows: { urls: string[] },
+  answeredReads: () => number,
 ): Promise<void> {
   const { page, log } = ctx;
   const blocked = (cta: { label: string; enabled: boolean }) =>
@@ -132,6 +140,7 @@ async function assertFormBlocked(
   log(
     `Deposit CTA blocked — holding ${ALLOW_LIST_BLOCK_HOLD_MS / 1000}s through a form refetch`,
   );
+  const answeredBeforeHold = answeredReads();
   const holdUntil = Date.now() + ALLOW_LIST_BLOCK_HOLD_MS;
   while (Date.now() < holdUntil) {
     const cta = await readCta(page);
@@ -145,41 +154,31 @@ async function assertFormBlocked(
       );
     await page.waitForTimeout(FORM_SETTLE_MS);
   }
+  if (answeredReads() <= answeredBeforeHold)
+    throw new Error(
+      `The form did not re-read the allow-list during the ${ALLOW_LIST_BLOCK_HOLD_MS / 1000}s hold (no new answered checkAllowed read), so the hold did not cover a refetch.`,
+    );
 }
 
 /**
  * The app must have asked the chain about this account in this application, and heard the chain's
  * answer. A read is recorded only once its response body is parsed, after the form may already show
- * the enabled "Deposit" (the form fails open while its read is in flight), so wait for it first.
+ * the enabled "Deposit" (the form fails open while its read is in flight), so wait for an answered
+ * one first.
  */
 async function assertAppAsked(
   page: Page,
   verdict: AllowListVerdict,
   reads: readonly AllowListRead[],
-): Promise<AllowListRead[]> {
-  const isOurs = (read: AllowListRead) =>
-    read.depositor === verdict.depositor &&
-    read.appEntryPoint === verdict.appEntryPoint;
+): Promise<AppAllowListAnswers> {
   const deadline = Date.now() + STEP_TIMEOUT_MS;
-  while (!reads.some(isOurs) && Date.now() < deadline)
+  while (
+    appAllowListAnswers(reads, verdict.appEntryPoint, verdict.depositor)
+      .answered.length === 0 &&
+    Date.now() < deadline
+  )
     await page.waitForTimeout(FORM_SETTLE_MS);
-
-  const ours = reads.filter(isOurs);
-  if (ours.length === 0)
-    throw new Error(
-      `The app never asked checkAllowed(${verdict.appEntryPoint}, ${verdict.depositor}) on its RPC, so the form's CTA was not decided by the allow-list (${reads.length} other checkAllowed read(s)).`,
-    );
-  const elsewhere = ours.find((read) => read.policy !== verdict.policy);
-  if (elsewhere)
-    throw new Error(
-      `The app asked a different allow-list policy (${elsewhere.policy}) than the registry names (${verdict.policy}).`,
-    );
-  const mismatch = ours.find((read) => read.answer !== verdict.allowed);
-  if (mismatch)
-    throw new Error(
-      `The app's checkAllowed read was answered ${String(mismatch.answer)}, but the chain says ${String(verdict.allowed)}.`,
-    );
-  return ours;
+  return assertAppHeardChain(reads, verdict);
 }
 
 export const allowListAction: Action = {
@@ -222,9 +221,19 @@ export const allowListAction: Action = {
         "overview",
       );
       if (verdict.allowed) await waitForDepositCta(page, log);
-      else await assertFormBlocked(ctx, windows);
+      else
+        await assertFormBlocked(
+          ctx,
+          windows,
+          () =>
+            appAllowListAnswers(
+              appReads.reads,
+              verdict.appEntryPoint,
+              verdict.depositor,
+            ).answered.length,
+        );
 
-      const asked = await assertAppAsked(page, verdict, appReads.reads);
+      const heard = await assertAppAsked(page, verdict, appReads.reads);
       if (windows.urls.length > 0)
         throw new Error(
           `A wallet window opened while only the deposit form was filled: ${windows.urls.join(", ")}.`,
@@ -238,7 +247,7 @@ export const allowListAction: Action = {
           `The account sent a transaction during the run (pending nonce ${nonceBefore} → ${nonceAfter}).`,
         );
       log(
-        `Allow-list verified ✅ (the app asked ${asked.length} time(s) and was answered ${String(verdict.allowed)}; the form ${verdict.allowed ? 'reached "Deposit"' : "stayed blocked"}; no wallet window, nothing sent)`,
+        `Allow-list verified ✅ (the app was answered ${String(verdict.allowed)} ${heard.answered.length} time(s)${heard.unanswered.length > 0 ? `, and ${heard.unanswered.length} read(s) went unanswered` : ""}; the form ${verdict.allowed ? 'reached "Deposit"' : "stayed blocked"}; no wallet window, nothing sent)`,
       );
     } finally {
       await recorder.stop();

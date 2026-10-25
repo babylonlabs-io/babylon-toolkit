@@ -7,11 +7,13 @@ import {
 import { describe, expect, it } from "vitest";
 
 import {
+  assertAppHeardChain,
   CHECK_ALLOWED_ABI,
   decodeCheckAllowedAnswer,
   mayCarryCheckAllowed,
   notAllowListedOutcome,
   readAllowListAnswers,
+  type AllowListRead,
 } from "../allowListRpcAnswers";
 
 const DEPOSITOR = "0xb5761b53db0e9524be89dd2045664fba9d16edfa";
@@ -147,5 +149,65 @@ describe("mayCarryCheckAllowed", () => {
 describe("notAllowListedOutcome", () => {
   it("encodes the policy's own 'not allowed' answer", () => {
     expect(decodeCheckAllowedAnswer(notAllowListedOutcome())).toBe(false);
+  });
+});
+
+describe("assertAppHeardChain", () => {
+  const OTHER_ACCOUNT = "0x00000000000000000000000000000000000000b2";
+  const OTHER_POLICY = "0x00000000000000000000000000000000000000c3";
+  const expected = {
+    policy: POLICY,
+    appEntryPoint: ADAPTER,
+    depositor: DEPOSITOR,
+    allowed: false,
+  };
+
+  function read(
+    answer: boolean | null,
+    overrides: Partial<AllowListRead> = {},
+  ): AllowListRead {
+    return {
+      policy: POLICY,
+      appEntryPoint: ADAPTER,
+      depositor: DEPOSITOR,
+      answer,
+      ...overrides,
+    };
+  }
+
+  it("passes a run where one read went unanswered beside the chain's answer, and counts it", () => {
+    // The RPC answered the batch but the inner call failed: the app got no answer and fails open on
+    // it, which is not the app being told the wrong thing.
+    const heard = assertAppHeardChain([read(false), read(null)], expected);
+
+    expect(heard.answered).toHaveLength(1);
+    expect(heard.unanswered).toHaveLength(1);
+  });
+
+  it("fails when an answered read disagrees with the chain", () => {
+    expect(() =>
+      assertAppHeardChain([read(false), read(true)], expected),
+    ).toThrow(/answered true, but the chain says false/);
+  });
+
+  it("fails when every read the app made went unanswered", () => {
+    expect(() =>
+      assertAppHeardChain([read(null), read(null)], expected),
+    ).toThrow(/2 time\(s\) but its RPC never answered/);
+  });
+
+  it("fails when the app never asked about this account", () => {
+    expect(() =>
+      assertAppHeardChain(
+        [read(false, { depositor: OTHER_ACCOUNT })],
+        expected,
+      ),
+    ).toThrow(/never asked/);
+  });
+
+  it("fails when the app asked a policy the registry does not name", () => {
+    expect(() =>
+      assertAppHeardChain([read(false, { policy: OTHER_POLICY })], expected),
+    ).toThrow(/different allow-list policy/);
   });
 });

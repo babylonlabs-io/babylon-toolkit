@@ -582,6 +582,21 @@ describe("allow-list injection", () => {
     );
   });
 
+  it("does not blame the chain for an allow-list read after Sign that went unanswered", () => {
+    // The app fails open on a failed read, so it cannot be what stopped the deposit: the injected
+    // read is, and the verdict must still pass.
+    const watch = notAllowListedWatch();
+    watch.signClickSeq = 1;
+    watch.allowListReads.push({
+      seq: 2,
+      realAnswer: true,
+      servedAnswer: false,
+    });
+    watch.allowListReads.push({ seq: 3, realAnswer: null, servedAnswer: null });
+
+    expect(assertRefusedNotAllowListed(watch)).toMatchObject({ seq: 2 });
+  });
+
   it("refuses the verdict when no allow-list read followed the Sign click", () => {
     const watch = notAllowListedWatch();
     watch.signClickSeq = 1;

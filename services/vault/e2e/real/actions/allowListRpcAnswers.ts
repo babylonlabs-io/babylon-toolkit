@@ -97,6 +97,68 @@ export function notAllowListedOutcome(): CallOutcome {
   };
 }
 
+/** What the app heard about one account in one application, split by whether the RPC answered. */
+export interface AppAllowListAnswers {
+  answered: AllowListRead[];
+  /** Reads whose inner call failed or did not decode: the app got no answer, and fails open on it. */
+  unanswered: AllowListRead[];
+}
+
+/** The app's reads about `depositor` in `appEntryPoint`, split by whether the RPC answered. */
+export function appAllowListAnswers(
+  reads: readonly AllowListRead[],
+  appEntryPoint: string,
+  depositor: string,
+): AppAllowListAnswers {
+  const ours = reads.filter(
+    (read) =>
+      read.appEntryPoint === appEntryPoint.toLowerCase() &&
+      read.depositor === depositor.toLowerCase(),
+  );
+  return {
+    answered: ours.filter((read) => read.answer !== null),
+    unanswered: ours.filter((read) => read.answer === null),
+  };
+}
+
+/**
+ * The app must have heard the chain's answer about this account: every read sent to the registry's
+ * policy, at least one of them answered, and every answered one equal to `allowed`. An unanswered read
+ * is not a wrong answer — the app fails open on it, which its CTA shows — so it is only counted.
+ */
+export function assertAppHeardChain(
+  reads: readonly AllowListRead[],
+  expected: CheckAllowedCall & { allowed: boolean },
+): AppAllowListAnswers {
+  const heard = appAllowListAnswers(
+    reads,
+    expected.appEntryPoint,
+    expected.depositor,
+  );
+  const asked = `checkAllowed(${expected.appEntryPoint}, ${expected.depositor})`;
+  const elsewhere = [...heard.answered, ...heard.unanswered].find(
+    (read) => read.policy !== expected.policy.toLowerCase(),
+  );
+  if (elsewhere)
+    throw new Error(
+      `The app asked a different allow-list policy (${elsewhere.policy}) than the registry names (${expected.policy}).`,
+    );
+  if (heard.answered.length === 0)
+    throw new Error(
+      heard.unanswered.length > 0
+        ? `The app asked ${asked} ${heard.unanswered.length} time(s) but its RPC never answered, so the form's CTA was not decided by the allow-list.`
+        : `The app never asked ${asked} on its RPC, so the form's CTA was not decided by the allow-list (${reads.length} other checkAllowed read(s)).`,
+    );
+  const mismatch = heard.answered.find(
+    (read) => read.answer !== expected.allowed,
+  );
+  if (mismatch)
+    throw new Error(
+      `The app's ${asked} read was answered ${String(mismatch.answer)}, but the chain says ${String(expected.allowed)}.`,
+    );
+  return heard;
+}
+
 /**
  * Every `checkAllowed` read in one `eth_call` and its `result`: a lone call, or the inner calls of a
  * Multicall3 batch sent to `multicall3`. A batch that cannot be taken apart yields nothing.

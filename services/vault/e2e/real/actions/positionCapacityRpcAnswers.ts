@@ -551,11 +551,13 @@ export function assertRefusedNotAllowListed(
   const afterSign = state.allowListReads.filter(
     (read) => read.seq > signClickSeq,
   );
-  // Checked first, as for capacity: a "no" or a failure from the chain itself is not the injection's.
-  const realRefusal = afterSign.find((read) => read.realAnswer !== true);
+  // Checked first: a "no" from the chain itself is not the injection's. Unlike capacity, a failed read
+  // is not a refusal at all — the app fails open on it — so it cannot have stopped the deposit and is
+  // left out here; the injected read below is what must have.
+  const realRefusal = afterSign.find((read) => read.realAnswer === false);
   if (realRefusal)
     throw new Error(
-      `The chain itself answered the depositor's allow-list read with ${String(realRefusal.realAnswer)}, so the refusal did not come from the injection. Run it where the gate is removed (devnet) or with an allow-listed account.`,
+      "The chain itself answered the depositor's allow-list read with false, so the refusal did not come from the injection. Run it where the gate is removed (devnet) or with an allow-listed account.",
     );
   const tampered = afterSign.filter(
     (read) => read.servedAnswer !== read.realAnswer,
