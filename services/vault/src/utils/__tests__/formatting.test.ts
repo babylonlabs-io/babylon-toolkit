@@ -515,7 +515,6 @@ describe("formatActivityDateGroup", () => {
   const labels = {
     today: "Today",
     yesterday: "Yesterday",
-    lastWeek: "Last week",
   };
   // Reference "now": Sep 8, 2025, mid-afternoon (local time).
   const reference = new Date(2025, 8, 8, 15, 30, 0);
@@ -543,25 +542,21 @@ describe("formatActivityDateGroup", () => {
     ).toBe("Yesterday");
   });
 
-  it("labels days two to seven back 'Last week'", () => {
+  it("labels any other past day with the explicit YYYY-MM-DD date", () => {
     expect(
       formatActivityDateGroup(
         new Date(2025, 8, 6, 12, 0, 0),
         reference,
         labels,
       ),
-    ).toBe("Last week");
-    // Seventh day back is the last one inside the group.
+    ).toBe("2025-09-06");
     expect(
       formatActivityDateGroup(
         new Date(2025, 8, 1, 12, 0, 0),
         reference,
         labels,
       ),
-    ).toBe("Last week");
-  });
-
-  it("labels anything older than seven days with the explicit YYYY-MM-DD date", () => {
+    ).toBe("2025-09-01");
     expect(
       formatActivityDateGroup(
         new Date(2025, 7, 31, 12, 0, 0),
@@ -578,7 +573,7 @@ describe("formatActivityDateGroup", () => {
     ).toBe("2025-01-02");
   });
 
-  it("dates a future row rather than filing it under 'Last week'", () => {
+  it("dates a future row rather than labelling it 'Today'", () => {
     expect(
       formatActivityDateGroup(
         new Date(2025, 8, 9, 12, 0, 0),

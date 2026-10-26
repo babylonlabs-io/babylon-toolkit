@@ -284,16 +284,19 @@ describe("ActivityList", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
-  it("v3 UI: files a row from the past week under 'Last week'", () => {
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+  it("v3 UI: files a row from the past week under its explicit date", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2025, 8, 8, 15, 30, 0));
 
     renderList({
-      activities: [makeRow({ id: "recent", date: threeDaysAgo })],
+      activities: [
+        makeRow({ id: "recent", date: new Date(2025, 8, 5, 12, 0, 0) }),
+      ],
       isConnected: true,
     });
 
-    expect(screen.getByText(COPY.activity.dateLastWeek)).toBeInTheDocument();
+    expect(screen.getByText("2025-09-05")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("v3 UI: renders the USD value of each row from the supplied prices", () => {
