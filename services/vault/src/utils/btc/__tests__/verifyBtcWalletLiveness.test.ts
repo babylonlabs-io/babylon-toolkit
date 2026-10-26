@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { COPY } from "@/copy";
 
 import {
   BtcWalletLivenessError,
@@ -11,10 +13,12 @@ const EXPECTED_ADDRESS = "tb1qexampledepositoraddressxxxxxxxxxxxxxxxxx";
 function makeWallet(opts: {
   getAddress: () => Promise<string>;
   connectWallet?: () => Promise<void>;
+  getAccounts?: () => Promise<string[]>;
 }) {
   return {
     getAddress: opts.getAddress,
     connectWallet: opts.connectWallet,
+    getAccounts: opts.getAccounts,
   };
 }
 
@@ -35,6 +39,10 @@ describe("shouldProbeWalletLiveness", () => {
 });
 
 describe("verifyBtcWalletLiveness", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("passes a lost hardware-device session and a wrong-app device through with their typed codes", async () => {
     // The caller needs each code to name the real recovery (reconnect, or open
     // the vault app); the generic "unresponsive wallet" copy would hide it.
@@ -181,5 +189,94 @@ describe("verifyBtcWalletLiveness", () => {
     await expect(
       verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
     ).rejects.toBeInstanceOf(BtcWalletLivenessError);
+  });
+
+  it("falls through to connectWallet when the getAccounts read resolves, even empty (locked wallet)", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const getAccounts = vi.fn(async () => []);
+    const connectWallet = vi.fn(async () => {});
+    const wallet = makeWallet({
+      connectWallet,
+      getAccounts,
+      getAddress: async () => EXPECTED_ADDRESS,
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
+    ).resolves.toBeUndefined();
+    expect(getAccounts).toHaveBeenCalledOnce();
+    expect(connectWallet).toHaveBeenCalledOnce();
+  });
+
+  it("throws the reload copy and skips connectWallet when the getAccounts read times out (CONNECTION_FAILED)", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const connectWallet = vi.fn(async () => {});
+    const wallet = makeWallet({
+      connectWallet,
+      getAccounts: async () => {
+        throw Object.assign(
+          new Error(
+            "Unisat Wallet did not respond while reading its accounts.",
+          ),
+          { code: "CONNECTION_FAILED" },
+        );
+      },
+      getAddress: async () => EXPECTED_ADDRESS,
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "BtcWalletLivenessError",
+      message: COPY.wallet.liveness.extensionDisconnected,
+    });
+    expect(connectWallet).not.toHaveBeenCalled();
+  });
+
+  it("keeps the existing liveness mapping when the getAccounts read rejects for another reason", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const connectWallet = vi.fn(async () => {});
+    const wallet = makeWallet({
+      connectWallet,
+      getAccounts: async () => {
+        throw Object.assign(new Error("wallet must has at least one account"), {
+          code: 4100,
+        });
+      },
+      getAddress: async () => EXPECTED_ADDRESS,
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "BtcWalletLivenessError",
+      message: COPY.wallet.liveness.unresponsive,
+    });
+    expect(connectWallet).not.toHaveBeenCalled();
+  });
+
+  it("skips the getAccounts read on a hidden tab and uses the interactive probe", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const getAccounts = vi.fn(async () => []);
+    const connectWallet = vi.fn(async () => {});
+    const wallet = makeWallet({
+      connectWallet,
+      getAccounts,
+      getAddress: async () => EXPECTED_ADDRESS,
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
+    ).resolves.toBeUndefined();
+    expect(getAccounts).not.toHaveBeenCalled();
+    expect(connectWallet).toHaveBeenCalledOnce();
   });
 });

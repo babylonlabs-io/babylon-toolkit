@@ -485,6 +485,18 @@ describe("Deposit Validations", () => {
       });
     });
 
+    it("returns enabled 'Reload' when the wallet extension stopped answering the page", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        hasWalletConnectionError: true,
+        needsPageReload: true,
+      });
+      expect(result).toEqual({
+        disabled: false,
+        label: COPY.common.globalError.reloadButton,
+      });
+    });
+
     it("prioritizes wallet-not-connected over reconnect CTA", () => {
       const result = getDepositCtaState({
         ...readyParams,
