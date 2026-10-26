@@ -610,7 +610,7 @@ export const COPY = {
       cancelRequestedNotice:
         "Cancellation requested. Finish or reject the request on your signing device to continue.",
       closeAndTrackHint:
-        "No need to wait here. You can reopen this window anytime from your Vault Page.",
+        "No need to wait here. If a step needs you, reopen this window from your Vault Page before its deadline.",
     },
     btcConfirmation: {
       estRemaining: "Est. remaining",
