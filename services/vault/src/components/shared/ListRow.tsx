@@ -48,9 +48,9 @@ export const LIST_ROW_STATUS_COLUMN_CLASS = "min-w-0 grow-[2] basis-[144px]";
 export const LIST_ROW_LEADING_COLUMN_CLASS = "min-w-0 grow-[2] basis-[240px]";
 
 /**
- * The Activity row's action cell. It neither grows nor shrinks, so the slack
- * the data cells divide is `card width - gaps - bases - 168`, identical in
- * every Activity row that carries an action, whatever the button says.
+ * The Activity row's action cell. It neither grows nor shrinks; from md up the
+ * row's other cells keep fixed columns and only the amount cell takes the
+ * slack, so the slot never moves the explorer or time column.
  *
  * The 168px basis fits any 36px row action — the widest label, "Broadcast
  * Pre-Pegin", measures 167px at `text-sm` + `tracking-[0.17px]` + `px-4` in Px

@@ -41,7 +41,7 @@ import { ActivityList } from "./ActivityList";
 function carriesExpiredAction(result: DepositPollingResult | undefined) {
   if (isClaimExpiredRowActionAvailable(result)) return true;
   const refund = getRefundRowAction(result);
-  return refund.available || refund.blockedTooltip !== null;
+  return refund.available || Boolean(refund.blockedTooltip);
 }
 
 interface ActivityListWithRefundProps {
@@ -123,7 +123,7 @@ export function ActivityListWithRefund({
       activities={rows}
       isConnected={isConnected}
       prices={prices}
-      refundableVaultIds={actionableVaultIds}
+      actionableVaultIds={actionableVaultIds}
       onWithdraw={handleWithdraw}
       onRedeem={handleRedeem}
     />

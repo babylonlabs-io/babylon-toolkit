@@ -102,6 +102,9 @@ export function ActivityRowLayout({
   action,
 }: ActivityRowLayoutProps) {
   const touchFirst = useIsTouchFirst();
+  const caption = amount.hubLabel
+    ? COPY.loans.hub.tokenOnHub(amount.symbol, amount.hubLabel)
+    : amount.symbol;
   return (
     <div className="flex w-full flex-wrap items-center gap-x-10 gap-y-3">
       <div className="flex min-w-[180px] shrink grow-[2] basis-[180px] items-center gap-2 md:grow-0">
@@ -112,6 +115,7 @@ export function ActivityRowLayout({
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-2">
             <span
+              title={typeLabel}
               className={`min-w-0 truncate ${PRIMARY_TEXT_CLASS} text-accent-primary`}
             >
               {typeLabel}
@@ -127,11 +131,10 @@ export function ActivityRowLayout({
             )}
           </div>
           <span
+            title={caption}
             className={`truncate ${CAPTION_TEXT_CLASS} text-accent-secondary`}
           >
-            {amount.hubLabel
-              ? COPY.loans.hub.tokenOnHub(amount.symbol, amount.hubLabel)
-              : amount.symbol}
+            {caption}
           </span>
         </div>
       </div>

@@ -63,7 +63,7 @@ function renderList(props: {
   activities: ActivityLog[];
   isConnected: boolean;
   prices?: Record<string, number>;
-  refundableVaultIds?: ReadonlySet<string>;
+  actionableVaultIds?: ReadonlySet<string>;
   onWithdraw?: (vaultId: string) => void;
 }) {
   // The list hands the expired row both handlers together; these tests drive
@@ -446,7 +446,7 @@ describe("ActivityList", () => {
     renderList({
       activities: rows,
       isConnected: true,
-      refundableVaultIds: new Set(["0xvault1"]),
+      actionableVaultIds: new Set(["0xvault1"]),
       onWithdraw,
     });
 
@@ -460,7 +460,7 @@ describe("ActivityList", () => {
     renderList({
       activities: rows,
       isConnected: true,
-      refundableVaultIds: new Set(["0xvault1"]),
+      actionableVaultIds: new Set(["0xvault1"]),
       onWithdraw: vi.fn(),
     });
 
@@ -475,7 +475,7 @@ describe("ActivityList", () => {
     renderList({
       activities: rows,
       isConnected: true,
-      refundableVaultIds: new Set(["0xvault1"]),
+      actionableVaultIds: new Set(["0xvault1"]),
       onWithdraw: vi.fn(),
     });
 
