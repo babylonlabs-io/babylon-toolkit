@@ -2657,7 +2657,7 @@ export const COPY = {
         },
         health: {
           title: "Monitor Your Health Factor",
-          body: "Health Factor indicates the safety level of your position. A lower value means your position is closer to liquidation. Maintain a healthy level to reduce risk.",
+          body: "Health Factor shows how safe your position is. A lower value means higher liquidation risk. If it drops below 1, your position can be liquidated.",
         },
         simulation: {
           title: "Simulate BTC Price Changes",
@@ -2665,7 +2665,7 @@ export const COPY = {
         },
         events: {
           title: "Understand Liquidation Events",
-          body: "Each liquidation event represents a possible liquidation scenario for BTCVaults in your collateral. Events are triggered based on your BTCVault order and BTC price.",
+          body: "If your position becomes unhealthy, BTCVaults may be liquidated one by one until your position becomes healthy again. Each event shows which BTCVaults are affected and the estimated impact.",
         },
         outcomes: {
           title: "Explore Liquidation Outcomes",
