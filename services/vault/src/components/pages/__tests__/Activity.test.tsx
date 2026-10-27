@@ -84,6 +84,7 @@ vi.mock("@/hooks/deposit/useRefundRowAction", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@/hooks/deposit/useRefundRowAction")
   >()),
+  getRefundRowAction: () => ({ available: true, blockedTooltip: null }),
   useRefundRowAction: () => ({ available: true, blockedTooltip: null }),
 }));
 

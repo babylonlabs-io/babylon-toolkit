@@ -31,9 +31,11 @@ const CAPTION_TEXT_CLASS = "text-xs leading-[1.4] tracking-[0.4px]";
 /** Figma body 1 — the right-aligned amount. */
 const AMOUNT_TEXT_CLASS = "text-base leading-[1.5] tracking-[0.15px]";
 
-/** Every left-hand cell sits on the design's 180px column and may shrink to
- *  half of it before the row wraps. */
-const CELL_CLASS = "flex min-w-[90px] shrink grow basis-[180px] flex-col";
+/** A data cell on the design's 180px column. From md up it does not grow, so
+ *  its x never depends on the amount or action to its right; on a phone it
+ *  still grows to fill its wrapped line. */
+const CELL_CLASS =
+  "flex min-w-[90px] shrink grow basis-[180px] flex-col md:grow-0";
 
 /** Matches the 16px `<Progress> | Circular` beside the type label in the
  *  frame. */
@@ -102,7 +104,7 @@ export function ActivityRowLayout({
   const touchFirst = useIsTouchFirst();
   return (
     <div className="flex w-full flex-wrap items-center gap-x-10 gap-y-3">
-      <div className="flex min-w-[180px] shrink grow-[2] basis-[180px] items-center gap-2">
+      <div className="flex min-w-[180px] shrink grow-[2] basis-[180px] items-center gap-2 md:grow-0">
         {/* `.bbn-avatar` is inline-flex with no shrink-0 of its own, and this
             cell can shrink below its basis — without this a long symbol
             squashes the circle into an ellipse. */}
@@ -175,11 +177,14 @@ export function ActivityRowLayout({
         )}
       </div>
 
-      {/* Only an expired deposit carries an action (its Withdraw or Redeem);
-          the slot is dropped otherwise so the amount stays flush with the card
-          edge, as the design draws it. */}
+      {/* Only an expired deposit with a control carries an action (its
+          Withdraw or Redeem); the slot is dropped otherwise so the amount stays
+          flush with the card edge, as the design draws it. When the slot wraps
+          below the amount it stays pinned right. */}
       {action && (
-        <div className={`${LIST_ROW_ACTION_SLOT_CLASS} items-center`}>
+        <div
+          className={`${LIST_ROW_ACTION_SLOT_CLASS} items-center md:ml-auto`}
+        >
           {action}
         </div>
       )}
