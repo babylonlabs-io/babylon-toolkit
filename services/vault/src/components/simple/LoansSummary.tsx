@@ -16,6 +16,7 @@ import {
 interface LoansSummaryProps {
   availableToBorrow: string;
   borrowedAssets: BorrowedAsset[];
+  borrowedValue: string;
   maxBorrowReserves: BorrowReserveLimit;
   borrowCount: bigint | null;
   borrowCapacityLoading: boolean;
@@ -29,6 +30,7 @@ interface LoansSummaryProps {
 export function LoansSummary({
   availableToBorrow,
   borrowedAssets,
+  borrowedValue,
   maxBorrowReserves,
   borrowCount,
   borrowCapacityLoading,
@@ -41,6 +43,7 @@ export function LoansSummary({
   const cards = buildBorrowCapacityCards({
     availableToBorrow,
     borrowedAssets,
+    borrowedValue,
     maxBorrowReserves,
     borrowCount,
     borrowCapacityLoading,
