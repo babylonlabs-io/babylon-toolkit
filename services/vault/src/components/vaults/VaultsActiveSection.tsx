@@ -35,7 +35,6 @@ import {
 } from "@/components/shared/ListRow";
 import { ArtifactReminderCard } from "@/components/vaults/ArtifactReminderCard";
 import { getNetworkConfigBTC } from "@/config";
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import {
@@ -79,10 +78,7 @@ function ActiveVaultRow({
   // on-Bitcoin one (pending/inactive rows prefer the opposite).
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
   const btcConfig = getNetworkConfigBTC();
-  const showArtifactReminder =
-    featureFlags.isMobileEnabled &&
-    isTouchFirst &&
-    vault.lifecycle === "active";
+  const showArtifactReminder = isTouchFirst && vault.lifecycle === "active";
   const showDownloadParams = showArtifactReminder ? null : downloadParams;
 
   return (
