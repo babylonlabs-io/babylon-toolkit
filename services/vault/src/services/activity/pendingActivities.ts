@@ -6,6 +6,7 @@
  */
 
 import { getNetworkConfigBTC } from "../../config";
+import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
   getPendingPegins,
   type PendingPeginRequest,
@@ -19,12 +20,25 @@ import {
 const btcConfig = getNetworkConfigBTC();
 
 /**
+ * Local statuses of a deposit still in flight. A REFUND_BROADCAST record marks
+ * a refund of an expired deposit, not a deposit: projecting it would date the
+ * old deposit at the refund time and hide its expired-deposit row (see
+ * expiredDepositRows.ts). Positive list, so a new status is not shown by default.
+ */
+const DEPOSIT_IN_FLIGHT_STATUSES: ReadonlySet<LocalStorageStatus> = new Set([
+  LocalStorageStatus.PENDING,
+  LocalStorageStatus.PAYOUT_SIGNED,
+  LocalStorageStatus.CONFIRMING,
+  LocalStorageStatus.CONFIRMED,
+]);
+
+/**
  * Convert a pending peg-in from localStorage to ActivityLog format
  */
 function convertPendingPeginToActivity(
   pending: PendingPeginRequest,
 ): ActivityLog | null {
-  if (!pending.amount) {
+  if (!pending.amount || !DEPOSIT_IN_FLIGHT_STATUSES.has(pending.status)) {
     return null;
   }
 
@@ -55,7 +69,7 @@ function convertPendingPeginToActivity(
  * Get all pending activities from localStorage
  *
  * Returns pending peg-in (deposit) activities sorted by date (newest first).
- * Only includes entries with valid, complete data.
+ * Only includes deposits still in flight, with valid, complete data.
  *
  * @param ethAddress - User's Ethereum address
  * @returns Array of pending activities as ActivityLog
