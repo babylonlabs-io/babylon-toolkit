@@ -41,7 +41,7 @@ import { ActivityList } from "./ActivityList";
 function carriesExpiredAction(result: DepositPollingResult | undefined) {
   if (isClaimExpiredRowActionAvailable(result)) return true;
   const refund = getRefundRowAction(result);
-  return refund.available || refund.blockedTooltip !== null;
+  return refund.available || Boolean(refund.blockedTooltip);
 }
 
 interface ActivityListWithRefundProps {
@@ -87,6 +87,13 @@ export function ActivityListWithRefund({
     [isConnected, expiredActivities, getPollingResult],
   );
 
+  // Rows whose vault has a control to show. Narrower than refundableVaultIds:
+  // an expired deposit with nothing to offer gets no action slot.
+  const actionableVaultIds = useMemo(
+    () => new Set<string>(expiredWithAction.map((a) => a.id)),
+    [expiredWithAction],
+  );
+
   const rows = useMemo<ActivityRow[]>(
     () =>
       withExpiredDepositRows(
@@ -116,7 +123,7 @@ export function ActivityListWithRefund({
       activities={rows}
       isConnected={isConnected}
       prices={prices}
-      refundableVaultIds={refundableVaultIds}
+      actionableVaultIds={actionableVaultIds}
       onWithdraw={handleWithdraw}
       onRedeem={handleRedeem}
     />

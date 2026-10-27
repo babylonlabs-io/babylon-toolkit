@@ -67,10 +67,11 @@ interface ActivityListProps {
   /** Symbol → USD price, from `usePrices` at the container. Passed down rather
    *  than read per row so the feed instantiates the query once. */
   prices?: Record<string, number>;
-  /** Vault ids of expired deposits whose HTLC refund is still outstanding —
-   *  those rows get the Withdraw action. Matched against a row's `vaultId`,
-   *  never its `id` (see ActivityLog). */
-  refundableVaultIds?: ReadonlySet<string>;
+  /** Vault ids of expired deposits that have a control to show — Withdraw,
+   *  a blocked Withdraw with its reason, or Redeem. Only those rows get an
+   *  action slot. Matched against a row's `vaultId`, never its `id` (see
+   *  ActivityLog). */
+  actionableVaultIds?: ReadonlySet<string>;
   onWithdraw?: (vaultId: string) => void;
   /** Opens the expired-vault redeem for a refundable vault the PegIn spent. */
   onRedeem?: (vaultId: string) => void;
@@ -80,7 +81,7 @@ export function ActivityList({
   activities,
   isConnected,
   prices,
-  refundableVaultIds,
+  actionableVaultIds,
   onWithdraw,
   onRedeem,
 }: ActivityListProps) {
@@ -165,7 +166,7 @@ export function ActivityList({
                           prices={prices}
                           action={
                             r.vaultId &&
-                            refundableVaultIds?.has(r.vaultId) &&
+                            actionableVaultIds?.has(r.vaultId) &&
                             onWithdraw &&
                             onRedeem ? (
                               <ExpiredWithdrawButton
