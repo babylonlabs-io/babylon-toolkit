@@ -182,8 +182,8 @@ export function ActivityRowLayout({
 
       {/* Only an expired deposit with a control carries an action (its
           Withdraw or Redeem); the slot is dropped otherwise so the amount stays
-          flush with the card edge, as the design draws it. When the slot wraps
-          below the amount it stays pinned right. */}
+          flush with the card edge, as the design draws it. From md up, a slot
+          that wraps below the amount stays pinned right. */}
       {action && (
         <div
           className={`${LIST_ROW_ACTION_SLOT_CLASS} items-center md:ml-auto`}
