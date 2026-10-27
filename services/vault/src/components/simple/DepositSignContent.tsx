@@ -99,7 +99,11 @@ export function DepositSignContent({
   // a signing step. Gated on `started` so the initial DERIVE_VAULT_SECRET value
   // can't notify before the user clicks Sign, and stood down once the
   // continuation owns signing — the pending-deposit observer takes over.
-  useDepositSigningNotification(currentStep, started && !continuationVaultIds);
+  useDepositSigningNotification(
+    currentStep,
+    started && !continuationVaultIds,
+    currentVaultIndex,
+  );
 
   // While the flow is running it owns notifications in-modal; tell the
   // pending-deposit observer to stand down so it can't double-notify.

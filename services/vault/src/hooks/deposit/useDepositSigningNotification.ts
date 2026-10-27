@@ -1,24 +1,8 @@
 /**
- * Active-deposit-flow signing-notification observer.
- *
- * Fires a browser notification when the running deposit flow reaches a signing
- * step while the user is on another tab. `executeDeposit` drives the WHOLE flow
- * in-modal (derive → peg-in → PoP → WOTS → payout signing) before it returns,
- * and the pending-deposit observer can't cover those in-modal popups (the
- * deposit isn't indexed yet and the continuation provider isn't mounted), so
- * this observer owns notifications for the active flow. The pending-deposit
- * observer stands down while `isActiveFlow` is set, so there's no double-fire.
- *
- * Notifies at step entry only, which covers every step the flow reaches after an
- * unattended wait - the broadcast, WOTS and payout popups. The accepted cost is
- * every popup the step change does not mark: one that is already open when the
- * depositor leaves the tab, because the step alone cannot tell an open popup
- * from an answered one, and one raised by a round that re-enters the step it is
- * already on, because that is a same-value set and the effect does not re-run.
- * The per-vault WOTS round is the second case; the payout round moves through
- * several step values, so it still re-runs.
- *
- * No-ops when the SigningNotification provider is absent.
+ * Sends signing notifications for the active deposit flow.
+ * The pending-deposit observer stops while this flow is active.
+ * Each WOTS vault can need a signature without a step change.
+ * Tab changes alone must not send alerts for completed signatures.
  */
 
 import { useEffect, useId } from "react";
@@ -27,16 +11,11 @@ import { useSigningNotificationOptional } from "@/context/SigningNotificationCon
 import { COPY } from "@/copy";
 import type { BrowserNotificationCopy } from "@/utils/notifications/browserNotification";
 
-// Import the enum from its defining module rather than the `depositFlowSteps`
-// barrel: the barrel re-exports the heavy step implementations (WASM/SDK), and
-// pulling those into this lightweight hook breaks consumers' test transforms.
+// Import the enum directly to keep WASM and SDK code out of this hook.
 import { DepositFlowStep } from "./depositFlowSteps/types";
 
 /**
- * Maps each signing step to a notification phase + copy. Steps that belong to
- * the same logical signing moment share a `phase` so they collapse to a single
- * notification — the auth-anchor/payout/recovery popups are one "sign your
- * payouts" event, not three.
+ * Steps in the same signing phase share one notification key.
  */
 const STEP_NOTIFICATION: Partial<
   Record<DepositFlowStep, { phase: string; copy: BrowserNotificationCopy }>
@@ -79,35 +58,26 @@ const STEP_NOTIFICATION: Partial<
   },
 };
 
-/**
- * @param currentStep the active deposit-flow step
- * @param active whether the flow has actually started. Guards against the
- *   initial `DERIVE_VAULT_SECRET` value firing (and consuming its de-dup key)
- *   while the summary card is still shown, before the user clicks Sign.
- */
 export function useDepositSigningNotification(
   currentStep: DepositFlowStep,
   active: boolean,
+  currentVaultIndex: number | null,
 ): void {
   const notifier = useSigningNotificationOptional();
-  // Per-flow id keeps the de-dup key unique so a second deposit in the same
-  // session notifies again rather than being swallowed by the prior flow.
+  // Each deposit needs separate notification keys.
   const flowId = useId();
-  // Stable across provider re-renders, unlike `notifier` itself: the effect
-  // must run when the step changes and at no other time (see below).
   const notifySigningRequired = notifier?.notifySigningRequired;
+  const wotsVaultIndex =
+    currentStep === DepositFlowStep.SUBMIT_WOTS_KEYS ? currentVaultIndex : null;
 
-  // Fires only when the flow ENTERS a signing step, never again while it stays
-  // there. A step outlives its wallet popup: SUBMIT_PEGIN stays current through
-  // the receipt wait and the ~1.6 min Ethereum finality gate, long after the
-  // depositor confirmed the registration. This effect also ran when the tab
-  // became hidden, and the provider leaves a key unconsumed while the tab is
-  // visible, so tabbing away during that wait asked for a signature that was
-  // already given.
+  // SUBMIT_PEGIN stays current during finality, after the user signs.
+  // Keep visibility changes out of this effect to prevent stale alerts.
   useEffect(() => {
     if (!notifySigningRequired || !active) return;
     const entry = STEP_NOTIFICATION[currentStep];
-    if (!entry) return;
-    notifySigningRequired(`inflow:${flowId}:${entry.phase}`, entry.copy);
-  }, [currentStep, active, notifySigningRequired, flowId]);
+    if (!entry || (entry.phase === "wots" && wotsVaultIndex === null)) return;
+    const phase =
+      entry.phase === "wots" ? `wots:${wotsVaultIndex}` : entry.phase;
+    notifySigningRequired(`inflow:${flowId}:${phase}`, entry.copy);
+  }, [currentStep, active, notifySigningRequired, flowId, wotsVaultIndex]);
 }

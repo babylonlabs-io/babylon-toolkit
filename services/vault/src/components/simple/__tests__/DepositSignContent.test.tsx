@@ -58,6 +58,7 @@ vi.mock("@/hooks/deposit/useDepositFlow", () => ({
     executeDeposit: mockExecuteDeposit,
     abort: vi.fn(),
     currentStep: "DERIVE_VAULT_SECRET",
+    currentVaultIndex: null,
     processing: false,
     error: flowErrorState.error,
     resumableVaultIds: flowErrorState.resumableVaultIds,
@@ -253,6 +254,7 @@ describe("DepositSignContent", () => {
     expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
       expect.anything(),
       true,
+      null,
     );
 
     fireEvent.click(getByTestId("retry"));
@@ -263,6 +265,7 @@ describe("DepositSignContent", () => {
     expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
       expect.anything(),
       false,
+      null,
     );
   });
 
