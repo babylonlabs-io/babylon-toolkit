@@ -103,22 +103,34 @@ export async function verifyBtcWalletLiveness(
     // only a page reload recovers it — the 60s interactive probe below would
     // hide that behind a spinner and the "unlock" copy. Any other rejection
     // keeps the existing liveness mapping. An empty result (locked wallet)
-    // still falls through to `connectWallet()`. UniSat's page provider queues every request while the
-    // tab is hidden, so a bounded read from a hidden tab would time out on a
-    // healthy wallet; there the existing interactive probe (which waits for the
-    // tab) is used instead.
+    // still falls through to `connectWallet()`. UniSat's page provider queues
+    // every request while the tab is hidden, so a bounded read from a hidden
+    // tab would time out on a healthy wallet; there the existing interactive
+    // probe (which waits for the tab) is used instead. If the tab hides at any
+    // point during the read, a timeout is ambiguous, so the interactive probe
+    // decides instead.
     if (
       typeof wallet.getAccounts === "function" &&
       document.visibilityState === "visible"
     ) {
+      let hiddenDuringRead = false;
+      const onVisibilityChange = () => {
+        if (document.visibilityState !== "visible") hiddenDuringRead = true;
+      };
+      document.addEventListener("visibilitychange", onVisibilityChange);
       try {
         await wallet.getAccounts();
       } catch (error) {
-        throw chainCarriesCode(error, WALLET_CONNECTION_FAILED_CODE)
-          ? new BtcWalletLivenessError(
-              COPY.wallet.liveness.extensionDisconnected,
-            )
-          : toLivenessError(error);
+        if (!chainCarriesCode(error, WALLET_CONNECTION_FAILED_CODE)) {
+          throw toLivenessError(error);
+        }
+        if (!hiddenDuringRead) {
+          throw new BtcWalletLivenessError(
+            COPY.wallet.liveness.extensionDisconnected,
+          );
+        }
+      } finally {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
       }
     }
 

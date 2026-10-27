@@ -237,6 +237,36 @@ describe("verifyBtcWalletLiveness", () => {
     expect(connectWallet).not.toHaveBeenCalled();
   });
 
+  it("falls through to connectWallet when the tab hid during a getAccounts read that then times out", async () => {
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("visible");
+    const connectWallet = vi.fn(async () => {});
+    const wallet = makeWallet({
+      connectWallet,
+      getAccounts: async () => {
+        visibility.mockReturnValue("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+        visibility.mockReturnValue("visible");
+        document.dispatchEvent(new Event("visibilitychange"));
+        throw Object.assign(
+          new Error(
+            "Unisat Wallet did not respond while reading its accounts.",
+          ),
+          { code: "CONNECTION_FAILED" },
+        );
+      },
+      getAddress: async () => EXPECTED_ADDRESS,
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS, {
+        probeConnection: true,
+      }),
+    ).resolves.toBeUndefined();
+    expect(connectWallet).toHaveBeenCalledOnce();
+  });
+
   it("keeps the existing liveness mapping when the getAccounts read rejects for another reason", async () => {
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     const connectWallet = vi.fn(async () => {});

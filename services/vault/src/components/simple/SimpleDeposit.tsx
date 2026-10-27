@@ -23,6 +23,7 @@ import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
+import { useWalletScopedError } from "@/hooks/deposit/useWalletScopedError";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import { useDepositorAllowed } from "@/hooks/useDepositorAllowed";
 import { useLiveVaultSlots } from "@/hooks/useLiveVaultSlots";
@@ -92,9 +93,10 @@ function SimpleDepositContent({
   const btcConnector = useChainConnector("BTC");
   const { rows: feeRows, collateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
-  const [walletConnectionError, setWalletConnectionError] = useState<
-    string | null
-  >(null);
+  const [walletConnectionError, setWalletConnectionError] =
+    useWalletScopedError(
+      `${btcConnector?.connectedWallet?.id ?? ""}:${connectedBtcAddress ?? ""}`,
+    );
   const [isVerifyingWallet, setIsVerifyingWallet] = useState(false);
   const [isReconnectingWallet, setIsReconnectingWallet] = useState(false);
 
@@ -386,7 +388,7 @@ function SimpleDepositContent({
     setOverlappingPendingVaultCount(null);
     resetDeposit();
     resetForm();
-  }, [setIsTwoVaultSplit, resetDeposit, resetForm]);
+  }, [setIsTwoVaultSplit, setWalletConnectionError, resetDeposit, resetForm]);
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetAll);
