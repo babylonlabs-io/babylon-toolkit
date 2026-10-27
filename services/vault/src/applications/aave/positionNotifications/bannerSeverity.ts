@@ -62,9 +62,7 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
   const suggestReorder = result.optimalVaultOrder != null;
 
-  // Dust hides the banner unless the position is urgent — a sub-$1k position
-  // has no meaningful multi-event cascade, and the green "partial liquidation
-  // is enabled" copy would be false.
+  // Small positions hide advice unless a liquidation warning is urgent.
   if (warnings.some((w) => w.type === "dust")) {
     const urgentWarning = warnings.find((w) => w.type === "urgent");
     return {

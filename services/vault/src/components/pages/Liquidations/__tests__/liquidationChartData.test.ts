@@ -1,3 +1,7 @@
+import {
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  SPLIT_TARGET_HEALTH_FACTOR,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { describe, expect, it } from "vitest";
 
 import { calculate } from "@/applications/aave/positionNotifications/calculate";
@@ -182,8 +186,8 @@ describe("buildLiquidationChartData", () => {
     ]);
     expect(rows[0]).toMatchObject({ value: "$77,682", emphasis: true });
     expect(rows[1].value).toBe("-12.1%");
-    expect(bands[0].cumulativeLabel).toBe("60% seized");
-    expect(bands[1].cumulativeLabel).toBe("100% seized");
+    expect(bands[0].cumulativeLabel).toBe("40% seized");
+    expect(bands[1].cumulativeLabel).toBe("67% seized");
   });
 
   it("shows the whole-vault amount in the Seizes popover row, not the target seizure", () => {
@@ -294,7 +298,7 @@ describe("buildLiquidationChartData", () => {
   });
 
   it("keeps the share axis honest about the true cumulative percentages", () => {
-    // 90 / 9 / 1 by collateral: the last event is a sliver at true scale.
+    // Groups hold 1 BTC. A further 0.5 BTC remains outside the groups.
     const result = makeResult([
       makeGroup(1, { combinedBtc: 0.9 }),
       makeGroup(2, { combinedBtc: 0.09 }),
@@ -308,9 +312,9 @@ describe("buildLiquidationChartData", () => {
 
     expect(shareAxisTicks.map((t) => t.label)).toEqual([
       "0%",
-      "90%",
-      "99%",
-      "100%",
+      "60%",
+      "66%",
+      "67%",
     ]);
     // Each tick sits on the band edge it names, not at an even interval.
     expect(shareAxisTicks[1].fraction).toBeCloseTo(bands[0].shareEnd);
@@ -621,24 +625,30 @@ describe("buildSimulationSummary", () => {
     expect(summary.collateralRemainingLabel).toMatch(/^0 /);
   });
 
-  // `calculate()` exits as soon as the remaining debt clears, so a vault it
-  // never had to consume gets no group at all. Normalising against the groups
-  // erased it: the header read "100% seized / 0 BTC" while the position card
-  // directly above still showed the surviving collateral.
-  it("counts collateral the cascade never had to consume", () => {
-    const result = makeResult([
-      makeGroup(1, {
-        combinedBtc: 2.8,
-        liquidationPrice: 77_682,
-        // 0.37 BTC of the position outlives the cascade.
-        btcRemainingAfter: 0.37,
-      }),
-    ]);
-    const summary = buildSimulationSummary(result, 10_000, 3);
+  it("keeps the reported small BTCVault when the first clears the debt", () => {
+    const result = calculate({
+      btcPrice: 1_017,
+      totalDebtUsd: 103.4,
+      vaults: [
+        { id: "first", name: "Vault 1", btc: 0.12016827 },
+        { id: "second", name: "Vault 2", btc: 0.01 },
+      ],
+      CF: 0.78,
+      THF: SPLIT_TARGET_HEALTH_FACTOR,
+      LB: 1.0504,
+      expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+      minPeginBtc: 0.0005,
+    });
+    const { summary, bands } = buildLiquidationChartData(result, {
+      btcPrice: 1_017,
+      collateralFactor: 0.78,
+      vaultsTotal: 2,
+    });
 
-    expect(summary.vaultsTotal).toBe(3);
-    expect(summary.seizedPct).toBe(88);
-    expect(summary.collateralRemainingLabel).toMatch(/^0\.37 /);
+    expect([summary.vaultsLiquidated, summary.vaultsTotal]).toEqual([1, 2]);
+    expect(summary.seizedPct).toBe(92);
+    expect(bands[0].cumulativeLabel).toBe("92% seized");
+    expect(summary.collateralRemainingLabel).toMatch(/^0\.01 /);
   });
 
   it("degrades to zeros with no groups", () => {

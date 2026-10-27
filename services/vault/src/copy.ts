@@ -3233,9 +3233,9 @@ export const COPY = {
         `This position already has the maximum number of BTCVaults (${cap}).`,
     },
     dust: {
-      title: "Small position - simplified view",
+      title: "Small position",
       detail:
-        "Below $1,000 the cascade simplifies: all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+        "Below $1,000 of debt or collateral, liquidation still follows BTCVault order. Reorder advice is hidden.",
     },
     // The BTC price is stale or unreadable, so no cascade is computed.
     stalePrice: {

@@ -479,7 +479,7 @@ export function buildLiquidationChartData(
   }: LiquidationChartOptions,
 ): LiquidationChartData {
   const groups = result.groups;
-  const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
+  const totalBtc = positionCollateralBtc(result);
   const floorPrice = axisFloorPrice(result);
   const shares = groups.map((g) =>
     totalBtc > 0 ? g.combinedBtc / totalBtc : 0,
