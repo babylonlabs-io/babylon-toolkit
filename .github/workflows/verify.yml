@@ -20,10 +20,12 @@ permissions:
 env:
   BUILT_PACKAGES_ARTIFACT: built-packages
 
+# Every job pins ubuntu-24.04: Playwright 1.56.1 has no Chromium build for
+# Ubuntu 26.04, which `ubuntu-latest` resolves to since October 2026.
 jobs:
   build:
     name: Build packages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -58,7 +60,7 @@ jobs:
   checks:
     name: Lint, service builds and release checks
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -186,7 +188,7 @@ jobs:
   unit:
     name: Unit tests
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -230,7 +232,7 @@ jobs:
   packages:
     name: Package checks
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -265,7 +267,7 @@ jobs:
   wallet-e2e:
     name: Wallet browser tests
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -291,7 +293,7 @@ jobs:
   vault-e2e:
     name: Vault browser tests
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -328,7 +330,7 @@ jobs:
   staking-e2e:
     name: Staking browser tests
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -375,7 +377,7 @@ jobs:
   verify:
     needs: [build, checks, unit, packages, wallet-e2e, vault-e2e, staking-e2e]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     steps:
