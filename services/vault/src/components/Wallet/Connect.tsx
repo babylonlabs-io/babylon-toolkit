@@ -142,6 +142,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   <WalletIcon
                     alt={displayWallets["BTC"].name}
                     url={displayWallets["BTC"].icon}
+                    fallbackUrl={btcConnector?.icon}
                     background={displayWallets["BTC"].iconBackground}
                   />
                 )}
@@ -149,6 +150,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   <WalletIcon
                     alt={displayWallets["ETH"].name}
                     url={displayWallets["ETH"].icon}
+                    fallbackUrl={ethConnector?.icon}
                     background={displayWallets["ETH"].iconBackground}
                   />
                 )}
