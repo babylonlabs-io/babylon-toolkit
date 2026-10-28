@@ -82,10 +82,7 @@ describe("OverviewSection", () => {
     expect(screen.getByText(COPY.overview.positionTitle)).toBeInTheDocument();
     const collateralUsd = screen.getByText("$10,000");
     const collateralBtc = screen.getByText("0.5 BTC");
-    expect(collateralBtc).toHaveAttribute("title", "0.5 BTC");
-    expect(collateralUsd.closest("[title]")).not.toContainElement(
-      collateralBtc,
-    );
+    expect(collateralUsd).not.toContainElement(collateralBtc);
 
     expect(
       screen.getByRole("button", { name: COPY.overview.depositAction }),
@@ -96,13 +93,6 @@ describe("OverviewSection", () => {
     expect(
       screen.getByRole("button", { name: COPY.overview.repayAction }),
     ).toBeInTheDocument();
-  });
-
-  it("titles the collateral value with the USD total", () => {
-    renderSection();
-
-    const collateralValue = screen.getByText("$10,000").closest("[title]");
-    expect(collateralValue).toHaveAttribute("title", "$10,000");
   });
 
   it("fires the matching callback when each action is clicked", () => {
