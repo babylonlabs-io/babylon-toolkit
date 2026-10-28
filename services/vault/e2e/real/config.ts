@@ -124,7 +124,6 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     profile: "testnet",
   },
   // The testnet-3 deployment (the `testnet` profile), where the depositor allow-list gate is on.
-  // Localhost only: no public URL is recorded for it here.
   "testnet-3": {
     websiteUrl: undefined,
     devScript: undefined, // `pnpm dev` with the profile pinned (runs sync-env first)
