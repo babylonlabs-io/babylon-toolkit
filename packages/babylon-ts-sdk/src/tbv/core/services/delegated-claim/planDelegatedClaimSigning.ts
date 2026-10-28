@@ -42,6 +42,7 @@ import {
   assertClaimSpendsVault,
   peginTxidFromClaimPsbt,
 } from "./vaultIdBinding";
+import { assertServedGraphPresigned } from "./servedGraphBinding";
 import { assertVerifyingKeyIsTrusted } from "./verifyingKeyBinding";
 import { xOnlyHex } from "./walletIdentity";
 
@@ -127,6 +128,11 @@ export async function buildBoundPsbtSet(
     );
   }
 
+  // A graph with foreign participants or failing presignatures can never
+  // finalize its Payout; refuse it before the depositor signs a Claim that
+  // spends the reserve. Here, so the assembler's re-plan runs it too.
+  await assertServedGraphPresigned({ txGraphVersion, graphJson, vault });
+
   const [claim, assert, payoutClaimer, wronglyChallenged, payoutDepositorRaw] =
     await Promise.all([
       buildClaimPsbt(txGraphVersion, graphJson),
@@ -197,6 +203,13 @@ export async function buildBoundPsbtSet(
 
 /**
  * @throws If the vault provider's verifying key is not the trusted one, if
+ *         a bound participant key or timelock in the served graph is not the
+ *         vault's (`GraphParticipantMismatchError`), the WASM verifier
+ *         rejects the graph (`GraphPresignatureError`), the graph is not valid
+ *         JSON or not a JSON object, the WASM engine fails to load, or the
+ *         vault context holds a key that is not compressed or x-only hex, a
+ *         duplicate key or no vault keeper other than the depositor (a plain
+ *         `Error`), if
  *         `depositorPublicKey` is not the vault's registered depositor key,
  *         the registered payout script is not derived from it,
  *         the graph version and the vault context's vault core version
