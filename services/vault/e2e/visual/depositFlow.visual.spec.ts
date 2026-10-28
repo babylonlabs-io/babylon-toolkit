@@ -22,6 +22,7 @@ import { FLUID_CTA_SELECTOR } from "../real/actions/selectors";
 
 import {
   assertRecordingCovered,
+  assertNoErrorSurface,
   capture,
   ensureOutputDir,
   preparePage,
@@ -36,6 +37,7 @@ import {
   flowScreenshotFileName,
   VISUAL_VIEWPORTS,
 } from "./targets";
+import { waitForVisualStability } from "./stabilize";
 
 /**
  * The amount typed into the form.
@@ -84,6 +86,58 @@ const UTXO_COPIES_ABOVE_SPLIT_MINIMUM = 2;
 const SLIDER_WITH_MARKS = ".bbn-slider-with-steps";
 
 for (const viewport of VISUAL_VIEWPORTS) {
+  test(`capture the reported ETH shortfall at ${viewport.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({
+      width: viewport.width,
+      height: viewport.height,
+    });
+    const backend = await preparePage(page);
+    await page.goto("/e2e/fixtures/insufficientEth.html");
+    await page.addStyleTag({
+      content: ".tsqd-parent-container { display: none !important; }",
+    });
+    const root = page.locator("#root");
+    await expect(
+      page.getByText("Transaction failed", { exact: true }),
+    ).toBeVisible();
+    if ((await root.getAttribute("data-amount-copy")) === "true") {
+      await expect(
+        page.getByText(
+          "Your wallet needs at least 0.01487 ETH and has 0.00277 ETH. Add at least 0.0121 ETH, then try again. Network gas can increase the amount needed.",
+          { exact: true },
+        ),
+      ).toBeVisible();
+    } else {
+      await expect(
+        page.getByText(
+          "Your wallet does not have enough ETH for the transaction payment and network gas. Add ETH on this network and try again.",
+          { exact: true },
+        ),
+      ).toBeVisible();
+    }
+    const retry = page.getByRole("button", { name: "Retry", exact: true });
+    await expect(retry).toBeEnabled();
+    await expect(retry).toBeInViewport({ ratio: 1 });
+    await waitForVisualStability(page, false);
+    await assertNoErrorSurface(page, "reported ETH shortfall");
+    await expect(page.locator(".tsqd-parent-container")).toBeHidden();
+    const shot = {
+      fileName: flowScreenshotFileName(
+        DEPOSIT_FLOW_STOPS.insufficientEth,
+        viewport,
+      ),
+      buffer: await page.screenshot(),
+    };
+    await retry.click();
+    await expect(root).toHaveAttribute("data-retried", "true");
+    assertRecordingCovered(backend, `ETH shortfall at ${viewport.name}`, [
+      "eth-rpc",
+    ]);
+    await writeCaptures([shot]);
+  });
+
   test(`capture the deposit flow at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize({
       width: viewport.width,

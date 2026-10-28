@@ -264,7 +264,11 @@ describe("ViemPeginRegistrationClient", () => {
 
         await expect(
           client.registerPeginOnChain(singleParams(ethWallet.account.address)),
-        ).rejects.toBeInstanceOf(InsufficientFundsError);
+        ).rejects.toMatchObject({
+          name: "InsufficientFundsError",
+          required: 750_003n,
+          balance: 750_002n,
+        });
         expect(send).not.toHaveBeenCalled();
       }
     },
@@ -312,7 +316,11 @@ describe("ViemPeginRegistrationClient", () => {
 
       await expect(
         register(client, ethWallet.account.address, path),
-      ).rejects.toBeInstanceOf(InsufficientFundsError);
+      ).rejects.toMatchObject({
+        name: "InsufficientFundsError",
+        required: 3n,
+        balance: 2n,
+      });
       expect(publicClient.estimateGas).not.toHaveBeenCalled();
       expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
       expect(send).not.toHaveBeenCalled();
@@ -326,7 +334,11 @@ describe("ViemPeginRegistrationClient", () => {
 
     await expect(
       client.registerPeginOnChain(singleParams(ethWallet.account.address)),
-    ).rejects.toBeInstanceOf(InsufficientFundsError);
+    ).rejects.toMatchObject({
+      name: "InsufficientFundsError",
+      required: 3n,
+      balance: 2n,
+    });
     expect(publicClient.estimateGas).not.toHaveBeenCalled();
     expect(publicClient.prepareTransactionRequest).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();

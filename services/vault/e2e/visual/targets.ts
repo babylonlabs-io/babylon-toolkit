@@ -130,6 +130,8 @@ export const DEPOSIT_FLOW_STOPS = {
    * next click asks them to sign, and they never do.
    */
   signEntry: "deposit-sign-entry",
+  /** The reported low-ETH error, rendered by the real progress view. */
+  insufficientEth: "deposit-insufficient-eth",
 } as const;
 
 /**

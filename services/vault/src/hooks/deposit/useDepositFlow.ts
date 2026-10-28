@@ -38,7 +38,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import type { Address, Hex } from "viem";
+import { InsufficientFundsError, type Address, type Hex } from "viem";
 import { useAccount } from "wagmi";
 import { getAccount } from "wagmi/actions";
 
@@ -129,6 +129,7 @@ import {
   type DepositErrorContent,
 } from "@/utils/errors";
 import { isDeviceWrongAppError } from "@/utils/errors/deviceErrors";
+import { classifyError } from "@/utils/errors/formatting";
 import {
   isUserCancellation,
   WALLET_CONNECTION_REJECTED_CODE,
@@ -984,7 +985,10 @@ export function useDepositFlow(
           }
           if (ethBalance <= protocolFee * BigInt(vaultAmounts.length)) {
             await waitForEthTopUp(
-              new Error(COPY.deposit.errors.insufficientEthForGas.body),
+              Object.assign(new InsufficientFundsError(), {
+                required: protocolFee * BigInt(vaultAmounts.length),
+                balance: ethBalance,
+              }),
             );
             await assertDepositorAllowListedNow();
             await assertPositionAcceptsRegistration();
@@ -1129,7 +1133,7 @@ export function useDepositFlow(
             // A send can have an unknown result. Retry only before it starts.
             if (
               registrationSendStarted ||
-              mapDepositError(err) !== COPY.deposit.errors.insufficientEthForGas
+              classifyError(err) !== "insufficient-funds"
             ) {
               throw err;
             }

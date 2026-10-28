@@ -1359,6 +1359,8 @@ export const COPY = {
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet does not have enough ETH for the transaction payment and network gas. Add ETH on this network and try again.",
+        amounts: (required: string, balance: string, shortfall: string) =>
+          `Your wallet needs at least ${required} ETH and has ${balance} ETH. Add at least ${shortfall} ETH, then try again. Network gas can increase the amount needed.`,
       },
       depositChanged: {
         title: "Deposit changed",

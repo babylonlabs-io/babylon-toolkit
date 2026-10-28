@@ -394,30 +394,7 @@ export function handleContractError(error: unknown): never {
     }
   }
 
-  // Check for gas estimation errors or internal JSON-RPC errors
-  const errorMsg = (error as Error)?.message || "";
-  if (
-    errorMsg.includes("gas limit too high") ||
-    errorMsg.includes("21000000") ||
-    errorMsg.includes("Internal JSON-RPC error")
-  ) {
-    // If we found error data but it's not in our known list, include it
-    const errorHint = errorData ? ` (error code: ${errorData})` : "";
-    console.error(
-      "[Contract Error] Transaction rejected. Error code:",
-      errorData,
-      "Message:",
-      errorMsg,
-    );
-    throw new Error(
-      `Transaction failed: The contract rejected this transaction${errorHint}. ` +
-        "Possible causes: (1) Vault already exists for this transaction, " +
-        "(2) Invalid signature, (3) Unauthorized caller. " +
-        "Please check your transaction parameters and try again.",
-    );
-  }
-
-  // Default: re-throw original error with better context
+  // Preserve the cause when the error has no known contract revert.
   if (error instanceof Error) {
     console.error("[Contract Error] Unhandled error:", error.message);
     throw error;

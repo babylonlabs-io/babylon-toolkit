@@ -68,9 +68,8 @@
  *  - Signing failure — the wallet could not sign the Pre-PegIn and it was not
  *    a rejection (locked wallet, stale extension, device transport drop).
  *  - Broadcast failure — Pre-PegIn could not be broadcast to Bitcoin.
- *  - Insufficient ETH — the Ethereum registration tx can't cover gas. Detected
- *    via the shared `classifyError` (viem typed error + node-message regex),
- *    not by hand-matching gas wording.
+ *  - Insufficient ETH - show the amounts from the balance check. Use the shared
+ *    `classifyError` for typed errors and raw node messages.
  *  - Vault provider not found.
  *  - Bitcoin funds unavailable — UTXO load / availability (phrase-level match).
  *  - Everything else — fall back to the sanitized raw message under the generic
@@ -92,6 +91,7 @@ import {
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { type ReactNode } from "react";
+import { formatEther } from "viem";
 
 import { COPY } from "@/copy";
 import { isBuildConfigDriftError } from "@/services/vault/buildConfigConsistency";
@@ -687,13 +687,22 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.utxosUnavailable;
   }
 
-  // 10. Insufficient ETH to cover gas for the Ethereum registration tx. Defer
-  // to the shared `classifyError`, which checks viem's typed `name`
-  // ("InsufficientFundsError") plus its node-message regex and excludes the
-  // BTC selector's "Insufficient funds: need N sats" — more robust across viem
-  // upgrades than matching gas wording by hand.
+  // Show the shortfall when the balance check supplies both amounts.
   if (classifyError(err) === "insufficient-funds") {
-    return ERRORS.insufficientEthForGas;
+    const { required, balance } = err as Record<string, unknown>;
+    return typeof required === "bigint" &&
+      typeof balance === "bigint" &&
+      balance >= 0n &&
+      required > balance
+      ? {
+          ...ERRORS.insufficientEthForGas,
+          body: ERRORS.insufficientEthForGas.amounts(
+            formatEther(required),
+            formatEther(balance),
+            formatEther(required - balance),
+          ),
+        }
+      : ERRORS.insufficientEthForGas;
   }
 
   // 11. Fallback: keep the sanitized raw message under the generic title so no

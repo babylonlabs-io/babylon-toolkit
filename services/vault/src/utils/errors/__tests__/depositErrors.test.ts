@@ -18,6 +18,7 @@ import {
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { InsufficientFundsError, parseEther } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -351,13 +352,14 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.insufficientEthForGas);
   });
 
-  it("maps viem's typed InsufficientFundsError (by name) to the insufficient-ETH callout", () => {
-    // classifyError keys off viem's error name, so it's robust even when the
-    // message wording changes across viem versions.
-    const err = Object.assign(new Error("Transaction execution failed"), {
-      name: "InsufficientFundsError",
+  it("shows the ETH shortfall from the reported deposit", () => {
+    const err = Object.assign(new InsufficientFundsError(), {
+      required: parseEther("0.01487"),
+      balance: parseEther("0.00277"),
     });
-    expect(mapDepositError(err)).toEqual(ERRORS.insufficientEthForGas);
+    expect(mapDepositError(err).body).toBe(
+      "Your wallet needs at least 0.01487 ETH and has 0.00277 ETH. Add at least 0.0121 ETH, then try again. Network gas can increase the amount needed.",
+    );
   });
 
   it("maps a wallet-not-connected error to the wallet callout", () => {

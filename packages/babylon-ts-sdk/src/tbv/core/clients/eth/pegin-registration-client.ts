@@ -539,7 +539,10 @@ export class ViemPeginRegistrationClient {
     }
     // Typed before any node call: a node reports a value shortfall in its own words.
     if (balance < value) {
-      throw new InsufficientFundsError();
+      throw Object.assign(new InsufficientFundsError(), {
+        required: value,
+        balance,
+      });
     }
     // No fee fields: with a fee cap, geth/reth cap the estimate at the balance
     // ("gas required exceeds allowance", go-ethereum eth/gasestimator).
@@ -593,7 +596,10 @@ export class ViemPeginRegistrationClient {
       const feeCap =
         fees.type === "eip1559" ? fees.maxFeePerGas : fees.gasPrice;
       if (balance < value + gas * feeCap) {
-        throw new InsufficientFundsError();
+        throw Object.assign(new InsufficientFundsError(), {
+          required: value + gas * feeCap,
+          balance,
+        });
       }
     }
     // The node reads above used the snapshot; re-gate before the liveness check.

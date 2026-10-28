@@ -744,8 +744,8 @@ describe("useDepositFlow", () => {
         const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
         const pending = result.current.executeDeposit();
         await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
-        expect(result.current.error).toEqual(
-          DEPOSIT_ERRORS.insufficientEthForGas,
+        expect(result.current.error?.title).toBe(
+          DEPOSIT_ERRORS.insufficientEthForGas.title,
         );
         expect(preparePeginTransaction).not.toHaveBeenCalled();
         ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
@@ -766,12 +766,16 @@ describe("useDepositFlow", () => {
         "@/services/vault/vaultTransactionService"
       );
       vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
-        new InsufficientFundsError(),
+        Object.assign(new InsufficientFundsError(), {
+          required: 14870000000000000n,
+          balance: 2770000000000000n,
+        }),
       );
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
       const pending = result.current.executeDeposit();
       await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
       expect(result.current.currentStep).toBe(DepositFlowStep.SUBMIT_PEGIN);
+      expect(result.current.error?.body).toContain("Add at least 0.0121 ETH");
       const retry = result.current.retryDeposit;
       await act(async () => {
         retry?.();
