@@ -70,7 +70,9 @@ env:
 # once its noise floor is proven on real PRs.
 jobs:
   visual:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not ubuntu-latest: Playwright 1.56.1 has no Chromium build
+    # for Ubuntu 26.04, which the latest label resolves to since October 2026.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     outputs:
@@ -498,7 +500,7 @@ jobs:
   # bypass it.
   publish:
     needs: visual
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     permissions:
