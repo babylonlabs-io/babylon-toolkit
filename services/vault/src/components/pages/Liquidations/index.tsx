@@ -116,16 +116,28 @@ export default function Liquidations() {
   // mid-analysis. The simulator only looks downward, so a live price that
   // falls past a held simulation re-clamps instead; the `isSimulating` chip is
   // what stops a simulated price from ever reading as live.
-  const currentPrice =
-    livePrice === null ? null : clampToLive(simulatedPrice, livePrice);
+  const prices = useMemo(
+    () =>
+      livePrice === null
+        ? null
+        : {
+            projected: clampToLive(simulatedPrice, livePrice),
+            live: livePrice,
+          },
+    [livePrice, simulatedPrice],
+  );
 
   // `calculate()` runs an O(3^n) bitmask DP over the vault set (~56ms at 16
   // vaults, ~158ms at 17), and dragging the slider across a $30k range at
   // $100 steps would otherwise fire it ~300 times synchronously. Deferring
   // only the price the CASCADE reads keeps the drag responsive: the toolbar
-  // below still tracks `currentPrice` directly, so the thumb never lags, and
-  // React discards the intermediate cascades it never finishes rendering.
-  const projectedPrice = useDeferredValue(currentPrice);
+  // below still tracks the live and simulated prices directly, so the thumb
+  // never lags, and React discards the intermediate cascades it never
+  // finishes rendering. Deferred as a pair: the event cards compare the
+  // projected price with the live one, so a live poll must never reach them
+  // ahead of the projection.
+  const deferredPrices = useDeferredValue(prices);
+  const projectedPrice = deferredPrices?.projected ?? null;
 
   // The what-if path: re-run the pure calculator with the simulated price
   // instead of touching `result`, the live value `usePositionNotifications`
@@ -150,7 +162,9 @@ export default function Liquidations() {
       return null;
     }
     if (collateralFactor === null || livePrice === null) return null;
-    if (projectedPrice === null || !params) return null;
+    if (projectedPrice === null || deferredPrices === null || !params) {
+      return null;
+    }
 
     // Built from `projectedPrice`, the same price `cascadeResult` was
     // calculated at, so the bands and the price line can never disagree
@@ -158,7 +172,7 @@ export default function Liquidations() {
     const data = buildLiquidationChartData(cascadeResult, {
       btcPrice: projectedPrice,
       collateralFactor,
-      livePrice,
+      livePrice: deferredPrices.live,
       vaultsTotal: params.vaults.length,
     });
 
@@ -187,6 +201,7 @@ export default function Liquidations() {
     collateralFactor,
     livePrice,
     projectedPrice,
+    deferredPrices,
     params,
     candles,
   ]);

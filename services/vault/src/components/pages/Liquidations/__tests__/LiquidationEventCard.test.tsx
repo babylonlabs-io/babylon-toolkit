@@ -17,6 +17,7 @@ const CARD: EventCardData = {
   title: "Liq Event 1",
   tone: "1",
   triggered: false,
+  liquidatedInSimulation: false,
   collateralLabel: "0.42 BTC",
   liqPriceLabel: "$60,000",
   distanceLabel: "-10%",
