@@ -123,10 +123,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
         with:
-          node-version: '24.2.0'
+          node-version-file: '.nvmrc'
 
       - name: Install Corepack
-        run: npm install -g corepack && corepack enable
+        run: npm install -g corepack@0.36.0 && corepack enable
 
       - name: Resolve pnpm store path
         shell: bash

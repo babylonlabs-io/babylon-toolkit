@@ -7,19 +7,18 @@ repository.
 # Getting Started
 
 ## Prerequisites
-- Node.js (version 24.2.0 - see `.nvmrc`)
+- Node.js (version 24.22.1 - see `.nvmrc`)
 - pnpm (managed via Corepack)
 
 ### Setup
 
-1. **Enable Corepack** (if using Node.js 24 or earlier, Corepack is bundled):
+1. **Switch to the pinned Node version** (`pnpm install` rejects any other version):
    ```bash
-   corepack enable
+   nvm use
    ```
 
-2. **For Node.js 25+** (Corepack is not bundled), install it first:
+2. **Enable Corepack** (bundled with that Node version):
    ```bash
-   npm install -g corepack
    corepack enable
    ```
 
