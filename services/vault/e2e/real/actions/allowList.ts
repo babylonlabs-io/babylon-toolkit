@@ -16,7 +16,7 @@
  * before the answer says nothing about the list.
  *
  * Spends nothing: the form is never submitted. Run it on `--target=localhost` to test local app code;
- * the gate is on in the `testnet-3` network's deployment and removed in devnet's.
+ * the gate is on in the `testnet` network's deployment and removed in devnet's.
  */
 import type { Page, Response } from "@playwright/test";
 import { sepolia } from "viem/chains";

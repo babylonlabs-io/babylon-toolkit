@@ -8,7 +8,7 @@
 import type { SupportedWallet } from "./connector";
 
 export type Target = "localhost" | "website";
-export type NetworkName = "devnet" | "testnet" | "testnet-3";
+export type NetworkName = "devnet" | "testnet";
 export type BtcWalletId = "unisat" | "okx" | "onekey";
 export type EthWalletId = "metamask";
 export type DataMode = "real" | "mock";
@@ -89,8 +89,8 @@ export const ETH_WALLET_TO_CONNECTOR: Record<EthWalletId, SupportedWallet> = {
 };
 
 export interface NetworkConfig {
-  /** Public deployment for the `website` target; undefined ⇒ the network runs on localhost only. */
-  websiteUrl?: string;
+  /** Public deployment for the `website` target. */
+  websiteUrl: string;
   /** pnpm script that starts the local dev server for this network (undefined ⇒ `dev`). */
   devScript?: string;
   /** Signet mempool REST base used for the BTC balance pre-flight. */
@@ -118,15 +118,6 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
   testnet: {
     websiteUrl: "https://btc-vaults.testnet.babylonlabs.io/",
     devScript: "dev:testnet", // `pnpm dev:testnet` (runs the testnet profile)
-    mempoolApiBase: SIGNET_MEMPOOL,
-    sepoliaRpcUrl: SEPOLIA_RPC,
-    ethChainId: SEPOLIA_CHAIN_ID,
-    profile: "testnet",
-  },
-  // The testnet-3 deployment (the `testnet` profile), where the depositor allow-list gate is on.
-  "testnet-3": {
-    websiteUrl: undefined,
-    devScript: undefined, // `pnpm dev` with the profile pinned (runs sync-env first)
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
@@ -392,16 +383,6 @@ export function resolveTargetUrl(
   localhostBaseUrl: string,
 ): string {
   return config.target === "website"
-    ? websiteUrlOf(config.network)
+    ? NETWORKS[config.network].websiteUrl
     : localhostBaseUrl;
-}
-
-/** The network's public deployment; refuses a network that only runs on localhost. */
-export function websiteUrlOf(network: NetworkName): string {
-  const url = NETWORKS[network].websiteUrl;
-  if (url === undefined)
-    throw new Error(
-      `--network=${network} has no public deployment; run it with --target=localhost.`,
-    );
-  return url;
 }
