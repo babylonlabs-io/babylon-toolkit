@@ -89,10 +89,10 @@ jobs:
           set -e
 
           if pnpm exec syncpack list-mismatches; then
-            echo "✅ Dependency versions are aligned"
+            echo "✅ Dependency versions are aligned and exact"
           else
             # Add an annotation to the Checks tab with a helpful hint
-            echo "::error title=Dependency mismatch::Run 'pnpm exec syncpack list-mismatches' locally (and 'pnpm exec syncpack fix-mismatches' to auto-fix)." >&2
+            echo "::error title=Dependency mismatch::Run 'pnpm exec syncpack list-mismatches' locally. Pin each Banned entry to an exact version by hand: 'syncpack fix-mismatches' deletes Banned entries. For other mismatches 'pnpm exec syncpack fix-mismatches' is safe." >&2
             exit 1
           fi
 

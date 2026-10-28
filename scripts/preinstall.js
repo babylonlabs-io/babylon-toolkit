@@ -10,7 +10,7 @@ if (!userAgent.includes('pnpm')) {
   console.error('Please install dependencies using:');
   console.error('  \x1b[36mpnpm install\x1b[0m\n');
   console.error('To set up pnpm, run:');
-  console.error('  \x1b[36mnpm install -g corepack && corepack enable\x1b[0m\n');
+  console.error('  \x1b[36mnvm use && corepack enable\x1b[0m\n');
   process.exit(1);
 }
 

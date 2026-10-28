@@ -827,13 +827,15 @@ executes in the same origin as the signing flow, with the user's wallet connecte
 - `onlyBuiltDependencies` — an explicit allowlist of packages permitted to run install scripts.
   Everything else installs without executing arbitrary code. Adding an entry here grants arbitrary
   code execution on every developer machine and CI runner; it is a security review, not a build fix.
-- `engine-strict`, plus root `pnpm.overrides` pinning `@walletconnect/logger` and
-  `@sats-connect/core>axios` to exact versions and enforcing a `js-yaml >=4.1.1` minimum-version
-  floor.
+- `engine-strict`, with root `engines.node` pinned to the exact version in `.nvmrc`, plus root
+  `pnpm.overrides` pinning `@walletconnect/logger`, `axios` and `js-yaml` to exact versions across
+  the whole dependency tree.
 
-CLAUDE.md additionally requires **pinned exact versions** (no `^`) for new dependencies, especially
-crypto packages, and an explicit supply-chain audit before adding one. `syncpack` enforces a single
-version policy across the workspace in CI.
+Every `dependencies`, `devDependencies`, `optionalDependencies` and `pnpm.overrides` entry is an
+exact version or `workspace:*`; `syncpack list-mismatches` bans anything else in CI (see
+`.syncpackrc.json`). `peerDependencies` keep ranges, because they state what consumers of the
+published packages may install. CLAUDE.md additionally requires an explicit supply-chain audit
+before adding a dependency, especially a crypto package.
 
 **Known gap: there is no `pnpm audit` (or equivalent SCA) gate in
 [`.github/workflows/verify.yml`](.github/workflows/verify.yml).** Nothing in CI fails on a known

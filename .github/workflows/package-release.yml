@@ -42,10 +42,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
         with:
-          node-version: '24.10.0'
+          node-version-file: '.nvmrc'
 
       - name: Install Corepack
-        run: npm install -g corepack && corepack enable
+        run: npm install -g corepack@0.36.0 && corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -60,7 +60,7 @@ jobs:
             echo "✅ Dependency versions are aligned"
           else
             # Add an annotation to the Checks tab with a helpful hint
-            echo "::error title=Dependency mismatch::Run 'pnpm exec syncpack list-mismatches' locally (and 'pnpm exec syncpack fix-mismatches' to auto-fix)." >&2
+            echo "::error title=Dependency mismatch::Run 'pnpm exec syncpack list-mismatches' locally. Pin each Banned entry to an exact version by hand: 'syncpack fix-mismatches' deletes Banned entries. For other mismatches 'pnpm exec syncpack fix-mismatches' is safe." >&2
             exit 1
           fi
 
