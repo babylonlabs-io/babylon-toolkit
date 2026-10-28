@@ -20,6 +20,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 
+import featureFlags from "@/config/featureFlags";
 import { shouldRetry } from "@/config/queryClient";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
@@ -44,23 +45,31 @@ const EMPTY_VAULT_KEEPERS: VaultKeeper[] = [];
 const getProviderIdentity = (p: VaultProvider) => toIdentity(p.btcPubKey);
 
 /**
- * Applications for which the all-providers-disabled event has already been
- * emitted this session. Module-scoped (not per hook instance): the hook mounts
- * in several components at once, and the systemic "picker is empty" condition
- * must be reported once, keyed to the application — not once per mount. Keys
- * are lowercased addresses so checksummed and lowercase mounts of the same
+ * Applications for which the empty-picker event has already been emitted this
+ * session. Module-scoped (not per hook instance): the hook mounts in several
+ * components at once, and the systemic "picker is empty" condition must be
+ * reported once, keyed to the application — not once per mount. Keys are
+ * lowercased addresses so checksummed and lowercase mounts of the same
  * application share one entry.
  */
-const emittedAllDisabledFor = new Set<string>();
+const emittedEmptyPickerFor = new Set<string>();
+
+/**
+ * Applications whose unmatched allowlist entries have already been logged
+ * this session. Module-scoped for the same reason as emittedEmptyPickerFor.
+ */
+const warnedUnmatchedAllowlistFor = new Set<string>();
 
 export interface UseVaultProvidersResult {
   /**
    * Every listable vault provider — including runtime-unhealthy and
    * metadata-rejected ones (shown in the picker, sorted to the bottom with a
-   * warning) but EXCLUDING proxy-disabled VPs, which are hidden from the
-   * picker entirely. The deposit picker uses this list. To resolve a provider
-   * that an existing vault is bound to — which may be disabled — use
-   * {@link findProvider}, which searches the full unfiltered set.
+   * warning) but EXCLUDING proxy-disabled VPs and, when
+   * NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS is set, VPs outside that
+   * allowlist; both are hidden from the picker entirely. The deposit picker
+   * uses this list. To resolve a provider that an existing vault is bound to
+   * — which may be disabled or unlisted — use {@link findProvider}, which
+   * searches the full unfiltered set.
    */
   allVaultProviders: VaultProvider[];
   /** Lowercased Ethereum addresses of runtime-unhealthy VPs (per `/vp-health`). */
@@ -143,41 +152,97 @@ export function useVaultProviders(
   const allProviders = data?.vaultProviders ?? EMPTY_VAULT_PROVIDERS;
   const allProvidersWithLogos = useWithLogos(allProviders, getProviderIdentity);
 
-  // Listable subset shown in the picker: the full set minus proxy-disabled
-  // VPs. Disabled VPs are hidden entirely (cannot be selected for a new
-  // deposit); unhealthy / metadata-rejected VPs remain and are sorted to the
-  // bottom by the picker.
-  const listableProviders = useMemo(
-    () =>
-      allProvidersWithLogos.filter((p) => !disabledVps.has(p.id.toLowerCase())),
-    [allProvidersWithLogos, disabledVps],
-  );
+  // Listable subset shown in the picker: the full set narrowed to the
+  // operator allowlist when one is set, minus proxy-disabled VPs. Both hide a
+  // VP entirely (it cannot be selected for a new deposit); unhealthy /
+  // metadata-rejected VPs remain and are sorted to the bottom by the picker.
+  const { listableProviders, allowlistedCount, unmatchedAllowlistEntries } =
+    useMemo(() => {
+      const allowlist = featureFlags.allowedVaultProviders;
+      const allowlisted = allowlist
+        ? allProvidersWithLogos.filter((p) => allowlist.has(p.id.toLowerCase()))
+        : allProvidersWithLogos;
+      const matched = new Set(allowlisted.map((p) => p.id.toLowerCase()));
+      return {
+        listableProviders: allowlisted.filter(
+          (p) => !disabledVps.has(p.id.toLowerCase()),
+        ),
+        allowlistedCount: allowlisted.length,
+        // Shortened past the telemetry scrubber: a raw address is rewritten
+        // to [ETH_ADDR] on the way out and lost as a correlation key.
+        unmatchedAllowlistEntries: allowlist
+          ? [...allowlist].filter((entry) => !matched.has(entry)).map(shortId)
+          : [],
+      };
+    }, [allProvidersWithLogos, disabledVps]);
 
-  // Providers exist but the proxy disabled every one of them: the deposit
-  // picker renders empty and no deposit can start — a systemic outage signal,
-  // distinct from an application with no providers. Once per application per
-  // session; the picker's own empty-state copy remains the user-facing surface.
+  // The two signals below describe the deposit picker, which lists the
+  // current application's providers. The hook also mounts for a vault's own
+  // application (payout signing), which after an adapter redeploy is not the
+  // one the picker shows; an empty roster there is not a blocked funnel.
+  const isCurrentApplication =
+    entryPoint !== undefined &&
+    config?.adapterAddress !== undefined &&
+    entryPoint.toLowerCase() === config.adapterAddress.toLowerCase();
+
+  // Providers exist but none is listable: the deposit picker renders empty and
+  // no deposit can start — a systemic signal, distinct from an application
+  // with no providers. The reason says which gate emptied it: an allowlist
+  // that matched nobody, or the proxy disabling every match. Once per
+  // application per session; the picker's own empty-state copy remains the
+  // user-facing surface.
   useEffect(() => {
-    if (!entryPoint) return;
+    if (!entryPoint || !isCurrentApplication) return;
     if (allProvidersWithLogos.length === 0 || listableProviders.length > 0) {
       return;
     }
     const appKey = entryPoint.toLowerCase();
-    if (emittedAllDisabledFor.has(appKey)) return;
-    emittedAllDisabledFor.add(appKey);
+    if (emittedEmptyPickerFor.has(appKey)) return;
+    emittedEmptyPickerFor.add(appKey);
+    const allowlistEmptied = allowlistedCount === 0;
     logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
       level: "warning",
       category: "onboarding",
-      tags: { reason: "all_disabled" },
+      tags: { reason: allowlistEmptied ? "allowlist" : "all_disabled" },
       total: allProvidersWithLogos.length,
       applicationId: shortId(appKey),
+      // The warning below is only a breadcrumb and runs after this capture,
+      // so the entries travel with the one message that is actually sent.
+      ...(allowlistEmptied
+        ? { unmatchedAllowlist: unmatchedAllowlistEntries }
+        : {}),
     });
-  }, [entryPoint, allProvidersWithLogos, listableProviders]);
+  }, [
+    entryPoint,
+    isCurrentApplication,
+    allProvidersWithLogos,
+    listableProviders,
+    allowlistedCount,
+    unmatchedAllowlistEntries,
+  ]);
+
+  // An allowlist entry that matches no provider of the current application is
+  // most likely a typo or an address registered under another application.
+  // Say so once the roster has loaded, so an operator can find it in the logs.
+  useEffect(() => {
+    if (!entryPoint || !isCurrentApplication || data === undefined) return;
+    if (unmatchedAllowlistEntries.length === 0) return;
+    const appKey = entryPoint.toLowerCase();
+    if (warnedUnmatchedAllowlistFor.has(appKey)) return;
+    warnedUnmatchedAllowlistFor.add(appKey);
+    logger.warn(
+      `[useVaultProviders] NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS lists ` +
+        `${unmatchedAllowlistEntries.length} address(es) that match no vault ` +
+        `provider of application ${shortId(appKey)}: ` +
+        unmatchedAllowlistEntries.join(", "),
+    );
+  }, [entryPoint, isCurrentApplication, data, unmatchedAllowlistEntries]);
 
   // Find provider by address — searches ALL providers (including disabled,
-  // unhealthy, and metadata-rejected) so that vault management flows (payout
-  // signing, dashboard, refund) still work for existing vaults bound to a
-  // provider that was later disabled or whose rpcUrl went bad.
+  // unlisted, unhealthy, and metadata-rejected) so that vault management flows
+  // (payout signing, dashboard, refund) still work for existing vaults bound
+  // to a provider that was later disabled, left off the allowlist, or whose
+  // rpcUrl went bad.
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
       return allProvidersWithLogos.find(

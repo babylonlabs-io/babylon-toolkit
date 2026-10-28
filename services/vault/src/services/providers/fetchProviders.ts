@@ -237,7 +237,7 @@ export function getLatestVersionKeepers(
 /**
  * Applications (lowercased addresses) for which the all-rows-invalid event has
  * already been emitted this session. Module-scoped for the same reason as the
- * all-disabled gate in useVaultProviders: React Query polling re-runs
+ * empty-picker gate in useVaultProviders: React Query polling re-runs
  * fetchAppProviders, and a persistent indexer regression must be reported
  * once per application — not once per refetch.
  */
