@@ -62,7 +62,7 @@ describe("selectNetworkProfile", () => {
     expect(() =>
       selectNetworkProfile({ name: undefined, isCI: true, command: "build" }),
     ).toThrow(
-      "NEXT_PUBLIC_TBV_NETWORK is required in CI. Set it to one of: devnet, e2e-replay, staging, testnet, testnet-2",
+      "NEXT_PUBLIC_TBV_NETWORK is required in CI. Set it to one of: devnet, e2e-replay, staging, testnet",
     );
   });
 
@@ -118,7 +118,7 @@ describe("findDotenvSelector", () => {
   it("names every dotenv file Vite or Nx would read that assigns the selector", () => {
     const project = tempDir();
     const workspace = tempDir();
-    writeFileSync(join(project, ".env"), "NEXT_PUBLIC_TBV_NETWORK=testnet-2\n");
+    writeFileSync(join(project, ".env"), "NEXT_PUBLIC_TBV_NETWORK=testnet\n");
     writeFileSync(
       join(project, ".env.build.local"),
       "export NEXT_PUBLIC_TBV_NETWORK = staging\n",

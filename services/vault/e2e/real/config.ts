@@ -117,11 +117,11 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
   },
   testnet: {
     websiteUrl: "https://btc-vaults.testnet.babylonlabs.io/",
-    devScript: "dev:testnet", // `pnpm dev:testnet` (runs the testnet-2 profile)
+    devScript: "dev:testnet", // `pnpm dev:testnet` (runs the testnet profile)
     mempoolApiBase: SIGNET_MEMPOOL,
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
-    profile: "testnet-2",
+    profile: "testnet",
   },
   // The testnet-3 deployment (the `testnet` profile), where the depositor allow-list gate is on.
   // Localhost only: no public URL is recorded for it here.
