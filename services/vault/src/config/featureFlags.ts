@@ -239,6 +239,34 @@ export default {
   },
 
   /**
+   * ALLOWED_VAULT_PROVIDERS config
+   *
+   * Purpose: Per-environment allowlist of the vault providers offered for a
+   * NEW deposit. Ethereum addresses separated by commas or whitespace, matched
+   * case-insensitively against each provider's registry address. When set,
+   * the deposit picker lists only these providers; a vault already bound to
+   * any other provider still resolves it for the dashboard, signing and
+   * refund paths (see useVaultProviders.findProvider).
+   * Why needed: Lets DevOps restrict which providers an environment opens to
+   * depositors without a code or registry change. The proxy's disabled flag
+   * is the complementary hide list and still applies on top of this.
+   * Default: unset (no allowlist; the proxy's disabled flag still applies). A
+   * list that is set but matches no provider leaves the picker empty rather
+   * than opening it, so a typo fails closed; useVaultProviders reports the
+   * unmatched entries, shortened past the telemetry scrubber.
+   *
+   * Non-boolean gating config, so it uses the NEXT_PUBLIC_ prefix without _FF_
+   * (per rule 5).
+   */
+  get allowedVaultProviders(): ReadonlySet<string> | null {
+    const entries = (process.env.NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS ?? "")
+      .split(/[\s,]+/)
+      .map((s) => s.toLowerCase())
+      .filter(Boolean);
+    return entries.length === 0 ? null : new Set(entries);
+  },
+
+  /**
    * Name: NEXT_PUBLIC_TBV_E2E_SPECULOS_URL
    * Type: E2E-ONLY gating config (URL-valued: presence gates, value configures).
    * What it does: points the Ledger vault wallet's DMK transport at a Speculos

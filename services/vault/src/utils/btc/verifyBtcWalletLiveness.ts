@@ -1,6 +1,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 
 import { COPY } from "@/copy";
+import { chainCarriesCode } from "@/utils/errors/causeChain";
 import {
   isDeviceDisconnectedError,
   isDeviceWrongAppError,
@@ -36,6 +37,12 @@ export class BtcWalletLivenessError extends Error {
 const CONNECT_PROBE_WALLET_IDS = new Set(["unisat", "okx", "onekey"]);
 
 /**
+ * Wallet-connector code the provider's read timeout throws (mirrors
+ * `ERROR_CODES.CONNECTION_FAILED`); this string must track it.
+ */
+const WALLET_CONNECTION_FAILED_CODE = "CONNECTION_FAILED";
+
+/**
  * Whether `connectWallet()` can be used as a silent liveness probe for the
  * given connected-wallet id. Pass `btcConnector?.connectedWallet?.id`.
  */
@@ -56,10 +63,12 @@ export function shouldProbeWalletLiveness(
  *
  * `connectWallet` is optional because the ts-sdk `BitcoinWallet` abstraction
  * does not declare it; the wallet-connector providers passed in at runtime
- * implement it.
+ * implement it. `getAccounts` is the non-interactive read (UniSat only) used
+ * as a fast channel check.
  */
 type ProbableBtcWallet = Pick<BitcoinWallet, "getAddress"> & {
   connectWallet?: () => Promise<void>;
+  getAccounts?: () => Promise<string[]>;
 };
 
 export interface VerifyBtcWalletLivenessOptions {
@@ -71,7 +80,10 @@ export interface VerifyBtcWalletLivenessOptions {
    * Latency note: when enabled, a locked wallet that *hangs* (rather than
    * rejecting) can block up to the provider's prompt timeout (e.g. Unisat's
    * 60s) before this throws — still better than a silent "Signing…" with no
-   * popup.
+   * popup. A wallet that exposes `getAccounts` (Unisat) instead fails within
+   * that read's timeout when its extension channel is unresponsive and the
+   * tab is visible; from a hidden tab, and for other wallets, the
+   * prompt-timeout behavior remains.
    */
   probeConnection?: boolean;
 }
@@ -85,6 +97,43 @@ export async function verifyBtcWalletLiveness(
   // or unresponsive wallet rejects or times out here; a cached `getAddress()`
   // alone would falsely pass.
   if (options.probeConnection && typeof wallet.connectWallet === "function") {
+    // `getAccounts` is non-interactive and bounded by the provider's short RPC
+    // timeout. It shares the extension's page channel with signing, so the
+    // provider's read timeout (CONNECTION_FAILED) means the channel is gone and
+    // only a page reload recovers it — the 60s interactive probe below would
+    // hide that behind a spinner and the "unlock" copy. Any other rejection
+    // keeps the existing liveness mapping. An empty result (locked wallet)
+    // still falls through to `connectWallet()`. UniSat's page provider queues
+    // every request while the tab is hidden, so a bounded read from a hidden
+    // tab would time out on a healthy wallet; there the existing interactive
+    // probe (which waits for the tab) is used instead. If the tab hides at any
+    // point during the read, a timeout is ambiguous, so the interactive probe
+    // decides instead.
+    if (
+      typeof wallet.getAccounts === "function" &&
+      document.visibilityState === "visible"
+    ) {
+      let hiddenDuringRead = false;
+      const onVisibilityChange = () => {
+        if (document.visibilityState !== "visible") hiddenDuringRead = true;
+      };
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      try {
+        await wallet.getAccounts();
+      } catch (error) {
+        if (!chainCarriesCode(error, WALLET_CONNECTION_FAILED_CODE)) {
+          throw toLivenessError(error);
+        }
+        if (!hiddenDuringRead) {
+          throw new BtcWalletLivenessError(
+            COPY.wallet.liveness.extensionDisconnected,
+          );
+        }
+      } finally {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+    }
+
     try {
       await wallet.connectWallet();
     } catch (error) {

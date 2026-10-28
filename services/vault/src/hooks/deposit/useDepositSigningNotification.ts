@@ -1,7 +1,7 @@
 /**
  * Sends signing notifications for the active deposit flow.
  * The pending-deposit observer stops while this flow is active.
- * Each WOTS vault can need a signature without a step change.
+ * Each vault needs separate keys for its wallet actions.
  * Tab changes alone must not send alerts for completed signatures.
  */
 
@@ -62,22 +62,31 @@ export function useDepositSigningNotification(
   currentStep: DepositFlowStep,
   active: boolean,
   currentVaultIndex: number | null,
+  isWaiting: boolean,
 ): void {
   const notifier = useSigningNotificationOptional();
   // Each deposit needs separate notification keys.
   const flowId = useId();
   const notifySigningRequired = notifier?.notifySigningRequired;
-  const wotsVaultIndex =
-    currentStep === DepositFlowStep.SUBMIT_WOTS_KEYS ? currentVaultIndex : null;
+  const entry = STEP_NOTIFICATION[currentStep];
+  const perVault = entry?.phase === "wots" || entry?.phase === "payouts";
+  const vaultIndex = perVault ? currentVaultIndex : null;
+  const needsWallet = entry?.phase !== "wots" || !isWaiting;
 
   // SUBMIT_PEGIN stays current during finality, after the user signs.
   // Keep visibility changes out of this effect to prevent stale alerts.
   useEffect(() => {
-    if (!notifySigningRequired || !active) return;
-    const entry = STEP_NOTIFICATION[currentStep];
-    if (!entry || (entry.phase === "wots" && wotsVaultIndex === null)) return;
-    const phase =
-      entry.phase === "wots" ? `wots:${wotsVaultIndex}` : entry.phase;
+    if (!notifySigningRequired || !active || !entry || !needsWallet) return;
+    if (perVault && vaultIndex === null) return;
+    const phase = perVault ? `${entry.phase}:${vaultIndex}` : entry.phase;
     notifySigningRequired(`inflow:${flowId}:${phase}`, entry.copy);
-  }, [currentStep, active, notifySigningRequired, flowId, wotsVaultIndex]);
+  }, [
+    active,
+    entry,
+    notifySigningRequired,
+    flowId,
+    perVault,
+    vaultIndex,
+    needsWallet,
+  ]);
 }

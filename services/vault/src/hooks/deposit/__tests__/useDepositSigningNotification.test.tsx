@@ -1,144 +1,135 @@
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const ctx = vi.hoisted(() => ({
-  notify: vi.fn(),
-  documentHidden: false,
-}));
-
-vi.mock("@/context/SigningNotificationContext", () => ({
-  useSigningNotificationOptional: () => ({
-    requestPermission: vi.fn(),
-    notifySigningRequired: ctx.notify,
-    shouldPromptForPermission: false,
-    dismissPrompt: vi.fn(),
-    documentHidden: ctx.documentHidden,
-    isActiveFlow: false,
-    setActiveFlow: vi.fn(),
-  }),
-}));
+import { SigningNotificationProvider } from "@/context/SigningNotificationContext";
 
 import { DepositFlowStep } from "../depositFlowSteps/types";
 import { useDepositSigningNotification } from "../useDepositSigningNotification";
 
-describe("useDepositSigningNotification", () => {
+const shown = vi.fn();
+class TestNotification {
+  static permission: NotificationPermission = "granted";
+  close = vi.fn();
+  constructor(title: string, options: NotificationOptions) {
+    shown(title, options);
+  }
+}
+
+const wrapper = ({ children }: React.PropsWithChildren) => (
+  <SigningNotificationProvider>{children}</SigningNotificationProvider>
+);
+const initial = {
+  step: DepositFlowStep.SUBMIT_WOTS_KEYS,
+  active: true,
+  index: 0 as number | null,
+  waiting: true,
+};
+function renderFlow(state = initial) {
+  return renderHook(
+    ({ step, active, index, waiting }) =>
+      useDepositSigningNotification(step, active, index, waiting),
+    { initialProps: state, wrapper },
+  );
+}
+function setVisibility(value: DocumentVisibilityState) {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value,
+  });
+}
+
+describe("useDepositSigningNotification with its provider", () => {
   beforeEach(() => {
-    ctx.notify.mockClear();
-    ctx.documentHidden = false;
+    shown.mockClear();
+    TestNotification.permission = "granted";
+    vi.stubGlobal("Notification", TestNotification);
+    setVisibility("hidden");
+    localStorage.clear();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("does not notify before the flow starts", () => {
+    renderFlow({ ...initial, active: false, waiting: false });
+    expect(shown).not.toHaveBeenCalled();
   });
 
-  it("does not notify before the flow has started", () => {
-    renderHook(() =>
-      useDepositSigningNotification(
-        DepositFlowStep.DERIVE_VAULT_SECRET,
-        false,
-        null,
-      ),
-    );
-    expect(ctx.notify).not.toHaveBeenCalled();
+  it("does not ask for an action during automatic cached WOTS submission", () => {
+    const { rerender } = renderFlow();
+    rerender({ ...initial, index: 1 });
+    rerender({ ...initial, index: null });
+    expect(shown).not.toHaveBeenCalled();
+  });
+
+  it("notifies once for each WOTS wallet request and skips a cleared index", () => {
+    const { rerender } = renderFlow();
+    rerender({ ...initial, waiting: false });
+    rerender({ ...initial, waiting: false });
+    rerender({ ...initial, index: null, waiting: false });
+    expect(shown).toHaveBeenCalledTimes(1);
+    rerender({ ...initial, index: 1 });
+    rerender({ ...initial, index: 1, waiting: false });
+    expect(shown).toHaveBeenCalledTimes(2);
+    expect(shown.mock.calls[0][1].tag).toContain(":wots:0");
+    expect(shown.mock.calls[1][1].tag).toContain(":wots:1");
+  });
+
+  it("groups payout signing within each vault, then notifies for the next vault", () => {
+    const { rerender } = renderFlow({
+      ...initial,
+      step: DepositFlowStep.SIGN_AUTH_ANCHOR,
+    });
+    expect(shown).toHaveBeenCalledTimes(1);
+    for (const index of [0, 1]) {
+      for (const step of [
+        DepositFlowStep.SIGN_AUTH_ANCHOR,
+        DepositFlowStep.SIGN_PAYOUTS,
+        DepositFlowStep.SIGN_DEPOSITOR_GRAPH,
+      ]) {
+        rerender({ ...initial, step, index, waiting: false });
+        rerender({ ...initial, step, index });
+      }
+      expect(shown).toHaveBeenCalledTimes(index + 1);
+    }
+    expect(shown.mock.calls[0][1].tag).toContain(":payouts:0");
+    expect(shown.mock.calls[1][1].tag).toContain(":payouts:1");
   });
 
   it.each([
-    [DepositFlowStep.SIGN_POP, "pop"],
-    [DepositFlowStep.SUBMIT_PEGIN, "register"],
-    [DepositFlowStep.BROADCAST_PRE_PEGIN, "broadcast"],
-    [DepositFlowStep.SIGN_PAYOUTS, "payouts"],
-  ] as const)("notifies for %s once active", (step, phase) => {
-    renderHook(() => useDepositSigningNotification(step, true, null));
-    expect(ctx.notify).toHaveBeenCalledTimes(1);
-    expect(ctx.notify.mock.calls[0][0]).toContain(`:${phase}`);
+    DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+    DepositFlowStep.AWAIT_VP_VERIFICATION,
+  ])("does not notify for the automatic wait %s", (step) => {
+    renderFlow({ ...initial, step, waiting: false });
+    expect(shown).not.toHaveBeenCalled();
   });
 
-  it("collapses auth-anchor/payout/recovery to one payout phase key", () => {
-    expect(DepositFlowStep.SIGN_AUTH_ANCHOR).not.toBe(
-      DepositFlowStep.SIGN_DEPOSITOR_GRAPH,
-    );
-    renderHook(() =>
-      useDepositSigningNotification(
-        DepositFlowStep.SIGN_AUTH_ANCHOR,
-        true,
-        null,
-      ),
-    );
-    expect(ctx.notify.mock.calls[0][0]).toContain(":payouts");
+  it("does not send a stale registration alert after a tab or wait change", () => {
+    setVisibility("visible");
+    const state = { ...initial, step: DepositFlowStep.SUBMIT_PEGIN };
+    const { rerender } = renderFlow({ ...state, waiting: false });
+    setVisibility("hidden");
+    rerender({ ...state, index: 1 });
+    expect(shown).not.toHaveBeenCalled();
+    rerender({ ...state, step: DepositFlowStep.BROADCAST_PRE_PEGIN });
+    expect(shown).toHaveBeenCalledTimes(1);
   });
 
-  it("does not notify for a non-signing step", () => {
-    renderHook(() =>
-      useDepositSigningNotification(
-        DepositFlowStep.AWAIT_VP_VERIFICATION,
-        true,
-        null,
-      ),
-    );
-    expect(ctx.notify).not.toHaveBeenCalled();
-  });
-
-  it("does not repeat registration alerts on tab or vault index changes", () => {
-    const { rerender } = renderHook(
-      ({ index }) =>
-        useDepositSigningNotification(
-          DepositFlowStep.SUBMIT_PEGIN,
-          true,
-          index,
-        ),
-      { initialProps: { index: 0 } },
-    );
-    ctx.notify.mockClear();
-
-    ctx.documentHidden = true;
-    rerender({ index: 0 });
-    rerender({ index: 1 });
-
-    expect(ctx.notify).not.toHaveBeenCalled();
-  });
-
-  it("calls the notifier again when the flow re-enters the payout phase", () => {
-    const { rerender } = renderHook(
-      ({ step }) => useDepositSigningNotification(step, true, null),
-      { initialProps: { step: DepositFlowStep.SIGN_DEPOSITOR_GRAPH } },
-    );
-    ctx.notify.mockClear();
-
-    rerender({ step: DepositFlowStep.AWAIT_VP_VERIFICATION });
-    rerender({ step: DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS });
-    rerender({ step: DepositFlowStep.SIGN_AUTH_ANCHOR });
-
-    expect(ctx.notify).toHaveBeenCalledTimes(1);
-    expect(ctx.notify.mock.calls[0][0]).toContain(":payouts");
-  });
-
-  it("notifies for the next signing step the flow reaches", () => {
-    const { rerender } = renderHook(
-      ({ step }) => useDepositSigningNotification(step, true, null),
-      { initialProps: { step: DepositFlowStep.SUBMIT_PEGIN } },
-    );
-    ctx.notify.mockClear();
-
-    rerender({ step: DepositFlowStep.BROADCAST_PRE_PEGIN });
-
-    expect(ctx.notify).toHaveBeenCalledTimes(1);
-    expect(ctx.notify.mock.calls[0][0]).toContain(":broadcast");
-  });
-
-  it("notifies once per WOTS vault and skips a cleared index", () => {
-    const { rerender } = renderHook(
-      ({ index }: { index: number | null }) =>
-        useDepositSigningNotification(
-          DepositFlowStep.SUBMIT_WOTS_KEYS,
-          true,
-          index,
-        ),
-      { initialProps: { index: 0 as number | null } },
-    );
-    expect(ctx.notify).toHaveBeenCalledTimes(1);
-    rerender({ index: 0 });
-    expect(ctx.notify).toHaveBeenCalledTimes(1);
-    rerender({ index: 1 });
-    expect(ctx.notify).toHaveBeenCalledTimes(2);
-    expect(ctx.notify.mock.calls[0][0]).toContain(":wots:0");
-    expect(ctx.notify.mock.calls[1][0]).toContain(":wots:1");
-    rerender({ index: null });
-    expect(ctx.notify).toHaveBeenCalledTimes(2);
-  });
+  it.each([
+    ["visible", "granted"],
+    ["hidden", "denied"],
+    ["hidden", "default"],
+  ] as const)(
+    "suppresses wallet alerts when %s with permission %s",
+    (visibility, permission) => {
+      setVisibility(visibility);
+      TestNotification.permission = permission;
+      const { rerender } = renderFlow({ ...initial, waiting: false });
+      rerender({
+        ...initial,
+        step: DepositFlowStep.SIGN_PAYOUTS,
+        waiting: false,
+      });
+      expect(shown).not.toHaveBeenCalled();
+    },
+  );
 });

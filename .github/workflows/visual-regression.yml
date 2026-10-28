@@ -70,7 +70,9 @@ env:
 # once its noise floor is proven on real PRs.
 jobs:
   visual:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not ubuntu-latest: Playwright 1.56.1 has no Chromium build
+    # for Ubuntu 26.04, which the latest label resolves to since October 2026.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     outputs:
@@ -121,10 +123,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
         with:
-          node-version: '24.2.0'
+          node-version-file: '.nvmrc'
 
       - name: Install Corepack
-        run: npm install -g corepack && corepack enable
+        run: npm install -g corepack@0.36.0 && corepack enable
 
       - name: Resolve pnpm store path
         shell: bash
@@ -498,7 +500,7 @@ jobs:
   # bypass it.
   publish:
     needs: visual
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     permissions:

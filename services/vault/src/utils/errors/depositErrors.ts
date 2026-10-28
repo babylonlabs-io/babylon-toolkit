@@ -246,6 +246,7 @@ export function postRegistrationWalletErrorMessage(
 /** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
 const LIVENESS_BODIES = [
   COPY.wallet.liveness.unresponsive,
+  COPY.wallet.liveness.extensionDisconnected,
   COPY.wallet.liveness.emptyAddress,
   COPY.wallet.liveness.addressMismatch,
 ];

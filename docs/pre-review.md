@@ -14,7 +14,7 @@ before any PR exists.
 
 - Claude Code, started in this repository, ideally the same session that
   implemented the change: it already knows what the change is for.
-- Node 24 and a working `pnpm install`. The review runs
+- The Node version in `.nvmrc` (`nvm use`) and a working `pnpm install`. The review runs
   `pnpm nx affected` for `lint`, `typecheck` and `test`, as three separate
   invocations: lint first, because it can rewrite files, then typecheck, then
   tests in the background. `nx affected` covers the projects the changed files

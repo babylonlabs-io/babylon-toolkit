@@ -103,6 +103,7 @@ export function DepositSignContent({
     currentStep,
     started && !continuationVaultIds,
     currentVaultIndex,
+    isWaiting,
   );
 
   // While the flow is running it owns notifications in-modal; tell the

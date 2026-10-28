@@ -176,9 +176,11 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * True when the click-time BTC-wallet liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA to a "Reconnect Wallet" action so the
    * user can re-authorize the wallet in one click instead of navigating an
-   * inline warning.
+   * inline warning. With `needsPageReload` the CTA is "Reload" instead.
    */
   hasWalletConnectionError: boolean;
+  /** True when the wallet extension stopped answering this page; the CTA becomes a page reload, the only recovery. */
+  needsPageReload?: boolean;
   /** True while a reconnect attempt is in flight. Forces the CTA disabled. */
   isReconnectingWallet: boolean;
   /**
@@ -405,8 +407,12 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   // Promote wallet-liveness failure to the CTA so the user can recover in one
   // click. The button stays enabled (clicking triggers reconnection) unless a
   // reconnect attempt is already running. A locked wallet takes the same
-  // action, under an unlock label.
+  // action, under an unlock label. A dead extension channel is the exception:
+  // the CTA reads "Reload" and the click reloads the page.
   if (params.hasWalletConnectionError) {
+    if (params.needsPageReload) {
+      return { disabled: false, label: COPY.common.globalError.reloadButton };
+    }
     if (params.isWalletLocked) {
       return {
         disabled: params.isReconnectingWallet,

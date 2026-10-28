@@ -1,7 +1,8 @@
 import { Popover } from "@babylonlabs-io/core-ui";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
 import { useLocation, useNavigate } from "react-router";
+import { isAddressEqual } from "viem";
 
 import { getReserveDetailSearch } from "@/routes";
 import { getHubIdentity } from "@/services/aave/hubRegistry";
@@ -14,12 +15,12 @@ import { AssetListItem } from "../AssetSelectionPanel/AssetListItem";
 interface AssetPillProps {
   symbol: string;
   icon: string;
-  /** Reserve currently open, so the list can mark its row. */
-  selectedReserveId: bigint;
+  /** Reserve currently open: the list marks its row and keeps only its hub. */
+  selectedReserve: AaveReserveConfig;
   /**
    * Reserves to offer in the switcher. Borrow passes the borrowable reserves;
    * repay passes the user's borrowed reserves (the assets that can be repaid).
-   * One token on two hubs is two entries, each naming its hub.
+   * Only those on the open reserve's hub are listed.
    */
   reserves: AaveReserveConfig[];
   /** Current mode, preserved when switching asset (stays on borrow vs repay). */
@@ -31,7 +32,7 @@ interface AssetPillProps {
 export function AssetPill({
   symbol,
   icon,
-  selectedReserveId,
+  selectedReserve,
   reserves,
   mode,
   disabled = false,
@@ -41,6 +42,14 @@ export function AssetPill({
   const anchorRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+
+  const hubReserves = useMemo(
+    () =>
+      reserves.filter((reserve) =>
+        isAddressEqual(reserve.reserve.hub, selectedReserve.reserve.hub),
+      ),
+    [reserves, selectedReserve.reserve.hub],
+  );
 
   // Bring the currently-selected asset into view when the list opens — it may
   // sit below the fold once the scrollable list grows past its max height.
@@ -72,7 +81,7 @@ export function AssetPill({
       <button
         ref={anchorRef}
         type="button"
-        disabled={disabled}
+        disabled={disabled || hubReserves.length === 0}
         onClick={() => setIsOpen((prev) => !prev)}
         className="flex items-center gap-1 rounded-full border border-secondary-strokeLight bg-neutral-200 p-2 transition-[filter] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
       >
@@ -96,7 +105,7 @@ export function AssetPill({
         className="max-h-80 w-72 overflow-y-auto rounded-lg border border-secondary-strokeLight bg-surface p-2 shadow-lg"
       >
         <div ref={listRef} className="space-y-2">
-          {reserves.map((reserve) => {
+          {hubReserves.map((reserve) => {
             const token = getReserveTokenLabel(reserve);
             return (
               <AssetListItem
@@ -108,7 +117,7 @@ export function AssetPill({
                 // By id, not by symbol: `symbol` is the proven label of the
                 // open reserve, while the rows carry list labels, so comparing
                 // the two could mark the wrong row (or none).
-                selected={reserve.reserveId === selectedReserveId}
+                selected={reserve.reserveId === selectedReserve.reserveId}
                 onClick={() => handleSelect(reserve.reserveId)}
               />
             );

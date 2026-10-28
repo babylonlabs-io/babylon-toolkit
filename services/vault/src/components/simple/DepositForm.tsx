@@ -139,9 +139,12 @@ export interface DepositWalletState {
   /**
    * True when the click-time wallet-liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect Wallet";
-   * the click handler upstream branches to the reconnect flow.
+   * the click handler upstream branches to the reconnect flow, or, with
+   * `needsPageReload`, to a page reload.
    */
   hasWalletConnectionError?: boolean;
+  /** True when the wallet extension stopped answering this page; the CTA becomes a page reload. */
+  needsPageReload?: boolean;
   /**
    * Detail string for the current wallet connection error. Rendered inline
    * above the CTA so the user sees the underlying cause (locked extension,
@@ -282,6 +285,7 @@ export function DepositForm({
     isWalletConnected,
     canConnectBtcWallet = false,
     hasWalletConnectionError = false,
+    needsPageReload = false,
     walletConnectionErrorMessage = null,
     isWalletLocked = false,
     isVerifyingWallet = false,
@@ -472,6 +476,7 @@ export function DepositForm({
     feeDisabled,
     ordinalsCheckPending,
     hasWalletConnectionError,
+    needsPageReload,
     isReconnectingWallet,
     isWalletLocked,
     fundingInputCapExceeded,
