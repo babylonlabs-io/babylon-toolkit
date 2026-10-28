@@ -99,6 +99,37 @@ export function recordBlobs(paths, cwd) {
   return blobs;
 }
 
+/** Lists coverage candidates. Changed test files do not prove behavior coverage. */
+export function visualCoverage(paths) {
+  const files = [...paths].sort();
+  const visualTests = files.filter((p) =>
+    /\.visual\.spec\.[cm]?[jt]sx?$/.test(p),
+  );
+  const browserTests = files.filter(
+    (p) => /\/(?:e2e|visual)\//.test(p) && /\.spec\.[cm]?[jt]sx?$/.test(p),
+  );
+  const uiFiles = files.filter(
+    (p) =>
+      /^(?:packages|services)\/[^/]+\/src\//.test(p) &&
+      !/\/(?:__tests__|__mocks__|__fixtures__)\/|\.(?:test|spec|stories)\.[cm]?[jt]sx?$/.test(
+        p,
+      ) &&
+      (/\.(?:[jt]sx|css|scss|sass|svg|html)$/.test(p) ||
+        /\/(?:components|hooks|pages)\/.*\.[jt]s$/.test(p) ||
+        /\/(?:copy|errorMessages)\.ts$/.test(p)),
+  );
+  return {
+    status: uiFiles.length ? 'review-required' : 'not-detected',
+    ui_files: uiFiles,
+    visual_test_files: visualTests,
+    browser_test_files: browserTests,
+    warning:
+      uiFiles.length && !visualTests.length
+        ? 'No visual test changed. Check coverage for each changed UI behavior.'
+        : null,
+  };
+}
+
 /**
  * SHA-256 over one `<path> <blob>` line per file, sorted by path in byte
  * order, each ending in a line feed.
@@ -373,7 +404,11 @@ function main(argv) {
       files: Object.fromEntries(blobs),
       count: blobs.size,
       sha256: digestBlobs(blobs),
+      visual_coverage: visualCoverage(blobs.keys()),
     };
+    if (output.visual_coverage.warning) {
+      process.stderr.write(`pre-review: ${output.visual_coverage.warning}\n`);
+    }
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
     return;
   }
