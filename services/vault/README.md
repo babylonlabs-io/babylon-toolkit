@@ -83,7 +83,7 @@ must serve `eth_simulateV1` with a gas allowance of at least 16,777,216: the act
 its gas limit with it before sending (`src/services/vault/activationGasLimit.ts`).
 `https://ethereum-sepolia-rpc.publicnode.com` does; `https://rpc.sepolia.ethpandaops.io` does not.
 
-Local development: `pnpm dev` runs devnet; `pnpm dev:testnet` runs the `testnet-2`
+Local development: `pnpm dev` runs devnet; `pnpm dev:testnet` runs the `testnet`
 profile. Run `NEXT_PUBLIC_TBV_NETWORK=<name> pnpm dev` to pick another. The selector must
 not be set in a dotenv file: Nx loads `.env` into the build but keys its cache on the process
 environment, so a selector found there is refused by the build and the dev server.

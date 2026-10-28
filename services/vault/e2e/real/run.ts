@@ -12,7 +12,6 @@ import {
   ETH_WALLET_TO_CONNECTOR,
   NETWORKS,
   resolveTargetUrl,
-  websiteUrlOf,
   type RunConfig,
 } from "./config";
 import { addrMatches, launchWalletContext } from "./connector";
@@ -79,7 +78,7 @@ export async function runE2E(config: RunConfig): Promise<void> {
       devServer = await ensureDevServer(config.network, artifacts.log);
       baseUrl = devServer.baseUrl;
     } else {
-      baseUrl = websiteUrlOf(config.network);
+      baseUrl = NETWORKS[config.network].websiteUrl;
     }
     const targetUrl = resolveTargetUrl(config, baseUrl);
 

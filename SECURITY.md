@@ -882,8 +882,8 @@ roles have different review requirements. Satisfy both.
   `required_approving_review_count: 2` — CODEOWNERS alone cannot express it, as the comment in
   `.github/CODEOWNERS` notes. Verify that ruleset exists; the file cannot.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
-  bundle to S3. Note `continue-on-error` is set for the `prod: true` environments (`vault-testnet`,
-  `vault-testnet-3`) in multi-env runs so a prod OIDC failure cannot block devnet — deliberate, and
+  bundle to S3. Note `continue-on-error` is set for the `prod: true` environment (`vault-testnet-3`)
+  in multi-env runs so a prod OIDC failure cannot block devnet — deliberate, and
   worth knowing when reading a green run.
   `vault-real-money-devnet` is out of the matrix until `services/vault/networks/real-money-devnet.json`
   exists; its matrix entry and `ENVIRONMENT` dispatch option come back from git history with the
@@ -892,7 +892,7 @@ roles have different review requirements. Satisfy both.
   prefixes. Off `main` its leg is then left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
   has not published it. It also has no immutable per-sha release manifest: that step stays
-  `vault-testnet` and `vault-testnet-3` only. Its checksums exist only in the checksum bucket,
+  `vault-testnet-3` only. Its checksums exist only in the checksum bucket,
   where its own publish role can write a newer version under the same key. That bucket is
   versioned with Object Lock, so an earlier version is kept, but a plain read returns the newest
   and no integrity checker watches this environment.
