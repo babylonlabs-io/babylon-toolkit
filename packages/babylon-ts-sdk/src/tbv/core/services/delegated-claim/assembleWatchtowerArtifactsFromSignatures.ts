@@ -133,8 +133,10 @@ function requireSignature(
  * @throws If the plan's vault-provider verifying key is not its trusted one,
  *         a request has no signature, a signature has no request, a
  *         signature does not verify against its rebuilt request, a binding
- *         check on the rebuilt set fails, or the Rust verification of the
- *         bundle fails.
+ *         check on the rebuilt set fails (including the served-graph checks,
+ *         `GraphParticipantMismatchError`, `GraphPresignatureError` and the
+ *         plain `Error`s `planDelegatedClaimSigning` lists), the WASM engine
+ *         fails to load, or the Rust verification of the bundle fails.
  * @experimental
  */
 export async function assembleWatchtowerArtifactsFromSignatures(

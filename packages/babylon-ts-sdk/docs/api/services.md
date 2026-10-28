@@ -353,6 +353,149 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 
 ***
 
+### GraphParticipantMismatchError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+Thrown when a participant key or timelock in the served graph is not the
+vault's on-chain value.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new GraphParticipantMismatchError(
+   path, 
+   found, 
+   expected): GraphParticipantMismatchError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+###### Parameters
+
+###### path
+
+`string`
+
+JSON path of the offending field, e.g. `payout_tx.vault_utxo_spender.connector.vault_keepers`.
+
+###### found
+
+`string`
+
+Value found at `path`, or a placeholder when it is not a key, key set or number.
+
+###### expected
+
+`string`
+
+The vault's on-chain value for that field.
+
+###### Returns
+
+[`GraphParticipantMismatchError`](#graphparticipantmismatcherror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### path
+
+```ts
+readonly path: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+JSON path of the offending field, e.g. `payout_tx.vault_utxo_spender.connector.vault_keepers`.
+
+##### found
+
+```ts
+readonly found: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+Value found at `path`, or a placeholder when it is not a key, key set or number.
+
+##### expected
+
+```ts
+readonly expected: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+The vault's on-chain value for that field.
+
+***
+
+### GraphPresignatureError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+Thrown when the WASM verifier rejects the served graph: it does not decode,
+or a presignature in it is missing or invalid.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new GraphPresignatureError(cause): GraphPresignatureError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+###### Parameters
+
+###### cause
+
+`unknown`
+
+The WASM verifier's rejection; it can quote served graph content.
+
+###### Returns
+
+[`GraphPresignatureError`](#graphpresignatureerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### DelegatedClaimSigningIncompleteError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
@@ -2338,6 +2481,48 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 Graph version to verify under. Defaults to the only version the format
 exists for. A file that records a different `vault_core_version` is
 rejected rather than verified under this one.
+
+***
+
+### AssertServedGraphPresignedParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+#### Properties
+
+##### txGraphVersion
+
+```ts
+txGraphVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+##### graphJson
+
+```ts
+graphJson: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+Graph JSON as the vault provider served it.
+
+##### vault
+
+```ts
+vault: ServedGraphParticipants;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
 
 ***
 
@@ -5981,6 +6166,26 @@ the SDK forwards that shape back through `activateVault`.
 
 ***
 
+### ServedGraphParticipants
+
+```ts
+type ServedGraphParticipants = Pick<DelegatedClaimVaultContext, 
+  | "depositorBtcPubkey"
+  | "vaultProviderBtcPubkey"
+  | "vaultKeeperBtcPubkeys"
+  | "universalChallengerBtcPubkeys"
+  | "timelockPegin"
+| "timelockAssert">;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+On-chain values the served graph's participants must match.
+
+***
+
 ### BabeSessionsState
 
 ```ts
@@ -6373,8 +6578,10 @@ version if you build on it.
 
 If the vault provider's verifying key is not `trustedVerifyingKeyHex`,
         if the graph is not `DELEGATED_CLAIM_TX_GRAPH_VERSION`, if a
-        binding check fails, if the
-        wallet returns a signature that does not verify, or if the graph's
+        binding check fails (including the served-graph checks,
+        `GraphParticipantMismatchError`, `GraphPresignatureError` and the
+        plain `Error`s `planDelegatedClaimSigning` lists), if the WASM engine
+        fails to load, if the wallet returns a signature that does not verify, or if the graph's
         own presignatures are incomplete.
 
 ***
@@ -6414,8 +6621,10 @@ If any request's id, kind, input index
 If the plan's vault-provider verifying key is not its trusted one,
         a request has no signature, a signature has no request, a
         signature does not verify against its rebuilt request, a binding
-        check on the rebuilt set fails, or the Rust verification of the
-        bundle fails.
+        check on the rebuilt set fails (including the served-graph checks,
+        `GraphParticipantMismatchError`, `GraphPresignatureError` and the
+        plain `Error`s `planDelegatedClaimSigning` lists), the WASM engine
+        fails to load, or the Rust verification of the bundle fails.
 
 ***
 
@@ -6608,6 +6817,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planD
 #### Throws
 
 If the vault provider's verifying key is not the trusted one, if
+        a bound participant key or timelock in the served graph is not the
+        vault's (`GraphParticipantMismatchError`), the WASM verifier
+        rejects the graph (`GraphPresignatureError`), the graph is not valid
+        JSON or not a JSON object, the WASM engine fails to load, or the
+        vault context holds a key that is not compressed or x-only hex, a
+        duplicate key or no vault keeper other than the depositor (a plain
+        `Error`), if
         `depositorPublicKey` is not the vault's registered depositor key,
         the registered payout script is not derived from it,
         the graph version and the vault context's vault core version
@@ -6738,6 +6954,48 @@ version if you build on it.
         verification error when any bundled signature does not hold
         against that graph or a non-empty `babe_sessions` does not cover
         exactly its challengers.
+
+***
+
+### assertServedGraphPresigned()
+
+```ts
+function assertServedGraphPresigned(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/servedGraphBinding.ts)
+
+**`Experimental`**
+
+Throws unless the graph's bound participant keys and timelocks (see the
+module doc) are the vault's on-chain values and every presignature verifies.
+
+#### Parameters
+
+##### params
+
+[`AssertServedGraphPresignedParams`](#assertservedgraphpresignedparams)
+
+#### Returns
+
+`Promise`\<`void`\>
+
+#### Throws
+
+[GraphParticipantMismatchError](#graphparticipantmismatcherror) on a foreign, missing or
+        malformed participant key, key set or timelock.
+
+#### Throws
+
+[GraphPresignatureError](#graphpresignatureerror) when the WASM verifier rejects the graph.
+
+#### Throws
+
+A plain `Error` when the graph is not valid JSON or not a JSON
+        object, when the WASM engine fails to load (a local fault, not the
+        vault provider's), or when `vault` holds a key that is not
+        compressed or x-only hex, a duplicate key, or no vault keeper other
+        than the depositor.
 
 ***
 

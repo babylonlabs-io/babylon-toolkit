@@ -527,6 +527,7 @@ export const {
   finalizeWronglyChallenged,
   pinPegoutProof,
   validateWotsKeypairAgainstGraph,
+  verifyGraphPresignatures,
   verifyWatchtowerArtifacts,
   wotsKeypairFromSeed,
 } = createDelegatedClaimApi(getWasmBindings);

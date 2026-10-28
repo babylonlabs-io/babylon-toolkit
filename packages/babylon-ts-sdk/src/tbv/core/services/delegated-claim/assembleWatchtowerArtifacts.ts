@@ -88,8 +88,10 @@ export interface AssembleWatchtowerArtifactsParams {
  *
  * @throws If the vault provider's verifying key is not `trustedVerifyingKeyHex`,
  *         if the graph is not `DELEGATED_CLAIM_TX_GRAPH_VERSION`, if a
- *         binding check fails, if the
- *         wallet returns a signature that does not verify, or if the graph's
+ *         binding check fails (including the served-graph checks,
+ *         `GraphParticipantMismatchError`, `GraphPresignatureError` and the
+ *         plain `Error`s `planDelegatedClaimSigning` lists), if the WASM engine
+ *         fails to load, if the wallet returns a signature that does not verify, or if the graph's
  *         own presignatures are incomplete.
  * @experimental
  */

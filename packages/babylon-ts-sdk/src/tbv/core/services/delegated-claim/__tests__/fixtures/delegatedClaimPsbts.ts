@@ -22,6 +22,16 @@ export const DEPOSITOR_PUBKEY =
 /** x-only form of {@link DEPOSITOR_PUBKEY}, as the registry records it. */
 export const DEPOSITOR_XONLY_PUBKEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798" as OnChainBtcPubkey;
+/** Served graph for the mocked-WASM tests: only the participant check reads it. */
+export const SERVED_GRAPH_JSON = JSON.stringify({
+  claimer_pubkey: DEPOSITOR_XONLY_PUBKEY,
+  depositor_pubkey: DEPOSITOR_XONLY_PUBKEY,
+  // A graph carries x-only keys; the context holds the compressed form.
+  vault_provider_pubkey: VAULT_PROVIDER_PUBKEY.slice(2),
+  vault_keepers: [CHALLENGER_A],
+  universal_challengers: [CHALLENGER_B],
+  challenger_pubkeys: { local: [CHALLENGER_A], universal: [CHALLENGER_B] },
+});
 export const SIGNER_ADDRESS =
   "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2";
 export const OTHER_ADDRESS =

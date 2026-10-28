@@ -356,6 +356,26 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
     },
 
     /**
+     * Verifies every presigning-phase signature in a vault provider's served
+     * graph: the VP, vault keeper and universal challenger signatures on the
+     * Assert and Payout, and the claimer signature on each NoPayout. Resolves
+     * only if all verify. Each signature is checked against the key the graph
+     * carries, so binding those keys to the vault is the caller's job.
+     */
+    async verifyGraphPresignatures(
+      txGraphVersion: number,
+      graphJson: string,
+    ): Promise<void> {
+      assertTxGraphVersion(txGraphVersion);
+      const wasm = await getWasmBindings();
+      try {
+        wasm.verifyGraphPresignatures(txGraphVersion, graphJson);
+      } catch (err) {
+        throw toError(err, 'verifyGraphPresignatures');
+      }
+    },
+
+    /**
      * Verifies the Groth16 pegout proof against the artifacts' verifying key
      * and pins it into the artifacts, returning the updated artifacts JSON.
      *
