@@ -514,6 +514,54 @@ describe("broadcastPrePeginTransaction — stage labels and cause preservation",
     expect(pushTx).not.toHaveBeenCalled();
   });
 
+  it("labels a failed wallet key read as a sign failure with the original error as cause", async () => {
+    const inner = new Error("wallet is locked");
+    const signPsbt = vi.fn();
+    vi.mocked(pushTx).mockClear();
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: {
+        signPsbt,
+        getPublicKeyHex: vi.fn().mockRejectedValueOnce(inner),
+      },
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(
+      /^Failed to sign Pre-Pegin transaction: wallet is locked/,
+    );
+    expect(thrown?.cause).toBe(inner);
+    expect(signPsbt).not.toHaveBeenCalled();
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("labels an unparseable wallet key as a sign failure, not a key mismatch", async () => {
+    const signPsbt = vi.fn();
+    vi.mocked(pushTx).mockClear();
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: {
+        signPsbt,
+        getPublicKeyHex: vi.fn().mockResolvedValueOnce("zz"),
+      },
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown).not.toBeInstanceOf(DepositorBtcKeyMismatchError);
+    expect(thrown?.message).toMatch(/^Failed to sign Pre-Pegin transaction/);
+    expect((thrown?.cause as Error | undefined)?.message).toMatch(
+      /Invalid hex characters in public key/,
+    );
+    expect(signPsbt).not.toHaveBeenCalled();
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
   it("labels only a pushTx failure as a broadcast failure, keeping the node's reason and cause", async () => {
     const inner = new Error("bad-txns-inputs-missingorspent");
     vi.mocked(pushTx).mockRejectedValueOnce(inner);
