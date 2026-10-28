@@ -282,8 +282,9 @@ export function useDepositPageForm({
   const effectiveSelectedApplication = aaveConfig?.adapterAddress || "";
 
   // Fetch providers based on selected application. The picker uses the
-  // unfiltered list so runtime-unhealthy VPs can be shown (sorted to the
-  // bottom with a warning) rather than hidden entirely.
+  // listable set (operator allowlist and proxy hide list applied) so
+  // runtime-unhealthy VPs can still be shown (sorted to the bottom with a
+  // warning) rather than hidden entirely.
   const {
     allVaultProviders: rawProviders,
     unhealthyVpIds,

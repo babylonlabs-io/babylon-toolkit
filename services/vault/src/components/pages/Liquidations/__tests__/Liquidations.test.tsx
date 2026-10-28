@@ -707,6 +707,44 @@ describe("Liquidation Dashboard simulator", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the reported second BTCVault after the first clears the debt", async () => {
+    // The report does not show CF or bonus. Use the existing launch case.
+    const params: CalculatorParams = {
+      btcPrice: 1_017,
+      totalDebtUsd: 103.4,
+      vaults: [
+        { id: "first", name: "Vault 1", btc: 0.12016827 },
+        { id: "second", name: "Vault 2", btc: 0.01 },
+      ],
+      CF: 0.78,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0005,
+    };
+    const result = calculate(params);
+    usePositionCascadeOverrideMock.mockReturnValue({
+      params,
+      result,
+      status: null,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.vaultsLiquidated(1, 2)),
+    ).toBeVisible();
+    expect(seizedSummary()).toContain("92%");
+    expect(
+      screen
+        .getByText(COPY.liquidations.vaultsLiquidated(1, 2))
+        .closest("section"),
+    ).toHaveTextContent(formatBtcAmount(0.01));
+    expect(screen.queryByTestId("liq-band-1")).not.toBeInTheDocument();
+    fireEvent.focus(screen.getByTestId("liq-band-0"));
+    expect(await screen.findByText("92% seized")).toBeVisible();
+  });
+
   it("liquidates the events the simulated price has fallen through, without mutating the live result", () => {
     render(<Liquidations />);
 

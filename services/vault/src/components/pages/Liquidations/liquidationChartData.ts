@@ -49,6 +49,9 @@ export interface LiquidationEventCard {
   tone: LiquidationBandTone;
   /** The price has fallen to or through this event's trigger. */
   triggered: boolean;
+  /** The simulated price has fallen through this event's trigger while the
+   *  live price has not. Implies `triggered`. */
+  liquidatedInSimulation: boolean;
   collateralLabel: string;
   liqPriceLabel: string;
   distanceLabel: string;
@@ -429,6 +432,7 @@ function toCard(
   position: number,
   cf: number,
   btcPrice: number,
+  livePrice: number,
 ): LiquidationEventCard {
   const fairness = group.isFullLiquidation
     ? {
@@ -448,6 +452,8 @@ function toCard(
     // Same rule as a band's `state`, so a card and its band can never
     // disagree about whether the event has fired.
     triggered: btcPrice <= group.liquidationPrice,
+    liquidatedInSimulation:
+      btcPrice <= group.liquidationPrice && livePrice > group.liquidationPrice,
     tone: toneFor(position),
     collateralLabel: formatBtcAmount(group.combinedBtc),
     liqPriceLabel: formatPriceUsd(group.liquidationPrice),
@@ -586,7 +592,9 @@ export function buildLiquidationChartData(
     bands,
     priceAxis,
     shareAxisTicks,
-    cards: groups.map((g, i) => toCard(g, i, collateralFactor, btcPrice)),
+    cards: groups.map((g, i) =>
+      toCard(g, i, collateralFactor, btcPrice, axisAnchor),
+    ),
     summary,
   };
 }

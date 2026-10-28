@@ -2051,6 +2051,8 @@ export const COPY = {
       errorTitle: "Wallet not responding",
       unresponsive:
         "Your BTC wallet is not responding. Please open your wallet extension to confirm it is unlocked and connected, then try again.",
+      extensionDisconnected:
+        "Your BTC wallet extension stopped responding to this page. Reload the page, then try again.",
       emptyAddress:
         "Your BTC wallet did not return an address. Please reconnect your wallet and try again.",
       addressMismatch:
@@ -2733,6 +2735,7 @@ export const COPY = {
       heading: "Liquidation Events",
       subheading:
         "BTCVaults are seized in order. Each BTCVault group is one liquidation event. To change the order, open the Vaults page.",
+      liquidatedInSimulation: "Liquidated in simulation",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: PCT_TO_LIQUIDATION_LABEL,
@@ -3235,7 +3238,7 @@ export const COPY = {
     dust: {
       title: "Small position",
       detail:
-        "Below $1,000 of debt or collateral, liquidation still follows BTCVault order. Reorder advice is hidden.",
+        "Below $1,000 of debt or collateral, liquidation still follows BTCVault order. Position advice is hidden.",
     },
     // The BTC price is stale or unreadable, so no cascade is computed.
     stalePrice: {

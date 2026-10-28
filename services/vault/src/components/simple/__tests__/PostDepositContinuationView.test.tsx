@@ -265,6 +265,8 @@ vi.mock("@/copy", async (importOriginal) => {
         liveness: {
           errorTitle: "Wallet not responding",
           unresponsive: "Your BTC wallet is not responding.",
+          extensionDisconnected:
+            "Your BTC wallet extension stopped responding to this page.",
           emptyAddress: "Your BTC wallet did not return an address.",
           addressMismatch: "Wrong wallet account connected.",
         },

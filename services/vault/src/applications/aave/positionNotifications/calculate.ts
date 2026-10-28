@@ -20,7 +20,7 @@ import type {
   Warning,
 } from "./types";
 
-/** Minimum debt or collateral value (USD) for reorder advice. */
+/** Minimum debt or collateral value (USD) for position advice. */
 const DUST_THRESHOLD_USD = 1000;
 
 /** Distance to liquidation (%) below which we raise an urgent warning */
