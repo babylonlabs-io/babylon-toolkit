@@ -27,6 +27,7 @@ export const Dialog = ({
   backdropClassName,
   dialogClassName,
   disableEscapeClose,
+  onAnimationEnd,
   mobile = false,
   handle = false,
   ...restProps
@@ -37,20 +38,23 @@ export const Dialog = ({
     <Portal mounted={mounted}>
       <div
         data-testid="dialog-wrapper"
+        role="dialog"
         {...restProps}
         className={twJoin(
           mobile ? "bbn-dialog-mobile" : "bbn-dialog-wrapper",
           mobile && (open ? "animate-mobile-modal-in" : "animate-mobile-modal-out"),
           className,
         )}
-        onAnimationEnd={mobile ? unmount : restProps.onAnimationEnd}
+        onAnimationEnd={(event) => {
+          if (mobile) unmount();
+          onAnimationEnd?.(event);
+        }}
       >
         <div
           className={
             mobile ? "contents" : twJoin("bbn-dialog", open ? "animate-modal-in" : "animate-modal-out", dialogClassName)
           }
           onAnimationEnd={mobile ? undefined : unmount}
-          role={mobile ? undefined : "dialog"}
           data-testid="dialog"
         >
           {mobile && handle && (
@@ -76,7 +80,7 @@ export const Dialog = ({
         </div>
       </div>
 
-      {(mobile || hasBackdrop) && <Backdrop className={backdropClassName} open={open} onClick={onClose} />}
+      {hasBackdrop && <Backdrop className={backdropClassName} open={open} onClick={onClose} />}
     </Portal>
   );
 };

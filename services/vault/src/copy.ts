@@ -2051,6 +2051,8 @@ export const COPY = {
       errorTitle: "Wallet not responding",
       unresponsive:
         "Your BTC wallet is not responding. Please open your wallet extension to confirm it is unlocked and connected, then try again.",
+      extensionDisconnected:
+        "Your BTC wallet extension stopped responding to this page. Reload the page, then try again.",
       emptyAddress:
         "Your BTC wallet did not return an address. Please reconnect your wallet and try again.",
       addressMismatch:
@@ -2657,7 +2659,7 @@ export const COPY = {
         },
         health: {
           title: "Monitor Your Health Factor",
-          body: "Health Factor indicates the safety level of your position. A lower value means your position is closer to liquidation. Maintain a healthy level to reduce risk.",
+          body: "Health Factor shows how safe your position is. A lower value means higher liquidation risk. If it drops below 1, your position can be liquidated.",
         },
         simulation: {
           title: "Simulate BTC Price Changes",
@@ -2665,7 +2667,7 @@ export const COPY = {
         },
         events: {
           title: "Understand Liquidation Events",
-          body: "Each liquidation event represents a possible liquidation scenario for BTCVaults in your collateral. Events are triggered based on your BTCVault order and BTC price.",
+          body: "If your position becomes unhealthy, BTCVaults may be liquidated one by one until your position becomes healthy again. Each event shows which BTCVaults are affected and the estimated impact.",
         },
         outcomes: {
           title: "Explore Liquidation Outcomes",
@@ -2733,6 +2735,7 @@ export const COPY = {
       heading: "Liquidation Events",
       subheading:
         "BTCVaults are seized in order. Each BTCVault group is one liquidation event. To change the order, open the Vaults page.",
+      liquidatedInSimulation: "Liquidated in simulation",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: PCT_TO_LIQUIDATION_LABEL,

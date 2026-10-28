@@ -44,6 +44,9 @@
           "env": "NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS"
         },
         {
+          "env": "NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS"
+        },
+        {
           "env": "NEXT_PUBLIC_NOTICE_BANNER_MESSAGE"
         },
         {

@@ -15,13 +15,13 @@ Monorepo (pnpm workspaces) for Babylon's Bitcoin vault frontend. Users lock BTC 
 
 ### Build Prerequisites
 
-- Node 24 via nvm (`nvm use 24`), pnpm via Corepack
+- Node 24 via nvm (`nvm use` (reads `.nvmrc`)), pnpm via Corepack
 - Must rebuild `core-ui` and `ts-sdk` before vault build, and `babylon-ledger-vault-signer` before wallet-connector tests (stale `dist/` is a common issue)
 
 ## Build & Test Commands
 
 ```bash
-nvm use 24                            # Switch to Node 24 (required)
+nvm use                               # Switch to the Node version in .nvmrc (required)
 pnpm install                          # Install all dependencies
 pnpm run build                        # Build all packages
 pnpm run lint                         # Lint all packages

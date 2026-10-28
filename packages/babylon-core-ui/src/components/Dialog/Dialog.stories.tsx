@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { Dialog, DialogFooter, DialogBody, DialogHeader } from "./index";
+import { Dialog, DialogFooter, DialogBody, DialogHeader, ResponsiveDialog } from "./index";
 
 import { ScrollLocker } from "@/context/Dialog.context";
 import { Button } from "@/components/Button";
@@ -125,4 +125,16 @@ export const NoBackdrop: Story = {
       </ScrollLocker>
     );
   },
+};
+
+export const Mobile: Story = { ...Default, args: { mobile: true } };
+
+export const Responsive: Story = {
+  render: () => (
+    <ResponsiveDialog open>
+      <DialogBody className="p-4 text-accent-primary">
+        <Checkbox label="Don't show again" />
+      </DialogBody>
+    </ResponsiveDialog>
+  ),
 };

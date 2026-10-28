@@ -16,8 +16,7 @@ export interface PositionStatCard {
   tooltip?: ReactNode;
   value: string;
   /** Custom value rendering (e.g. colored health factor + heart). When set it
-   *  is drawn in place of `value`, but `value` still supplies the row's `title`
-   *  tooltip — so it must carry the same text the node draws. */
+   *  is drawn in place of `value`. */
   valueNode?: ReactNode;
   caption?: string;
   /** Action button. Omit all three to render a card with no button. */
@@ -32,7 +31,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
   const hasAction = card.actionLabel != null && card.onAction != null;
   return (
     // Both min-w-0 are load-bearing: they lift the min-width:auto content floor
-    // on the section and the column so a long value can truncate (#2428).
+    // on the section and the column so a long value wraps inside its column.
     <div
       id={card.id}
       className="flex min-w-0 flex-1 items-center justify-between gap-4 max-md:flex-col max-md:items-stretch xl:max-[1439px]:gap-2"
@@ -40,7 +39,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
       <div className="flex min-w-0 items-center gap-3">
         {card.leading}
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
+          <div className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
             {card.tooltip ? (
               <Hint
                 tooltip={card.tooltip}
@@ -54,20 +53,12 @@ function StatSection({ card }: { card: PositionStatCard }) {
             )}
           </div>
 
-          <span
-            title={card.value}
-            className="flex items-center gap-2 overflow-hidden text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap"
-          >
-            {card.valueNode ?? (
-              <span className="max-md:break-all xl:truncate">{card.value}</span>
-            )}
+          <span className="flex items-center gap-2 text-xl leading-[1.6] tracking-[0.15px] text-accent-primary [overflow-wrap:anywhere]">
+            {card.valueNode ?? card.value}
           </span>
 
           {card.caption ? (
-            <span
-              title={card.caption}
-              className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:truncate"
-            >
+            <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary [overflow-wrap:anywhere]">
               {card.caption}
             </span>
           ) : null}

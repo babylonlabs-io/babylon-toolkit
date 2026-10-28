@@ -1,4 +1,4 @@
-import { Dialog, MobileDialog, DialogBody, DialogHeader, DialogFooter } from "@/components/Dialog";
+import { Dialog, DialogBody, DialogHeader, DialogFooter } from "@/components/Dialog";
 import { Text } from "@/components/Text";
 import { AmountItem } from "@/components/AmountItem";
 import { SubSection } from "@/components/SubSection";
@@ -65,9 +65,8 @@ interface ResponsiveDialogProps extends DialogComponentProps {
 
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
     const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
-    const DialogComponent = isMobileView ? MobileDialog : Dialog;
 
-    return <DialogComponent {...restProps} className={twMerge("w-[41.25rem] max-w-full", className)} />;
+    return <Dialog {...restProps} mobile={isMobileView} className={twMerge("w-[41.25rem] max-w-full", className)} />;
 }
 
 export const UnbondingModal = ({
