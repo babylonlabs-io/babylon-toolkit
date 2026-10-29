@@ -107,18 +107,12 @@ export function ActivateConfirmationModal({
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
 
-  // Cancel any in-flight artifact download so closing the modal mid-download
-  // doesn't leave the oversized RPC request running in the background.
   const handleClose = () => {
     cardRef.current?.cancel();
     onClose();
   };
 
-  // While a download is in flight the footer button only cancels the
-  // download and keeps the modal open (in-place cancel-and-retry): the
-  // hook's cancel() resets its state, which flips `isDownloading` back via
-  // onStateChange and restores the download step. Dismissal
-  // paths (Escape / backdrop) still go through handleClose.
+  // Use the cancel button to stop a download. Keep the dialog open.
   const handleCancelDownload = () => {
     cardRef.current?.cancel();
   };
@@ -214,14 +208,14 @@ export function ActivateConfirmationModal({
   return (
     <ResponsiveDialog
       open={open}
-      onClose={handleClose}
+      onClose={isDownloading ? undefined : handleClose}
       className="w-[600px] max-w-full"
       dialogClassName="!rounded-2xl !bg-background-contrast"
     >
       {/* The design's close control. Hand-rolled so it carries an accessible
           name and no empty heading; core-ui's DialogHeader renders both.
           Desktop only: the mobile sheet draws its own close button. */}
-      {!isMobile && (
+      {!isMobile && !isDownloading && (
         <div className="flex justify-end">
           <button
             type="button"

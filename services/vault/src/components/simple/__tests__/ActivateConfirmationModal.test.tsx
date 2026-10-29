@@ -388,7 +388,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("cancels an in-flight download and closes when the header close control is clicked", () => {
+  it("requires the cancel button to stop an active download", () => {
     const onClose = vi.fn();
     render(
       <ActivateConfirmationModal
@@ -400,10 +400,10 @@ describe("ActivateConfirmationModal", () => {
     );
 
     fireEvent.click(screen.getByTestId("card-download-start"));
-    fireEvent.click(screen.getByTestId("activate-modal-close"));
-
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    fireEvent.click(screen.getByText("Cancel download"));
     expect(cardCancelSpy).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("leaves the close control to the sheet below the breakpoint", () => {

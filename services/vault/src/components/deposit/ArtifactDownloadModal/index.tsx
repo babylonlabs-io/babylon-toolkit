@@ -54,16 +54,12 @@ export function ArtifactDownloadModal({
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
 
-  // Cancel any in-flight download so a dismissed dialog does not leave the
-  // oversized RPC running and surprise the user with a file save later.
   const handleClose = () => {
     cardRef.current?.cancel();
     onClose();
   };
 
-  // While a download is in flight the footer button only cancels it and keeps
-  // the modal open; the hook's cancel() resets its state, which restores the
-  // download step.
+  // Use the cancel button to stop a download. Keep the dialog open.
   const handleCancelDownload = () => {
     cardRef.current?.cancel();
   };
@@ -73,11 +69,11 @@ export function ArtifactDownloadModal({
   return (
     <ResponsiveDialog
       open
-      onClose={handleClose}
+      onClose={isDownloading ? undefined : handleClose}
       className="w-[600px] max-w-full"
       dialogClassName="!rounded-2xl !bg-background-contrast"
     >
-      {!isMobile && (
+      {!isMobile && !isDownloading && (
         <div className="flex justify-end">
           <button
             type="button"
