@@ -477,10 +477,10 @@ describe("buildLiquidationChartData", () => {
     expect(cards.map((c) => c.key)).toEqual(bands.map((b) => b.key));
   });
 
-  it("renders the full-liquidation group's fairness as a wBTC payment, priced at the event's own trigger", () => {
+  it("renders a partial group's positive fairness payment, priced at the event's own trigger", () => {
     const result = makeResult([
       makeGroup(1, {
-        isFullLiquidation: true,
+        isFullLiquidation: false,
         fairnessPaymentUsd: 81,
         liquidationPrice: 40500,
         debtRemainingAfter: 0,
@@ -639,7 +639,7 @@ describe("buildSimulationSummary", () => {
       expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
       minPeginBtc: 0.0005,
     });
-    const { summary, bands } = buildLiquidationChartData(result, {
+    const { summary, bands, cards } = buildLiquidationChartData(result, {
       btcPrice: 1_017,
       collateralFactor: 0.78,
       vaultsTotal: 2,
@@ -647,6 +647,11 @@ describe("buildSimulationSummary", () => {
 
     expect([summary.vaultsLiquidated, summary.vaultsTotal]).toEqual([1, 2]);
     expect(summary.seizedPct).toBe(92);
+    expect(result.groups[0].isFullLiquidation).toBe(false);
+    expect(result.groups[0].fairnessPaymentUsd).toBeGreaterThan(0);
+    expect(cards[0].fairness.label).toBe(
+      COPY.liquidations.events.fairnessPaymentWbtc,
+    );
     expect(bands[0].cumulativeLabel).toBe("92% seized");
     expect(summary.collateralRemainingLabel).toMatch(/^0\.01 /);
   });

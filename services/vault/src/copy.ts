@@ -3238,7 +3238,7 @@ export const COPY = {
     dust: {
       title: "Small position",
       detail:
-        "Below $1,000 of debt or collateral, liquidation still follows BTCVault order. Position advice is hidden.",
+        "Below $1,000 of debt or collateral, liquidation still follows BTCVault order. Order, cliff and reorder advice is hidden.",
     },
     // The BTC price is stale or unreadable, so no cascade is computed.
     stalePrice: {
