@@ -8,8 +8,11 @@ import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
+import { POSITION_STALENESS_THRESHOLD_MS } from "../constants";
+import { useAaveConfig } from "../context";
 import {
   calculate,
+  URGENT_HEALTH_FACTOR,
   type CalculatorParams,
   type CalculatorResult,
   type Vault,
@@ -18,6 +21,7 @@ import {
 import type { ReorderVerificationContext } from "../services";
 import { formatHealthFactor } from "../utils";
 
+import { useAaveReservePrice } from "./useAaveReservePrice";
 import { useVaultSplitParams } from "./useVaultSplitParams";
 
 export type PositionNotificationsStatus =
@@ -25,13 +29,27 @@ export type PositionNotificationsStatus =
   | "no-wallet"
   | "no-vaults"
   | "incomplete-position"
+  /**
+   * No Chainlink BTC/USD round has been read yet, or the Spoke oracle returned
+   * no positive BTC price.
+   */
   | "no-price"
+  /**
+   * The Chainlink BTC/USD round is old or could not be read, or the Spoke
+   * oracle's BTC price could not be read.
+   */
   | "stale-price"
   /** The Spoke risk-parameter read failed; nothing can be calculated. */
   | "params-unavailable"
   | "ready";
 
 export interface UsePositionNotificationsResult {
+  /**
+   * The cascade priced at the Spoke oracle's BTC price. Its urgent warning is
+   * reconciled with the Spoke's live health factor: the live warning can be
+   * added or take its place, and a fresh live health factor outside the urgent
+   * band removes it.
+   */
   result: CalculatorResult | null;
   /**
    * Urgent warning from the Spoke's live health factor, computed even when
@@ -52,24 +70,17 @@ export interface UsePositionNotificationsResult {
    * The exact params `result` was computed from. Non-null only when
    * `status === "ready"`. Lets what-if consumers (the liquidation
    * dashboard's price simulator) re-run the pure `calculate()` with an
-   * overridden `btcPrice` without touching this live path.
+   * overridden `btcPrice` without touching this live path. `btcPrice` is the
+   * Spoke oracle's vBTC price, the price the Spoke liquidates at.
    */
   params: CalculatorParams | null;
+  /**
+   * The Spoke oracle's BTC price whenever it is readable and the Chainlink
+   * feed is fresh, with or without a position to price. Null while either is
+   * loading, failing or stale. Equal to `params.btcPrice` when `params` is set.
+   */
+  btcPriceUsd: number | null;
 }
-
-/**
- * Health-factor threshold at which the live-HF guardrail forces an
- * `urgent` warning into the calculator result.
- *
- * Aligned with the calculator's own `URGENT_DISTANCE_PCT = 5%` rule —
- * a position whose live oracle health factor sits at or below 1.05 is
- * within the same band the calculator already considers urgent, so we
- * surface the warning even when the calculator's inputs suppress it. The
- * calculator prices the position from the dApp's own BTC feed, indexed vault
- * amounts and cached risk parameters, while the Spoke prices it from its own
- * oracle, so the two can disagree.
- */
-const LIVE_HF_URGENT_THRESHOLD = 1.05;
 
 function buildLiveHfUrgentWarning(healthFactor: number): Warning {
   return {
@@ -80,6 +91,40 @@ function buildLiveHfUrgentWarning(healthFactor: number): Warning {
     detail: COPY.liquidationWarnings.liveHealthFactor.detail,
     suggestion: COPY.liquidationWarnings.urgent.approachingSuggestion,
   };
+}
+
+/**
+ * The one urgent warning to show, from the calculator's and the live health
+ * factor's. A live reading may raise the urgency at any time, but lowers it
+ * only when it is fresh: a failed or stale position read must not clear a
+ * warning the calculator raised from a newer price.
+ */
+function chooseUrgentWarning({
+  calculatorUrgent,
+  liveUrgentWarning,
+  isCalculatorLiquidatable,
+  isLiveHfLiquidatable,
+  isLiveHfFresh,
+}: {
+  calculatorUrgent: Warning | undefined;
+  liveUrgentWarning: Warning | null;
+  isCalculatorLiquidatable: boolean;
+  isLiveHfLiquidatable: boolean;
+  isLiveHfFresh: boolean;
+}): Warning | undefined {
+  // No live warning: the live health factor is outside the urgent band, or
+  // there is none, which never counts as fresh.
+  if (liveUrgentWarning === null)
+    return isLiveHfFresh ? undefined : calculatorUrgent;
+  if (calculatorUrgent === undefined) return liveUrgentWarning;
+  // Both urgent, and they agree on whether the Spoke can liquidate now: the
+  // calculator's warning names the liquidation price.
+  if (isCalculatorLiquidatable === isLiveHfLiquidatable)
+    return calculatorUrgent;
+  // The calculator still shows a buffer the Spoke has already used up.
+  if (isLiveHfLiquidatable) return liveUrgentWarning;
+  // The calculator says liquidation can trigger now; the Spoke disagrees.
+  return isLiveHfFresh ? liveUrgentWarning : calculatorUrgent;
 }
 
 export function usePositionNotifications(
@@ -96,12 +141,42 @@ export function usePositionNotifications(
     debtValueUsd,
     healthFactor,
     indexerError,
+    positionError,
+    healthFactorReceivedAt,
     isLoading: dashboardLoading,
   } = useDashboardState(connectedAddress);
 
-  const { prices, metadata } = usePrices();
-  const btcPrice = prices["BTC"] ?? 0;
+  // The cascade is priced at the Spoke oracle's BTC price, the price the Spoke
+  // liquidates at, so its figures and the live health factor describe the
+  // same position. The Spoke's oracle reports no round age, so the Chainlink
+  // BTC/USD feed's health stands in for its freshness; its price is not used.
+  const { config } = useAaveConfig();
+  const {
+    priceUsd: spokeBtcPriceUsd,
+    isLoading: spokeBtcPriceLoading,
+    isPriceStale: isSpokeBtcPricePlaceholder,
+    error: spokeBtcPriceError,
+    priceChangedAt: spokeBtcPriceChangedAt,
+  } = useAaveReservePrice({
+    spokeAddress: config?.coreSpokeAddress,
+    reserveId: config?.vaultBtcReserveId,
+  });
+  const { metadata } = usePrices();
   const btcMetadata = metadata["BTC"];
+  // The Spoke read keeps its error, in its query data, while it retries, so
+  // this holds through retries rather than flickering back to loading.
+  const isBtcPriceFailing =
+    btcMetadata?.isStale === true ||
+    btcMetadata?.fetchFailed === true ||
+    spokeBtcPriceError !== null;
+  const btcPriceUsd =
+    !isBtcPriceFailing &&
+    btcMetadata !== undefined &&
+    !isSpokeBtcPricePlaceholder &&
+    spokeBtcPriceUsd !== null &&
+    spokeBtcPriceUsd > 0
+      ? spokeBtcPriceUsd
+      : null;
 
   // Suggested vault sizes must be depositable, so the calculator needs the
   // protocol's minimum peg-in. Same cached query the deposit form reads. It
@@ -112,18 +187,38 @@ export function usePositionNotifications(
     pegInConfigQueryOptions(),
   );
 
-  const isLoading = paramsLoading || dashboardLoading || pegInConfigLoading;
+  const isLoading =
+    paramsLoading ||
+    dashboardLoading ||
+    pegInConfigLoading ||
+    spokeBtcPriceLoading ||
+    isSpokeBtcPricePlaceholder;
+  // Uses the calculator's own urgent band, so the two warnings only disagree
+  // when their inputs do.
   const liveUrgentWarning = useMemo(
     () =>
       connectedAddress &&
       !dashboardLoading &&
       debtValueUsd > 0 &&
       healthFactor !== null &&
-      healthFactor <= LIVE_HF_URGENT_THRESHOLD
+      healthFactor < URGENT_HEALTH_FACTOR
         ? buildLiveHfUrgentWarning(healthFactor)
         : null,
     [connectedAddress, dashboardLoading, debtValueUsd, healthFactor],
   );
+  // Fresh means the health factor's account data was received - not the debt
+  // reads that complete the position query after it - within the staleness
+  // threshold, and no earlier than the price the calculator used last
+  // changed: a reading taken before the price moved describes a position that
+  // no longer exists. Ages come from the receipt time itself, so a refetch in
+  // flight (during which `isPositionDataStale` reads false) cannot make an old
+  // reading count as new, and a poll returning the same price does not either.
+  const isLiveHfFresh =
+    healthFactor !== null &&
+    !positionError &&
+    healthFactorReceivedAt !== null &&
+    Date.now() - healthFactorReceivedAt <= POSITION_STALENESS_THRESHOLD_MS &&
+    healthFactorReceivedAt >= spokeBtcPriceChangedAt;
 
   const { result, status, reorderVerificationContext, params } = useMemo((): {
     result: CalculatorResult | null;
@@ -170,15 +265,17 @@ export function usePositionNotifications(
       };
     // Price problems are reported only once there is a position to price, so a
     // depositor without active vaults is not warned about notifications they
-    // have nothing to receive.
-    if (btcMetadata?.isStale || btcMetadata?.fetchFailed)
+    // have nothing to receive. A failed Spoke price read, retries included, is
+    // reported like a failed Chainlink read: `no-price` would hide the
+    // warnings without saying why.
+    if (isBtcPriceFailing)
       return {
         result: null,
         status: "stale-price",
         reorderVerificationContext: null,
         params: null,
       };
-    if (!btcMetadata || btcPrice <= 0)
+    if (btcPriceUsd === null)
       return {
         result: null,
         status: "no-price",
@@ -217,7 +314,7 @@ export function usePositionNotifications(
     }));
 
     const calculatorParams: CalculatorParams = {
-      btcPrice,
+      btcPrice: btcPriceUsd,
       totalDebtUsd: debtValueUsd,
       vaults,
       CF: splitParams.CF,
@@ -231,42 +328,40 @@ export function usePositionNotifications(
 
     const calculatorResult = calculate(calculatorParams);
 
-    // Live-HF urgency guardrail. At most one urgent warning is shown, and it
-    // never shows a buffer once the Spoke's health factor allows liquidation:
-    // - the calculator has no urgent warning: the live one is added;
-    // - the calculator still shows a buffer ("approaching") while the Spoke
-    //   can already liquidate: the live one takes its place, rather than
-    //   sitting under it as a secondary that contradicts it;
-    // - otherwise the calculator's warning stays, since it names the
-    //   liquidation price. While both sit in the urgent band above 1.0, its
-    //   distance can still exceed the Spoke's, by less than the calculator's
-    //   `URGENT_DISTANCE_PCT`.
-    // The live warning goes in as the returned `liveUrgentWarning` object
-    // itself, never a copy: the top banner compares by reference.
+    // Both sides price BTC from the Spoke's oracle, but from separate reads
+    // (the price every minute, the position every 30s), and the calculator
+    // also uses indexed vault amounts and cached risk parameters, so the two
+    // can still disagree. At most one urgent warning is shown; see
+    // `chooseUrgentWarning`.
     const calculatorUrgent = calculatorResult.warnings.find(
       (w) => w.type === "urgent",
     );
     const firstGroup = calculatorResult.groups[0];
-    // A negative distance is the calculator's "approaching" case.
-    const calculatorShowsBuffer =
-      firstGroup !== undefined && firstGroup.distancePct < 0;
-    const isLiveHfLiquidatable =
-      healthFactor !== null &&
-      healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD;
+    const urgentWarning = chooseUrgentWarning({
+      calculatorUrgent,
+      liveUrgentWarning,
+      // A nonnegative distance is the calculator's "liquidatable" case.
+      isCalculatorLiquidatable:
+        firstGroup !== undefined && firstGroup.distancePct >= 0,
+      isLiveHfLiquidatable:
+        healthFactor !== null &&
+        healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
+      isLiveHfFresh,
+    });
+    // The live warning goes in as the returned `liveUrgentWarning` object
+    // itself, never a copy: the top banner compares by reference.
+    const otherWarnings = calculatorResult.warnings.filter(
+      (w) => w !== calculatorUrgent,
+    );
     const resultWithLiveHf: CalculatorResult =
-      liveUrgentWarning &&
-      (calculatorUrgent === undefined ||
-        (isLiveHfLiquidatable && calculatorShowsBuffer))
-        ? {
+      urgentWarning === calculatorUrgent
+        ? calculatorResult
+        : {
             ...calculatorResult,
-            warnings: [
-              liveUrgentWarning,
-              ...calculatorResult.warnings.filter(
-                (w) => w !== calculatorUrgent,
-              ),
-            ],
-          }
-        : calculatorResult;
+            warnings: urgentWarning
+              ? [urgentWarning, ...otherWarnings]
+              : otherWarnings,
+          };
 
     return {
       result: resultWithLiveHf,
@@ -277,7 +372,7 @@ export function usePositionNotifications(
         LB: splitParams.LB,
         expectedHF: splitParams.expectedHF,
         minPeginBtc: calculatorParams.minPeginBtc,
-        btcPrice,
+        btcPrice: btcPriceUsd,
         totalDebtUsd: debtValueUsd,
       },
       params: calculatorParams,
@@ -288,13 +383,14 @@ export function usePositionNotifications(
     pegInConfig,
     isLoading,
     connectedAddress,
-    btcPrice,
-    btcMetadata,
+    isBtcPriceFailing,
+    btcPriceUsd,
     collateralVaults,
     debtValueUsd,
     healthFactor,
     indexerError,
     liveUrgentWarning,
+    isLiveHfFresh,
   ]);
 
   return {
@@ -304,5 +400,6 @@ export function usePositionNotifications(
     isLoading,
     reorderVerificationContext,
     params,
+    btcPriceUsd,
   };
 }

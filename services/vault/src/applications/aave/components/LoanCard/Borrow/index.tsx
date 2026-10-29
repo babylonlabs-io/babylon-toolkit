@@ -170,10 +170,11 @@ export function Borrow() {
   const hubBlockMessage = hubBlock ? describeHubBlock(hubBlock) : null;
   const isBorrowUnavailable = isBorrowBlocked(gate) || hubBlock !== null;
 
-  // Reset the entered amount whenever the borrow asset changes. The form is no
-  // longer remounted on switch (see `useAaveReservePrice` keepPreviousData), so
-  // clear the amount and the last failed-tx error explicitly — both belong to
-  // the previous reserve and would otherwise mislabel the newly selected one.
+  // Reset the entered amount whenever the borrow asset changes. The form stays
+  // mounted on a switch while `useAaveReservePrice` carries the previous
+  // reserve's price as placeholder data, so clear the amount and the last
+  // failed-tx error explicitly — both belong to the previous reserve and would
+  // otherwise mislabel the newly selected one.
   useEffect(() => {
     setBorrowAmount(0);
     clearError();

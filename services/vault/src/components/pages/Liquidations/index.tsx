@@ -110,10 +110,10 @@ export default function Liquidations() {
   // hasn't synced yet).
   const [simulatedPrice, setSimulatedPrice] = useState<number | null>(null);
 
-  // Clamped to the live price rather than reset by it. `usePrices` refetches
-  // every 60s (15s when unhealthy) and BTC moves on essentially every poll, so
-  // resetting here would discard the depositor's what-if about once a minute
-  // mid-analysis. The simulator only looks downward, so a live price that
+  // Clamped to the live price rather than reset by it. The live price, the
+  // Spoke oracle's, refetches every minute and BTC moves on essentially every
+  // poll, so resetting here would discard the depositor's what-if about once a
+  // minute mid-analysis. The simulator only looks downward, so a live price that
   // falls past a held simulation re-clamps instead; the `isSimulating` chip is
   // what stops a simulated price from ever reading as live.
   const prices = useMemo(

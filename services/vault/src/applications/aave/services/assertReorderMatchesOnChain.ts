@@ -64,7 +64,7 @@ export class PositionChangedError extends Error {
  * - minPeginBtc: the ProtocolParams peg-in configuration's minimum, or null
  *   when it could not be read. It only floors suggested vault sizes and never
  *   changes the optimal order this guard compares.
- * - btcPrice: from `usePrices` (Chainlink BTC/USD aggregator)
+ * - btcPrice: the Spoke oracle's vBTC price, from `useAaveReservePrice`
  * - totalDebtUsd: from `useAaveUserPosition().debtValueUsd`
  *   (`accountData.totalDebtValueRay`, a Spoke read)
  */

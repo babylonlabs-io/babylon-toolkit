@@ -23,11 +23,9 @@ import {
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { usablePriceUsd } from "@/hooks/priceHealth";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
-import { usePrices } from "@/hooks/usePrices";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import {
   resolveShownHealthFactor,
@@ -75,6 +73,7 @@ export function DashboardPage() {
     result: positionNotifications,
     params: positionParams,
     liveUrgentWarning,
+    btcPriceUsd,
   } = usePositionNotifications(isConnected ? address : undefined);
   // The chart takes the god-mode cascade when the panel publishes one, else the
   // live position cascade. A status-only override (stale price) carries no
@@ -124,8 +123,6 @@ export function DashboardPage() {
     isConnected ? address : undefined,
   );
 
-  const { prices, metadata } = usePrices();
-
   // Feed the critical top banner the same debug-aware result the mid-page banner
   // uses: the debug override when set, otherwise the live calculation.
   const criticalBannerResult = cascadeOverride?.result ?? positionNotifications;
@@ -153,21 +150,16 @@ export function DashboardPage() {
     { hasCollateral, hasLoans },
   );
 
-  // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
-  // come from the first group of the position cascade (the price at which the
-  // first seizure triggers); BTC price comes from the live oracle feed. Fall
-  // back to the empty-value placeholder until the inputs are available, and
-  // suppress the BTC price whenever its oracle round is stale or fetch-failed
-  // (mirroring the guard in usePositionNotifications) so a price sourced from a
-  // bad feed never sits beside liquidation stats derived from that same feed.
-  // Note this does not cover the brief transient while the cascade is still
-  // loading: a freshly-fetched BTC price can render beside placeholder stats.
+  // Liquidation-risk gauge stats. The liquidation price and
+  // distance-to-liquidation come from the first group of the live position
+  // cascade (the price at which the first seizure triggers); the BTC price is
+  // the Spoke oracle's, the same price the cascade is calculated at, so the
+  // rail stays consistent with the Spoke's health factor beside it. The BTC
+  // price shows with or without a position to price, and is a placeholder
+  // while either price feed is loading, stale or unreadable.
   const firstLiquidationGroup = positionNotifications?.groups[0] ?? null;
-  const usableBtcPriceUsd = usablePriceUsd(prices, metadata, "BTC");
   const btcPrice =
-    usableBtcPriceUsd !== null
-      ? formatUsdPrice(usableBtcPriceUsd)
-      : COPY.common.emptyValue;
+    btcPriceUsd !== null ? formatUsdPrice(btcPriceUsd) : COPY.common.emptyValue;
   // God-mode override (dev only; null in production). Health factor is
   // btcPrice / liquidationPrice, so a forced value implies the liquidation
   // price that produces it — the rail is charted from that price, not the HF.
@@ -185,8 +177,8 @@ export function DashboardPage() {
     healthFactorStatus,
   );
   const forcedLiquidationPriceUsd =
-    healthFactorOverride !== null && usableBtcPriceUsd !== null
-      ? usableBtcPriceUsd / healthFactorOverride
+    healthFactorOverride !== null && btcPriceUsd !== null
+      ? btcPriceUsd / healthFactorOverride
       : null;
   const liquidationPriceUsd =
     healthFactorOverride !== null
@@ -287,7 +279,7 @@ export function DashboardPage() {
           pctToLiquidationText={pctToLiquidation}
           collateralFactorText={collateralFactorText}
           collateralFactorLoading={isBorrowCapacityLoading}
-          btcPriceUsd={usableBtcPriceUsd}
+          btcPriceUsd={btcPriceUsd}
           liquidationPriceUsd={liquidationPriceUsd}
         />
 

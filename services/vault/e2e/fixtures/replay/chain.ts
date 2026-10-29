@@ -200,10 +200,11 @@ const tableCache = new WeakMap<RecordedRun, ChainTables>();
  *
  * Four pairs in the committed recording need that. `getReservesPrices` is the
  * one that shows what the guess costs: it is recorded three times, once per
- * borrowable reserve, and the vault's own vBTC reserve is never priced. Under
- * a last-wins fallback, asking for it would quietly return the previous
- * reserve's price - a plausible BTC figure the recording never justified,
- * rendered onto the deposit form the capture exists to photograph.
+ * borrowable reserve. Under a last-wins fallback, asking for any other reserve
+ * would quietly return the previous reserve's price - a plausible figure the
+ * recording never justified. The vault's own vBTC reserve, which the
+ * recording never priced, is answered by a supplement that says where its
+ * value comes from, not by this fallback.
  */
 function buildTables(run: RecordedRun): ChainTables {
   const exact = new Map<string, RecordedCall>();
