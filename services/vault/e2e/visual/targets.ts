@@ -177,6 +177,10 @@ export const ARTIFACT_DOWNLOAD_STOPS = {
   activation: "artifact-download-activation-confirm",
   vault: "artifact-download-vault-confirm",
 } as const;
+export const ARTIFACT_QUOTA_STOPS = {
+  activation: "artifact-download-activation-quota",
+  vault: "artifact-download-vault-quota",
+} as const;
 
 // CI runs this test harness against the earlier UI too.
 const vaultsLifecycleSource = readFileSync(
