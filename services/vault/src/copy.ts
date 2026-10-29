@@ -2370,6 +2370,10 @@ export const COPY = {
     // A borrow refused because the indexer's reserve disagrees with the chain.
     borrowIntegrityError:
       "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
+    // A borrow refused at submit time because the refetched position projects
+    // a health factor under the borrow minimum.
+    borrowHealthFactorChangedError: (healthFactor: string, min: number) =>
+      `Position data has changed. Projected health factor (${healthFactor}) would be below ${min}. Please reduce the borrow amount.`,
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",

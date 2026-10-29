@@ -253,6 +253,20 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     );
   });
 
+  it("titles a live health factor of 0.996 as 0.99, not as the 1.00 threshold", () => {
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 100,
+      healthFactor: 0.996,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.liveUrgentWarning?.title).toBe(
+      COPY.liquidationWarnings.liveHealthFactor.title("0.99"),
+    );
+  });
+
   it("forces an urgent warning when live HF is at the 1.05 threshold", () => {
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
