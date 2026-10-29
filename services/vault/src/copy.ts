@@ -1008,6 +1008,12 @@ export const COPY = {
       // "Up to" hedge no longer applies because the file is on disk.
       cardSizeDownloaded: "~1 GB",
       downloadingButton: "Downloading...",
+      cancelConfirmation: {
+        title: "Cancel artifact download?",
+        body: "If you cancel, you must start the download again.",
+        keepButton: "Keep downloading",
+        cancelButton: "Yes, cancel download",
+      },
       // Caption under the progress bar while bytes are streaming.
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
@@ -1040,6 +1046,8 @@ export const COPY = {
       authenticationFailed: "Authentication failed",
       reauthenticationFailed: "Re-authentication failed",
       downloadFailed: "Download failed",
+      downloadLimitReached:
+        "The vault provider limits downloads for this BTCVault. Wait before you try again. Contact the vault provider if the problem continues.",
       unknownRpcError: "Unknown RPC error",
       // Shown while the browser's save-location dialog is open. The picker is
       // opened before the wallet prompt, so this is the first status a user

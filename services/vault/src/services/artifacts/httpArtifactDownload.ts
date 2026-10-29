@@ -1,17 +1,9 @@
 /**
  * Download the recovery artifacts over the VP's authenticated HTTP routes.
  *
- * The VP serves one JSON manifest (transaction graph, verifying key, one
- * entry per challenger) and one original-CBOR file per challenger session.
- * This module fetches them through the proxy and rebuilds the JSON-RPC
- * response that `vaultProvider_requestDepositorClaimerArtifacts` returned:
- * each session becomes `decryptor_artifacts_hex`, the hex of its CBOR bytes.
- * So the same streaming validator, vault binding and saved-file format apply
- * to both download paths. The depositor CLI does the same conversion.
- *
- * Each session is checked against its strong SHA-256 ETag before any of its
- * bytes go out, and a broken transfer resumes with `Range` + `If-Range`.
- * One session (at most 256 MiB) is held in memory at a time.
+ * Rebuild the JSON-RPC response from the manifest and CBOR session files.
+ * Check each session against its SHA-256 ETag. Resume with Range and If-Range.
+ * Keep at most one 256 MiB session in memory.
  */
 
 import {
@@ -22,6 +14,8 @@ import {
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 
+import { COPY } from "@/copy";
+
 /** Largest original session the VP serves. */
 const MAX_SESSION_BYTES = 256 * 1024 * 1024;
 
@@ -31,13 +25,10 @@ const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
 /** Transfer attempts per file: network failures and broken bodies. */
 const MAX_ATTEMPTS = 8;
 
-/** Upper bound for one wait between attempts. */
+/** Upper bound for retry waits when Retry-After is absent. */
 const MAX_RETRY_DELAY_MS = 30_000;
 
-/**
- * Total wait per file for busy or failing responses. These do not use
- * transfer attempts, so normal VP or proxy contention does not end a download.
- */
+/** Total wait per file for busy responses, separate from transfer attempts. */
 const MAX_BUSY_WAIT_MS = 5 * 60_000;
 
 /** Responses that a later request can succeed after. */
@@ -427,7 +418,7 @@ async function waitIfBusy(
   const seconds = Number(response.headers.get("retry-after"));
   const delay =
     Number.isFinite(seconds) && seconds > 0
-      ? Math.min(seconds * 1000, MAX_RETRY_DELAY_MS)
+      ? seconds * 1000
       : backoffMs(busy.retries);
   if (busy.waitedMs + delay > MAX_BUSY_WAIT_MS) return false;
   await response.body?.cancel();
@@ -448,6 +439,9 @@ async function httpError(response: Response): Promise<Error> {
     if (typeof data.error_name === "string") name = data.error_name;
   } catch {
     // The body is optional diagnostics.
+  }
+  if (response.status === 429 && name === "DOWNLOAD_QUOTA_EXHAUSTED") {
+    return new Error(COPY.deposit.recoveryArtifacts.downloadLimitReached);
   }
   const message =
     `Artifact download failed: HTTP ${response.status}` +
