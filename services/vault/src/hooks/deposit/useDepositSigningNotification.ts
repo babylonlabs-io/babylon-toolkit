@@ -71,7 +71,7 @@ export function useDepositSigningNotification(
   const entry = STEP_NOTIFICATION[currentStep];
   const perVault = entry?.phase === "wots" || entry?.phase === "payouts";
   const vaultIndex = perVault ? currentVaultIndex : null;
-  const needsWallet = entry?.phase !== "wots" || !isWaiting;
+  const needsWallet = !perVault || !isWaiting;
 
   // SUBMIT_PEGIN stays current during finality, after the user signs.
   // Keep visibility changes out of this effect to prevent stale alerts.

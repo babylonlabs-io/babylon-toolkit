@@ -78,8 +78,10 @@ describe("useDepositSigningNotification with its provider", () => {
       ...initial,
       step: DepositFlowStep.SIGN_AUTH_ANCHOR,
     });
-    expect(shown).toHaveBeenCalledTimes(1);
+    expect(shown).not.toHaveBeenCalled();
     for (const index of [0, 1]) {
+      rerender({ ...initial, step: DepositFlowStep.SIGN_AUTH_ANCHOR, index });
+      expect(shown).toHaveBeenCalledTimes(index);
       for (const step of [
         DepositFlowStep.SIGN_AUTH_ANCHOR,
         DepositFlowStep.SIGN_PAYOUTS,

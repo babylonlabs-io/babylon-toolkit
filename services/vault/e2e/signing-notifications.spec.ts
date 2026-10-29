@@ -74,6 +74,7 @@ test("notifies only for wallet actions with native browser permission", async ({
 
   for (const index of [0, 1]) {
     await setStep(page, [DepositFlowStep.SIGN_AUTH_ANCHOR, true, index, true]);
+    expect(await tags()).toHaveLength(index + 1);
     await setStep(page, [DepositFlowStep.SIGN_PAYOUTS, true, index, false]);
     await setStep(page, [
       DepositFlowStep.SIGN_DEPOSITOR_GRAPH,
