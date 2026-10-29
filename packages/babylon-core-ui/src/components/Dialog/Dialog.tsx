@@ -1,4 +1,4 @@
-import { type DetailedHTMLProps, type HTMLAttributes } from "react";
+import { type DetailedHTMLProps, type HTMLAttributes, useEffect, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { Portal } from "@/components/Portal";
@@ -33,6 +33,10 @@ export const Dialog = ({
   ...restProps
 }: DialogProps) => {
   const { mounted, unmount } = useModalManager({ open, onClose, disableEscapeClose });
+  const [enterMobile, setEnterMobile] = useState<boolean | null>(mobile);
+  useEffect(() => {
+    setEnterMobile((current) => (!mounted ? mobile : current === mobile ? current : null));
+  }, [mounted, mobile]);
 
   return (
     <Portal mounted={mounted}>
@@ -42,19 +46,22 @@ export const Dialog = ({
         {...restProps}
         className={twJoin(
           mobile ? "bbn-dialog-mobile" : "bbn-dialog-wrapper",
-          mobile && (open ? "animate-mobile-modal-in" : "animate-mobile-modal-out"),
+          mobile && (open ? enterMobile === mobile && "animate-mobile-modal-in" : "animate-mobile-modal-out"),
           className,
+          mobile && dialogClassName,
         )}
         onAnimationEnd={(event) => {
-          if (mobile) unmount();
+          if (event.target === event.currentTarget || event.target === event.currentTarget.firstElementChild) {
+            setEnterMobile(null);
+            unmount();
+          }
           onAnimationEnd?.(event);
         }}
       >
         <div
           className={
-            mobile ? "contents" : twJoin("bbn-dialog", open ? "animate-modal-in" : "animate-modal-out", dialogClassName)
+            mobile ? "contents" : twJoin("bbn-dialog", open ? enterMobile === mobile && "animate-modal-in" : "animate-modal-out", dialogClassName)
           }
-          onAnimationEnd={mobile ? undefined : unmount}
           data-testid="dialog"
         >
           {mobile && handle && (

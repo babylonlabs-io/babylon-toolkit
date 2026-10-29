@@ -130,11 +130,22 @@ export const NoBackdrop: Story = {
 export const Mobile: Story = { ...Default, args: { mobile: true } };
 
 export const Responsive: Story = {
-  render: () => (
-    <ResponsiveDialog open>
-      <DialogBody className="p-4 text-accent-primary">
-        <Checkbox label="Don't show again" />
-      </DialogBody>
-    </ResponsiveDialog>
-  ),
+  render: () => {
+    const [animationCount, setAnimationCount] = useState(0);
+    return (
+      <ResponsiveDialog
+        open
+        dialogClassName="!rounded-2xl !bg-background-contrast"
+        onAnimationEnd={() => setAnimationCount((count) => count + 1)}
+      >
+        <DialogBody
+          className="p-4 text-accent-primary"
+          data-testid="responsive-dialog-body"
+          data-animation-count={animationCount}
+        >
+          <Checkbox label="Don't show again" />
+        </DialogBody>
+      </ResponsiveDialog>
+    );
+  },
 };

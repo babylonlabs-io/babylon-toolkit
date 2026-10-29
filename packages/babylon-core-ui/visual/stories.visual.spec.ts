@@ -243,13 +243,17 @@ for (const storyId of storyIds) {
     const resizeFrames: { width: number; buffer: Buffer }[] = [];
     if (storyId === RESPONSIVE_DIALOG_STORY) {
       const checkbox = page.getByRole("checkbox", { name: "Don't show again" });
+      const body = page.getByTestId("responsive-dialog-body");
+      await expect(body).toHaveAttribute("data-animation-count", "1");
       await checkbox.check();
       for (const width of DIALOG_RESIZE_WIDTHS) {
         await page.setViewportSize({ width, height: STORY_VIEWPORT.height });
         await expect(page.locator(width < 768 ? ".bbn-dialog-mobile" : ".bbn-dialog-wrapper")).toBeVisible();
         await expect(checkbox).toBeChecked();
         await expect(page.getByRole("dialog")).toBeVisible();
+        await expect(page.locator(width < 768 ? ".bbn-dialog-mobile" : ".bbn-dialog")).toHaveCSS("border-radius", "16px");
         resizeFrames.push({ width, buffer: await waitForFrameSettled(page) });
+        await expect(body).toHaveAttribute("data-animation-count", "1");
       }
     }
     const buffer = await waitForFrameSettled(page);
