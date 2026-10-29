@@ -36,6 +36,7 @@ for (const viewport of [
         });
         const before = await receivedProgress(page);
         await page.mouse.click(2, 2);
+        await expect(confirmation).toHaveCount(0);
         await page.keyboard.press("Escape");
         await expect(confirmation).toHaveCount(0);
         await page.clock.runFor(500);
@@ -74,6 +75,19 @@ for (const viewport of [
         ).toBeVisible();
         await page.clock.runFor(15_000);
         expect(downloads).toBe(0);
+        await page.keyboard.press("Escape");
+        await expect(
+          page.getByRole("button", { name: "Download Artifacts", exact: true }),
+        ).toHaveCount(0);
+
+        await (surface === "activation"
+          ? page
+              .getByTestId("pending-deposit-row")
+              .first()
+              .getByRole("button")
+              .last()
+          : page.getByTestId("open-artifact-download")
+        ).click();
 
         await page
           .getByRole("button", { name: "Download Artifacts", exact: true })
@@ -114,6 +128,13 @@ for (const viewport of [
               exact: true,
             }),
           ).toBeVisible();
+          await page.mouse.click(2, 2);
+          await expect(
+            page.getByRole("button", {
+              name: "Download Artifacts",
+              exact: true,
+            }),
+          ).toHaveCount(0);
         });
       }
     });
