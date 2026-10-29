@@ -1008,6 +1008,12 @@ export const COPY = {
       // "Up to" hedge no longer applies because the file is on disk.
       cardSizeDownloaded: "~1 GB",
       downloadingButton: "Downloading...",
+      cancelConfirmation: {
+        title: "Cancel artifact download?",
+        body: "If you cancel, you must start the download again.",
+        keepButton: "Keep downloading",
+        cancelButton: "Yes, cancel download",
+      },
       // Caption under the progress bar while bytes are streaming.
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:

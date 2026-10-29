@@ -1,11 +1,12 @@
 import {
   Button,
+  ConfirmationDialog,
   DialogBody,
   DialogFooter,
   ResponsiveDialog,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IoClose } from "react-icons/io5";
 import { twJoin } from "tailwind-merge";
 
@@ -32,11 +33,7 @@ interface ArtifactDownloadModalProps extends ArtifactDownloadParams {
   onClose: () => void;
 }
 
-/**
- * Standalone artifact download for an active vault, or one that expired after
- * Verified. Mounted per vault by its parent, so the downloaded state seeds once
- * from storage.
- */
+/** Download artifacts for an active vault or a vault that expired after Verified. */
 export function ArtifactDownloadModal({
   onClose,
   vaultId,
@@ -51,17 +48,27 @@ export function ArtifactDownloadModal({
   const [downloadState, setDownloadState] =
     useState<ArtifactDownloadProgress>(IDLE_DOWNLOAD_STATE);
   const isDownloading = downloadState.loading;
+  const [cancelAction, setCancelAction] = useState<"close" | "cancel" | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!isDownloading) setCancelAction(null);
+  }, [isDownloading]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
 
   const handleClose = () => {
-    cardRef.current?.cancel();
-    onClose();
+    if (isDownloading) setCancelAction("close");
+    else onClose();
   };
 
-  // Use the cancel button to stop a download. Keep the dialog open.
-  const handleCancelDownload = () => {
-    cardRef.current?.cancel();
+  const confirmCancelDownload = () => {
+    if (isDownloading) {
+      cardRef.current?.cancel();
+      if (cancelAction === "close") onClose();
+    }
+    setCancelAction(null);
   };
 
   const isMobile = useIsMobile();
@@ -73,12 +80,17 @@ export function ArtifactDownloadModal({
       className="w-[600px] max-w-full"
       dialogClassName="!rounded-2xl !bg-background-contrast"
     >
-      {!isMobile && !isDownloading && (
-        <div className="flex justify-end">
+      {(!isMobile || isDownloading) && (
+        <div
+          className={
+            isMobile ? "absolute left-4 top-4 z-10" : "flex justify-end"
+          }
+        >
           <button
             type="button"
             onClick={handleClose}
             aria-label={COPY.common.close}
+            data-testid="artifact-download-modal-close"
             className="flex size-10 items-center justify-center text-accent-primary"
           >
             <IoClose size={24} />
@@ -132,8 +144,6 @@ export function ArtifactDownloadModal({
         </div>
       </DialogBody>
 
-      {/* size="medium" gives the design's 14px label and 16px side padding;
-          h-10 restores the design's 40px height over medium's default. */}
       <DialogFooter
         className={twJoin(
           "flex flex-row gap-4",
@@ -146,7 +156,7 @@ export function ArtifactDownloadModal({
             variant="outlined"
             size="medium"
             className="h-10 flex-1 rounded-lg"
-            onClick={handleCancelDownload}
+            onClick={() => setCancelAction("cancel")}
           >
             {COPY.deposit.artifactDownload.cancelDownloadButton}
           </Button>
@@ -192,6 +202,20 @@ export function ArtifactDownloadModal({
           </>
         )}
       </DialogFooter>
+      <ConfirmationDialog
+        open={isDownloading && cancelAction !== null}
+        onClose={() => setCancelAction(null)}
+        title={COPY.deposit.recoveryArtifacts.cancelConfirmation.title}
+        description={COPY.deposit.recoveryArtifacts.cancelConfirmation.body}
+        primaryAction={{
+          label: COPY.deposit.recoveryArtifacts.cancelConfirmation.keepButton,
+          onClick: () => setCancelAction(null),
+        }}
+        secondaryAction={{
+          label: COPY.deposit.recoveryArtifacts.cancelConfirmation.cancelButton,
+          onClick: confirmCancelDownload,
+        }}
+      />
     </ResponsiveDialog>
   );
 }

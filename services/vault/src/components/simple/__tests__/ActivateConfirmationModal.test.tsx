@@ -37,7 +37,10 @@ vi.mock("@/hooks/deposit/useVpLiveness", () => ({
   },
 }));
 
-vi.mock("@babylonlabs-io/core-ui", () => ({
+vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => ({
+  ConfirmationDialog: (
+    await importOriginal<typeof import("@babylonlabs-io/core-ui")>()
+  ).ConfirmationDialog,
   Loader: () => <div data-testid="loader" />,
   Text: (props: Record<string, unknown>) => (
     <span>{props.children as ReactNode}</span>
@@ -222,7 +225,7 @@ describe("ActivateConfirmationModal", () => {
     liveness.calls = [];
   });
 
-  it("cancels the download in place without closing the modal while a download is in flight", () => {
+  it("cancels the download in place only after confirmation", () => {
     const onClose = vi.fn();
     render(
       <ActivateConfirmationModal
@@ -236,6 +239,8 @@ describe("ActivateConfirmationModal", () => {
     fireEvent.click(screen.getByTestId("card-download-start"));
 
     fireEvent.click(screen.getByText("Cancel download"));
+    expect(cardCancelSpy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Yes, cancel download"));
     expect(cardCancelSpy).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -388,7 +393,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("requires the cancel button to stop an active download", () => {
+  it("keeps downloading until a Close request is confirmed", () => {
     const onClose = vi.fn();
     render(
       <ActivateConfirmationModal
@@ -400,10 +405,15 @@ describe("ActivateConfirmationModal", () => {
     );
 
     fireEvent.click(screen.getByTestId("card-download-start"));
-    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
-    fireEvent.click(screen.getByText("Cancel download"));
-    expect(cardCancelSpy).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("activate-modal-close"));
+    expect(cardCancelSpy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Keep downloading"));
+    expect(cardCancelSpy).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("activate-modal-close"));
+    fireEvent.click(screen.getByText("Yes, cancel download"));
+    expect(cardCancelSpy).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("leaves the close control to the sheet below the breakpoint", () => {

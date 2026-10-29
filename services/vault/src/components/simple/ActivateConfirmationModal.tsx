@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  ConfirmationDialog,
   DialogBody,
   DialogFooter,
   ResponsiveDialog,
@@ -39,23 +40,12 @@ const IDLE_DOWNLOAD_STATE: ArtifactDownloadProgress = {
 interface ActivateConfirmationModalProps {
   open: boolean;
   vaultId: Hex;
-  /**
-   * Artifact-download inputs. All three are required for the recovery card
-   * to attempt a download; if any are missing, or the provider address is
-   * not one a proxy URL can be built from, the modal shows "Deposit details
-   * incomplete" and offers only Cancel (decision D3 in the activation VP
-   * liveness gate spec): a deposit the app cannot check or download for is
-   * not activated from here.
-   */
+  /** Missing or invalid download inputs block activation (decision D3). */
   providerAddress?: string;
   peginTxid?: string;
   depositorPk?: string;
   unsignedPrePeginTxHex?: string;
-  /**
-   * God-mode demo vaults carry a synthetic provider that no probe can
-   * confirm; the dev-only demo path sets this so the modal takes a
-   * "reachable" verdict without a network call. Never set for real deposits.
-   */
+  /** Skip the provider probe for dev-only demo vaults. Never use for real deposits. */
   simulateProviderLiveness?: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -72,29 +62,27 @@ export function ActivateConfirmationModal({
   onClose,
   onConfirm,
 }: ActivateConfirmationModalProps) {
-  // Bound to the pegin, so a receipt stored for a different one does not
-  // satisfy the gate. When `peginTxid` is absent we cannot prove the stored
-  // receipt belongs to this deposit, so this reads as not-downloaded and the
-  // risk acknowledgement stays required — the same condition under which
-  // `canRenderCard` below is false, so the two states agree.
+  // A receipt must match this deposit. Missing inputs cannot prove a match.
   const [downloaded, setDownloaded] = useState(() =>
     hasArtifactsDownloaded(vaultId, peginTxid ?? ""),
   );
   const [acknowledged, setAcknowledged] = useState(false);
-  // A download found that the provider served a graph other than the one
-  // signed at presign. Unlike missing artifacts, this is evidence against
-  // activating, so the risk opt-out is withdrawn. Read from storage, so a
-  // reopened modal keeps it; only a later matching download clears it.
+  // A stored graph mismatch blocks activation until a matching download clears it.
   const [graphMismatch, setGraphMismatch] = useState(() =>
     hasGraphMismatch(vaultId, peginTxid ?? ""),
   );
   const [step, setStep] = useState<"download" | "confirmSkip">("download");
-  // Mirrors RecoveryArtifactsCard's download state via onStateChange: the
-  // card renders nothing while bytes stream, and this dialog presents the
-  // download in its place.
+  // Keep the card mounted while this dialog presents its download state.
   const [downloadState, setDownloadState] =
     useState<ArtifactDownloadProgress>(IDLE_DOWNLOAD_STATE);
   const isDownloading = downloadState.loading;
+  const [cancelAction, setCancelAction] = useState<"close" | "cancel" | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!isDownloading) setCancelAction(null);
+  }, [isDownloading]);
 
   useEffect(() => {
     if (!open) return;
@@ -103,42 +91,40 @@ export function ActivateConfirmationModal({
     setGraphMismatch(hasGraphMismatch(vaultId, peginTxid ?? ""));
     setStep("download");
     setDownloadState(IDLE_DOWNLOAD_STATE);
+    setCancelAction(null);
   }, [open, vaultId, peginTxid]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
 
   const handleClose = () => {
-    cardRef.current?.cancel();
-    onClose();
+    if (isDownloading) setCancelAction("close");
+    else onClose();
   };
 
-  // Use the cancel button to stop a download. Keep the dialog open.
-  const handleCancelDownload = () => {
-    cardRef.current?.cancel();
+  const confirmCancelDownload = () => {
+    if (isDownloading) {
+      cardRef.current?.cancel();
+      if (cancelAction === "close") onClose();
+    }
+    setCancelAction(null);
   };
 
-  // The mobile sheet draws its own close button, so the design's header
-  // control is desktop-only. Same breakpoint ResponsiveDialog switches on, so
-  // exactly one of the two renders at every width.
+  // During download, use our Close button on both layouts to request confirmation.
   const isMobile = useIsMobile();
 
-  // A malformed address is a data problem too: no proxy URL can be built
-  // from it, so neither the probe nor the download could ever run.
+  // An invalid provider address blocks both the probe and the download.
   const canRenderCard = Boolean(
     providerAddress &&
       ETH_ADDRESS_PATTERN.test(providerAddress) &&
       peginTxid &&
       depositorPk,
   );
-  // A deposit the app cannot check or download for must not be activated
-  // (decision D3); the indexer record is what is incomplete, not the vault.
+  // Incomplete deposit details block activation (decision D3).
   const dataIncomplete = !canRenderCard;
   const gate = useProtocolGateState();
   const activationBlocked = isActivationBlocked(gate);
 
-  // Activation is irreversible, so the modal asks the provider one question
-  // before offering anything (pegin.md: read the status before revealing s).
-  // An incomplete deposit is blocked without asking.
+  // Ask for provider status before revealing the secret (pegin.md).
   const liveness = useVpLiveness(
     providerAddress,
     vaultId,
@@ -153,8 +139,7 @@ export function ActivateConfirmationModal({
   // `idle` and `probing` both mean "no verdict yet"; nothing opens on either.
   const probeSettled = vpReachable || vpUnconfirmed || proxyUnreachable;
 
-  // A failed download may mean the provider went away mid-transfer, so the
-  // provider is asked again.
+  // Ask the provider again after a download fails.
   const downloadError = downloadState.error;
   const { retry: retryProbe } = liveness;
   useEffect(() => {
@@ -168,9 +153,7 @@ export function ActivateConfirmationModal({
     vpReachable &&
     !dataIncomplete;
 
-  // Losing confirmation, or the deposit's details, while on the confirm-skip
-  // step sends the user back: the acknowledgement was given against a
-  // provider that answered for a deposit the app could check.
+  // Reset the acknowledgement if the provider or deposit details change.
   useEffect(() => {
     if (step === "confirmSkip" && (!vpReachable || dataIncomplete)) {
       setStep("download");
@@ -180,16 +163,12 @@ export function ActivateConfirmationModal({
 
   const blockedByProbe = vpUnconfirmed || proxyUnreachable;
 
-  // With artifacts saved, a graph mismatch or a protocol pause already
-  // withholds Activate, so the saved-artifacts warning (and its Check again)
-  // must not say the user can still activate. The card stays visible: it
-  // carries the mismatch reason; a pause is announced by the page banner.
+  // Keep the card visible if a mismatch or pause blocks activation.
   const activateWithheld = graphMismatch || activationBlocked;
   const showUnconfirmedDownloadedWarning =
     downloaded && vpUnconfirmed && !activateWithheld;
 
-  // The card unmounts with its inputs; drop the mirrored download state so the
-  // footer does not offer a cancel that would reach a null ref.
+  // Drop download state when missing inputs unmount the card.
   useEffect(() => {
     if (dataIncomplete) setDownloadState(IDLE_DOWNLOAD_STATE);
   }, [dataIncomplete]);
@@ -212,11 +191,12 @@ export function ActivateConfirmationModal({
       className="w-[600px] max-w-full"
       dialogClassName="!rounded-2xl !bg-background-contrast"
     >
-      {/* The design's close control. Hand-rolled so it carries an accessible
-          name and no empty heading; core-ui's DialogHeader renders both.
-          Desktop only: the mobile sheet draws its own close button. */}
-      {!isMobile && !isDownloading && (
-        <div className="flex justify-end">
+      {(!isMobile || isDownloading) && (
+        <div
+          className={
+            isMobile ? "absolute left-4 top-4 z-10" : "flex justify-end"
+          }
+        >
           <button
             type="button"
             onClick={handleClose}
@@ -228,9 +208,7 @@ export function ActivateConfirmationModal({
           </button>
         </div>
       )}
-      {/* The mobile sheet's own inset is 16px; the desktop card's is 24px from
-          `.bbn-dialog`. Below the breakpoint the previous padding is kept so
-          the sheet keeps its 40px sides. */}
+      {/* Keep 40px sides in the mobile sheet. */}
       <DialogBody
         className={twJoin(
           "flex flex-col items-stretch gap-8 text-accent-primary",
@@ -363,10 +341,6 @@ export function ActivateConfirmationModal({
         )}
       </DialogBody>
 
-      {/* size="medium" gives the design's 14px label and 16px side padding;
-          h-10 restores the design's 40px height over medium's default. The
-          downloading body spaces its blocks 40px apart, the activation body
-          16px, and the footer belongs to whichever is showing. */}
       <DialogFooter
         className={twJoin(
           "flex flex-row gap-4",
@@ -388,7 +362,7 @@ export function ActivateConfirmationModal({
             variant="outlined"
             size="medium"
             className="h-10 flex-1 rounded-lg"
-            onClick={handleCancelDownload}
+            onClick={() => setCancelAction("cancel")}
           >
             {COPY.deposit.activateConfirmation.cancelDownloadButton}
           </Button>
@@ -497,6 +471,20 @@ export function ActivateConfirmationModal({
           </>
         )}
       </DialogFooter>
+      <ConfirmationDialog
+        open={open && isDownloading && cancelAction !== null}
+        onClose={() => setCancelAction(null)}
+        title={COPY.deposit.recoveryArtifacts.cancelConfirmation.title}
+        description={COPY.deposit.recoveryArtifacts.cancelConfirmation.body}
+        primaryAction={{
+          label: COPY.deposit.recoveryArtifacts.cancelConfirmation.keepButton,
+          onClick: () => setCancelAction(null),
+        }}
+        secondaryAction={{
+          label: COPY.deposit.recoveryArtifacts.cancelConfirmation.cancelButton,
+          onClick: confirmCancelDownload,
+        }}
+      />
     </ResponsiveDialog>
   );
 }
