@@ -24,9 +24,6 @@
 
 # GitHub writing
 
-For `/pre-review`, read `.claude/skills/pre-review/SKILL.md` from this checkout.
-Use that procedure when a local skill copy differs.
-
 Apply these rules to epics, issues, and pull request descriptions.
 
 - Write for a reader who is new to the codebase.

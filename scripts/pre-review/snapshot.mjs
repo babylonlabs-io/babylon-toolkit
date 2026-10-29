@@ -99,14 +99,17 @@ export function recordBlobs(paths, cwd) {
   return blobs;
 }
 
-/** Lists coverage candidates. Changed test files do not prove behavior coverage. */
-export function visualCoverage(paths) {
-  const files = [...paths].sort();
+/** Lists live coverage candidates. A candidate does not prove behavior coverage. */
+export function visualCoverage(blobs) {
+  const files = [...blobs.keys()].sort();
   const visualTests = files.filter((p) =>
-    /\.visual\.spec\.[cm]?[jt]sx?$/.test(p),
+    blobs.get(p) !== DELETED &&
+    (/\.visual\.spec\.[cm]?[jt]sx?$/.test(p) ||
+      /^packages\/babylon-core-ui\/src\/.*\.stories\.(?:[jt]sx?|mjs)$/.test(p)),
   );
   const browserTests = files.filter(
-    (p) => /\/(?:e2e|visual)\//.test(p) && /\.spec\.[cm]?[jt]sx?$/.test(p),
+    (p) => blobs.get(p) !== DELETED &&
+      /\/(?:e2e|visual)\//.test(p) && /\.spec\.[cm]?[jt]sx?$/.test(p),
   );
   const uiFiles = files.filter(
     (p) =>
@@ -404,7 +407,7 @@ function main(argv) {
       files: Object.fromEntries(blobs),
       count: blobs.size,
       sha256: digestBlobs(blobs),
-      visual_coverage: visualCoverage(blobs.keys()),
+      visual_coverage: visualCoverage(blobs),
     };
     if (output.visual_coverage.warning) {
       process.stderr.write(`pre-review: ${output.visual_coverage.warning}\n`);

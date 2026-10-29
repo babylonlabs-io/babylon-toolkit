@@ -496,8 +496,10 @@ separately, at full price each. Do it yourself.
    finding before final review. If screenshots cannot verify the behavior,
    such as browser notification delivery, state why and name the behavior
    test or live check that verifies it. Existing coverage can be sufficient;
-   cite its exact assertions. Pass this coverage assessment to the final
-   reviewer with the check results. Keep any unverified live behavior explicit.
+   cite its exact assertions. Keep any unverified live behavior explicit.
+   For the final reviewer, pass only factual evidence: test paths, assertions,
+   captured states and executed results. It checks coverage independently.
+   Do not pass the orchestrator's coverage verdicts or findings.
 
    **Bind this run to its inputs before reviewers or background tests start.**
    First settle sections 1–5 of `.pre-review/<key>.md`: create the file
@@ -1326,6 +1328,8 @@ Build its prompt from this closed list of inputs:
 - deleted-file diff hunks, pasted inline;
 - the binding rules and authoritative source;
 - `CALLERS OF CHANGED EXPORTS`, `CHECKS` and the CI-gap statement;
+- `VISUAL EVIDENCE`: test paths, assertions, captured states and executed
+  results, without the orchestrator's coverage verdicts or findings;
 - the filtered intent, rewritten as described below;
 - the method and finding filter below.
 
