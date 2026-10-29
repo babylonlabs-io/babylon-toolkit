@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       ENVIRONMENT:
-        description: 'Environment to publish. "all" (the push/tag default) publishes every environment below.'
+        description: 'Environment to publish. "all" (the push/tag default) publishes every environment below; vault-real-money-devnet is published from main only.'
         required: false
         default: all
         type: choice
@@ -20,6 +20,7 @@ on:
           - vault-devnet
           - vault-staging-devnet
           - vault-testnet-3
+          - vault-real-money-devnet
       CORRELATION_ID:
         description: 'Opaque ID set by an orchestrating workflow (e.g. tbv-deployment unified redeploy) so it can locate this run via run-name. Empty for manual runs.'
         required: false
@@ -98,13 +99,9 @@ jobs:
           ALL='[
             {"environment":"vault-devnet","network":"devnet","expected_kind":"test","aws_account":"537927626649"},
             {"environment":"vault-staging-devnet","network":"staging","expected_kind":"test","aws_account":"537927626649"},
-            {"environment":"vault-testnet-3","network":"testnet","expected_kind":"test","aws_account":"615368094160","prod":true}
+            {"environment":"vault-testnet-3","network":"testnet","expected_kind":"test","aws_account":"615368094160","prod":true},
+            {"environment":"vault-real-money-devnet","network":"real-money-devnet","expected_kind":"production","aws_account":"537927626649","role":"gha-s3-frontend-push-real-money-devnet","main_only":true}
           ]'
-          # vault-real-money-devnet returns once services/vault/networks/real-money-devnet.json exists
-          # (`pnpm sync-env real-money-devnet --kind internal`); until then its leg would fail the
-          # pre-build profile check on every main push and hide a real failure in the other legs.
-          # Restore its entry (its own "role", "main_only") and the ENVIRONMENT dispatch option from
-          # git history when the profile lands.
           # "role" names a dedicated AWS role for that environment (default: gha-s3-frontend-push).
           # A "main_only" entry publishes with a role that trusts refs/heads/main alone, so off main
           # it is left out of the all-environment run and refused when asked for by name.
