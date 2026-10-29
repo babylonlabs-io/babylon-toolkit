@@ -169,7 +169,7 @@ export const COPY = {
   tooltips: {
     // Risk card, markets collateral card, protocol parameters (LTV).
     collateralFactor:
-      "The maximum percentage of your total collateral value that can be borrowed.",
+      "The fraction of your collateral's value counted toward your borrowing capacity.",
     // Overview position cards, risk card body, borrow / repay detail cards.
     healthFactor:
       "Indicates the health of your position. If it falls below 1.0, your position may be liquidated.",
@@ -1200,6 +1200,9 @@ export const COPY = {
       // CollateralFactorRow: leads with the max-borrowable USD, CF in parens.
       maxToBorrowLabel: "Max to Borrow:",
       cfParenthetical: (percent: string) => `(CF=${percent})`,
+      // CollateralFactorRow tooltip: why the figure sits below value × CF.
+      maxToBorrowTooltip: (minHealthFactor: number) =>
+        `Your deposit's value times the collateral factor, less a buffer that keeps your health factor above ${minHealthFactor} if you have no other debt. Existing debt, a market's available liquidity or its borrow limit can lower the amount you can actually borrow.`,
       // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
       depositFeeLabel: "Deposit Fee",
       depositFeeTooltip:
@@ -2844,7 +2847,7 @@ export const COPY = {
         capValue: (deposited: string, total: string) =>
           `${deposited}/${total} BTC`,
         capUncapped: "Uncapped",
-        maxCfLabel: "Borrow up to:",
+        maxBorrowLabel: "Borrow up to:",
       },
       features: {
         competitiveRates: {

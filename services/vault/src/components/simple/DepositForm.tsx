@@ -222,6 +222,7 @@ interface DepositFormProps {
   providerState: DepositProviderState;
   walletState: DepositWalletState;
   gatingState: DepositGatingState;
+  /** CF at the reserve's current key, the one `borrow()` applies; null hides Max to Borrow. */
   collateralFactor?: number | null;
   twoVaultSplit?: TwoVaultSplitProps;
   fundingInputCapExceeded?: boolean;
