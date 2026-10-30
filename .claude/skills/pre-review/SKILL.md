@@ -479,6 +479,28 @@ separately, at full price each. Do it yourself.
    the state records. Never re-run it after fixes: that would make the fixes
    look already reviewed.
 
+   **Check visual coverage before reviewers start.** Read `visual_coverage`
+   from the snapshot output. It lists changed UI files and candidate visual
+   and browser tests. `not-detected` means the path check found no UI change;
+   it does not prove that the change has no visible effect. Also check the
+   intent, callers, calculations and data that reach the UI.
+
+   Put a `VISUAL COVERAGE` section in the review pack. Map each changed
+   visible behavior to the exact test and captured state. Check that the test
+   opens the affected control and reaches the reported state. A green visual
+   job, an unchanged screenshot, a closed story, or a changed test filename
+   alone does not prove coverage. Compare the same inputs on the base and
+   candidate when the change fixes a visible defect.
+
+   If the behavior needs visual coverage and has none, record a fix-now
+   finding before final review. If screenshots cannot verify the behavior,
+   such as browser notification delivery, state why and name the behavior
+   test or live check that verifies it. Existing coverage can be sufficient;
+   cite its exact assertions. Keep any unverified live behavior explicit.
+   For the final reviewer, pass only factual evidence: test paths, assertions,
+   captured states and executed results. It checks coverage independently.
+   Do not pass the orchestrator's coverage verdicts or findings.
+
    **Bind this run to its inputs before reviewers or background tests start.**
    First settle sections 1–5 of `.pre-review/<key>.md`: create the file
    from the unfiltered intent step 6 took when it does not exist, never from
@@ -1306,6 +1328,8 @@ Build its prompt from this closed list of inputs:
 - deleted-file diff hunks, pasted inline;
 - the binding rules and authoritative source;
 - `CALLERS OF CHANGED EXPORTS`, `CHECKS` and the CI-gap statement;
+- `VISUAL EVIDENCE`: test paths, assertions, captured states and executed
+  results, without the orchestrator's coverage verdicts or findings;
 - the filtered intent, rewritten as described below;
 - the method and finding filter below.
 
