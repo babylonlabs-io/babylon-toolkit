@@ -1647,9 +1647,9 @@ export const COPY = {
         title: "Wrong wallet connected",
         body: "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to resume.",
       },
-      // Typed DepositorBtcKeyMismatchError. The resume, payout signing and
-      // terms rebuild checks throw it when the connected Bitcoin wallet's key
-      // is not the one the BTCVault registered.
+      // Typed DepositorBtcKeyMismatchError. The Pre-PegIn broadcast service,
+      // the resume, payout signing and terms rebuild checks throw it when the
+      // connected Bitcoin wallet's key is not the one the BTCVault registered.
       wrongDepositorBtcWallet: {
         title: "Wrong Bitcoin wallet connected",
         body: "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to resume.",

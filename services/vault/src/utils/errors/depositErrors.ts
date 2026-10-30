@@ -489,8 +489,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.wrongDepositorWallet;
   }
 
-  // 3f'. Typed depositor Bitcoin-key refusal from the resume wallet check,
-  // payout signing or the DepositTerms rebuild.
+  // 3f'. Typed depositor Bitcoin-key refusal from the Pre-PegIn broadcast
+  // service, the resume wallet check, payout signing or the DepositTerms rebuild.
   if (isDepositorBtcKeyMismatchError(err)) {
     return ERRORS.wrongDepositorBtcWallet;
   }
