@@ -185,6 +185,15 @@ describe("getAddressUtxos", () => {
     expect(result[1].value).toBe(50000);
   });
 
+  it("returns txids in lowercase when the listing spells them in uppercase", async () => {
+    mockUtxoResponses([
+      { txid: VALID_TXID.toUpperCase(), vout: 0, value: 50000 },
+    ]);
+
+    const result = await getAddressUtxos(VALID_ADDRESS, API_URL);
+    expect(result[0].txid).toBe(VALID_TXID);
+  });
+
   it("rejects negative UTXO values", async () => {
     mockUtxoResponses([{ txid: VALID_TXID, vout: 0, value: -1 }]);
 

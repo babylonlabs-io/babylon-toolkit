@@ -8079,7 +8079,8 @@ Mempool API base URL
 
 `Promise`\<[`MempoolUTXO`](#mempoolutxo)[]\>
 
-Array of UTXOs sorted by value (largest first)
+Array of UTXOs sorted by value (largest first), with each txid
+lowercased whatever hex case the API returned it in
 
 ***
 
