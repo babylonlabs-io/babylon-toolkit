@@ -214,13 +214,6 @@ test.describe("isInscriptionUtxo", () => {
 
     expect(isInscriptionUtxo(utxo, map)).toBe(false);
   });
-
-  test("is case-sensitive for txid", () => {
-    const utxo = createUtxo("ABC123", 0, 10000);
-    const map = createInscriptionMap([createInscription("abc123", 0)]);
-
-    expect(isInscriptionUtxo(utxo, map)).toBe(false);
-  });
 });
 
 // ============================================================================

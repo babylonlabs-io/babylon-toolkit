@@ -51,6 +51,7 @@ export {
   filterDust,
   filterInscriptionUtxos,
   getSpendableUtxos,
+  inscriptionOutpointKey,
   isInscriptionUtxo,
   type FilteredUtxos,
 } from "@/utils/utxoFiltering";
