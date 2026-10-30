@@ -198,8 +198,8 @@ const resetButton = () =>
   screen.getByRole("button", { name: COPY.liquidations.reset });
 
 /**
- * The header's "Seized" figure. Scoped to its label because the chart's share
- * axis prints the same percentages.
+ * The header's "Seized" figure. Scoped to its label so an assertion reads this
+ * figure and no other percentage on the page.
  */
 const seizedSummary = () =>
   screen.getByText(COPY.liquidations.seizedSummaryLabel).parentElement

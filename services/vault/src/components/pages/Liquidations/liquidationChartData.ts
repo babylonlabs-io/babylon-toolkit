@@ -74,7 +74,6 @@ export interface LiquidationEventCard {
 export interface LiquidationChartData {
   bands: LiquidationBand[];
   priceAxis: PriceAxisTick[];
-  shareAxisTicks: { fraction: number; label: string }[];
   cards: LiquidationEventCard[];
   summary: LiquidationSimulationSummary;
 }
@@ -111,11 +110,19 @@ export interface LiquidationSimulationSummary {
  * any vault it never had to consume has no group at all. What it does leave is
  * the last group's `btcRemainingAfter` — the collateral still standing once the
  * cascade is exhausted — so the true total is the seized run plus that tail.
+ * Every seized percentage, the header's and each band's, is a share of this.
  */
 function positionCollateralBtc(result: CalculatorResult): number {
   const groups = result.groups;
   const inGroups = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
   return inGroups + (groups[groups.length - 1]?.btcRemainingAfter ?? 0);
+}
+
+/** Whole-percent share of the position seized. One rounding for the header and
+ *  the band popovers, so the two can never print different figures for the
+ *  same seizure. */
+function seizedPercent(seizedBtc: number, positionBtc: number): number {
+  return positionBtc > 0 ? Math.round((seizedBtc / positionBtc) * 100) : 0;
 }
 
 /**
@@ -138,7 +145,7 @@ export function buildSimulationSummary(
   return {
     vaultsLiquidated: seized.reduce((sum, g) => sum + g.vaults.length, 0),
     vaultsTotal,
-    seizedPct: totalBtc > 0 ? Math.round((seizedBtc / totalBtc) * 100) : 0,
+    seizedPct: seizedPercent(seizedBtc, totalBtc),
     collateralRemainingLabel: formatBtcAmount(
       Math.max(0, totalBtc - seizedBtc),
     ),
@@ -485,10 +492,12 @@ export function buildLiquidationChartData(
   }: LiquidationChartOptions,
 ): LiquidationChartData {
   const groups = result.groups;
-  const totalBtc = groups.reduce((sum, g) => sum + g.combinedBtc, 0);
+  const positionBtc = positionCollateralBtc(result);
   const floorPrice = axisFloorPrice(result);
+  // Shares of the whole position. The widths renormalise, so the bands still
+  // fill the axis when collateral outlives the cascade; that tail is not drawn.
   const shares = groups.map((g) =>
-    totalBtc > 0 ? g.combinedBtc / totalBtc : 0,
+    positionBtc > 0 ? g.combinedBtc / positionBtc : 0,
   );
   const widthBoundaries = compressedShareBoundaries(shares);
 
@@ -496,7 +505,6 @@ export function buildLiquidationChartData(
   const bands: LiquidationBand[] = groups.map((group, i) => {
     const shareStart = widthBoundaries[i];
     cumulativeBtc += group.combinedBtc;
-    const trueShareEnd = totalBtc > 0 ? cumulativeBtc / totalBtc : 0;
     const shareEnd = widthBoundaries[i + 1];
     // Band spans from where this event triggers down to the next event's
     // trigger; the last band bottoms out at the axis floor.
@@ -537,7 +545,7 @@ export function buildLiquidationChartData(
         },
       ],
       cumulativeLabel: COPY.liquidations.cumulativeSeized(
-        Math.round(trueShareEnd * 100),
+        seizedPercent(cumulativeBtc, positionBtc),
       ),
     };
   });
@@ -564,20 +572,6 @@ export function buildLiquidationChartData(
     label: formatPriceUsd(value),
   }));
 
-  // Ticks sit at the compressed band edges but read out the true cumulative
-  // share, so the axis stays honest about what the widths represent.
-  let cumulativeShare = 0;
-  const shareAxisTicks = [
-    { fraction: 0, label: "0%" },
-    ...shares.map((share, i) => {
-      cumulativeShare += share;
-      return {
-        fraction: widthBoundaries[i + 1],
-        label: `${Math.round(cumulativeShare * 100)}%`,
-      };
-    }),
-  ];
-
   // Header figures, bundled here so they can never be paired with a different
   // price than the bands. Deliberately the SAME `buildSimulationSummary` the
   // overview card uses: two definitions of "seized" would print two different
@@ -585,13 +579,12 @@ export function buildLiquidationChartData(
   // (`calculate.ts` sets it from the prefix sum of the seized vaults), so
   // summing `targetSeizureBtc + overSeizureBtc` instead would overstate the
   // share whenever the seizure loop exits on its tolerance slack — enough to
-  // print ">100% seized" beside a 100% share axis.
+  // print ">100% seized" beside a band that reads 100%.
   const summary = buildSimulationSummary(result, btcPrice, vaultsTotal);
 
   return {
     bands,
     priceAxis,
-    shareAxisTicks,
     cards: groups.map((g, i) =>
       toCard(g, i, collateralFactor, btcPrice, axisAnchor),
     ),
