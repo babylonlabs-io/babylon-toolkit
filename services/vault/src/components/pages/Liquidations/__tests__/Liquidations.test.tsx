@@ -784,9 +784,9 @@ describe("Liquidation Dashboard simulator", () => {
     ).not.toBeInTheDocument();
   });
 
-  // `usePrices` refetches every 60s (15s when unhealthy), so resetting on a
-  // live-price change would throw away the depositor's what-if about once a
-  // minute mid-analysis.
+  // The live price refetches every minute, so resetting on a live-price
+  // change would throw away the depositor's what-if about once a minute
+  // mid-analysis.
   it("keeps the simulation through a live price refresh instead of discarding it", () => {
     const { rerender } = render(<Liquidations />);
 

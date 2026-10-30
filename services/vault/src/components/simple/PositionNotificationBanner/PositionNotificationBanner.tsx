@@ -153,10 +153,11 @@ export function PositionNotificationBanner({
 
   const effectiveStatus = statusOverride ?? status;
 
-  // The live feed already auto-refetches (faster while unhealthy); "stale" means
-  // the on-chain oracle's own timestamp is old, which a refetch can't fix. Defer
-  // the banner past a grace window so a transient blip doesn't flash it. A debug
-  // override (statusOverride) shows immediately for testing.
+  // The price reads already auto-refetch (faster while unhealthy or failing);
+  // "stale" means the Chainlink round is old, which a refetch can't fix, or a
+  // price read keeps failing. Defer the banner past a grace window so a
+  // transient blip doesn't flash it. A debug override (statusOverride) shows
+  // immediately for testing.
   const isLiveStalePrice =
     statusOverride === undefined && status === "stale-price";
   const staleBannerReady = useSustainedFlag(

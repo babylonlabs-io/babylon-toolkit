@@ -1,11 +1,12 @@
 /**
- * Tests for usePositionNotifications — verifies the live-HF urgency
- * guardrail layered on top of the calculator output.
+ * Tests for usePositionNotifications — verifies the cascade is priced at the
+ * Spoke oracle's BTC price, and the live-HF urgency guardrail layered on top
+ * of the calculator output.
  */
 
 import { renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -19,6 +20,19 @@ vi.mock("@/hooks/useDashboardState", () => ({
 const mockUsePrices = vi.fn();
 vi.mock("@/hooks/usePrices", () => ({
   usePrices: (...args: unknown[]) => mockUsePrices(...args),
+}));
+
+const mockUseAaveReservePrice = vi.fn();
+vi.mock("../useAaveReservePrice", () => ({
+  useAaveReservePrice: (...args: unknown[]) => mockUseAaveReservePrice(...args),
+}));
+
+const SPOKE = "0x5b0e000000000000000000000000000000000001";
+const VBTC_RESERVE_ID = 2n;
+vi.mock("../../context", () => ({
+  useAaveConfig: () => ({
+    config: { coreSpokeAddress: SPOKE, vaultBtcReserveId: VBTC_RESERVE_ID },
+  }),
 }));
 
 const mockUseVaultSplitParams = vi.fn();
@@ -69,7 +83,16 @@ interface DashboardStateOverrides {
   healthFactor?: number | null;
   isLoading?: boolean;
   indexerError?: Error | null;
+  positionError?: Error | null;
+  healthFactorReceivedAt?: number;
 }
+
+/** When the default Spoke price last changed; the default position read is newer. */
+const SPOKE_PRICE_CHANGED_AT = 1_000_000;
+/** "Now" in these tests: the default position read is 5s old. */
+const NOW = SPOKE_PRICE_CHANGED_AT + 10_000;
+/** Past the 90s position staleness threshold, measured from the default read. */
+const STALE_NOW = SPOKE_PRICE_CHANGED_AT + 5_000 + 91_000;
 
 function setDashboardState(overrides: DashboardStateOverrides = {}) {
   mockUseDashboardState.mockReturnValue({
@@ -78,6 +101,8 @@ function setDashboardState(overrides: DashboardStateOverrides = {}) {
     healthFactor: 2.0,
     isLoading: false,
     indexerError: null,
+    positionError: null,
+    healthFactorReceivedAt: SPOKE_PRICE_CHANGED_AT + 5_000,
     ...overrides,
   });
 }
@@ -86,6 +111,16 @@ function setHappyPrices() {
   mockUsePrices.mockReturnValue({
     prices: { BTC: 60_000 },
     metadata: { BTC: { isStale: false, fetchFailed: false } },
+  });
+}
+
+function setSpokeBtcPrice(priceUsd: number) {
+  mockUseAaveReservePrice.mockReturnValue({
+    priceUsd,
+    isLoading: false,
+    isPriceStale: false,
+    error: null,
+    priceChangedAt: SPOKE_PRICE_CHANGED_AT,
   });
 }
 
@@ -106,9 +141,16 @@ function setPegInConfig() {
 describe("usePositionNotifications — live-HF urgency guardrail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     setHappyPrices();
+    setSpokeBtcPrice(60_000);
     setHappySplitParams();
     setPegInConfig();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("passes the protocol minimum peg-in to the calculator in BTC", () => {
@@ -267,11 +309,13 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     );
   });
 
-  it("forces an urgent warning when live HF is at the 1.05 threshold", () => {
+  it("forces an urgent warning when live HF is just inside the calculator's urgent band", () => {
+    // The calculator is urgent within 5% of liquidation: HF below
+    // 1 / 0.95 ≈ 1.0526.
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
       debtValueUsd: 100,
-      healthFactor: 1.05,
+      healthFactor: 1.052,
     });
 
     const { result } = renderHook(() => usePositionNotifications(USER));
@@ -279,6 +323,18 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(
       result.current.result?.warnings.some((w) => w.type === "urgent"),
     ).toBe(true);
+  });
+
+  it("does not force an urgent warning when live HF is just outside the calculator's urgent band", () => {
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 100,
+      healthFactor: 1.053,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.liveUrgentWarning).toBeNull();
   });
 
   it("keeps only the calculator's approaching warning when the live HF is exactly 1.0", () => {
@@ -302,8 +358,8 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
   });
 
   it("replaces the calculator's approaching warning with the live warning when the live HF is below 1.0", () => {
-    // The calculator still sees a 4.8% buffer at the dApp's price while the
-    // Spoke's health factor already allows liquidation.
+    // The calculator still sees a 4.8% buffer at the $60k Spoke price while
+    // the Spoke's health factor already allows liquidation.
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
       debtValueUsd: 40_000,
@@ -320,8 +376,8 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
   });
 
   it("keeps the calculator's liquidatable warning when the live HF is also below 1.0", () => {
-    // Debt above the collateral's borrowing power at the dApp's price → the
-    // calculator itself says liquidation can trigger now.
+    // Debt above the collateral's borrowing power at the $60k Spoke price →
+    // the calculator itself says liquidation can trigger now.
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
       debtValueUsd: 43_000,
@@ -454,5 +510,297 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     setDashboardState({ healthFactor: null, collateralVaults: [] });
     const { result } = renderHook(() => usePositionNotifications(USER));
     expect(result.current.liveUrgentWarning).toBeNull();
+  });
+
+  it("prices the cascade at the Spoke oracle's BTC price, not the dApp's Chainlink read", () => {
+    // 1 BTC at a 0.8 collateral factor against $40k of debt liquidates at
+    // $50k. The dApp's Chainlink read says $50k; the Spoke values BTC at $75k.
+    mockUsePrices.mockReturnValue({
+      prices: { BTC: 50_000 },
+      metadata: { BTC: { isStale: false, fetchFailed: false } },
+    });
+    setSpokeBtcPrice(75_000);
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      isLoading: false,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 1.5,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(mockUseAaveReservePrice).toHaveBeenCalledWith({
+      spokeAddress: SPOKE,
+      reserveId: VBTC_RESERVE_ID,
+    });
+    expect(result.current.params?.btcPrice).toBe(75_000);
+    expect(result.current.reorderVerificationContext?.btcPrice).toBe(75_000);
+    expect(
+      result.current.result?.warnings.some((w) => w.type === "urgent"),
+    ).toBe(false);
+  });
+
+  it("drops the calculator's urgent warning when a fresh live HF is outside the urgent band", () => {
+    // The calculator's price puts this position exactly at its $50k
+    // liquidation price, while the Spoke's newer read says health factor 1.5.
+    setSpokeBtcPrice(50_000);
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      isLoading: false,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 1.5,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
+      "cliff",
+    ]);
+  });
+
+  it("keeps the calculator's urgent warning when the live HF read is older than the staleness threshold", () => {
+    vi.setSystemTime(STALE_NOW);
+    setSpokeBtcPrice(50_000);
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      isLoading: false,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 1.5,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const urgentTitles = result.current.result?.warnings
+      .filter((w) => w.type === "urgent")
+      .map((w) => w.title);
+    expect(urgentTitles).toEqual([
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    ]);
+  });
+
+  it("keeps the calculator's urgent warning when the last position refetch failed", () => {
+    setSpokeBtcPrice(50_000);
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      isLoading: false,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 1.5,
+      positionError: new Error("RPC failure"),
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const urgentTitles = result.current.result?.warnings
+      .filter((w) => w.type === "urgent")
+      .map((w) => w.title);
+    expect(urgentTitles).toEqual([
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    ]);
+  });
+
+  it("keeps the calculator's urgent warning while a refocused tab refetches its hour-old live HF", () => {
+    // Back from a hidden tab, the Spoke price has landed at $50k while the
+    // position refetch is still in flight: the cached health factor of 1.5
+    // was read an hour earlier.
+    setSpokeBtcPrice(50_000);
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      isLoading: false,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 1.5,
+      healthFactorReceivedAt: SPOKE_PRICE_CHANGED_AT - 3_600_000,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const urgentTitles = result.current.result?.warnings
+      .filter((w) => w.type === "urgent")
+      .map((w) => w.title);
+    expect(urgentTitles).toEqual([
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    ]);
+  });
+
+  it("keeps the calculator's urgent warning when the live HF was read before the Spoke price last changed", () => {
+    // Positions poll every 30s and the price every minute: a health factor
+    // read 20s before the price moved is not stale, but is older.
+    setSpokeBtcPrice(50_000);
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      isLoading: false,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 1.5,
+      healthFactorReceivedAt: SPOKE_PRICE_CHANGED_AT - 20_000,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const urgentTitles = result.current.result?.warnings
+      .filter((w) => w.type === "urgent")
+      .map((w) => w.title);
+    expect(urgentTitles).toEqual([
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    ]);
+  });
+
+  it("drops the calculator's urgent warning from a dust position when a fresh live HF is outside the urgent band", () => {
+    // 0.01 BTC against $350 of debt at a 0.7 collateral factor liquidates at
+    // $50k, the calculator's price. A dust position only shows with an urgent
+    // warning, so dropping it hides the banner.
+    setSpokeBtcPrice(50_000);
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 0.01, 0)],
+      debtValueUsd: 350,
+      healthFactor: 1.5,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
+      "dust",
+    ]);
+  });
+
+  it("replaces the calculator's liquidatable warning with the live warning when a fresh live HF is at or above 1.0", () => {
+    // $43k of debt against 1 BTC at a 0.7 collateral factor is past its
+    // ~$61.4k liquidation price at $60k, while the Spoke reads 1.02 and
+    // cannot liquidate yet.
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 43_000,
+      healthFactor: 1.02,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const warnings = result.current.result?.warnings;
+    expect(warnings?.map((w) => w.type)).toEqual(["urgent", "cliff"]);
+    expect(warnings?.[0]).toBe(result.current.liveUrgentWarning);
+  });
+
+  it("keeps the calculator's liquidatable warning when the live HF at or above 1.0 is stale", () => {
+    vi.setSystemTime(STALE_NOW);
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 43_000,
+      healthFactor: 1.02,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    const urgentTitles = result.current.result?.warnings
+      .filter((w) => w.type === "urgent")
+      .map((w) => w.title);
+    expect(urgentTitles).toEqual([
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    ]);
+  });
+
+  it("still adds the live warning from a stale live HF read", () => {
+    vi.setSystemTime(STALE_NOW);
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 100,
+      healthFactor: 0.95,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.result?.warnings[0]).toBe(
+      result.current.liveUrgentWarning,
+    );
+  });
+
+  it("reports stale-price when the Spoke oracle price read fails while Chainlink is healthy", () => {
+    setDashboardState();
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
+      isLoading: false,
+      isPriceStale: false,
+      error: new Error("execution reverted"),
+      priceChangedAt: 0,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("stale-price");
+    expect(result.current.result).toBeNull();
+    expect(result.current.params).toBeNull();
+    expect(result.current.reorderVerificationContext).toBeNull();
+  });
+
+  it("stays loading while the Spoke oracle price is loading", () => {
+    setDashboardState();
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: null,
+      isLoading: true,
+      isPriceStale: false,
+      error: null,
+      priceChangedAt: 0,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("loading");
+    expect(result.current.result).toBeNull();
+  });
+
+  it("stays loading while the Spoke oracle price is a carried-over placeholder", () => {
+    setDashboardState();
+    mockUseAaveReservePrice.mockReturnValue({
+      priceUsd: 58_000,
+      isLoading: false,
+      isPriceStale: true,
+      error: null,
+      priceChangedAt: 0,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("loading");
+    expect(result.current.result).toBeNull();
+  });
+
+  it("exposes the Spoke BTC price, not the Chainlink one, for a depositor with no active vaults", () => {
+    mockUsePrices.mockReturnValue({
+      prices: { BTC: 50_000 },
+      metadata: { BTC: { isStale: false, fetchFailed: false } },
+    });
+    setDashboardState({ collateralVaults: [], debtValueUsd: 0 });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("no-vaults");
+    expect(result.current.btcPriceUsd).toBe(60_000);
+  });
+
+  it("withholds the Spoke BTC price while the Chainlink round is stale", () => {
+    setDashboardState({ collateralVaults: [], debtValueUsd: 0 });
+    mockUsePrices.mockReturnValue({
+      prices: { BTC: 60_000 },
+      metadata: { BTC: { isStale: true, fetchFailed: false } },
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.btcPriceUsd).toBeNull();
   });
 });

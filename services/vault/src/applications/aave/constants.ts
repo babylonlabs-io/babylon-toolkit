@@ -69,6 +69,15 @@ export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
 export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
 
 /**
+ * Retry interval for an Aave oracle read (the oracle address or a reserve
+ * price) while it is failing, once the read's own quick retries have given up.
+ * Each retry is a single read, and each read reports a failure to error
+ * tracking once per outage, not per retry, so this can be short: a recovered
+ * RPC is picked up well inside the stale-price banner's grace window.
+ */
+export const ORACLE_READ_RETRY_INTERVAL_MS = 15 * 1000;
+
+/**
  * How long each round of waiting on an unconfirmed Aave transaction lasts
  * (about 5 Ethereum slots). The watch never uses viem's unbounded wait: two
  * waits on one hash share viem's poller, and a wait started after a

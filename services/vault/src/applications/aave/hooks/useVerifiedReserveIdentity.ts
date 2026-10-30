@@ -91,10 +91,11 @@ export function useVerifiedReserveIdentity({
     retry: (failureCount, err) =>
       !isIntegrityFailure(err) && failureCount < TRANSIENT_RETRY_COUNT,
 
-    // Deliberately no `placeholderData: keepPreviousData` (unlike
-    // useAaveReservePrice): carrying the previous reserve's symbol and decimals
-    // across an asset switch would paint one asset's label over another's
-    // numbers, which is the exact failure this hook exists to prevent.
+    // Deliberately no `placeholderData` (unlike useAaveReservePrice, which
+    // carries the previous reserve's price): carrying the previous reserve's
+    // symbol and decimals across an asset switch would paint one asset's label
+    // over another's numbers, which is the exact failure this hook exists to
+    // prevent.
   });
 
   // Mirror `refetchSplitParams`: a user-initiated retry should answer in one
