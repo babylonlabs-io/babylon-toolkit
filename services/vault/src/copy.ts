@@ -1047,7 +1047,7 @@ export const COPY = {
       reauthenticationFailed: "Re-authentication failed",
       downloadFailed: "Download failed",
       downloadLimitReached:
-        "The vault provider limits downloads for this BTCVault. Wait before you try again. Contact the vault provider if the problem continues.",
+        "Too many artifact download requests. Wait and try again later.",
       unknownRpcError: "Unknown RPC error",
       // Shown while the browser's save-location dialog is open. The picker is
       // opened before the wallet prompt, so this is the first status a user

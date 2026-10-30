@@ -80,13 +80,14 @@ for (const viewport of [
           page.getByRole("button", { name: "Download Artifacts", exact: true }),
         ).toHaveCount(0);
 
-        await (surface === "activation"
-          ? page
-              .getByTestId("pending-deposit-row")
-              .first()
-              .getByRole("button")
-              .last()
-          : page.getByTestId("open-artifact-download")
+        await (
+          surface === "activation"
+            ? page
+                .getByTestId("pending-deposit-row")
+                .first()
+                .getByRole("button")
+                .last()
+            : page.getByTestId("open-artifact-download")
         ).click();
 
         await page
@@ -140,3 +141,139 @@ for (const viewport of [
     });
   }
 }
+
+test.describe("native artifact saving", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.clock.install();
+    await blockOffsiteRequests(page);
+    await installRecordedBackend(page);
+    // Replace only the picker. The browser owns the file and writable stream.
+    await page.addInitScript(() =>
+      Object.defineProperty(window, "showSaveFilePicker", {
+        configurable: true,
+        value: async ({ suggestedName }: { suggestedName: string }) => {
+          const directory = await navigator.storage.getDirectory();
+          return directory.getFileHandle(suggestedName, { create: true });
+        },
+      }),
+    );
+  });
+
+  for (const failure of ["cancelled", "truncated"] as const) {
+    test(`preserves the saved file after a ${failure} transfer and saves a retry`, async ({
+      page,
+    }) => {
+      const readSavedFile = () =>
+        page.evaluate(async () => {
+          const directory = await navigator.storage.getDirectory();
+          const handle = await directory.getFileHandle(
+            "babylon-vault-artifacts-d1d1d1d1.json",
+          );
+          const file = await handle.getFile();
+          const bytes = await file.arrayBuffer();
+          const result = JSON.parse(new TextDecoder().decode(bytes));
+          const graph = JSON.parse(result.tx_graph_json);
+          const hex =
+            result.babe_sessions["ab".repeat(32)].decryptor_artifacts_hex;
+          return {
+            byteLength: file.size,
+            modified: file.lastModified,
+            sha256: Array.from(
+              new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+              (byte) => byte.toString(16).padStart(2, "0"),
+            ).join(""),
+            fields: Object.keys(result).sort(),
+            completeHex: hex === "ab".repeat((8 * 1024 * 1024) / 2),
+            verifyingKey: result.verifying_key_hex,
+            depositorPk: graph.depositor_pubkey,
+            claimOutpoint: graph.claim_tx.tx.input[0].previous_output,
+            payoutOutpoint: graph.payout_tx.tx.input[0].previous_output,
+          };
+        });
+      let browserDownloads = 0;
+      page.on("download", () => browserDownloads++);
+      await openArtifactDownload(page, "vault", "valid", true);
+      await page.clock.resume();
+      const download = page.getByRole("button", {
+        name: "Download Artifacts",
+        exact: true,
+      });
+      const error = page.locator(".bbn-dialog .text-error-main");
+      await expect(download).toBeVisible({ timeout: 30_000 });
+      await expect(error).toHaveCount(0);
+      const saved = await readSavedFile();
+      expect(saved.byteLength).toBeGreaterThan(8 * 1024 * 1024);
+      expect(saved).toMatchObject({
+        fields: ["babe_sessions", "tx_graph_json", "verifying_key_hex"],
+        completeHex: true,
+        verifyingKey: "abcdef01",
+        depositorPk: "a".repeat(64),
+        claimOutpoint: `${"d1".repeat(32)}:1`,
+        payoutOutpoint: `${"d1".repeat(32)}:0`,
+      });
+
+      for (const attempt of [failure, "retry"]) {
+        if (failure === "truncated") {
+          await page.keyboard.press("Escape");
+          await page
+            .getByRole("button", { name: "God mode", exact: true })
+            .click();
+          await page.getByRole("button", { name: "Deposit & Vaults" }).click();
+          await page
+            .getByLabel("Artifact response")
+            .selectOption(attempt === "retry" ? "valid" : "truncated");
+          await page.getByRole("button", { name: "Hide", exact: true }).click();
+          await page.getByTestId("open-artifact-download").click();
+        }
+        await download.click();
+        await expect(artifactProgress(page)).toBeVisible();
+        if (attempt === "cancelled") {
+          await expect.poll(() => receivedProgress(page)).toBeGreaterThan(0);
+          await page
+            .getByRole("button", { name: "Cancel download", exact: true })
+            .click();
+          await expect(
+            page.getByRole("heading", {
+              name: CANCEL_DOWNLOAD_TITLE,
+              exact: true,
+            }),
+          ).toBeVisible();
+          await page
+            .getByRole("button", { name: "Yes, cancel download", exact: true })
+            .click();
+        }
+        await expect(download).toBeVisible({ timeout: 30_000 });
+        await expect(artifactProgress(page)).toBeHidden();
+        const current = await readSavedFile();
+        if (attempt === "retry") {
+          await expect(error).toHaveCount(0);
+          expect(current.modified).toBeGreaterThan(saved.modified);
+          expect({ ...current, modified: saved.modified }).toEqual(saved);
+        } else {
+          expect(current).toEqual(saved);
+          if (attempt === "truncated") await expect(error).toBeVisible();
+          else await expect(error).toHaveCount(0);
+        }
+      }
+
+      // A dismissed picker must leave the previous file intact.
+      const beforePickerCancel = await readSavedFile();
+      await page.evaluate(() =>
+        Object.defineProperty(window, "showSaveFilePicker", {
+          configurable: true,
+          value: async () => {
+            throw new DOMException("The user aborted a request.", "AbortError");
+          },
+        }),
+      );
+      await download.click();
+      await expect(download).toBeVisible();
+      await expect(artifactProgress(page)).toBeHidden();
+      await expect(error).toHaveCount(0);
+      expect(await readSavedFile()).toEqual(beforePickerCancel);
+      expect(browserDownloads).toBe(0);
+    });
+  }
+});

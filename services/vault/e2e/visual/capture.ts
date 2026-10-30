@@ -33,6 +33,7 @@ import type { RecordedBackend } from "../fixtures/replay/recording";
 import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
 import {
   ARTIFACT_DOWNLOAD_STOPS,
+  ARTIFACT_QUOTA_STOPS,
   CONNECT_GUIDE_STOP,
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
@@ -440,7 +441,10 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ...Object.values(VAULT_REFUND_STOPS),
       ...(HAS_ARTIFACT_DOWNLOAD_CONFIRMATION
-        ? Object.values(ARTIFACT_DOWNLOAD_STOPS)
+        ? [
+            ...Object.values(ARTIFACT_DOWNLOAD_STOPS),
+            ...Object.values(ARTIFACT_QUOTA_STOPS),
+          ]
         : []),
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
       DEPOSIT_SPLIT_MINIMUM_STOP,
