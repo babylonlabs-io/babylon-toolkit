@@ -59,6 +59,13 @@ export interface UseAaveUserPositionResult {
    * staleness protections for liquidation decisions.
    */
   isPositionDataStale: boolean;
+  /**
+   * When the account data `healthFactor` comes from was received (ms since
+   * epoch), or null without a position. It dates the health factor itself,
+   * not the debt reads that complete the position query after it, and does
+   * not change while a refetch is in flight.
+   */
+  healthFactorReceivedAt: number | null;
   /** Loading state */
   isLoading: boolean;
   /** Error state */
@@ -203,6 +210,7 @@ export function useAaveUserPosition(
     healthFactor,
     healthFactorStatus,
     isPositionDataStale,
+    healthFactorReceivedAt: position?.accountDataReceivedAt ?? null,
     isLoading: positionsLoading,
     error: positionsError as Error | null,
     refetch: async () => {

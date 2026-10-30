@@ -91,7 +91,7 @@ function SimpleDepositContent({
     locked: isBtcWalletLocked,
   } = useBTCWallet();
   const btcConnector = useChainConnector("BTC");
-  const { rows: feeRows, collateralFactor } =
+  const { rows: feeRows, borrowCollateralFactor } =
     useProtocolFeeRows(connectedEthAddress);
   const [walletConnectionError, setWalletConnectionError] =
     useWalletScopedError(
@@ -658,7 +658,7 @@ function SimpleDepositContent({
                         }
                       : undefined,
                 }}
-                collateralFactor={collateralFactor}
+                collateralFactor={borrowCollateralFactor}
                 twoVaultSplit={twoVaultSplitProps}
                 fundingInputCapExceeded={fundingInputCapExceeded}
                 maxFundingInputCount={fundingInputCap}

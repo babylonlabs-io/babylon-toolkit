@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from "react";
  *
  * Used to defer the stale-price banner: a transient blip (a single failed RPC
  * read, or the brief gap before a faster poll lands) clears within the window
- * and never surfaces the banner, while a genuinely stale on-chain feed surfaces
- * it after the delay.
+ * and never surfaces the banner, while a genuinely stale on-chain feed or a
+ * read that keeps failing surfaces it after the delay.
  */
 export function useSustainedFlag(active: boolean, delayMs: number): boolean {
   const [reached, setReached] = useState(false);

@@ -19,11 +19,10 @@ export {
  * Sizing "Max" against `MIN_HEALTH_FACTOR_FOR_BORROW` alone produced a figure
  * whose projected HF equalled the floor to the last decimal. Debt accrues
  * interest continuously, so by the time the pre-sign check refetched the
- * position the projected HF had slipped just under the floor and the borrow was
- * rejected with "Projected health factor (1.05) would be below 1.05" - a
- * message that reads as self-contradictory because both numbers are rounded for
- * display. 0.5% is far above the ~5e-8 relative drift that 30s of accrual at 5%
- * APR produces, while costing a borrower a negligible amount of capacity.
+ * position the projected HF had slipped just under the floor and the borrow of
+ * the advertised maximum was rejected. 0.5% is far above the ~5e-8 relative
+ * drift that 30s of accrual at 5% APR produces, while costing a borrower a
+ * negligible amount of capacity.
  */
 export const BORROW_CAPACITY_HEADROOM = 0.005;
 
@@ -68,6 +67,15 @@ export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
  * 3 × 30s refetch interval = 90s.
  */
 export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
+
+/**
+ * Retry interval for an Aave oracle read (the oracle address or a reserve
+ * price) while it is failing, once the read's own quick retries have given up.
+ * Each retry is a single read, and each read reports a failure to error
+ * tracking once per outage, not per retry, so this can be short: a recovered
+ * RPC is picked up well inside the stale-price banner's grace window.
+ */
+export const ORACLE_READ_RETRY_INTERVAL_MS = 15 * 1000;
 
 /**
  * How long each round of waiting on an unconfirmed Aave transaction lasts

@@ -198,8 +198,8 @@ const resetButton = () =>
   screen.getByRole("button", { name: COPY.liquidations.reset });
 
 /**
- * The header's "Seized" figure. Scoped to its label because the chart's share
- * axis prints the same percentages.
+ * The header's "Seized" figure. Scoped to its label so an assertion reads this
+ * figure and no other percentage on the page.
  */
 const seizedSummary = () =>
   screen.getByText(COPY.liquidations.seizedSummaryLabel).parentElement
@@ -822,9 +822,9 @@ describe("Liquidation Dashboard simulator", () => {
     ).not.toBeInTheDocument();
   });
 
-  // `usePrices` refetches every 60s (15s when unhealthy), so resetting on a
-  // live-price change would throw away the depositor's what-if about once a
-  // minute mid-analysis.
+  // The live price refetches every minute, so resetting on a live-price
+  // change would throw away the depositor's what-if about once a minute
+  // mid-analysis.
   it("keeps the simulation through a live price refresh instead of discarding it", () => {
     const { rerender } = render(<Liquidations />);
 

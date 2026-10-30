@@ -42,6 +42,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     healthFactor,
     healthFactorStatus,
+    healthFactorReceivedAt,
     isLoading,
     error: positionError,
     refetch: refetchPosition,
@@ -251,6 +252,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralVaults,
     isLoading,
     positionError,
+    healthFactorReceivedAt,
     refetchPosition,
   };
 }

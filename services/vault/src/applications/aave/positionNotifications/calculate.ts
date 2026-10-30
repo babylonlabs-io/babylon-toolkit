@@ -27,6 +27,14 @@ const DUST_THRESHOLD_USD = 1000;
 const URGENT_DISTANCE_PCT = 5;
 
 /**
+ * Health factor below which the calculator raises `urgent`. The first group's
+ * distance is exactly 1/HF − 1 (pLiq = debt / (BTC × CF), HF = BTC × price ×
+ * CF / debt), so "liquidatable or within {@link URGENT_DISTANCE_PCT}" is
+ * HF < 1 / (1 − 5%) ≈ 1.0526.
+ */
+export const URGENT_HEALTH_FACTOR = 1 / (1 - URGENT_DISTANCE_PCT / 100);
+
+/**
  * Minimum cascade-score improvement (in BTC) before we suggest a reorder.
  * Guards against flagging tie-shuffles where the optimizer returns a different
  * sequence with no real protection gain.

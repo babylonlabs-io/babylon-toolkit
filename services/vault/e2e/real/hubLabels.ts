@@ -11,8 +11,6 @@ const HUB_LABELS: Record<string, string> = {
   // Vault Devnet (2026-09 multi-hub deploy)
   "0xb3283508a0e96f80cf79dc2a1135f10da170138d": "Babylon Hub",
   "0xf5e52d571ed9b4779399a815815abeff7d7ec4ca": "Core Hub",
-  // Testnet-2 (single hub)
-  "0x6ca0d39f8bd5cf226878da80bc073227d6e52c34": "Babylon Hub",
   // Testnet (testnet-3)
   "0xc551cc801acb95f9131a26081e495aef960a2f37": "Babylon Hub",
   "0xf5960351a45633821cd6fc4a1da2d0f066dd06fc": "Core Hub",

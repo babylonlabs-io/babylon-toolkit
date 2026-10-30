@@ -15,6 +15,7 @@ import {
   useVaultSplitParams,
   type VaultSplitParams,
 } from "@/applications/aave/hooks";
+import { calculateBorrowCapacityUsd } from "@/applications/aave/utils/borrowCapacity";
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
 import { usablePriceUsd } from "@/hooks/priceHealth";
@@ -60,9 +61,24 @@ function capStatValue(
   );
 }
 
-function maxCfStatValue(splitParams: VaultSplitParams | null): string {
+/** Basis points in one percent; "Borrow up to" is floored to a whole percent. */
+const BPS_PER_WHOLE_PERCENT = 100;
+
+// The Borrow form's no-debt capacity per dollar of collateral is the share of
+// a new deposit's value it lets the depositor borrow: the collateral factor
+// less the health-factor floor and headroom, not the raw collateral factor.
+// Floored to a whole percent so the chip never overstates it.
+function maxBorrowStatValue(splitParams: VaultSplitParams | null): string {
   if (!splitParams) return COPY.common.emptyValue;
-  return formatBasisPointsAsPercent(Math.round(splitParams.CF * BPS_SCALE));
+  const { availableToBorrowUsd: borrowableShare } = calculateBorrowCapacityUsd({
+    collateralValueUsd: 1,
+    currentDebtUsd: 0,
+    liquidationThresholdBps: Math.round(splitParams.CF * BPS_SCALE),
+  });
+  const borrowableBps = borrowableShare * BPS_SCALE;
+  return formatBasisPointsAsPercent(
+    Math.floor(borrowableBps / BPS_PER_WHOLE_PERCENT) * BPS_PER_WHOLE_PERCENT,
+  );
 }
 
 // TVL is the BTC locked across the application priced in USD. Suppressed rather
@@ -194,8 +210,8 @@ export function DisconnectedOverview({
         value: capStatValue(capSnapshot, capError),
       },
       {
-        label: COPY_OVERVIEW.stats.maxCfLabel,
-        value: maxCfStatValue(splitParams),
+        label: COPY_OVERVIEW.stats.maxBorrowLabel,
+        value: maxBorrowStatValue(splitParams),
       },
     ],
     [capSnapshot, capError, splitParams, usableBtcPriceUsd],

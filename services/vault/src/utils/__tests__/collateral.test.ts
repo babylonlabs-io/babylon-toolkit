@@ -282,9 +282,11 @@ describe("Collateral Utilities", () => {
   });
 
   describe("computeMaxBorrowUsd", () => {
-    it("returns the product of amount, price, and CF", () => {
-      expect(computeMaxBorrowUsd("1", 88400, 0.72)).toBeCloseTo(63648);
-      expect(computeMaxBorrowUsd("0.5", 100000, 0.5)).toBe(25000);
+    it("returns the borrow form's no-debt capacity: value × CF ÷ 1.05, less 0.5% headroom", () => {
+      // 1 BTC at $100,000 with CF 80%: 80,000 / 1.05 × 0.995, not 80,000
+      expect(computeMaxBorrowUsd("1", 100000, 0.8)).toBeCloseTo(75809.52, 2);
+      // 1 BTC at $88,400 with CF 72%: 63,648 / 1.05 × 0.995
+      expect(computeMaxBorrowUsd("1", 88400, 0.72)).toBeCloseTo(60314.06, 2);
     });
 
     it("returns null when collateralFactor is null", () => {

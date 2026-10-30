@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,14 @@ function wrapperWith(client: QueryClient) {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
   };
+}
+
+/**
+ * A read failure the app's retry policy gives up on at once, so a test sees
+ * the failed state without waiting out the hook's in-fetch backoff.
+ */
+function lastingFailure(): Error {
+  return Object.assign(new Error("RPC failure"), { retryable: false });
 }
 
 function newClient(): QueryClient {
@@ -60,6 +68,108 @@ describe("useAaveOracleAddress", () => {
     rerender({ spoke: SPOKE_B });
     await waitFor(() => expect(result.current.oracleAddress).toBe(ORACLE_B));
     expect(getOracleAddress).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a failed read on an interval until it succeeds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(getOracleAddress)
+        .mockRejectedValueOnce(lastingFailure())
+        .mockResolvedValueOnce(ORACLE_A);
+      const { result } = renderHook(
+        () => useAaveOracleAddress({ spokeAddress: SPOKE_A }),
+        { wrapper: wrapperWith(newClient()) },
+      );
+      await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+
+      // The retry interval is 15s; nothing else reads the address again.
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      await waitFor(() => expect(result.current.oracleAddress).toBe(ORACLE_A));
+      expect(result.current.error).toBeNull();
+      expect(getOracleAddress).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a failed read's error, without reporting loading, while it is retried", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const client = newClient();
+      vi.mocked(getOracleAddress)
+        .mockRejectedValueOnce(lastingFailure())
+        .mockReturnValueOnce(new Promise(() => {}));
+      const { result } = renderHook(
+        () => useAaveOracleAddress({ spokeAddress: SPOKE_A }),
+        { wrapper: wrapperWith(client) },
+      );
+      await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      await waitFor(() =>
+        expect(
+          client.getQueryState(["aaveOracleAddress", SPOKE_A])?.fetchStatus,
+        ).toBe("fetching"),
+      );
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBeInstanceOf(Error);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers a failed first read with a quick retry, without reporting an error", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(getOracleAddress)
+        .mockRejectedValueOnce(new Error("HTTP request failed. Status: 429"))
+        .mockResolvedValueOnce(ORACLE_A);
+      const { result } = renderHook(
+        () => useAaveOracleAddress({ spokeAddress: SPOKE_A }),
+        { wrapper: wrapperWith(newClient()) },
+      );
+      await waitFor(() => expect(getOracleAddress).toHaveBeenCalledTimes(1));
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      // Waiting out the first backoff step: still a first read, not a failure.
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.error).toBeNull();
+
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      await waitFor(() => expect(result.current.oracleAddress).toBe(ORACLE_A));
+      expect(result.current.error).toBeNull();
+      expect(getOracleAddress).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a read that is already failing with a single read on the interval", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(getOracleAddress).mockRejectedValue(
+        new Error("HTTP request failed. Status: 429"),
+      );
+      const { result } = renderHook(
+        () => useAaveOracleAddress({ spokeAddress: SPOKE_A }),
+        { wrapper: wrapperWith(newClient()) },
+      );
+      // The first failure gets the quick retries: four reads over 7s.
+      await waitFor(() => expect(getOracleAddress).toHaveBeenCalledTimes(1));
+      await act(() => vi.advanceTimersByTimeAsync(7_000));
+      await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+      expect(getOracleAddress).toHaveBeenCalledTimes(4);
+
+      await act(() => vi.advanceTimersByTimeAsync(15_000));
+      await waitFor(() => expect(getOracleAddress).toHaveBeenCalledTimes(5));
+      // No backoff follows the interval read.
+      await act(() => vi.advanceTimersByTimeAsync(7_000));
+      expect(getOracleAddress).toHaveBeenCalledTimes(5);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("is disabled when spokeAddress is undefined", () => {

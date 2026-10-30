@@ -83,15 +83,23 @@ function buildFeeRows(
 export function useProtocolFeeRows(connectedAddress?: string): {
   rows: FeeRow[];
   isLoading: boolean;
-  collateralFactor: number | null;
+  borrowCollateralFactor: number | null;
 } {
   const { minDeposit } = useProtocolParamsContext();
+  // The fee rows describe the position the deposit joins: its stored key, the
+  // one liquidation uses. Max to Borrow uses the reserve's current key,
+  // because `borrow()` applies it — the same query the Borrow form reads.
   const { params, isLoading } = useVaultSplitParams(connectedAddress);
+  const { params: borrowSplitParams } = useVaultSplitParams();
 
   const rows = useMemo(
     () => buildFeeRows(minDeposit, params),
     [minDeposit, params],
   );
 
-  return { rows, isLoading, collateralFactor: params?.CF ?? null };
+  return {
+    rows,
+    isLoading,
+    borrowCollateralFactor: borrowSplitParams?.CF ?? null,
+  };
 }

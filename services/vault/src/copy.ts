@@ -169,7 +169,7 @@ export const COPY = {
   tooltips: {
     // Risk card, markets collateral card, protocol parameters (LTV).
     collateralFactor:
-      "The maximum percentage of your total collateral value that can be borrowed.",
+      "The fraction of your collateral's value counted toward your borrowing capacity.",
     // Overview position cards, risk card body, borrow / repay detail cards.
     healthFactor:
       "Indicates the health of your position. If it falls below 1.0, your position may be liquidated.",
@@ -1008,6 +1008,12 @@ export const COPY = {
       // "Up to" hedge no longer applies because the file is on disk.
       cardSizeDownloaded: "~1 GB",
       downloadingButton: "Downloading...",
+      cancelConfirmation: {
+        title: "Cancel artifact download?",
+        body: "If you cancel, you must start the download again.",
+        keepButton: "Keep downloading",
+        cancelButton: "Yes, cancel download",
+      },
       // Caption under the progress bar while bytes are streaming.
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
@@ -1040,6 +1046,8 @@ export const COPY = {
       authenticationFailed: "Authentication failed",
       reauthenticationFailed: "Re-authentication failed",
       downloadFailed: "Download failed",
+      downloadLimitReached:
+        "The vault provider limits downloads for this BTCVault. Wait before you try again. Contact the vault provider if the problem continues.",
       unknownRpcError: "Unknown RPC error",
       // Shown while the browser's save-location dialog is open. The picker is
       // opened before the wallet prompt, so this is the first status a user
@@ -1200,6 +1208,9 @@ export const COPY = {
       // CollateralFactorRow: leads with the max-borrowable USD, CF in parens.
       maxToBorrowLabel: "Max to Borrow:",
       cfParenthetical: (percent: string) => `(CF=${percent})`,
+      // CollateralFactorRow tooltip: why the figure sits below value × CF.
+      maxToBorrowTooltip: (minHealthFactor: number) =>
+        `Your deposit's value times the collateral factor, less a buffer that keeps your health factor above ${minHealthFactor} if you have no other debt. Existing debt, a market's available liquidity or its borrow limit can lower the amount you can actually borrow.`,
       // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
       depositFeeLabel: "Deposit Fee",
       depositFeeTooltip:
@@ -2370,6 +2381,10 @@ export const COPY = {
     // A borrow refused because the indexer's reserve disagrees with the chain.
     borrowIntegrityError:
       "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
+    // A borrow refused at submit time because the refetched position projects
+    // a health factor under the borrow minimum.
+    borrowHealthFactorChangedError: (healthFactor: string, min: number) =>
+      `Position data has changed. Projected health factor (${healthFactor}) would be below ${min}. Please reduce the borrow amount.`,
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",
@@ -2844,7 +2859,7 @@ export const COPY = {
         capValue: (deposited: string, total: string) =>
           `${deposited}/${total} BTC`,
         capUncapped: "Uncapped",
-        maxCfLabel: "Borrow up to:",
+        maxBorrowLabel: "Borrow up to:",
       },
       features: {
         competitiveRates: {

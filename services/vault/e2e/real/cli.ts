@@ -35,8 +35,8 @@
  *   pnpm --filter vault run e2e:cli --yes \
  *     --target=localhost --network=devnet --btc=unisat --eth=metamask --eth-account=3 --action=connect
  *
- * `--network=testnet-3` runs the local app on the testnet-3 deployment (the `testnet` profile), where
- * the depositor allow-list gate is on. It has no `website` target.
+ * `--network=testnet` runs on the testnet-3 deployment (the `testnet` profile), where the depositor
+ * allow-list gate is on.
  *
  * Allow-list fills the deposit form (honoring `--amount` / `--vp`, single vault) and never submits it.
  * It asks the chain whether the account is on the allow-list, watches the app ask the same, and then
@@ -45,7 +45,7 @@
  * nothing sent either way. It spends nothing:
  *
  *   pnpm --filter vault run e2e:cli --yes \
- *     --target=localhost --network=testnet-3 --btc=unisat --eth=metamask --eth-account=3 --action=allow-list
+ *     --target=localhost --network=testnet --btc=unisat --eth=metamask --eth-account=3 --action=allow-list
  *
  * Pegin accepts two optional extras: `--amount=<btc>` and `--vp=<name>`. When omitted, the CLI fetches
  * the network's real values (protocol minimum deposit + provider list) and offers them as defaults —
@@ -188,7 +188,6 @@ import {
   NONCE_TOO_LOW_INJECTIONS,
   POSITION_FULL_INJECTIONS,
   REORG_INJECTIONS,
-  websiteUrlOf,
   type ActionId,
   type BtcWalletId,
   type DataMode,
@@ -449,14 +448,10 @@ async function resolveConfig(
         select<NetworkName>(
           rl,
           "2. Which network?",
-          NETWORKS_LIST.filter(
-            (name) => target === "localhost" || NETWORKS[name].websiteUrl,
-          ).map((name) => ({ value: name, label: name })),
+          NETWORKS_LIST.map((name) => ({ value: name, label: name })),
         ),
       "network",
     );
-    // A localhost-only network passed as a flag with --target=website: refuse before any prompt.
-    if (target === "website") websiteUrlOf(network);
 
     const btcWallet = await pick<BtcWalletId>(
       flags.btc,

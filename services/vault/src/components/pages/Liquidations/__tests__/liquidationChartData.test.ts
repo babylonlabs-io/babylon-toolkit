@@ -169,7 +169,11 @@ describe("buildLiquidationChartData", () => {
         liquidationPrice: 77_682,
         distancePct: -12.1,
       }),
-      makeGroup(2, { combinedBtc: 0.4, liquidationPrice: 40_283 }),
+      makeGroup(2, {
+        combinedBtc: 0.4,
+        liquidationPrice: 40_283,
+        btcRemainingAfter: 0,
+      }),
     ]);
     const { bands } = buildLiquidationChartData(result, {
       vaultsTotal: vaultCount(result),
@@ -186,8 +190,51 @@ describe("buildLiquidationChartData", () => {
     ]);
     expect(rows[0]).toMatchObject({ value: "$77,682", emphasis: true });
     expect(rows[1].value).toBe("-12.1%");
-    expect(bands[0].cumulativeLabel).toBe("40% seized");
-    expect(bands[1].cumulativeLabel).toBe("67% seized");
+    expect(bands[0].cumulativeLabel).toBe("60% seized");
+    expect(bands[1].cumulativeLabel).toBe("100% seized");
+  });
+
+  // `calculate()` stops once the debt clears, so a vault it never had to
+  // consume gets no group. Normalising against the groups erased that
+  // collateral: the last band read "100% seized" while the header beside it
+  // showed the true share and the BTC still standing.
+  it("reads each band's cumulative share against the whole position when collateral outlives the cascade", () => {
+    const result = calculate({
+      btcPrice: REAL_BTC_PRICE,
+      totalDebtUsd: REAL_DEBT_USD,
+      vaults: [
+        { id: "v1", name: "Vault 1", btc: 0.5 },
+        { id: "v2", name: "Vault 2", btc: 0.4375 },
+        { id: "v3", name: "Vault 3", btc: 0.0625 },
+      ],
+      CF: REAL_CF,
+      THF: REAL_THF,
+      LB: REAL_MAX_LB,
+      expectedHF: REAL_EXPECTED_HF,
+      minPeginBtc: 0.0005,
+    });
+    // The second event clears the debt, so Vault 3 is never seized.
+    expect(result.groups).toHaveLength(2);
+    expect(result.groups[1].btcRemainingAfter).toBeCloseTo(0.0625);
+
+    const belowLastTrigger = result.groups[1].liquidationPrice - 1;
+    const { bands, summary } = buildLiquidationChartData(result, {
+      vaultsTotal: 3,
+      btcPrice: belowLastTrigger,
+      collateralFactor: REAL_CF,
+    });
+
+    expect(bands.map((b) => b.cumulativeLabel)).toEqual([
+      "50% seized",
+      "94% seized",
+    ]);
+    // Once every event has fired, the last band and the header's "Seized"
+    // figure describe the same seizure.
+    expect(bands[1].cumulativeLabel).toBe(
+      COPY.liquidations.cumulativeSeized(summary.seizedPct),
+    );
+    // The surviving collateral is not drawn: the bands still fill the axis.
+    expect(bands[1].shareEnd).toBe(1);
   });
 
   it("shows the whole-vault amount in the Seizes popover row, not the target seizure", () => {
@@ -297,28 +344,19 @@ describe("buildLiquidationChartData", () => {
     expect(Math.min(...priceAxis.map((t) => t.value))).toBeCloseTo(floor);
   });
 
-  it("keeps the share axis honest about the true cumulative percentages", () => {
-    // Groups hold 1 BTC. A further 0.5 BTC remains outside the groups.
+  it("widens a sliver event so it stays readable without overtaking a larger one", () => {
+    // 90 / 9 / 1 by collateral: the last event is a sliver at true scale.
     const result = makeResult([
       makeGroup(1, { combinedBtc: 0.9 }),
       makeGroup(2, { combinedBtc: 0.09 }),
       makeGroup(3, { combinedBtc: 0.01 }),
     ]);
-    const { bands, shareAxisTicks } = buildLiquidationChartData(result, {
+    const { bands } = buildLiquidationChartData(result, {
       vaultsTotal: vaultCount(result),
       btcPrice: 90000,
       collateralFactor: CF,
     });
 
-    expect(shareAxisTicks.map((t) => t.label)).toEqual([
-      "0%",
-      "60%",
-      "66%",
-      "67%",
-    ]);
-    // Each tick sits on the band edge it names, not at an even interval.
-    expect(shareAxisTicks[1].fraction).toBeCloseTo(bands[0].shareEnd);
-    expect(shareAxisTicks[2].fraction).toBeCloseTo(bands[1].shareEnd);
     // The 1% event renders far wider than 1% so its label stays readable.
     const lastWidth = bands[2].shareEnd - bands[2].shareStart;
     expect(lastWidth).toBeGreaterThan(0.05);
@@ -623,6 +661,26 @@ describe("buildSimulationSummary", () => {
     expect(summary.vaultsTotal).toBe(3);
     expect(summary.seizedPct).toBe(100);
     expect(summary.collateralRemainingLabel).toMatch(/^0 /);
+  });
+
+  // `calculate()` exits as soon as the remaining debt clears, so a vault it
+  // never had to consume gets no group at all. Normalising against the groups
+  // erased it: the header read "100% seized / 0 BTC" while the position card
+  // directly above still showed the surviving collateral.
+  it("counts collateral the cascade never had to consume", () => {
+    const result = makeResult([
+      makeGroup(1, {
+        combinedBtc: 2.8,
+        liquidationPrice: 77_682,
+        // 0.37 BTC of the position outlives the cascade.
+        btcRemainingAfter: 0.37,
+      }),
+    ]);
+    const summary = buildSimulationSummary(result, 10_000, 3);
+
+    expect(summary.vaultsTotal).toBe(3);
+    expect(summary.seizedPct).toBe(88);
+    expect(summary.collateralRemainingLabel).toMatch(/^0\.37 /);
   });
 
   it("keeps the reported small BTCVault when the first clears the debt", () => {

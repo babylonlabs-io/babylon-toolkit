@@ -76,15 +76,6 @@ vi.mock("@/hooks/useApplicationCap", () => ({
   useApplicationCap: () => ({ snapshot: null, isLoading: false }),
 }));
 
-const pricesMock = vi.hoisted(() => ({
-  prices: {} as Record<string, number>,
-  metadata: {} as Record<string, { isStale: boolean; fetchFailed: boolean }>,
-}));
-
-vi.mock("@/hooks/usePrices", () => ({
-  usePrices: () => pricesMock,
-}));
-
 vi.mock("@/dev/demoDeposit", () => ({
   useDemoCollateral: () => null,
 }));
@@ -104,6 +95,7 @@ const positionNotificationsMock = vi.hoisted(() => ({
   result: null as CalculatorResult | null,
   liveUrgentWarning: null as Warning | null,
   params: null as CalculatorParams | null,
+  btcPriceUsd: null as number | null,
 }));
 
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
@@ -175,9 +167,8 @@ beforeEach(() => {
   positionNotificationsMock.result = null;
   positionNotificationsMock.liveUrgentWarning = null;
   positionNotificationsMock.params = null;
+  positionNotificationsMock.btcPriceUsd = null;
   setPositionCascadeOverride(null);
-  pricesMock.prices = {};
-  pricesMock.metadata = {};
   setHealthFactorOverride(null);
   receivedCascade.current = null;
 });
@@ -266,8 +257,9 @@ describe("DashboardPage composition", () => {
 describe("DashboardPage risk card under a forced health factor", () => {
   beforeEach(() => {
     featureFlagsMock.isGodModePanelEnabled = true;
-    pricesMock.prices = { BTC: 63488 };
-    pricesMock.metadata = { BTC: { isStale: false, fetchFailed: false } };
+    // The live Spoke price. There is no cascade: the forced value replaces
+    // the cascade's own liquidation figures.
+    positionNotificationsMock.btcPriceUsd = 63_488;
   });
 
   it("charts the liquidation price and distance implied by the forced value", () => {
@@ -291,7 +283,7 @@ describe("DashboardPage risk card under a forced health factor", () => {
   });
 
   it("shows placeholders rather than live stats when no usable BTC price backs the forced value", () => {
-    pricesMock.metadata = { BTC: { isStale: true, fetchFailed: false } };
+    positionNotificationsMock.btcPriceUsd = null;
     setHealthFactorOverride(2.4);
 
     render(<DashboardPage />);
@@ -411,5 +403,17 @@ describe("DashboardPage embedded liquidation preview", () => {
       "data-cascade",
       "no",
     );
+  });
+});
+
+describe("DashboardPage risk card", () => {
+  it("shows the Spoke BTC price with no position cascade to price", () => {
+    // A connected depositor without active vaults: no cascade, but the
+    // current BTC price is still known.
+    positionNotificationsMock.btcPriceUsd = 61_722.5;
+
+    render(<DashboardPage />);
+
+    expect(screen.getAllByText("$61,723").length).toBeGreaterThanOrEqual(1);
   });
 });
