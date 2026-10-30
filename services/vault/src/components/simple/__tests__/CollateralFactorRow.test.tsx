@@ -58,10 +58,11 @@ describe("CollateralFactorRow", () => {
       />,
     );
     expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
-    expect(screen.getByText(/\$63\.6k USD/)).toBeInTheDocument();
+    // 1 BTC × $88,400 × 72% = $63,648, then ÷ 1.05 and less 0.5% headroom
+    expect(screen.getByText(/\$60\.3k USD/)).toBeInTheDocument();
   });
 
-  it("explains the collateral factor in a tooltip on the row", () => {
+  it("explains the health-factor buffer behind max to borrow in a tooltip on the row", () => {
     render(
       <CollateralFactorRow
         collateralFactor={0.72}
@@ -70,7 +71,7 @@ describe("CollateralFactorRow", () => {
       />,
     );
     expect(
-      screen.getByText(COPY.tooltips.collateralFactor),
+      screen.getByText(COPY.deposit.form.maxToBorrowTooltip(1.05)),
     ).toBeInTheDocument();
   });
 

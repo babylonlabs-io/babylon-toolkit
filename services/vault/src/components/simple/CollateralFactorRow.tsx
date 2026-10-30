@@ -1,5 +1,8 @@
 import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
-import { BPS_SCALE } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import {
+  BPS_SCALE,
+  MIN_HEALTH_FACTOR_FOR_BORROW,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 import { COPY } from "@/copy";
 import { computeMaxBorrowUsd } from "@/utils/collateral";
@@ -26,7 +29,9 @@ export function CollateralFactorRow({
 
   // Same formatter as the collateral-factor fee row on this screen, so a
   // fractional basis-point value cannot read 78.25% in one row and 78% in the
-  // other.
+  // other. The values themselves can differ for a user with a position after
+  // the reserve's config key rotates: this row takes the current key, which
+  // `borrow()` applies, and the fee row the position's stored key.
   const percent = formatBasisPointsAsPercent(collateralFactor * BPS_SCALE);
 
   const maxBorrowUsd =
@@ -47,7 +52,7 @@ export function CollateralFactorRow({
           {FORM_COPY.cfParenthetical(percent)}
         </span>
         <Hint
-          tooltip={COPY.tooltips.collateralFactor}
+          tooltip={FORM_COPY.maxToBorrowTooltip(MIN_HEALTH_FACTOR_FOR_BORROW)}
           icon={<InfoIcon size={16} className="text-accent-secondary" />}
         />
       </span>

@@ -129,6 +129,30 @@ describe("useProtocolFeeRows", () => {
     vi.mocked(useVaultSplitParams).mockReturnValue(LAUNCH_SPLIT_PARAMS);
   });
 
+  it("reads the max-to-borrow collateral factor at the reserve's current key, not the position's stored key", () => {
+    // With an address the split params come from the position's stored key
+    // (CF 80%); without one, from the reserve's current key (CF 60%), the one
+    // `borrow()` applies.
+    vi.mocked(useVaultSplitParams).mockImplementation((connectedAddress) => ({
+      ...LAUNCH_SPLIT_PARAMS,
+      params: {
+        ...LAUNCH_SPLIT_PARAMS.params,
+        CF: connectedAddress ? 0.8 : 0.6,
+      },
+    }));
+
+    const { result } = renderHook(() =>
+      useProtocolFeeRows("0x00000000000000000000000000000000000000aa"),
+    );
+
+    expect(result.current.borrowCollateralFactor).toBe(0.6);
+    expect(rowValue(result.current.rows, COPY.protocolFees.ltv.label)).toBe(
+      "80%",
+    );
+
+    vi.mocked(useVaultSplitParams).mockReturnValue(LAUNCH_SPLIT_PARAMS);
+  });
+
   it("sizes the split minimum from the sacrificial share with no extra buffer", () => {
     const { result } = renderHook(() => useProtocolFeeRows());
 
