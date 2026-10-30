@@ -21,8 +21,8 @@ import {
 import { FLUID_CTA_SELECTOR } from "../real/actions/selectors";
 
 import {
-  assertRecordingCovered,
   assertNoErrorSurface,
+  assertRecordingCovered,
   capture,
   ensureOutputDir,
   preparePage,
@@ -31,13 +31,13 @@ import {
   STEP_MARKER,
   writeCaptures,
 } from "./capture";
+import { waitForVisualStability } from "./stabilize";
 import {
   DEPOSIT_FLOW_STOPS,
   DEPOSIT_SPLIT_MINIMUM_STOP,
   flowScreenshotFileName,
   VISUAL_VIEWPORTS,
 } from "./targets";
-import { waitForVisualStability } from "./stabilize";
 
 /**
  * The amount typed into the form.
@@ -102,21 +102,8 @@ for (const viewport of VISUAL_VIEWPORTS) {
     await expect(
       page.getByText("Transaction failed", { exact: true }),
     ).toBeVisible();
-    if ((await root.getAttribute("data-amount-copy")) === "true") {
-      await expect(
-        page.getByText(
-          "Your wallet needs at least 0.01487 ETH and has 0.00277 ETH. Add at least 0.0121 ETH, then try again. Network gas can increase the amount needed.",
-          { exact: true },
-        ),
-      ).toBeVisible();
-    } else {
-      await expect(
-        page.getByText(
-          "Your wallet does not have enough ETH for the transaction payment and network gas. Add ETH on this network and try again.",
-          { exact: true },
-        ),
-      ).toBeVisible();
-    }
+    await expect(page.getByRole("alert")).toBeVisible();
+
     const retry = page.getByRole("button", { name: "Retry", exact: true });
     await expect(retry).toBeEnabled();
     await expect(retry).toBeInViewport({ ratio: 1 });

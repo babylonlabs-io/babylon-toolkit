@@ -392,6 +392,10 @@ export function handleContractError(error: unknown): never {
     if (errorData === "0x") {
       throw new Error(EMPTY_REVERT_MESSAGE);
     }
+    throw new Error(
+      `Contract call reverted (error code: ${selector})`,
+      { cause: error },
+    );
   }
 
   // Preserve the cause when the error has no known contract revert.

@@ -202,11 +202,19 @@ describe("handleContractError", () => {
     },
   );
 
-  it("preserves an unknown selector without inventing a rejection reason", () => {
-    const err = Object.assign(new Error("Internal JSON-RPC error"), {
-      data: "0xdeadbeef",
+  it("keeps an unknown selector and cause without the RPC request dump", () => {
+    const err = new RpcRequestError({
+      body: { method: "eth_estimateGas", params: [{ data: "0xdeadbeef" }] },
+      error: { code: 3, message: "execution reverted", data: "0xdeadbeef" },
+      url: "https://eth-rpc-dapp.testnet.babylonlabs.io",
     });
-    expect(() => handleContractError(err)).toThrow(err);
+    expect(err.message).toContain("Request body:");
+    expect(() => handleContractError(err)).toThrow(
+      expect.objectContaining({
+        message: "Contract call reverted (error code: 0xdeadbeef)",
+        cause: err,
+      }),
+    );
   });
 
   it("throws the neutral empty-revert message when the revert data is exactly 0x", () => {

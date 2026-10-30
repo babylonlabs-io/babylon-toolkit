@@ -129,7 +129,6 @@ import {
   type DepositErrorContent,
 } from "@/utils/errors";
 import { isDeviceWrongAppError } from "@/utils/errors/deviceErrors";
-import { classifyError } from "@/utils/errors/formatting";
 import {
   isUserCancellation,
   WALLET_CONNECTION_REJECTED_CODE,
@@ -986,7 +985,7 @@ export function useDepositFlow(
           if (ethBalance <= protocolFee * BigInt(vaultAmounts.length)) {
             await waitForEthTopUp(
               Object.assign(new InsufficientFundsError(), {
-                required: protocolFee * BigInt(vaultAmounts.length),
+                required: protocolFee * BigInt(vaultAmounts.length) + 1n,
                 balance: ethBalance,
               }),
             );
@@ -1133,7 +1132,7 @@ export function useDepositFlow(
             // A send can have an unknown result. Retry only before it starts.
             if (
               registrationSendStarted ||
-              classifyError(err) !== "insufficient-funds"
+              mapDepositError(err).kind !== "insufficient-eth"
             ) {
               throw err;
             }

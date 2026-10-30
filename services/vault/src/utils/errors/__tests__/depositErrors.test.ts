@@ -349,18 +349,25 @@ describe("mapDepositError", () => {
     const err = new Error(
       "execution reverted: insufficient funds for gas * price + value",
     );
-    expect(mapDepositError(err)).toEqual(ERRORS.insufficientEthForGas);
+    expect(mapDepositError(err)).toEqual({
+      ...ERRORS.insufficientEthForGas,
+      kind: "insufficient-eth",
+    });
   });
 
-  it("shows the ETH shortfall from the reported deposit", () => {
-    const err = Object.assign(new InsufficientFundsError(), {
-      required: parseEther("0.01487"),
-      balance: parseEther("0.00277"),
-    });
-    expect(mapDepositError(err).body).toBe(
-      "Your wallet needs at least 0.01487 ETH and has 0.00277 ETH. Add at least 0.0121 ETH, then try again. Network gas can increase the amount needed.",
-    );
-  });
+  it.each([0n, 1n])(
+    "rounds the reported ETH shortfall upward by %s wei",
+    (extra) => {
+      const required = parseEther("0.01487") + extra;
+      const balance = parseEther("0.00277");
+      const content = mapDepositError(
+        Object.assign(new InsufficientFundsError(), { required, balance }),
+      );
+      const topUp = extra ? "0.012101" : "0.0121";
+      expect(content.body).toContain(`Add at least ${topUp} ETH`);
+      expect(String(content.body)).not.toMatch(/\d\.\d{7}/);
+    },
+  );
 
   it("maps a wallet-not-connected error to the wallet callout", () => {
     expect(

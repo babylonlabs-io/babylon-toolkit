@@ -142,10 +142,8 @@ import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
 export interface DepositErrorContent {
   title: string;
-  /**
-   * ReactNode (not just string) so a future error can embed a link, code span,
-   * or emphasized phrase. Today every mapped body is a plain copy string.
-   */
+  kind?: "insufficient-eth";
+  /** The error view accepts text and formatted content. */
   body: ReactNode;
   /**
    * Full raw error for the "copy details" action. `body` is deliberately
@@ -282,6 +280,11 @@ function lowerMessage(err: unknown): string {
     if (typeof obj.message === "string") parts.push(obj.message);
   }
   return parts.join(" ").toLowerCase();
+}
+
+function formatEthAmount(value: bigint, roundUp = false): string {
+  const unit = 10n ** 12n;
+  return formatEther(((value + (roundUp ? unit - 1n : 0n)) / unit) * unit);
 }
 
 /**
@@ -669,15 +672,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.providerNotFound;
   }
 
-  // 9. Bitcoin funds unavailable — UTXO load / availability. Phrase-level
-  // matches (not a bare "utxo") so unrelated UTXO-mentioning errors (e.g. a
-  // stale snapshot or indexer outage) don't get absorbed here. Covers the
-  // known throws: "No spendable UTXOs available", "Spendable UTXOs unavailable
-  // ...", "Failed to load UTXOs", and the mempool client's "Failed to get
-  // UTXOs for address ..." from the availability re-checks. Checked BEFORE
-  // the ETH-gas bucket because `classifyError` reads "Insufficient funds: no
-  // UTXOs available" as a gas shortfall (no sats/pegin guard hit) — the UTXO
-  // phrase must win.
+  // Match BTC funding phrases before the broad ETH funds classifier.
+  // Do not absorb unrelated UTXO errors, such as stale data or indexer faults.
   if (
     msg.includes("spendable utxos") ||
     msg.includes("utxos available") ||
@@ -690,30 +686,25 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // Show the shortfall when the balance check supplies both amounts.
   if (classifyError(err) === "insufficient-funds") {
     const { required, balance } = err as Record<string, unknown>;
-    return typeof required === "bigint" &&
-      typeof balance === "bigint" &&
-      balance >= 0n &&
-      required > balance
-      ? {
-          ...ERRORS.insufficientEthForGas,
-          body: ERRORS.insufficientEthForGas.amounts(
-            formatEther(required),
-            formatEther(balance),
-            formatEther(required - balance),
-          ),
-        }
-      : ERRORS.insufficientEthForGas;
+    return {
+      ...ERRORS.insufficientEthForGas,
+      kind: "insufficient-eth",
+      body:
+        typeof required === "bigint" &&
+        typeof balance === "bigint" &&
+        balance >= 0n &&
+        required > balance
+          ? ERRORS.insufficientEthForGas.amounts(
+              formatEthAmount(required, true),
+              formatEthAmount(balance),
+              formatEthAmount(required - balance, true),
+            )
+          : ERRORS.insufficientEthForGas.body,
+    };
   }
 
-  // 11. Fallback: keep the sanitized raw message under the generic title so no
-  // diagnostic info is hidden. `sanitizeErrorMessage` returns the "Unknown
-  // error" sentinel for opaque throws — swap that for the friendlier
-  // genericBody so the callout never shows "Unknown error".
-  //
-  // Only this bucket carries `diagnostics`: every branch above already names
-  // the cause, so the raw error adds nothing a reporter could act on. Here we
-  // don't know what happened, and `sanitizeErrorMessage` has dropped viem's
-  // request dump, so offer the untrimmed error for a bug report.
+  // Use the generic body for opaque errors. Keep readable messages sanitized.
+  // Only unknown errors need raw diagnostics for a bug report.
   const raw = sanitizeErrorMessage(err);
   return {
     title: ERRORS.defaultTitle,
