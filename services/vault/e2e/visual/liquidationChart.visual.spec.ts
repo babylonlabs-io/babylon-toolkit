@@ -32,6 +32,8 @@ import {
 import {
   flowScreenshotFileName,
   LIQUIDATION_CHART_STOP,
+  LIQUIDATION_SMALL_POSITION_STOP,
+  LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
   VISUAL_VIEWPORTS,
 } from "./targets";
 
@@ -88,9 +90,58 @@ for (const viewport of VISUAL_VIEWPORTS) {
     expect(popup.isClosed()).toBe(false);
 
     await expect(page.getByTestId(CANDLE_TESTID).first()).toBeVisible();
-    const shot = await capture(
-      page,
-      flowScreenshotFileName(LIQUIDATION_CHART_STOP, viewport),
+    const shots = [
+      await capture(
+        page,
+        flowScreenshotFileName(LIQUIDATION_CHART_STOP, viewport),
+      ),
+    ];
+
+    // Use the amounts, debt and price from #2858. Its CF and bonus are unknown.
+    // Use the existing launch case: CF 78%, THF 1.08, LB 1.0504, expected HF 0.99.
+    const customSummary = popup
+      .locator("summary:visible")
+      .filter({ hasText: "Custom…" });
+    await customSummary.click();
+    const customInputs = customSummary.locator("..");
+    for (const [label, value] of [
+      ["BTC Price ($)", "1017"],
+      ["Total Debt ($)", "103.4"],
+      ["CF", "0.78"],
+      ["THF", "1.08"],
+      ["LB (at expected HF)", "1.0504"],
+      ["Expected HF", "0.99"],
+      ["Vault 1", "0.12016827"],
+      ["Vault 2", "0.01"],
+    ] as const) {
+      await customInputs
+        .getByText(label, { exact: true })
+        .locator("..")
+        .locator("input")
+        .fill(value);
+    }
+    await expect(
+      page.getByRole("textbox", { name: "Enter BTC price" }),
+    ).toHaveValue("$1,017");
+    await expect(page.getByTestId("liq-band-0")).toBeVisible();
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(LIQUIDATION_SMALL_POSITION_STOP, viewport),
+      ),
+    );
+    await page.getByTestId("liq-band-0").scrollIntoViewIfNeeded();
+    await page.getByTestId("liq-band-0").focus();
+    await expect(page.locator(".bbn-liq-popover")).toBeInViewport({ ratio: 1 });
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(
+          LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
+          viewport,
+        ),
+        { fullPage: false },
+      ),
     );
 
     // The candles come from the indexer's recorded answers; the rest of the
@@ -101,7 +152,9 @@ for (const viewport of VISUAL_VIEWPORTS) {
       "vp-health",
       "mempool",
     ]);
-    await writeCaptures([shot]);
+    // Capture both sides even when the base shows the reported defect.
+    // The page test owns the candidate's vault count and percentage assertions.
+    await writeCaptures(shots);
   });
 }
 

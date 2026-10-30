@@ -205,6 +205,9 @@ export const HAS_CONFIRMED_REFUND = vaultsLifecycleSource.includes(
  * `liquidationChart.visual.spec.ts`.
  */
 export const LIQUIDATION_CHART_STOP = "liquidations-chart";
+export const LIQUIDATION_SMALL_POSITION_STOP = "liquidations-small-position";
+export const LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP =
+  "liquidations-small-position-tooltip";
 
 // CI uses this harness with older app source that has no tour.
 export const HAS_LIQUIDATION_TOUR = existsSync(
