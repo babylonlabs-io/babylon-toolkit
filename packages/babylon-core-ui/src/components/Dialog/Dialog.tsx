@@ -1,7 +1,8 @@
-import { type DetailedHTMLProps, type HTMLAttributes } from "react";
+import { type DetailedHTMLProps, type HTMLAttributes, useEffect, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { Portal } from "@/components/Portal";
+import { CloseIcon } from "@/components/Icons";
 import { useModalManager } from "@/hooks/useModalManager";
 import { Backdrop } from "./components/Backdrop";
 
@@ -12,6 +13,9 @@ export interface DialogProps extends DetailedHTMLProps<HTMLAttributes<HTMLDivEle
   backdropClassName?: string;
   dialogClassName?: string;
   disableEscapeClose?: boolean;
+  mobile?: boolean;
+  /** Show a handle instead of the visible close button. */
+  handle?: boolean;
 }
 
 export const Dialog = ({
@@ -23,23 +27,62 @@ export const Dialog = ({
   backdropClassName,
   dialogClassName,
   disableEscapeClose,
+  onAnimationEnd,
+  mobile = false,
+  handle = false,
   ...restProps
 }: DialogProps) => {
   const { mounted, unmount } = useModalManager({ open, onClose, disableEscapeClose });
+  const [enterMobile, setEnterMobile] = useState<boolean | null>(mobile);
+  useEffect(() => {
+    setEnterMobile((current) => (!mounted ? mobile : current === mobile ? current : null));
+  }, [mounted, mobile]);
 
   return (
     <Portal mounted={mounted}>
-      {/* The testid is a default, so it must precede the spread: after it, a
-          caller passing its own `data-testid` is silently overridden here and
-          cannot address its dialog at all. MobileDialog already spreads last,
-          so the two rendered the same dialog under different testids. */}
-      <div data-testid="dialog-wrapper" {...restProps} className={twJoin("bbn-dialog-wrapper", className)}>
+      <div
+        data-testid="dialog-wrapper"
+        role="dialog"
+        {...restProps}
+        className={twJoin(
+          mobile ? "bbn-dialog-mobile" : "bbn-dialog-wrapper",
+          mobile && (open ? enterMobile === mobile && "animate-mobile-modal-in" : "animate-mobile-modal-out"),
+          className,
+          mobile && dialogClassName,
+        )}
+        onAnimationEnd={(event) => {
+          if (event.target === event.currentTarget || event.target === event.currentTarget.firstElementChild) {
+            setEnterMobile(null);
+            unmount();
+          }
+          onAnimationEnd?.(event);
+        }}
+      >
         <div
-          className={twJoin("bbn-dialog", open ? "animate-modal-in" : "animate-modal-out", dialogClassName)}
-          onAnimationEnd={unmount}
-          role="dialog"
+          className={
+            mobile ? "contents" : twJoin("bbn-dialog", open ? enterMobile === mobile && "animate-modal-in" : "animate-modal-out", dialogClassName)
+          }
           data-testid="dialog"
         >
+          {mobile && handle && (
+            <span
+              aria-hidden="true"
+              className="absolute left-1/2 top-1.5 h-[3px] w-6 -translate-x-1/2 rounded-full bg-accent-primary opacity-[0.24]"
+            />
+          )}
+          {mobile && onClose && (
+            <button
+              onClick={onClose}
+              className={
+                handle
+                  ? "sr-only"
+                  : "bg-surface-tertiary hover:bg-surface-quaternary absolute left-4 top-4 z-10 rounded-full p-1.5 transition-colors before:absolute before:-inset-[7px] before:content-['']"
+              }
+              aria-label="Close"
+            >
+              <CloseIcon size={14} variant="accent-primary" />
+            </button>
+          )}
           {children}
         </div>
       </div>

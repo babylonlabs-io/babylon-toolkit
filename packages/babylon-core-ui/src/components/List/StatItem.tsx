@@ -3,7 +3,7 @@ import { AiOutlineInfoCircle } from "react-icons/ai";
 
 import { Button } from "@/components/Button";
 import { ListItem, type ListItemProps } from "@/components/List";
-import { MobileDialog } from "@/components/Dialog";
+import { Dialog } from "@/components/Dialog";
 import { useIsMobile } from "@/hooks";
 import { Popover } from "@/components/Popover";
 
@@ -50,14 +50,14 @@ export const StatItem = ({
                 <span className="block size-5 cursor-pointer text-xs" onClick={() => setDialogOpen(true)}>
                     <AiOutlineInfoCircle size={20} />
                 </span>
-                <MobileDialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+                <Dialog mobile open={dialogOpen} onClose={() => setDialogOpen(false)}>
                     <div className="px-4 py-2 text-accent-primary">{tooltip}</div>
                     <div className="p-4">
                         <Button variant="contained" fluid onClick={() => setDialogOpen(false)}>
                             Done
                         </Button>
                     </div>
-                </MobileDialog>
+                </Dialog>
             </>
         ) : (
             <>

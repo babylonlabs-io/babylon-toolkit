@@ -37,6 +37,8 @@ const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
 
 /** Initial story size. The viewport expands after the story settles. */
 const STORY_VIEWPORT = { width: 900, height: 600 };
+const RESPONSIVE_DIALOG_STORY = "components-containers-overlays-dialog--responsive";
+const DIALOG_RESIZE_WIDTHS = [767, 768];
 
 /** Upper bound on waiting for a story's root to paint. */
 const STORY_RENDER_TIMEOUT_MS = 20_000;
@@ -161,7 +163,10 @@ test.beforeAll(async () => {
   const staging = `${manifest}.${process.env.TEST_WORKER_INDEX ?? "0"}`;
   await fs.writeFile(
     staging,
-    `${storyIds.map((storyId) => `${storyId}.png`).join("\n")}\n`,
+    `${storyIds.flatMap((storyId) => [
+      `${storyId}.png`,
+      ...(storyId === RESPONSIVE_DIALOG_STORY ? DIALOG_RESIZE_WIDTHS.map((width) => `${storyId}-${width}.png`) : []),
+    ]).join("\n")}\n`,
   );
   await fs.rename(staging, manifest);
 });
@@ -235,11 +240,30 @@ for (const storyId of storyIds) {
         ),
       );
     });
+    const resizeFrames: { width: number; buffer: Buffer }[] = [];
+    if (storyId === RESPONSIVE_DIALOG_STORY) {
+      const checkbox = page.getByRole("checkbox", { name: "Don't show again" });
+      const body = page.getByTestId("responsive-dialog-body");
+      await expect(body).toHaveAttribute("data-animation-count", "1");
+      await checkbox.check();
+      for (const width of DIALOG_RESIZE_WIDTHS) {
+        await page.setViewportSize({ width, height: STORY_VIEWPORT.height });
+        await expect(page.locator(width < 768 ? ".bbn-dialog-mobile" : ".bbn-dialog-wrapper")).toBeVisible();
+        await expect(checkbox).toBeChecked();
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await expect(page.locator(width < 768 ? ".bbn-dialog-mobile" : ".bbn-dialog")).toHaveCSS("border-radius", "16px");
+        resizeFrames.push({ width, buffer: await waitForFrameSettled(page) });
+        await expect(body).toHaveAttribute("data-animation-count", "1");
+      }
+    }
     const buffer = await waitForFrameSettled(page);
     if (storyId.startsWith("components-data-display-charts-")) {
       expect(await page.locator('svg[role="img"]').first().isVisible()).toBe(true);
     }
     await fs.writeFile(path.join(OUTPUT_DIR, `${storyId}.png`), buffer);
+    for (const frame of resizeFrames) {
+      await fs.writeFile(path.join(OUTPUT_DIR, `${storyId}-${frame.width}.png`), frame.buffer);
+    }
 
     expect(buffer.byteLength).toBeGreaterThan(100);
   });

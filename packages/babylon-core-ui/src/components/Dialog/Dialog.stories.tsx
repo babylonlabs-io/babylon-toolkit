@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { Dialog, DialogFooter, DialogBody, DialogHeader } from "./index";
+import { Dialog, DialogFooter, DialogBody, DialogHeader, ResponsiveDialog } from "./index";
 
 import { ScrollLocker } from "@/context/Dialog.context";
 import { Button } from "@/components/Button";
@@ -123,6 +123,29 @@ export const NoBackdrop: Story = {
           </DialogFooter>
         </Dialog>
       </ScrollLocker>
+    );
+  },
+};
+
+export const Mobile: Story = { ...Default, args: { mobile: true } };
+
+export const Responsive: Story = {
+  render: () => {
+    const [animationCount, setAnimationCount] = useState(0);
+    return (
+      <ResponsiveDialog
+        open
+        dialogClassName="!rounded-2xl !bg-background-contrast"
+        onAnimationEnd={() => setAnimationCount((count) => count + 1)}
+      >
+        <DialogBody
+          className="p-4 text-accent-primary"
+          data-testid="responsive-dialog-body"
+          data-animation-count={animationCount}
+        >
+          <Checkbox label="Don't show again" />
+        </DialogBody>
+      </ResponsiveDialog>
     );
   },
 };
