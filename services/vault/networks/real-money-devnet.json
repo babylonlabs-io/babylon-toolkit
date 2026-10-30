@@ -1,0 +1,16 @@
+{
+  "name": "real-money-devnet",
+  "kind": "production",
+  "registryCommit": "a5914a5e06a3d77af1c4c27e35af1fc699ac2ac2",
+  "btcNetwork": "mainnet",
+  "ethChainId": 1,
+  "ethRpcUrl": "https://ethereum-rpc.publicnode.com",
+  "indexerUrl": "https://babylon-vault-indexer-api.real-money-devnet.babylonlabs.io",
+  "vpProxyUrl": "https://vault-provider-proxy-api.real-money-devnet.babylonlabs.io",
+  "contracts": {
+    "btcVaultRegistry": "0x37a436253454c718d33d271bD829D15D7D372300",
+    "aaveAdapter": "0xF93892D520630d3eB0ed9A2157746E0a63a9E6f2",
+    "aaveAdapterConfig": "0xFC9b3C7A75be36d3D47b72B98e4F879631d276Ba",
+    "btcPriceFeed": "0xbd8c6A609e0D239C0a04cA4D4D526A61fE661bDC"
+  }
+}
