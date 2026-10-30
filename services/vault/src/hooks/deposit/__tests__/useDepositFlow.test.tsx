@@ -744,11 +744,13 @@ describe("useDepositFlow", () => {
         const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
         const pending = result.current.executeDeposit();
         await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
-        expect(result.current.error).toEqual(
-          DEPOSIT_ERRORS.insufficientEthForGas,
+        expect(result.current.error?.body).toContain(
+          "Your wallet needs at least",
         );
         expect(preparePeginTransaction).not.toHaveBeenCalled();
-        ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
+        ethFundsMocks.getBalance.mockResolvedValue(
+          MOCK_DEPOSIT_TERMS.protocolFeeRate * 2n + 1n,
+        );
         await act(async () => {
           result.current.retryDeposit?.();
           await pending;
@@ -766,12 +768,16 @@ describe("useDepositFlow", () => {
         "@/services/vault/vaultTransactionService"
       );
       vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
-        new InsufficientFundsError(),
+        Object.assign(new InsufficientFundsError(), {
+          required: 14870000000000000n,
+          balance: 2770000000000000n,
+        }),
       );
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
       const pending = result.current.executeDeposit();
       await waitFor(() => expect(result.current.retryDeposit).not.toBeNull());
       expect(result.current.currentStep).toBe(DepositFlowStep.SUBMIT_PEGIN);
+      expect(result.current.error?.body).toContain("Add at least 0.0121 ETH");
       const retry = result.current.retryDeposit;
       await act(async () => {
         retry?.();
@@ -822,16 +828,21 @@ describe("useDepositFlow", () => {
       expect(registerPeginBatchAndWait).toHaveBeenCalledTimes(1);
     });
 
-    it("offers no registration retry after a send starts", async () => {
+    it.each([
+      [false, "BTC or ETH wallet not connected"],
+      [false, "Failed to prepare Pre-Pegin transaction"],
+      [true, "insufficient funds"],
+    ])("offers no retry for send=%s with %s", async (send, message) => {
       const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
       vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
         async ({ walletClient }) => {
-          await walletClient.sendTransaction({
-            to: CONTRACTS.BTC_VAULT_REGISTRY,
-            account: walletClient.account!,
-            chain: walletClient.chain,
-          });
-          throw new InsufficientFundsError();
+          if (send)
+            await walletClient.sendTransaction({
+              to: CONTRACTS.BTC_VAULT_REGISTRY,
+              account: walletClient.account!,
+              chain: walletClient.chain,
+            });
+          throw new Error(message, { cause: new InsufficientFundsError() });
         },
       );
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
