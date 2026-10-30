@@ -5206,63 +5206,53 @@ describe("useDepositFlow", () => {
   });
 
   describe("Deposit-terms approval capability forwarding through wallet wrappers", () => {
-    it("forwards a prototype-method approveDepositTerms through both wallet wrapper sites", async () => {
+    it("forwards approval methods and clears the wait state during device approval", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),
       );
-      const { submitWotsPublicKey } = vi.mocked(
+      const { signAndSubmitPayouts } = vi.mocked(
         await import("../depositFlowSteps"),
       );
-      const { supportsDepositApproval } = await import(
-        "@babylonlabs-io/ts-sdk/tbv/core"
-      );
-
-      let peginWallet: BitcoinWallet | undefined;
-      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
-        peginWallet = wallet;
-        return MOCK_BATCH_RESULT as any;
-      });
-
-      let postBroadcastWallet: BitcoinWallet | undefined;
-      vi.mocked(submitWotsPublicKey).mockImplementation(async (params) => {
-        postBroadcastWallet = params.btcWallet;
-      });
-
       const approvalWallet = new PrototypeApprovalBtcWallet();
-
+      let finishApproval!: () => void;
+      vi.spyOn(approvalWallet, "approveDepositTerms").mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishApproval = resolve;
+          }),
+      );
+      signAndSubmitPayouts.mockImplementationOnce(async (params) => {
+        params.onProgress?.({ phase: "auth", completed: 0, total: 0 });
+        const wallet = params.btcWallet as BitcoinWallet & DepositTermsApprover;
+        await wallet.approveDepositTerms(MOCK_DEPOSIT_TERMS);
+      });
       const { result } = renderHook(() =>
         useDepositFlow({
           ...MOCK_PARAMS,
           btcWalletProvider: approvalWallet as any,
         }),
       );
-      await executeDepositFlow(result);
-
-      // Approval wallets dictate the Pre-PegIn change address.
+      const pending = result.current.executeDeposit();
+      await waitFor(() => expect(finishApproval).toBeTypeOf("function"));
+      expect(result.current.currentStep).toBe(DepositFlowStep.SIGN_AUTH_ANCHOR);
+      expect(result.current.isWaiting).toBe(false);
+      await act(async () => {
+        finishApproval();
+        await pending;
+      });
+      expect(result.current.isWaiting).toBe(true);
+      expect(approvalWallet.approveDepositTerms).toHaveBeenCalledWith(
+        MOCK_DEPOSIT_TERMS,
+      );
       expect(preparePeginTransaction).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
         expect.objectContaining({ changeAddress: "tb1pledgerchange" }),
       );
-
-      expect(peginWallet).toBeDefined();
-      expect(supportsDepositApproval(peginWallet!)).toBe(true);
-
-      expect(postBroadcastWallet).toBeDefined();
-      expect(supportsDepositApproval(postBroadcastWallet!)).toBe(true);
-
-      // Presence isn't enough: the forwarded method must actually delegate to
-      // the underlying wallet with the same terms object.
-      await (
-        peginWallet as BitcoinWallet & DepositTermsApprover
-      ).approveDepositTerms(MOCK_DEPOSIT_TERMS);
-      await (
-        postBroadcastWallet as BitcoinWallet & DepositTermsApprover
-      ).approveDepositTerms(MOCK_DEPOSIT_TERMS);
-      expect(approvalWallet.approvedWith).toEqual([
-        MOCK_DEPOSIT_TERMS,
-        MOCK_DEPOSIT_TERMS,
-      ]);
+      const wallet = preparePeginTransaction.mock.calls[0][0] as BitcoinWallet &
+        DepositTermsApprover;
+      await wallet.approveDepositTerms(MOCK_DEPOSIT_TERMS);
+      expect(approvalWallet.approvedWith).toEqual([MOCK_DEPOSIT_TERMS]);
     });
   });
 });
