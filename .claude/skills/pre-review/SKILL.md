@@ -26,7 +26,8 @@ Arguments: `$ARGUMENTS`
   Reuse a completed final review only while its inputs still match. A first
   invocation still performs the initial review. `--full --final` forces both
   the full review and a new final review.
-- `--pr <n>` → the branch's PR number, for Phase 5's rendered-body check.
+- `--pr <n>` → the branch's PR number, for Phase 5's check of the posted
+  title and body.
 - `--ci "<summary>"` → CI results the engineer has read, passed to reviewers
   attributed to them.
 - Anything else is a scope hint for the reviewers.
@@ -484,9 +485,21 @@ separately, at full price each. Do it yourself.
    from the unfiltered intent step 6 took when it does not exist, never from
    the filtered pack text, and correct any claim the current change no longer
    supports. Keep the engineer's wording wherever it is still true, and say
-   in chat what changed. Nothing later in the run changes these sections, so
-   the context below stays valid through Phase 6. Apply step 6's filter to
-   the settled sections, and paste that result into the pack.
+   in chat what changed. Hold the first line to the length limit in
+   [formats.md](formats.md): this is the last point in the run that may
+   change it. Measure it, never estimate it: the Grep tool, with pattern
+   `^[^\r\n]{73,}` over `.pre-review/<key>.md`, output mode `content` and
+   line numbers on, reports line 1 exactly when it is over, and ripgrep
+   counts characters, not bytes. Shorten a line that is over, write it back to
+   `.pre-review/<key>.md` and repeat the Grep until line 1 no longer
+   matches: the shortened length is measured too, never counted by eye. Then
+   say in chat where the new line still has to go: the subject of any commit
+   on the branch that already carries the old line, since GitHub can fill in
+   the PR title from it, and the PR title itself once a PR exists.
+   Shortening `PR.md` alone reaches neither. Nothing later in the run changes
+   these sections, so the context below stays valid through Phase 6. Apply
+   step 6's filter to the settled sections, and paste that result into the
+   pack.
 
    Then write `.pre-review/<key>.context.txt` in the exact layout in
    [formats.md](formats.md), with these stable inputs:
@@ -1223,15 +1236,20 @@ Two checks, and the difference matters:
   will transform — `#` followed by digits, a bare `@name`, a reference-style
   link. This needs no PR and no network, and it is the check that catches the
   text *this run* produced.
-- **After the engineer pushes, when a PR exists**: read the posted body back
-  with `gh pr view <number> --json body --jq .body` and confirm it matches
-  what was written. Note what this can and cannot settle: the field returns
-  the raw stored Markdown, and autolinking happens at render time and leaves
-  the body byte-identical, so **this confirms the upload, never the
-  rendering**. The scan above is the only check that catches an autolink, and
-  it needs no PR.
+- **After the engineer pushes, when a PR exists**: read the posted title and
+  body back raw with `gh pr view <number> --json title --jq .title` and
+  `gh pr view <number> --json body --jq .body`. Confirm the title is the
+  first line as settled at this run's step 9 (a title step 9 has just
+  shortened differs until the engineer edits it), and the body is the
+  description with or without that line and the blank line after it:
+  leaving the line out is harmless, since it is already the title and the
+  CI check reads only the snapshot line. Note what this can and cannot
+  settle: the fields return the raw stored text, and autolinking happens at
+  render time and leaves the body byte-identical, so **this confirms the
+  upload, never the rendering**. The scan above is the only check that
+  catches an autolink, and it needs no PR.
 
-  **This command is not in `allowed-tools` and will prompt, deliberately** —
+  **These commands are not in `allowed-tools` and will prompt, deliberately** —
   the same call made for the vitest form in Phase 3. A pattern wide enough to
   cover any PR number puts the wildcard mid-command, where it pre-approves
   arbitrary extra flags in a session that reads untrusted diffs and reviewer
@@ -1368,7 +1386,9 @@ Lead with the final-state helper's result and any open blockers.
 - **Eligible, but final review pending:** say "Fix checks are complete. Run
   `/pre-review --final` before requesting human review."
 - **Final result complete:** say "Pre-review is complete for this snapshot.
-  Open the PR with `PR.md`. CI and human code review are still required."
+  Commit with the first line of `PR.md` as the subject, and open the PR with
+  that line as its title and `PR.md` as the body. CI and human code review
+  are still required."
 
 Report each reviewer's tokens, tool calls and duration from its completion
 notification. Also sum the recorded reviewer tokens across all runs for this
