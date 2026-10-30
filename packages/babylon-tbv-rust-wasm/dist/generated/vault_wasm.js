@@ -2355,6 +2355,24 @@ export function verifyDepositorSignature(tx_graph_version, graph_json, depositor
 }
 
 /**
+ * Verifies every presigning-phase signature in a serialized TxGraph under
+ * `tx_graph_version`. Needs the post-presign graph (every NoPayout carries
+ * its claimer signature); finalization signatures are not required.
+ * Each signature is checked against the key the graph itself carries, so
+ * the caller must bind those keys and the graph's origin to trusted inputs.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ */
+export function verifyGraphPresignatures(tx_graph_version, graph_json) {
+    const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.verifyGraphPresignatures(tx_graph_version, ptr0, len0);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
  * Verifies a P2TR script-spend signature under `tx_graph_version`.
  * @param {number} tx_graph_version
  * @param {string} tx_hex

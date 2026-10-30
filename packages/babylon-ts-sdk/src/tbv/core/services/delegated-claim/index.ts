@@ -89,6 +89,13 @@ export {
   type AssertArtifactsUsableParams,
 } from "./readWatchtowerArtifacts";
 export {
+  GraphParticipantMismatchError,
+  GraphPresignatureError,
+  assertServedGraphPresigned,
+  type AssertServedGraphPresignedParams,
+  type ServedGraphParticipants,
+} from "./servedGraphBinding";
+export {
   DelegatedClaimSigningIncompleteError,
   assertTermsMatchVault,
   signDelegatedClaimPlan,

@@ -7,6 +7,7 @@ import {
   assembleWatchtowerArtifactsFromSignatures,
 } from "../assembleWatchtowerArtifactsFromSignatures";
 import { planDelegatedClaimSigning } from "../planDelegatedClaimSigning";
+import { GraphParticipantMismatchError } from "../servedGraphBinding";
 import {
   CHALLENGER_A,
   CHALLENGER_B,
@@ -14,6 +15,7 @@ import {
   DEPOSITOR_PUBKEY,
   DEPOSITOR_XONLY_PUBKEY,
   REGISTERED_PAYOUT_SCRIPT,
+  SERVED_GRAPH_JSON,
   TIMELOCK_ASSERT,
   TIMELOCK_PEGIN,
   VAULT_ID,
@@ -29,6 +31,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
   computePayoutFeeFloor: vi.fn(),
+  verifyGraphPresignatures: vi.fn(),
   finalizeClaimTx: vi.fn(),
   buildWatchtowerArtifacts: vi.fn(),
 }));
@@ -64,7 +67,7 @@ const vault = {
   timelockPegin: TIMELOCK_PEGIN,
   timelockAssert: TIMELOCK_ASSERT,
 };
-const source = { txGraphJson: "{graph}", verifyingKeyHex: "beef" };
+const source = { txGraphJson: SERVED_GRAPH_JSON, verifyingKeyHex: "beef" };
 /** The key from the vault-provers release; the vault provider serves the same. */
 const TRUSTED_VERIFYING_KEY = "beef";
 
@@ -104,7 +107,7 @@ describe("assembleWatchtowerArtifactsFromSignatures", () => {
     expect(out).toBe("{artifacts}");
     expect(wasm.finalizeClaimTx).toHaveBeenCalledWith(
       1,
-      "{graph}",
+      SERVED_GRAPH_JSON,
       "sig:claim",
     );
     expect(wasm.buildWatchtowerArtifacts.mock.calls[0][0]).toMatchObject({
@@ -122,6 +125,35 @@ describe("assembleWatchtowerArtifactsFromSignatures", () => {
       vaultIdHex: VAULT_ID,
       expectedVaultCoreVersion: 1,
     });
+  });
+
+  it("refuses a plan whose graph claimer was swapped after planning, before finalizing", async () => {
+    const plan = await planDelegatedClaimSigning({
+      depositorPublicKey: DEPOSITOR_PUBKEY,
+      btcNetwork: "testnet",
+      source,
+      trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+      vault,
+    });
+    const swapped = {
+      ...plan,
+      source: {
+        ...plan.source,
+        txGraphJson: JSON.stringify({
+          ...JSON.parse(SERVED_GRAPH_JSON),
+          claimer_pubkey: CHALLENGER_A,
+        }),
+      },
+    };
+
+    await expect(
+      assembleWatchtowerArtifactsFromSignatures({
+        plan: swapped,
+        signatures: signaturesFor(plan.requests.map((r) => r.id)),
+      }),
+    ).rejects.toBeInstanceOf(GraphParticipantMismatchError);
+    expect(wasm.finalizeClaimTx).not.toHaveBeenCalled();
+    expect(wasm.buildWatchtowerArtifacts).not.toHaveBeenCalled();
   });
 
   it("rejects a signature that does not verify against its rebuilt request before finalizing", async () => {

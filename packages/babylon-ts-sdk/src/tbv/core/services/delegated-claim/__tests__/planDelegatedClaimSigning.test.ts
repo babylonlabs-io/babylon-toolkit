@@ -7,6 +7,10 @@ import { AssertBindingError } from "../assertBinding";
 import { copyAssertConnectorLeaf } from "../payoutInputLeaf";
 import { planDelegatedClaimSigning } from "../planDelegatedClaimSigning";
 import {
+  GraphParticipantMismatchError,
+  GraphPresignatureError,
+} from "../servedGraphBinding";
+import {
   CHALLENGER_A,
   CHALLENGER_B,
   DEPOSITOR_ETH_ADDRESS,
@@ -14,6 +18,7 @@ import {
   DEPOSITOR_XONLY_PUBKEY,
   OTHER_BIP86_P2TR_SCRIPT,
   REGISTERED_PAYOUT_SCRIPT,
+  SERVED_GRAPH_JSON,
   TIMELOCK_ASSERT,
   TIMELOCK_PEGIN,
   VAULT_ID,
@@ -29,6 +34,8 @@ const wasm = vi.hoisted(() => ({
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
   computePayoutFeeFloor: vi.fn(),
+  verifyGraphPresignatures: vi.fn(),
+  loadTbvWasm: vi.fn(),
 }));
 vi.mock("../../../wasm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../wasm")>()),
@@ -44,7 +51,7 @@ function params() {
   return {
     depositorPublicKey: DEPOSITOR_PUBKEY,
     btcNetwork: "testnet" as const,
-    source: { txGraphJson: "{graph}", verifyingKeyHex: "beef" },
+    source: { txGraphJson: SERVED_GRAPH_JSON, verifyingKeyHex: "beef" },
     trustedVerifyingKeyHex: "beef",
     vault: {
       vaultId: VAULT_ID,
@@ -79,6 +86,8 @@ describe("planDelegatedClaimSigning", () => {
     );
     // The band itself is covered by assertPayoutFeeBand.test.ts and assertPayoutFeeAndTimelocks.test.ts.
     wasm.computePayoutFeeFloor.mockResolvedValue(MOCKED_FEE_FLOOR);
+    wasm.verifyGraphPresignatures.mockResolvedValue(undefined);
+    wasm.loadTbvWasm.mockResolvedValue({});
   });
 
   it("returns the ordered requests with the depositor Payout carrying the Assert-connector leaf", async () => {
@@ -119,6 +128,61 @@ describe("planDelegatedClaimSigning", () => {
     });
 
     expect(plan.babeSessionsJson).toBe(sessions);
+  });
+
+  it("verifies the served graph's presignatures before building any PSBT", async () => {
+    await planDelegatedClaimSigning(params());
+
+    expect(wasm.verifyGraphPresignatures).toHaveBeenCalledWith(
+      1,
+      SERVED_GRAPH_JSON,
+    );
+    expect(
+      wasm.verifyGraphPresignatures.mock.invocationCallOrder[0],
+    ).toBeLessThan(wasm.buildClaimPsbt.mock.invocationCallOrder[0]);
+  });
+
+  it("refuses a graph whose presignatures do not verify, before building any PSBT", async () => {
+    wasm.verifyGraphPresignatures.mockRejectedValue(
+      new Error("Invalid signature"),
+    );
+
+    await expect(planDelegatedClaimSigning(params())).rejects.toBeInstanceOf(
+      GraphPresignatureError,
+    );
+    expect(wasm.buildClaimPsbt).not.toHaveBeenCalled();
+    expect(wasm.buildPayoutClaimerPsbt).not.toHaveBeenCalled();
+  });
+
+  it("reports a WASM load failure as itself, not as a bad graph", async () => {
+    const loadFailure = new Error("engine failed to load");
+    wasm.loadTbvWasm.mockRejectedValue(loadFailure);
+
+    await expect(planDelegatedClaimSigning(params())).rejects.toBe(loadFailure);
+    expect(wasm.verifyGraphPresignatures).not.toHaveBeenCalled();
+  });
+
+  it("refuses a graph whose claimer is not the vault's depositor, before verifying or building", async () => {
+    const foreignClaimer = {
+      ...params(),
+      source: {
+        txGraphJson: JSON.stringify({
+          ...JSON.parse(SERVED_GRAPH_JSON),
+          claimer_pubkey: CHALLENGER_A,
+        }),
+        verifyingKeyHex: "beef",
+      },
+    };
+
+    await expect(planDelegatedClaimSigning(foreignClaimer)).rejects.toThrow(
+      new GraphParticipantMismatchError(
+        "claimer_pubkey",
+        CHALLENGER_A,
+        DEPOSITOR_XONLY_PUBKEY,
+      ),
+    );
+    expect(wasm.verifyGraphPresignatures).not.toHaveBeenCalled();
+    expect(wasm.buildClaimPsbt).not.toHaveBeenCalled();
   });
 
   it("refuses a graph whose Payout input 0 sequence is not the stamped PegIn timelock", async () => {
