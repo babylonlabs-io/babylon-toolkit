@@ -16,6 +16,7 @@ import {
   type Warning,
 } from "../positionNotifications";
 import type { ReorderVerificationContext } from "../services";
+import { formatHealthFactor } from "../utils";
 
 import { useVaultSplitParams } from "./useVaultSplitParams";
 
@@ -74,7 +75,7 @@ function buildLiveHfUrgentWarning(healthFactor: number): Warning {
   return {
     type: "urgent",
     title: COPY.liquidationWarnings.liveHealthFactor.title(
-      healthFactor.toFixed(2),
+      formatHealthFactor(healthFactor),
     ),
     detail: COPY.liquidationWarnings.liveHealthFactor.detail,
     suggestion: COPY.liquidationWarnings.urgent.approachingSuggestion,
