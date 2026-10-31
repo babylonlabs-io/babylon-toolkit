@@ -9,6 +9,7 @@
 import { getAddressUtxos, type MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import {
   filterInscriptionUtxos,
+  inscriptionOutpointKey,
   type UTXO,
 } from "@babylonlabs-io/wallet-connector";
 import { useQuery } from "@tanstack/react-query";
@@ -146,7 +147,9 @@ export function useUTXOs(
 
   // Create a set of inscription UTXO identifiers for filtering MempoolUTXOs
   const inscriptionUTXOIds = useMemo(() => {
-    return new Set(inscriptionUTXOs.map((u) => `${u.txid}:${u.vout}`));
+    return new Set(
+      inscriptionUTXOs.map((u) => inscriptionOutpointKey(u.txid, u.vout)),
+    );
   }, [inscriptionUTXOs]);
 
   // True when the ordinals check is still running AND the user has
@@ -166,7 +169,8 @@ export function useUTXOs(
     }
     // Filter out inscription UTXOs from the original MempoolUTXO array
     return confirmedUTXOs.filter(
-      (utxo) => !inscriptionUTXOIds.has(`${utxo.txid}:${utxo.vout}`),
+      (utxo) =>
+        !inscriptionUTXOIds.has(inscriptionOutpointKey(utxo.txid, utxo.vout)),
     );
   }, [ordinalsExcluded, confirmedUTXOs, inscriptionUTXOIds]);
 

@@ -25,19 +25,44 @@ export function filterDust(
 }
 
 /**
+ * Key that matches an inscription verdict to a UTXO.
+ *
+ * A txid is hex, so the same outpoint can be spelled in either case: the
+ * mempool listing keeps the spelling its backend sent, and a wallet's
+ * `getInscriptions()` may use the other. The txid is lowercased so both
+ * spellings give one key and an inscribed UTXO is not missed.
+ *
+ * `vout` is interpolated, not compared as a number, because the UniSat, OKX
+ * and OneKey providers return it as the string half of `output.split(":")`.
+ *
+ * @param txid - Transaction id, in either hex case
+ * @param vout - Output index
+ * @returns "txid:vout" with the txid lowercased
+ */
+export function inscriptionOutpointKey(txid: string, vout: number): string {
+  return `${txid.toLowerCase()}:${vout}`;
+}
+
+/**
  * Create a lookup map from inscription identifiers for O(1) lookup.
  *
+ * The identifiers come unvalidated from the wallet's `getInscriptions()` or
+ * the ordinals API. One whose txid is not a string cannot name a UTXO, so it
+ * is skipped rather than left to throw while the caller renders.
+ *
  * @param inscriptions - Array of inscription identifiers
- * @returns Map of "txid:vout" -> inscription
+ * @returns Map of {@link inscriptionOutpointKey} -> inscription
  */
 export function createInscriptionMap(
   inscriptions: InscriptionIdentifier[],
 ): Map<string, InscriptionIdentifier> {
   return new Map(
-    inscriptions.map((inscription) => [
-      `${inscription.txid}:${inscription.vout}`,
-      inscription,
-    ]),
+    inscriptions
+      .filter((inscription) => typeof inscription.txid === "string")
+      .map((inscription) => [
+        inscriptionOutpointKey(inscription.txid, inscription.vout),
+        inscription,
+      ]),
   );
 }
 
@@ -52,7 +77,7 @@ export function isInscriptionUtxo(
   utxo: UTXO,
   inscriptionMap: Map<string, InscriptionIdentifier>,
 ): boolean {
-  return inscriptionMap.has(`${utxo.txid}:${utxo.vout}`);
+  return inscriptionMap.has(inscriptionOutpointKey(utxo.txid, utxo.vout));
 }
 
 /**

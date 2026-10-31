@@ -16,23 +16,29 @@ vi.mock("@babylonlabs-io/ts-sdk", () => ({
 }));
 
 // Mock wallet-connector
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
-  filterInscriptionUtxos: vi.fn((utxos, inscriptions) => {
-    const inscriptionSet = new Set(
-      inscriptions.map(
-        (i: { txid: string; vout: number }) => `${i.txid}:${i.vout}`,
-      ),
-    );
-    const availableUtxos = utxos.filter(
-      (u: { txid: string; vout: number }) =>
-        !inscriptionSet.has(`${u.txid}:${u.vout}`),
-    );
-    const inscriptionUtxos = utxos.filter((u: { txid: string; vout: number }) =>
-      inscriptionSet.has(`${u.txid}:${u.vout}`),
-    );
-    return { availableUtxos, inscriptionUtxos };
-  }),
-}));
+vi.mock("@babylonlabs-io/wallet-connector", () => {
+  const inscriptionOutpointKey = (txid: string, vout: number) =>
+    `${txid.toLowerCase()}:${vout}`;
+  return {
+    inscriptionOutpointKey,
+    filterInscriptionUtxos: vi.fn((utxos, inscriptions) => {
+      const inscriptionSet = new Set(
+        inscriptions.map((i: { txid: string; vout: number }) =>
+          inscriptionOutpointKey(i.txid, i.vout),
+        ),
+      );
+      const availableUtxos = utxos.filter(
+        (u: { txid: string; vout: number }) =>
+          !inscriptionSet.has(inscriptionOutpointKey(u.txid, u.vout)),
+      );
+      const inscriptionUtxos = utxos.filter(
+        (u: { txid: string; vout: number }) =>
+          inscriptionSet.has(inscriptionOutpointKey(u.txid, u.vout)),
+      );
+      return { availableUtxos, inscriptionUtxos };
+    }),
+  };
+});
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(),
@@ -124,6 +130,32 @@ describe("useUTXOs", () => {
       expect(result.current.availableUTXOs).toHaveLength(2);
       expect(result.current.inscriptionUTXOs).toHaveLength(1);
       expect(result.current.inscriptionUTXOs[0].txid).toBe("txid2");
+    });
+
+    it("keeps an inscribed UTXO out of both spendable sets when inscriptions are excluded", () => {
+      mockUseQuery.mockReturnValue({
+        data: confirmedUtxos,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [{ txid: "txid2", vout: 1, satRanges: [] }],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useUTXOs(testAddress));
+
+      expect(result.current.spendableUTXOs.map((u) => u.txid)).toEqual([
+        "txid1",
+        "txid3",
+      ]);
+      expect(result.current.spendableMempoolUTXOs.map((u) => u.txid)).toEqual([
+        "txid1",
+        "txid3",
+      ]);
     });
   });
 

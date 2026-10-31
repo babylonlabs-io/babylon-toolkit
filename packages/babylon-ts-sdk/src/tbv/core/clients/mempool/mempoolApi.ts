@@ -374,7 +374,8 @@ export async function getUtxoInfo(
  *
  * @param address - The Bitcoin address
  * @param apiUrl - Mempool API base URL
- * @returns Array of UTXOs sorted by value (largest first)
+ * @returns Array of UTXOs sorted by value (largest first), with each txid
+ * lowercased whatever hex case the API returned it in
  */
 export async function getAddressUtxos(
   address: string,
@@ -428,8 +429,10 @@ export async function getAddressUtxos(
     // Sort by value (largest first) and map to our UTXO format
     const sortedUTXOs = utxos.sort((a, b) => b.value - a.value);
 
+    // Lowercase the txid so consumers that key UTXOs by "txid:vout" (such as
+    // the inscription filter) see one spelling of each outpoint.
     return sortedUTXOs.map((utxo) => ({
-      txid: utxo.txid,
+      txid: utxo.txid.toLowerCase(),
       vout: utxo.vout,
       value: utxo.value,
       scriptPubKey: addressInfo.scriptPubKey,
