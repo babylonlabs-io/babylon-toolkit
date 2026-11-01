@@ -87,7 +87,8 @@ export async function fetchOrdinals(
         wait(walletTimeout),
       ]);
 
-      if (inscriptions) {
+      // A non-array breaks the getInscriptions contract, so it counts as no answer.
+      if (Array.isArray(inscriptions)) {
         return inscriptions;
       }
     } catch {
