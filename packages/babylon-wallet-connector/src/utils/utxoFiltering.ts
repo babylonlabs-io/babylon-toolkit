@@ -47,8 +47,9 @@ export function inscriptionOutpointKey(txid: string, vout: number): string {
  * Create a lookup map from inscription identifiers for O(1) lookup.
  *
  * The identifiers come unvalidated from the wallet's `getInscriptions()` or
- * the ordinals API. One whose txid is not a string cannot name a UTXO, so it
- * is skipped rather than left to throw while the caller renders.
+ * the ordinals API. An entry without a string txid, a null entry included,
+ * cannot name a UTXO, so it is skipped rather than left to throw while the
+ * caller renders.
  *
  * @param inscriptions - Array of inscription identifiers
  * @returns Map of {@link inscriptionOutpointKey} -> inscription
@@ -58,7 +59,7 @@ export function createInscriptionMap(
 ): Map<string, InscriptionIdentifier> {
   return new Map(
     inscriptions
-      .filter((inscription) => typeof inscription.txid === "string")
+      .filter((inscription) => typeof inscription?.txid === "string")
       .map((inscription) => [
         inscriptionOutpointKey(inscription.txid, inscription.vout),
         inscription,

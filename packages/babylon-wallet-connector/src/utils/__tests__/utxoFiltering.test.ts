@@ -74,6 +74,27 @@ describe("filterInscriptionUtxos", () => {
     expect(availableUtxos).toEqual([]);
   });
 
+  it("skips a null verdict and still applies the others", () => {
+    const utxo: UTXO = {
+      txid: TXID_LOWER,
+      vout: 0,
+      value: 50_000,
+      scriptPubKey: "0014abc123",
+    };
+    const inscriptions: InscriptionIdentifier[] = [
+      null as unknown as InscriptionIdentifier,
+      { txid: TXID_LOWER, vout: 0 },
+    ];
+
+    const { availableUtxos, inscriptionUtxos } = filterInscriptionUtxos(
+      [utxo],
+      inscriptions,
+    );
+
+    expect(inscriptionUtxos).toEqual([utxo]);
+    expect(availableUtxos).toEqual([]);
+  });
+
   it("flags a UTXO when the wallet returns the verdict's vout as a string", () => {
     const utxo: UTXO = {
       txid: TXID_LOWER,
