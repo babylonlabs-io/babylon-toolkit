@@ -4,7 +4,8 @@
  * `getDepositorVaultIds` returns every vault the depositor ever submitted
  * (vault-contracts-aave-v4@99a4e3e7:src/protocol/BTCVaultRegistry.sol:1100-1102).
  * The list is push-only (`:1028`): a vault stays listed after it activates,
- * redeems or expires, so callers filter by each vault's on-chain status.
+ * redeems or expires, so callers filter by each vault's on-chain state: its
+ * status, or the Pre-PegIn it is registered to.
  *
  * Self-contained ABI fragment, same as the `application-entry-point` sibling:
  * the SDK's bundled registry ABI does not expose this view.

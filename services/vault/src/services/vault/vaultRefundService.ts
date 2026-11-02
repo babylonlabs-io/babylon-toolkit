@@ -38,6 +38,7 @@ import {
   type HtlcSpend,
   isHtlcSpentByPegin,
 } from "../../clients/btc/outspend";
+import { getPrePeginSiblingIdsFromChain } from "../../clients/eth-contract/btc-vault-registry/prePeginSiblings";
 import {
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
@@ -53,7 +54,7 @@ import { getBTCNetworkForWASM } from "../../config/pegin";
 import { COPY } from "../../copy";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
-import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "./fetchVaults";
+import { fetchVaultRefundData } from "./fetchVaults";
 
 export interface BroadcastRefundParams {
   vaultId: Hex;
@@ -269,12 +270,10 @@ async function readTargetVault(vaultId: Hex): Promise<TargetVaultData> {
  * pulled from chain so the WASM refund template can be reconstructed
  * with the exact (hashlocks, amounts) vector the funded tx commits to.
  *
- * Sibling membership is decided by on-chain `prePeginTxHash` equality,
- * not by indexer hex comparison — that way a stale or compromised
- * indexer cannot fabricate or drop siblings. The indexer is only used
- * to enumerate vault IDs (via the lean `id`-only projection so a
- * malformed unrelated field on a sibling row cannot silently shrink
- * the batch); each candidate's authoritative hashlock / htlcVout /
+ * Candidates come from the registry's list of the depositor's vaults and
+ * membership from on-chain `prePeginTxHash` equality, so a stale or
+ * compromised indexer cannot fabricate or drop siblings, or block this
+ * refund with a bad ID. Each sibling's authoritative hashlock / htlcVout /
  * amount comes from the contract.
  *
  * Enumeration uses the **on-chain** depositor of the target vault, not
@@ -301,26 +300,13 @@ async function discoverBatch(
   }
 
   const targetPrePeginTxHash = target.onChainVault.prePeginTxHash.toLowerCase();
-  // Use the on-chain depositor (not the parameter) as the enumeration
-  // source. They're equal here by the assertion above, but the on-chain
-  // value is the authoritative one to thread into the indexer query.
-  const depositorVaultIds = await fetchVaultIdsByDepositor(onChainDepositor);
-
-  const targetIdLower = targetVaultId.toLowerCase();
-  const candidateIds = depositorVaultIds.filter(
-    (id) => id.toLowerCase() !== targetIdLower,
-  );
-
-  // Lean sibling filter first: one multicall for the candidates'
-  // prePeginTxHash only. The fully-validated getVaultFromChain read (which
-  // fail-closes on a bad stamped vaultCoreVersion) runs only for actual
+  // Lean sibling filter first. The fully-validated getVaultFromChain read
+  // (which fail-closes on a bad stamped vaultCoreVersion) runs only for actual
   // siblings — an unrelated broken vault in the depositor's list must not
   // block this refund.
-  const candidateInfos =
-    await getVaultRegistryReader().getProtocolInfoBatch(candidateIds);
-  const siblingIds = candidateIds.filter(
-    (_, i) =>
-      candidateInfos[i].prePeginTxHash.toLowerCase() === targetPrePeginTxHash,
+  const siblingIds = await getPrePeginSiblingIdsFromChain(
+    targetVaultId,
+    target.onChainVault,
   );
   const siblingOnChain = await Promise.all(
     siblingIds.map((id) => getVaultFromChain(id)),
