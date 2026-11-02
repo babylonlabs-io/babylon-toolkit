@@ -32,6 +32,23 @@ function makeRow(overrides: Partial<ActiveLoanRow> = {}): ActiveLoanRow {
   };
 }
 
+describe("ActiveLoansList — Borrow APR", () => {
+  it("explains what the row's Borrow APR includes", () => {
+    render(
+      <ActiveLoansList
+        rows={[makeRow()]}
+        canBorrow
+        onBorrow={vi.fn()}
+        onRepay={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.loans.activeLoanBorrowAprTooltip),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("ActiveLoansList — per-row Borrow-more gating", () => {
   it("disables the Borrow-more button for a non-borrowable reserve while keeping Repay enabled", () => {
     render(

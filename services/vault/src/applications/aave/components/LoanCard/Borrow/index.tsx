@@ -47,8 +47,10 @@ import {
   useBorrowTransaction,
   useDebtReserves,
   useHubSpokeConfigs,
+  useNewBorrowAprCharges,
   useProjectedBorrowApr,
 } from "../../../hooks";
+import { allInBorrowAprPercent } from "../../../utils/allInBorrowApr";
 import { describeHubBlock, getBorrowHubBlock } from "../../../utils/hubState";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
@@ -234,12 +236,27 @@ export function Borrow() {
 
   const hasProjection = borrowAmount > 0;
 
-  // Current and projected borrow APR for the selected reserve, both evaluated
-  // from the Hub asset's on-chain interest-rate strategy so the entered amount's
-  // effect on utilization is exact. The projected figure is shown only once an
-  // amount raises the rate enough to differ from the current after formatting.
-  const { currentPercent: borrowAprPercent, projectedPercent } =
-    useProjectedBorrowApr({ reserve: selectedReserve, borrowAmount });
+  // What this borrow would pay, before and after its effect on the rate. Both
+  // base rates are evaluated from the Hub asset's on-chain interest-rate strategy
+  // so the entered amount's effect on utilization is exact, and both carry the
+  // charges of a new borrow, which reprices the whole position. The projected
+  // figure is shown only once an amount raises the rate enough to differ from the
+  // current after formatting.
+  const {
+    currentPercent: baseAprPercent,
+    projectedPercent: projectedBasePercent,
+  } = useProjectedBorrowApr({ reserve: selectedReserve, borrowAmount });
+  const { premiumFraction, interestFeeBps } = useNewBorrowAprCharges();
+  const borrowAprPercent = allInBorrowAprPercent({
+    baseAprPercent,
+    premiumFraction,
+    interestFeeBps,
+  });
+  const projectedPercent = allInBorrowAprPercent({
+    baseAprPercent: projectedBasePercent,
+    premiumFraction,
+    interestFeeBps,
+  });
   const borrowAprDisplay =
     borrowAprPercent == null
       ? COPY.common.emptyValue

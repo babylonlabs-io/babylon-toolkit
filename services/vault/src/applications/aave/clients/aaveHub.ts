@@ -590,10 +590,10 @@ export interface ProjectedBorrowAprRequest {
 }
 
 export interface ProjectedBorrowAprResult {
-  /** Current borrow APR percent at the live utilization, or null on revert. */
+  /** Current base borrow APR percent at the live utilization, or null on revert. */
   currentPercent: number | null;
   /**
-   * Borrow APR percent at the post-borrow utilization, or null on revert.
+   * Base borrow APR percent at the post-borrow utilization, or null on revert.
    * Never below `currentPercent`: borrowing only raises utilization.
    */
   projectedPercent: number | null;
@@ -606,7 +606,7 @@ const NULL_PROJECTION = {
 } as const;
 
 /**
- * Computes the current and post-borrow borrow APR for one Hub asset using the
+ * Computes the current and post-borrow base borrow APR for one Hub asset using the
  * asset's on-chain interest-rate strategy — no off-chain reimplementation of
  * the rate curve. The rate is a pure function of the asset totals the Hub
  * itself feeds the strategy:
@@ -616,9 +616,9 @@ const NULL_PROJECTION = {
  *
  * The current-rate leg is bit-identical to the Hub's own `getAssetDrawnRate`
  * (Aave v4 `AssetLogic.getDrawnRate` calls the same strategy with these exact
- * totals), so it matches the rate shown by the landing card and asset-selection
- * modal. Both endpoints are read from one totals snapshot fed to the same
- * strategy view, so the current -> projected delta stays exact and monotonic
+ * totals), so it matches the base rate `useAaveBorrowAprs` reads. Both endpoints
+ * are read from one totals snapshot fed to the same strategy view, so the
+ * current -> projected delta stays exact and monotonic
  * regardless of block skew. A new borrow of `borrowAmountRaw` moves that
  * amount from `liquidity` to `drawn`; `deficit` is passed through to both calls
  * exactly as the Hub feeds it (a borrow doesn't change it), so the figures match

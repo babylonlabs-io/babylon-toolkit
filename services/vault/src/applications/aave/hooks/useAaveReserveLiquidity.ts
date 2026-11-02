@@ -6,8 +6,8 @@
  *
  * Read from the Hub (keyed by `hub`/`assetId`), not the Spoke: the Core Spoke
  * supplies vBTC collateral, not the borrowed asset, so its reserve totals are
- * spoke-local. The Hub holds the shared market — the same place the borrow APR
- * is read — so utilization here stays consistent with the displayed rate.
+ * spoke-local. The Hub holds the shared market — the same place the base borrow
+ * APR is read — so utilization here stays consistent with that rate.
  *
  * Wallet-less: reads go through the app's public RPC client, so this works on
  * disconnected surfaces (e.g. the asset picker).
@@ -51,7 +51,7 @@ export interface ReserveLiquidity {
    *
    * Principal only, and `swept` counted as supplied: the same definition the
    * Hub feeds its rate strategy and the vault indexer records per snapshot, so
-   * this figure, the projected post-borrow rate and the borrow-APR chart all
+   * this figure, the projected post-borrow base rate and the base-APR chart all
    * agree. Note it is deliberately NOT `totalBorrowed / suppliedLiquidity` —
    * that would fold accrued premium into the numerator.
    */

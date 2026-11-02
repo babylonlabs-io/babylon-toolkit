@@ -55,7 +55,7 @@
  * can date.
  *
  * Accepted drift window: after a governance parameter update, the stats bar's
- * Borrow APR moves within 60s while this curve and its kink callout can lag
+ * Base Borrow APR moves within 60s while this curve and its kink callout can lag
  * up to an hour on the same screen. That's the one user-visible cost of the
  * cache, accepted in review.
  *

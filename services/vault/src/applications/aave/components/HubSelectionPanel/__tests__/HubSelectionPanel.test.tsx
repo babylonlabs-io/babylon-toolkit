@@ -46,12 +46,17 @@ const drawHeadroom = vi.hoisted(() => ({
 const liquidity = vi.hoisted(() => ({
   liquidityByReserveId: {} as Record<string, { availableLiquidity: number }>,
 }));
+const charges = vi.hoisted(() => ({
+  premiumFraction: null as number | null,
+  interestFeeBps: null as number | null,
+}));
 
 vi.mock("../../../hooks", () => ({
   useAaveReservesPrices: () => ({ pricesByReserveId: { "0": 1, "4": 1 } }),
-  useAaveBorrowAprs: () => ({ aprPercentByReserveId: { "0": 3.5, "4": 3.7 } }),
+  useAaveBorrowAprs: () => ({ aprPercentByReserveId: { "0": 4, "4": 3.7 } }),
   useAaveReserveLiquidity: () => liquidity,
   useAaveReserveDrawHeadroom: () => drawHeadroom,
+  useNewBorrowAprCharges: () => charges,
 }));
 
 const USDC = "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48" as Address;
@@ -108,6 +113,8 @@ describe("HubSelectionPanel", () => {
       "0": { availableLiquidity: 35_500_000 },
       "4": { availableLiquidity: 15_800_000 },
     };
+    charges.premiumFraction = 0.1;
+    charges.interestFeeBps = 300;
   });
 
   it("lists one row per borrowable reserve of the chosen token, naming each hub", () => {
@@ -119,13 +126,41 @@ describe("HubSelectionPanel", () => {
     expect(screen.queryByTestId("hub-option-2")).not.toBeInTheDocument();
   });
 
-  it("shows each hub's borrow APR and available liquidity in compact USD", () => {
+  it("shows each hub's borrow APR with charges included and available liquidity in compact USD", () => {
     renderPanel();
 
-    expect(screen.getByTestId("hub-option-0")).toHaveTextContent("3.5%");
+    expect(screen.getByTestId("hub-option-0")).toHaveTextContent("4.52%");
     expect(screen.getByTestId("hub-option-0")).toHaveTextContent("$35.5M");
-    expect(screen.getByTestId("hub-option-4")).toHaveTextContent("3.7%");
+    expect(screen.getByTestId("hub-option-4")).toHaveTextContent("4.18%");
     expect(screen.getByTestId("hub-option-4")).toHaveTextContent("$15.8M");
+  });
+
+  it("shows the empty value instead of the base rate when the premium is unavailable", () => {
+    charges.premiumFraction = null;
+
+    renderPanel();
+
+    expect(screen.getByTestId("hub-option-0")).toHaveTextContent(
+      COPY.common.emptyValue,
+    );
+    expect(screen.getByTestId("hub-option-0")).not.toHaveTextContent("4%");
+  });
+
+  it("shows the empty value instead of the base rate when the interest fee is unavailable", () => {
+    charges.interestFeeBps = null;
+
+    renderPanel();
+
+    expect(screen.getByTestId("hub-option-0")).toHaveTextContent(
+      COPY.common.emptyValue,
+    );
+    expect(screen.getByTestId("hub-option-0")).not.toHaveTextContent("4%");
+  });
+
+  it("explains what Borrow APR includes in the column header", () => {
+    renderPanel();
+
+    expect(screen.getByText(COPY.loans.borrowAprTooltip)).toBeInTheDocument();
   });
 
   it("shows the hub's borrow limit instead of its liquidity when the limit leaves less", () => {

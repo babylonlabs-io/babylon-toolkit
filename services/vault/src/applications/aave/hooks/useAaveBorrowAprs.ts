@@ -1,5 +1,6 @@
 /**
- * Batched per-reserve borrow APR read from the Aave v4 Hub. Returns
+ * Batched per-reserve base borrow APR read from the Aave v4 Hub: the drawn rate,
+ * before the charges in `allInBorrowApr`. Returns
  * `Record<reserveId.toString(), number | null>` with APRs as percentages
  * (e.g. 3.7 for 3.7%).
  *
@@ -20,7 +21,7 @@ const QUERY_KEY = "aaveBorrowAprs";
 const ONE_MINUTE_MS = 60 * 1000;
 
 export interface UseAaveBorrowAprsResult {
-  /** Borrow APR percent per reserve ID; null when that reserve's read failed. */
+  /** Base borrow APR percent per reserve ID; null when that reserve's read failed. */
   aprPercentByReserveId: Record<string, number | null>;
   isLoading: boolean;
   error: Error | null;

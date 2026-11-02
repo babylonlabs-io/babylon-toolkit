@@ -1,8 +1,8 @@
 /**
- * Live borrow APRs for the landing (disconnected) APR row.
+ * Live base borrow APRs for the landing (disconnected) APR row.
  *
  * Resolves the advertised tokens (USDT/USDC/wBTC) from the Aave config and
- * reads each of their reserves' current borrow APR from its Hub. A token can
+ * reads each of their reserves' current base borrow APR from its Hub. A token can
  * be listed on several hubs, each at its own rate, and the row advertises the
  * lowest. Wallet-less: both reads run against the indexer / public RPC, so the
  * values render while no wallet is connected.

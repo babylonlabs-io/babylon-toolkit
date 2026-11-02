@@ -1,10 +1,10 @@
 /**
  * C2 — the interest-rate-model chart (Figma node 10088-61091). One curve:
- * on-chain borrow APR against utilization, with the kink (optimal usage) and
- * the reserve's live utilization called out. The header row also carries the
- * frame's "Borrow APR / Utilization Rate" legend, top right — utilization is
- * still the marker, not a second series; the legend just labels the curve's
- * color and the shared marker color for the callouts.
+ * on-chain base borrow APR against utilization, with the kink (optimal usage)
+ * and the reserve's live utilization called out. The header row also carries the
+ * frame's rate / utilization legend, top right — utilization is still the marker,
+ * not a second series; the legend just labels the curve's color and the shared
+ * marker color for the callouts.
  */
 
 import {
@@ -66,7 +66,7 @@ function LegendDot({ colorClass }: { colorClass: string }) {
   return <span className={`size-3 rounded-full ${colorClass}`} />;
 }
 
-/** Top-right header legend (Figma's "Borrow APR / Utilization Rate" pair). */
+/** Top-right header legend (Figma's rate / utilization pair). */
 function Legend() {
   return (
     <div className="flex items-center gap-6">

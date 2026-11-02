@@ -346,7 +346,7 @@ describe("BorrowingMarketsData", () => {
 
     const statsBar = within(screen.getByTestId("market-stats-bar"));
     expect(statsBar.getByText("$11.4M")).toBeInTheDocument(); // available liquidity
-    expect(statsBar.getByText("3.5%")).toBeInTheDocument(); // borrow APR
+    expect(statsBar.getByText("3.5%")).toBeInTheDocument(); // base borrow APR
     expect(statsBar.getByText("$35.5M")).toBeInTheDocument(); // supplied
     expect(statsBar.getByText("$24.1M")).toBeInTheDocument(); // total borrowed
     expect(statsBar.getByText("68%")).toBeInTheDocument(); // market utilization
@@ -361,7 +361,7 @@ describe("BorrowingMarketsData", () => {
     const { stats } = COPY.marketData;
     for (const tooltip of [
       stats.availableLiquidityTooltip,
-      COPY.loans.borrowAprTooltip,
+      COPY.marketData.baseBorrowAprTooltip,
       stats.suppliedTooltip,
       stats.totalBorrowedTooltip,
       stats.marketUtilizationTooltip,

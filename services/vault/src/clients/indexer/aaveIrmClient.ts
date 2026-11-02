@@ -7,7 +7,7 @@ const IRM_REQUEST_TIMEOUT_MS = 30_000;
 export interface IrmCurvePoint {
   /** Utilization in percent, 0–100. */
   utilizationPercent: number;
-  /** Borrow APR percent at that utilization, from the on-chain strategy. */
+  /** Base borrow APR percent at that utilization, from the on-chain strategy. */
   aprPercent: number;
 }
 

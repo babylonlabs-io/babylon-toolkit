@@ -21,7 +21,7 @@ interface BorrowMetricsCardProps {
    * `current → projected`; omit it to show the current value alone.
    */
   availableLiquidityProjected?: string;
-  /** Formatted current borrow APR (live from the Aave Hub), or "–". */
+  /** Formatted current borrow APR, charges included, or "–". */
   borrowApr: string;
   /**
    * Formatted post-borrow borrow APR. When set, the row shows
@@ -39,14 +39,15 @@ const ROW_CLASS = "flex w-full items-center justify-between text-sm";
 const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
 
 /**
- * Borrow metrics card. Borrow APR, Available liquidity, and Utilization all
- * show live values read from the Aave Hub for the selected reserve, and Health
- * factor uses its real projected value. Once an amount is entered, the Borrow
- * APR and Available liquidity rows render `current → projected` (the new borrow
- * raises the reserve's utilization), as does Health factor. Each figure falls
- * back to the empty placeholder ("–") while its read is loading or unavailable
- * rather than rendering a fabricated value. The Hub row names which hub's
- * market these figures describe, since one token can be borrowed from several.
+ * Borrow metrics card. Available liquidity and Utilization show live values read
+ * from the Aave Hub for the selected reserve, Borrow APR adds the charges a
+ * borrower pays to the Hub's live rate, and Health factor uses its real projected
+ * value. Once an amount is entered, the Borrow APR and Available liquidity rows
+ * render `current → projected` (the new borrow raises the reserve's utilization),
+ * as does Health factor. Each figure falls back to the empty placeholder ("–")
+ * while its read is loading or unavailable rather than rendering a fabricated
+ * value. The Hub row names which hub's market these figures describe, since one
+ * token can be borrowed from several.
  */
 export function BorrowMetricsCard({
   hub,

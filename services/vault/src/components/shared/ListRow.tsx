@@ -8,6 +8,7 @@
  * no card variant with this border/background pair.
  */
 
+import { Hint } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
@@ -135,18 +136,24 @@ export function ListRowCard({
 export function ListRowMetric({
   label,
   value,
+  tooltip,
 }: {
   label: string;
   value: ReactNode;
+  /** Renders a core-ui <Hint> after the label when set. */
+  tooltip?: string;
 }) {
   return (
     // Flexes rather than pinning the design's 190px: at the app's container
     // width three fixed columns plus the asset block and two action buttons
     // overflow, wrapping the buttons onto a second line.
     <div className="flex min-w-[120px] flex-1 flex-col">
-      <span className="text-xs leading-[1.4] tracking-[0.4px] text-accent-secondary">
-        {label}
-      </span>
+      <div className="flex items-center gap-1">
+        <span className="text-xs leading-[1.4] tracking-[0.4px] text-accent-secondary">
+          {label}
+        </span>
+        {tooltip ? <Hint tooltip={tooltip} title={label} /> : null}
+      </div>
       <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
         {value}
       </span>

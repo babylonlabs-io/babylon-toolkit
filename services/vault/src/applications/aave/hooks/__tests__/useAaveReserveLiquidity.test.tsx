@@ -82,8 +82,8 @@ describe("useAaveReserveLiquidity", () => {
 
   // The definition the Hub feeds its rate strategy, and the one the vault
   // indexer records per snapshot. Drifting from it makes the displayed
-  // utilization disagree with the projected post-borrow rate and the borrow-APR
-  // chart, for the same reserve at the same moment.
+  // utilization disagree with the projected post-borrow base rate and the
+  // base-APR chart, for the same reserve at the same moment.
   it("excludes accrued premium from utilization and counts swept as supplied", async () => {
     vi.mocked(getAssetLiquiditiesSafe).mockResolvedValueOnce([
       {
