@@ -53,6 +53,7 @@ export {
   useInterestRateModelCurve,
   type UseInterestRateModelCurveResult,
 } from "./useInterestRateModelCurve";
+export { useNewBorrowAprCharges } from "./useNewBorrowAprCharges";
 export { type UseOptimalSplitResult } from "./useOptimalSplit";
 export {
   type PositionNotificationsStatus,

@@ -17,10 +17,15 @@ import { formatAmount, formatAprPercent } from "@/utils/formatting";
 import { useAaveConfig } from "../context";
 import type { AavePositionWithLiveData, DebtPosition } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+import {
+  allInBorrowAprPercent,
+  premiumFractionFromShares,
+} from "../utils/allInBorrowApr";
 import { groupReservesByUnderlying } from "../utils/reserveGroups";
 import { getReserveTokenLabel } from "../utils/reserveTokenLabel";
 
 import { useAaveBorrowAprs } from "./useAaveBorrowAprs";
+import { useInterestFeeBps } from "./useInterestFeeBps";
 
 /**
  * Borrowed asset for display
@@ -39,8 +44,9 @@ export interface BorrowedAsset {
   amount: string;
   /** Token icon URL */
   icon: string;
-  /** Borrow APY as a formatted string (e.g. "5.861%"). Undefined only while
-   *  the per-reserve APR read (`useAaveBorrowAprs`) hasn't resolved yet. */
+  /** Borrow APR as a formatted string (e.g. "5.86%"): the Hub's drawn rate plus
+   *  this loan's risk premium and the adapter's interest fee. Undefined while
+   *  any of those is loading or unavailable. */
   borrowRate?: string;
 }
 
@@ -79,7 +85,8 @@ interface ReserveWithDebt {
  */
 function transformToBorrowedAsset(
   reserveWithDebt: ReserveWithDebt,
-  aprPercent: number | null | undefined,
+  baseAprPercent: number | null | undefined,
+  interestFeeBps: number | null,
 ): BorrowedAsset {
   const { reserve, debtPosition } = reserveWithDebt;
 
@@ -89,6 +96,11 @@ function transformToBorrowedAsset(
     formatUnits(debtPosition.totalDebt, reserve.token.decimals),
   );
   const amount = formatAmount(tokenAmount, reserve.token.decimals);
+  const aprPercent = allInBorrowAprPercent({
+    baseAprPercent,
+    premiumFraction: premiumFractionFromShares(debtPosition),
+    interestFeeBps,
+  });
   const borrowRate =
     aprPercent != null ? formatAprPercent(aprPercent) : undefined;
 
@@ -106,8 +118,8 @@ function transformToBorrowedAsset(
 /**
  * Hook to derive borrowed assets from position data
  *
- * Uses the debtPositions already fetched by useAaveUserPosition,
- * avoiding separate RPC calls.
+ * Uses the debtPositions already fetched by useAaveUserPosition. The only reads
+ * of its own are the rate inputs, and only while the position has debt.
  *
  * @param props - Position and debt data from useAaveUserPosition
  * @returns Borrowed assets data for display
@@ -144,6 +156,9 @@ export function useAaveBorrowedAssets({
   const { aprPercentByReserveId } = useAaveBorrowAprs({
     reserves: reservesOnly,
   });
+  const interestFeeBps = useInterestFeeBps({
+    enabled: reservesWithDebt.length > 0,
+  });
 
   const borrowedAssets = useMemo(
     (): BorrowedAsset[] =>
@@ -151,9 +166,10 @@ export function useAaveBorrowedAssets({
         transformToBorrowedAsset(
           rwd,
           aprPercentByReserveId[rwd.reserve.reserveId.toString()],
+          interestFeeBps,
         ),
       ),
-    [reservesWithDebt, aprPercentByReserveId],
+    [reservesWithDebt, aprPercentByReserveId, interestFeeBps],
   );
 
   return {

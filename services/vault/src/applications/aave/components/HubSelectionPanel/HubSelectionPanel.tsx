@@ -11,7 +11,7 @@
  * row: at the cap only the market the position already owes stays pickable.
  */
 
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, Hint } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import type { Address } from "viem";
@@ -31,7 +31,9 @@ import {
   useAaveReserveDrawHeadroom,
   useAaveReserveLiquidity,
   useAaveReservesPrices,
+  useNewBorrowAprCharges,
 } from "../../hooks";
+import { allInBorrowAprPercent } from "../../utils/allInBorrowApr";
 import {
   isReserveSelectable,
   type BorrowReserveGate,
@@ -91,6 +93,7 @@ export function HubSelectionPanel({
     reserveIds,
   });
   const { aprPercentByReserveId } = useAaveBorrowAprs({ reserves });
+  const { premiumFraction, interestFeeBps } = useNewBorrowAprCharges();
   const { liquidityByReserveId } = useAaveReserveLiquidity({ reserves });
   const { headroomByReserveId } = useAaveReserveDrawHeadroom({ reserves });
 
@@ -98,7 +101,13 @@ export function HubSelectionPanel({
     () =>
       reserves.map((reserve) => {
         const key = reserve.reserveId.toString();
-        const aprPercent = aprPercentByReserveId[key];
+        // Same figure the reserve's borrow form opens with once this row is
+        // picked.
+        const aprPercent = allInBorrowAprPercent({
+          baseAprPercent: aprPercentByReserveId[key],
+          premiumFraction,
+          interestFeeBps,
+        });
         const liquidity = liquidityByReserveId[key]?.availableLiquidity;
         const headroom = headroomByReserveId[key] ?? null;
         return {
@@ -127,6 +136,8 @@ export function HubSelectionPanel({
       reserves,
       borrowGate,
       aprPercentByReserveId,
+      premiumFraction,
+      interestFeeBps,
       liquidityByReserveId,
       headroomByReserveId,
       pricesByReserveId,
@@ -152,7 +163,15 @@ export function HubSelectionPanel({
             <span className={`${ASSET_COL_CLASS} py-4`}>
               {COPY.loans.assetSelection.columnAsset}
             </span>
-            <span className="flex-1 py-4">{COPY.loans.borrowRateLabel}</span>
+            {/* The hint sits here rather than on each row's figure, which is
+                inside the row's button: on touch a Hint is a button itself. */}
+            <span className="flex flex-1 items-center gap-1 py-4">
+              {COPY.loans.borrowRateLabel}
+              <Hint
+                tooltip={COPY.loans.borrowAprTooltip}
+                title={COPY.loans.borrowRateLabel}
+              />
+            </span>
             <span className="flex-1 py-4">
               {COPY.loans.hub.columnAvailable}
             </span>

@@ -94,6 +94,21 @@ async function settleWallet(page: Page, base: string, password: string): Promise
   return false;
 }
 
+/** The "continue" button of a one-time notice MetaMask raises while the
+ * `basicFunctionalityMigrationNotification` preference reads "modal". */
+const MM_MIGRATION_NOTICE_ACCEPT_TESTID = "basic-functionality-migration-modal-accept";
+
+/**
+ * Accept that notice whenever it stands in the way of a click on `page`. Its only way out is this
+ * button (neither Escape nor an outside click closes it), and it can come up at any point of the
+ * setup, so no single check could catch it. Accepting saves the dismissal in the wallet's preferences.
+ */
+async function acceptMigrationNoticeWhenBlocking(page: Page): Promise<void> {
+  await page.addLocatorHandler(page.getByTestId(MM_MIGRATION_NOTICE_ACCEPT_TESTID), (accept) =>
+    accept.click({ timeout: WAIT_FOR.ACTION_MS }),
+  );
+}
+
 /**
  * Backup and sync, as onboarding offers it. When the completion screen's "Open wallet" finishes
  * onboarding, MetaMask restores the accounts of the SRP's synced profile — with the profile's own
@@ -106,7 +121,7 @@ async function settleWallet(page: Page, base: string, password: string): Promise
 const MM_ONBOARDING_COMPLETE_TESTID = "parent-selector-onboarding-complete";
 const MM_MANAGE_DEFAULT_SETTINGS_TESTID = "manage-default-settings";
 const MM_PRIVACY_SETTINGS_TESTID = "parent-selector-onboarding-privacy-settings";
-const MM_GENERAL_SETTINGS_TESTID = "category-item-General";
+const MM_BACKUP_AND_SYNC_CATEGORY_TESTID = "category-item-Backup and sync";
 const MM_CATEGORY_BACK_TESTID = "category-back-button";
 const MM_PRIVACY_SETTINGS_BACK_TESTID = "privacy-settings-back-button";
 const MM_ONBOARDING_DONE_TESTID = "onboarding-complete-done";
@@ -130,7 +145,7 @@ async function turnOffBackupAndSync(page: Page): Promise<void> {
   await step(MM_ONBOARDING_COMPLETE_TESTID, "the onboarding completion screen");
   await page.getByTestId(MM_MANAGE_DEFAULT_SETTINGS_TESTID).click({ timeout: WAIT_FOR.ACTION_MS });
   await step(MM_PRIVACY_SETTINGS_TESTID, "the default settings screen");
-  await page.getByTestId(MM_GENERAL_SETTINGS_TESTID).click({ timeout: WAIT_FOR.ACTION_MS });
+  await page.getByTestId(MM_BACKUP_AND_SYNC_CATEGORY_TESTID).click({ timeout: WAIT_FOR.ACTION_MS });
 
   const toggle = page.getByTestId(MM_BACKUP_AND_SYNC_TOGGLE_TESTID);
   await step(MM_BACKUP_AND_SYNC_TOGGLE_TESTID, "the Backup and sync toggle");
@@ -358,6 +373,7 @@ async function usePopupApprovals(
 ): Promise<void> {
   const panel = await context.newPage();
   try {
+    await acceptMigrationNoticeWhenBlocking(panel);
     await panel.goto(`${base}/sidepanel.html${MM_MENU_DRAWER_ROUTE}`).catch(() => {});
 
     const toggle = panel
@@ -399,6 +415,7 @@ export async function setupMetaMaskWallet(
 
   const extensionId = runtimeExtensionId(EXTENSION_CHROME_STORE_IDS.METAMASK);
   const onboardingTab = await context.newPage();
+  await acceptMigrationNoticeWhenBlocking(onboardingTab);
   await onboardingTab.goto(`chrome-extension://${extensionId}/home.html#onboarding/welcome`).catch(() => {});
   await onboardingTab.waitForLoadState("domcontentloaded").catch(() => {});
   await onboardingTab.waitForTimeout(SETTLE.MEDIUM);
@@ -492,6 +509,7 @@ export async function setupMetaMaskWallet(
   // Read the wallet in a fresh tab, driving through any residual onboarding (unlock / passkey).
   const base = (onboardingTab.url().match(/^(chrome-extension:\/\/[a-p]{32})\//) ?? [])[1] ?? `chrome-extension://${extensionId}`;
   const walletPage = await context.newPage();
+  await acceptMigrationNoticeWhenBlocking(walletPage);
   await walletPage.goto(`${base}/home.html#/`).catch(() => {});
   await settleWallet(walletPage, base, password);
 

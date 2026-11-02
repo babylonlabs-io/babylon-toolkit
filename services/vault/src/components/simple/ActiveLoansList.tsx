@@ -1,9 +1,10 @@
 /**
  * ActiveLoansList Component
  * v3 Loans page "Active Loans (N)" section: one row per borrowed reserve showing
- * amount, hub, live Borrow APR, available liquidity and utilization, with
- * per-reserve Borrow / Repay entry points into the reserve-detail overlay. The
- * same token owed to two hubs is two rows, told apart by the Hub column.
+ * amount, hub, the Borrow APR that loan pays, available liquidity and
+ * utilization, with per-reserve Borrow / Repay entry points into the
+ * reserve-detail overlay. The same token owed to two hubs is two rows, told apart
+ * by the Hub column.
  */
 
 import { Avatar, Heading } from "@babylonlabs-io/core-ui";
@@ -76,6 +77,7 @@ export function ActiveLoansList({
               <ListRowMetric
                 label={COPY.loans.borrowRateLabel}
                 value={row.borrowRate ?? COPY.common.emptyValue}
+                tooltip={COPY.loans.activeLoanBorrowAprTooltip}
               />
               <ListRowMetric
                 label={COPY.loans.availableLiquidityLabel}

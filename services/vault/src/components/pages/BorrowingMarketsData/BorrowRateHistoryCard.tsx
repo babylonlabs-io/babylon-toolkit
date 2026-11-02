@@ -1,5 +1,5 @@
 /**
- * Borrow-APR history card (C3, Figma node 10088-61052). Range selection is
+ * Base borrow APR history card (C3, Figma node 10088-61052). Range selection is
  * local, ephemeral state (D6) — it never persists across visits.
  */
 
@@ -91,7 +91,7 @@ function CardShell({
               {COPY.marketData.charts.borrowAprLabel}
             </span>
             <Hint
-              tooltip={COPY.loans.borrowAprTooltip}
+              tooltip={COPY.marketData.baseBorrowAprTooltip}
               title={COPY.marketData.charts.borrowAprLabel}
             />
           </div>

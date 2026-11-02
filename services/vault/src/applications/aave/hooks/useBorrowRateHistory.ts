@@ -1,5 +1,5 @@
 /**
- * Historical borrow APR series for a reserve, over a selectable range.
+ * Historical base borrow APR series for a reserve, over a selectable range.
  *
  * Reads the vault indexer's stepped history endpoint (a borrow rate is a level
  * that holds until the next state change, so the series is never averaged).

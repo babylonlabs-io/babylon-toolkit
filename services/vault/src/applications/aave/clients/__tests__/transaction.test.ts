@@ -69,7 +69,7 @@ import {
   AAVE_WRITE_CONFIRMATIONS,
   RECEIPT_WAIT_ROUND_MS,
 } from "../../constants";
-import { repayToCorePosition } from "../transaction";
+import { getInterestFeeBps, repayToCorePosition } from "../transaction";
 
 const ERC20_INSUFFICIENT_ALLOWANCE_ABI = [
   {
@@ -116,6 +116,21 @@ beforeEach(() => {
   mockWaitForCanonicalReceipt.mockImplementation(
     async ({ receipt }: { receipt: unknown }) => receipt,
   );
+});
+
+describe("getInterestFeeBps", () => {
+  it("reads the interest fee from the adapter as a number", async () => {
+    const adapter = "0x3000000000000000000000000000000000000003";
+    mockPublicClient.readContract.mockResolvedValueOnce(300n);
+
+    await expect(getInterestFeeBps(adapter)).resolves.toBe(300);
+    expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        address: adapter,
+        functionName: "interestFeeBps",
+      }),
+    );
+  });
 });
 
 describe("executeTx simulation-phase tagging (via repayToCorePosition)", () => {

@@ -2294,9 +2294,11 @@ export const COPY = {
     // v3 Loans page empty state, disconnected — no position to describe yet,
     // so it's a title-only prompt like the Activity tab's.
     emptyDisconnected: connectToView("loans"),
-    // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
-    // an APR, the same figure the asset picker labels "Borrow APR". One number,
-    // one label.
+    // What a borrower pays, no compounding applied: the Aave Hub's drawn rate,
+    // plus the risk premium and the adapter's interest fee. An existing loan pays
+    // its own stored premium and a new borrow the current one, so two figures
+    // under this label can differ. The market page and the landing card show the
+    // drawn rate alone, labeled "base".
     borrowRateLabel: "Borrow APR",
     // Repay detail-card metric: outstanding debt for the selected reserve, in
     // token units (before → after the repayment).
@@ -2308,7 +2310,12 @@ export const COPY = {
     // Repay amount slider: prefixes the user's wallet balance shown beside Max.
     balanceLabel: "Balance",
     atRiskOfLiquidation: "At risk of liquidation",
-    borrowAprTooltip: "Borrow APR currently offered on this market",
+    // Borrow form and Select hub. A borrow reprices the whole position, so this
+    // figure can differ from an existing loan's row.
+    borrowAprTooltip:
+      "What you pay to borrow on this market: the base rate plus the current risk premium and the interest fee. Borrowing applies the current risk premium to your whole position.",
+    activeLoanBorrowAprTooltip:
+      "What you pay on this loan: the market's base rate plus your position's risk premium and the interest fee.",
     utilizationTooltip:
       "Percentage of deposited assets currently being borrowed on this market.",
     borrowingUnavailable:
@@ -2554,7 +2561,7 @@ export const COPY = {
     stats: {
       availableLiquidity: "Available Liquidity",
       availableLiquidityTooltip: "Available liquidity to borrow on this market",
-      borrowApr: "Borrow APR",
+      borrowApr: "Base Borrow APR",
       supplied: "Supplied",
       suppliedTooltip: "Provided liquidity on this market",
       totalBorrowed: "Total Borrowed",
@@ -2584,7 +2591,7 @@ export const COPY = {
       columns: {
         // The token column; the hub column reuses `loans.hub.label`.
         asset: "Asset",
-        borrowApr: "Borrow APR",
+        borrowApr: "Base Borrow APR",
         available: AVAILABLE_LIQUIDITY_COLUMN,
         utilization: "Utilization",
         borrowed: "Borrowed",
@@ -2592,25 +2599,30 @@ export const COPY = {
       },
       empty: "No borrow markets available.",
     },
-    // Borrow APR history + interest rate model charts (Figma node
+    // Shared by the stats bar and the rate history chart.
+    baseBorrowAprTooltip:
+      "This market's rate, before the risk premium and interest fee that borrowers also pay.",
+    // Base borrow APR history + interest rate model charts (Figma node
     // 10088-61056). Labels follow this file's sentence-case rule;
     // "Utilisation" is respelled to the American form this file mandates.
     charts: {
-      borrowAprLabel: "Borrow APR",
+      borrowAprLabel: "Base borrow APR",
       // Header caption and the IRM card's legend entry — one string so the
       // two can't drift apart in case.
       utilizationRateLabel: "Utilization rate",
       utilizationRateTooltip:
-        "The share of supplied liquidity currently borrowed. Higher utilization moves the market up this curve, raising the borrow rate.",
+        "The share of supplied liquidity currently borrowed. Higher utilization moves the market up this curve, raising the base borrow rate.",
       ranges: { d1: "1D", w1: "1W", m1: "1M", m6: "6M", y1: "1Y", all: "All" },
       rateRange: (min: string, max: string) => `${min} – ${max}`,
       currentCallout: (pct: string) => `Current ${pct}`,
       optimalCallout: (pct: string) => `Optimal (Kink) ${pct}`,
+      // Stays short: the legend names the curve, and a wider box collides with
+      // the kink's at the narrowest phone.
       calloutApr: (pct: string) => `APR ~ ${pct}`,
       historyAriaLabel: (symbol: string, hub: string) =>
-        `${tokenOnHub(symbol, hub)} borrow APR history`,
+        `${tokenOnHub(symbol, hub)} base borrow APR history`,
       irmAriaLabel: (symbol: string, hub: string) =>
-        `${tokenOnHub(symbol, hub)} borrow rate against utilization`,
+        `${tokenOnHub(symbol, hub)} base borrow rate against utilization`,
       chartUnavailable:
         "Chart data is unavailable right now. Please try again shortly.",
       historyEmpty: "No rate history yet for this market.",
@@ -2850,7 +2862,8 @@ export const COPY = {
       heroBody:
         "Powered by Babylon Trustless Bitcoin Vaults protocol, collateralize native Bitcoin and borrow supported assets directly from Aave V4.",
       connectButton: "Connect Wallet",
-      aprHeading: "Current Borrowing Rates",
+      // "Base" sits in the heading: on each value it wraps the row at desktop.
+      aprHeading: "Current Base Borrowing Rates",
       aprSuffix: "APR",
       aprLabels: {
         usdt: "USDT",

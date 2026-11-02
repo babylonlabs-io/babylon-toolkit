@@ -166,6 +166,13 @@ export const DEPOSIT_PROGRESS_STOPS = {
   split: "deposit-progress-split",
 } as const;
 
+/**
+ * An Active Loans row, from the god-mode gallery's demo loan. The route capture
+ * photographs /loans disconnected and the recorded depositor holds no position,
+ * so no wallet reaches a row. See `activeLoan.visual.spec.ts`.
+ */
+export const ACTIVE_LOAN_STOP = "loans-active-loan";
+
 export const VAULT_REFUND_STOPS = {
   refunding: "vaults-refunding",
   refunded: "vaults-refunded",
