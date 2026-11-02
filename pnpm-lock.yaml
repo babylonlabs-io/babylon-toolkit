@@ -8,6 +8,8 @@ overrides:
   '@walletconnect/logger': 3.0.0
   js-yaml: 4.3.2
   axios: 1.20.0
+  bitcoinjs-lib: 6.1.10
+  '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.5
 
 importers:
 
@@ -294,8 +296,8 @@ importers:
   packages/babylon-ledger-vault-signer:
     dependencies:
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@ledgerhq/device-management-kit':
         specifier: 1.7.1
         version: 1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10)
@@ -306,8 +308,8 @@ importers:
         specifier: 1.4.0
         version: 1.4.0
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -407,8 +409,8 @@ importers:
   packages/babylon-ts-sdk:
     dependencies:
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@noble/curves':
         specifier: 1.9.7
         version: 1.9.7
@@ -416,8 +418,8 @@ importers:
         specifier: 2.0.1
         version: 2.0.1
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -514,8 +516,8 @@ importers:
         specifier: workspace:*
         version: link:../babylon-ledger-vault-signer
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@changesets/cli':
         specifier: 2.29.8
         version: 2.29.8(@types/node@22.17.0)
@@ -602,10 +604,10 @@ importers:
         version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@tomo-inc/ledger-bitcoin-babylon':
         specifier: 0.3.5-alpha.0
-        version: 0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
+        version: 0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10)
       '@tomo-inc/wallet-connect-sdk':
         specifier: 1.0.0
-        version: 1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@types/node':
         specifier: 22.17.0
         version: 22.17.0
@@ -628,8 +630,8 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -668,7 +670,7 @@ importers:
         version: 20.0.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       ledger-bitcoin-babylon-boilerplate:
         specifier: 0.2.8
-        version: 0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
+        version: 0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10)
       lint-staged:
         specifier: 15.5.2
         version: 15.5.2
@@ -728,7 +730,7 @@ importers:
         version: link:../../packages/babylon-proto-ts
       '@babylonlabs-io/btc-staking-ts':
         specifier: 2.8.6
-        version: 2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.7)
+        version: 2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.10)
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
@@ -739,8 +741,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/babylon-wallet-connector
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@cosmjs/proto-signing':
         specifier: 0.36.0
         version: 0.36.0
@@ -769,8 +771,8 @@ importers:
         specifier: 12.0.5
         version: 12.0.5
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -1028,8 +1030,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/babylon-wallet-connector
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@dnd-kit/core':
         specifier: 6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1058,8 +1060,8 @@ importers:
         specifier: 5.90.20
         version: 5.90.20(react@18.3.1)
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -1952,7 +1954,7 @@ packages:
     engines: {node: '>=22.0.0 <25.0.0'}
     peerDependencies:
       '@babylonlabs-io/babylon-proto-ts': 1.22.1
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
 
   '@base-org/account@1.1.1':
     resolution: {integrity: sha512-IfVJPrDPhHfqXRDb89472hXkpvJuQQR7FDI9isLPHEqSYt/45whIoBxSPgZ0ssTt379VhQo4+87PWI1DoLSfAQ==}
@@ -1981,8 +1983,8 @@ packages:
   '@biomejs/wasm-nodejs@2.2.2':
     resolution: {integrity: sha512-GxI0ejyXaCjIq6SxBr9e4jyf3zmI5Eyyq5fF0dlb4nECVXwAgUAnT6hQ5502ZACvBxoWmreXw08im/l3APpvIw==}
 
-  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.3':
-    resolution: {integrity: sha512-arFPdEZi9RIiaG76OZswTnAU0KfuiLwGw2VNfD66LKhzlbfOnX1o1WI/GI3qm9UbjG/0QOzZu/KmTNvL79x/DQ==}
+  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.5':
+    resolution: {integrity: sha512-bVAnsxcA1FOZ7hzu6zK2LoJFgpu6qvjnZjBrJXZrylJ4+6mG9cT31F04QVQBEKEWmYkE+0RvgcqF3Fb4/Ex80A==}
     engines: {node: '>=14.0.0'}
 
   '@bitcoinerlab/descriptors@1.1.1':
@@ -2599,72 +2601,84 @@ packages:
     engines: {glibc: '>=2.26', npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-arm@1.0.2':
     resolution: {integrity: sha512-iLWCvrKgeFoglQxdEwzu1eQV04o8YeYGFXtfWU26Zr2wWT3q3MTzC+QTCO3ZQfWd3doKHT4Pm2kRmLbupT+sZw==}
     engines: {glibc: '>=2.28', npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-s390x@1.0.2':
     resolution: {integrity: sha512-cmhQ1J4qVhfmS6szYW7RT+gLJq9dH2i4maq+qyXayUSn9/3iY2ZeWpbAgSpSVbV2E1JUL2Gg7pwnYQ1h8rQIog==}
     engines: {glibc: '>=2.28', npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-x64@1.0.2':
     resolution: {integrity: sha512-E441q4Qdb+7yuyiADVi5J+44x8ctlrqn8XgkDTwr4qPJzWkaHwD489iZ4nGDgcuya4iMN3ULV6NwbhRZJ9Z7SQ==}
     engines: {glibc: '>=2.26', npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linuxmusl-arm64@1.0.2':
     resolution: {integrity: sha512-3CAkndNpYUrlDqkCM5qhksfE+qSIREVpyoeHIU6jd48SJZViAmznoQQLAv4hVXF7xyUB9zf+G++e2v1ABjCbEQ==}
     engines: {musl: '>=1.2.2', npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-libvips-linuxmusl-x64@1.0.2':
     resolution: {integrity: sha512-VI94Q6khIHqHWNOh6LLdm9s2Ry4zdjWJwH56WoiJU7NTeDwyApdZZ8c+SADC8OH98KWNQXnE01UdJ9CSfZvwZw==}
     engines: {musl: '>=1.2.2', npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linux-arm64@0.33.4':
     resolution: {integrity: sha512-2800clwVg1ZQtxwSoTlHvtm9ObgAax7V6MTAB/hDT945Tfyy3hVkmiHpeLPCKYqYR1Gcmv1uDZ3a4OFwkdBL7Q==}
     engines: {glibc: '>=2.26', node: ^18.17.0 || ^20.3.0 || >=21.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-arm@0.33.4':
     resolution: {integrity: sha512-RUgBD1c0+gCYZGCCe6mMdTiOFS0Zc/XrN0fYd6hISIKcDUbAW5NtSQW9g/powkrXYm6Vzwd6y+fqmExDuCdHNQ==}
     engines: {glibc: '>=2.28', node: ^18.17.0 || ^20.3.0 || >=21.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-s390x@0.33.4':
     resolution: {integrity: sha512-h3RAL3siQoyzSoH36tUeS0PDmb5wINKGYzcLB5C6DIiAn2F3udeFAum+gj8IbA/82+8RGCTn7XW8WTFnqag4tQ==}
     engines: {glibc: '>=2.31', node: ^18.17.0 || ^20.3.0 || >=21.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-x64@0.33.4':
     resolution: {integrity: sha512-GoR++s0XW9DGVi8SUGQ/U4AeIzLdNjHka6jidVwapQ/JebGVQIpi52OdyxCNVRE++n1FCLzjDovJNozif7w/Aw==}
     engines: {glibc: '>=2.26', node: ^18.17.0 || ^20.3.0 || >=21.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linuxmusl-arm64@0.33.4':
     resolution: {integrity: sha512-nhr1yC3BlVrKDTl6cO12gTpXMl4ITBUZieehFvMntlCXFzH2bvKG76tBL2Y/OqhupZt81pR7R+Q5YhJxW0rGgQ==}
     engines: {musl: '>=1.2.2', node: ^18.17.0 || ^20.3.0 || >=21.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linuxmusl-x64@0.33.4':
     resolution: {integrity: sha512-uCPTku0zwqDmZEOi4ILyGdmW76tH7dm8kKlOIV1XC5cLyJ71ENAAqarOHQh0RLfpIpbV5KOpXzdU6XkJtS0daw==}
     engines: {musl: '>=1.2.2', node: ^18.17.0 || ^20.3.0 || >=21.0.0, npm: '>=9.6.5', pnpm: '>=7.1.0', yarn: '>=3.2.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-wasm32@0.33.4':
     resolution: {integrity: sha512-Bmmauh4sXUsUqkleQahpdNXKvo+wa1V9KhT2pDA4VJGKwnKMJXiSTGphn0gnJrlooda0QxCtXc6RX1XAU6hMnQ==}
@@ -3262,21 +3276,25 @@ packages:
     resolution: {integrity: sha512-+YnuF9lwffzCsLrP0sCuDZKhbb5nFSV6hSwd8rCCZmzU35mqs0X4Mo8vjwHDZTCzIuDxzLK7Nl7ZeWQuAMxcJQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@nx/nx-linux-arm64-musl@21.3.7':
     resolution: {integrity: sha512-g1SmaC4uHkaLS58FMYnxLKkecASdM+B/G3GH3vPS9LDYdHuFukqwLBvVlvueno6CuIAHc+7bW+TH3xVadnUOvw==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@nx/nx-linux-x64-gnu@21.3.7':
     resolution: {integrity: sha512-zupCkCiH2KKqdy/XcFwwQdyck2foX8H6W1mXfTPV94LqEOjfz8j0nfVuTT4WlZAaWcfwzszzdgKy6Rls65i9HA==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@nx/nx-linux-x64-musl@21.3.7':
     resolution: {integrity: sha512-Lhk/q/qb4HFaESR5KLCDPfGWh3Vp0x4bYTILIQ1mBTyqe3zJl1CMtAZp2L43gT7Zt41mz4ZiohavdDyFhIaUgA==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@nx/nx-win32-arm64-msvc@21.3.7':
     resolution: {integrity: sha512-fk1edw6PNfUiKHDCHqe0WHVJgWiDUU1DoWDhJji5ZY0w8nT89AfTDDxt4YZptcFwAuuwPA/98K0fjQYcenlgTg==}
@@ -3544,56 +3562,67 @@ packages:
     resolution: {integrity: sha512-K4ncpWl7sQuyp6rWiGUvb6Q18ba8mzM0rjWJ5JgYKlIXAau1db7hZnR0ldJvqKWWJDxqzSLwGUhA4jp+KqgDtQ==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm-musleabihf@4.46.1':
     resolution: {integrity: sha512-YykPnXsjUjmXE6j6k2QBBGAn1YsJUix7pYaPLK3RVE0bQL2jfdbfykPxfF8AgBlqtYbfEnYHmLXNa6QETjdOjQ==}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-arm64-gnu@4.46.1':
     resolution: {integrity: sha512-kKvqBGbZ8i9pCGW3a1FH3HNIVg49dXXTsChGFsHGXQaVJPLA4f/O+XmTxfklhccxdF5FefUn2hvkoGJH0ScWOA==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm64-musl@4.46.1':
     resolution: {integrity: sha512-zzX5nTw1N1plmqC9RGC9vZHFuiM7ZP7oSWQGqpbmfjK7p947D518cVK1/MQudsBdcD84t6k70WNczJOct6+hdg==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-loongarch64-gnu@4.46.1':
     resolution: {integrity: sha512-O8CwgSBo6ewPpktFfSDgB6SJN9XDcPSvuwxfejiddbIC/hn9Tg6Ai0f0eYDf3XvB/+PIWzOQL+7+TZoB8p9Yuw==}
     cpu: [loong64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-ppc64-gnu@4.46.1':
     resolution: {integrity: sha512-JnCfFVEKeq6G3h3z8e60kAp8Rd7QVnWCtPm7cxx+5OtP80g/3nmPtfdCXbVl063e3KsRnGSKDHUQMydmzc/wBA==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-gnu@4.46.1':
     resolution: {integrity: sha512-dVxuDqS237eQXkbYzQQfdf/njgeNw6LZuVyEdUaWwRpKHhsLI+y4H/NJV8xJGU19vnOJCVwaBFgr936FHOnJsQ==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-musl@4.46.1':
     resolution: {integrity: sha512-CvvgNl2hrZrTR9jXK1ye0Go0HQRT6ohQdDfWR47/KFKiLd5oN5T14jRdUVGF4tnsN8y9oSfMOqH6RuHh+ck8+w==}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-s390x-gnu@4.46.1':
     resolution: {integrity: sha512-x7ANt2VOg2565oGHJ6rIuuAon+A8sfe1IeUx25IKqi49OjSr/K3awoNqr9gCwGEJo9OuXlOn+H2p1VJKx1psxA==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-gnu@4.46.1':
     resolution: {integrity: sha512-9OADZYryz/7E8/qt0vnaHQgmia2Y0wrjSSn1V/uL+zw/i7NUhxbX4cHXdEQ7dnJgzYDS81d8+tf6nbIdRFZQoQ==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-musl@4.46.1':
     resolution: {integrity: sha512-NuvSCbXEKY+NGWHyivzbjSVJi68Xfq1VnIvGmsuXs6TCtveeoDRKutI5vf2ntmNnVq64Q4zInet0UDQ+yMB6tA==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-win32-arm64-msvc@4.46.1':
     resolution: {integrity: sha512-mWz+6FSRb82xuUMMV1X3NGiaPFqbLN9aIueHleTZCc46cJvwTlvIh7reQLk4p97dv0nddyewBhwzryBHH7wtPw==}
@@ -4112,24 +4141,28 @@ packages:
     engines: {node: '>=10'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-arm64-musl@1.5.29':
     resolution: {integrity: sha512-TERh2OICAJz+SdDIK9+0GyTUwF6r4xDlFmpoiHKHrrD/Hh3u+6Zue0d7jQ/he/i80GDn4tJQkHlZys+RZL5UZg==}
     engines: {node: '>=10'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@swc/core-linux-x64-gnu@1.5.29':
     resolution: {integrity: sha512-WMDPqU7Ji9dJpA+Llek2p9t7pcy7Bob8ggPUvgsIlv3R/eesF9DIzSbrgl6j3EAEPB9LFdSafsgf6kT/qnvqFg==}
     engines: {node: '>=10'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-x64-musl@1.5.29':
     resolution: {integrity: sha512-DO14glwpdKY4POSN0201OnGg1+ziaSVr6/RFzuSLggshwXeeyVORiHv3baj7NENhJhWhUy3NZlDsXLnRFkmhHQ==}
     engines: {node: '>=10'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@swc/core-win32-arm64-msvc@1.5.29':
     resolution: {integrity: sha512-V3Y1+a1zG1zpYXUMqPIHEMEOd+rHoVnIpO/KTyFwAmKVu8v+/xPEVx/AGoYE67x4vDAAvPQrKI3Aokilqa5yVg==}
@@ -4225,7 +4258,7 @@ packages:
       '@ledgerhq/hw-transport': 6.31.10
       '@ledgerhq/hw-transport-webhid': 6.30.6
       '@ledgerhq/hw-transport-webusb': 6.29.10
-      bitcoinjs-lib: 6.1.5
+      bitcoinjs-lib: 6.1.10
 
   '@tomo-inc/tomo-wallet-provider@1.2.0-beta.1':
     resolution: {integrity: sha512-DD62p3D6w206ndVwSL9esYlN6Vx98gzuQNa3LrYBKzoDmlmf7weJwbwi6d7cG1/ZCPw0Y8Fb79f/HmjpBkWLqw==}
@@ -4237,7 +4270,7 @@ packages:
       '@keystonehq/keystone-sdk': 0.9.0
       '@keystonehq/sdk': 0.22.1
       '@scure/bip32': ^1.4.0
-      bitcoinjs-lib: ^6.1.5
+      bitcoinjs-lib: 6.1.10
       react: ^18
       react-dom: ^18
 
@@ -4546,41 +4579,49 @@ packages:
     resolution: {integrity: sha512-34gw7PjDGB9JgePJEmhEqBhWvCiiWCuXsL9hYphDF7crW7UgI05gyBAi6MF58uGcMOiOqSJ2ybEeCvHcq0BCmQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@unrs/resolver-binding-linux-arm64-musl@1.11.1':
     resolution: {integrity: sha512-RyMIx6Uf53hhOtJDIamSbTskA99sPHS96wxVE/bJtePJJtpdKGXO1wY90oRdXuYOGOTuqjT8ACccMc4K6QmT3w==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@unrs/resolver-binding-linux-ppc64-gnu@1.11.1':
     resolution: {integrity: sha512-D8Vae74A4/a+mZH0FbOkFJL9DSK2R6TFPC9M+jCWYia/q2einCubX10pecpDiTmkJVUH+y8K3BZClycD8nCShA==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@unrs/resolver-binding-linux-riscv64-gnu@1.11.1':
     resolution: {integrity: sha512-frxL4OrzOWVVsOc96+V3aqTIQl1O2TjgExV4EKgRY09AJ9leZpEg8Ak9phadbuX0BA4k8U5qtvMSQQGGmaJqcQ==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@unrs/resolver-binding-linux-riscv64-musl@1.11.1':
     resolution: {integrity: sha512-mJ5vuDaIZ+l/acv01sHoXfpnyrNKOk/3aDoEdLO/Xtn9HuZlDD6jKxHlkN8ZhWyLJsRBxfv9GYM2utQ1SChKew==}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@unrs/resolver-binding-linux-s390x-gnu@1.11.1':
     resolution: {integrity: sha512-kELo8ebBVtb9sA7rMe1Cph4QHreByhaZ2QEADd9NzIQsYNQpt9UkM9iqr2lhGr5afh885d/cB5QeTXSbZHTYPg==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@unrs/resolver-binding-linux-x64-gnu@1.11.1':
     resolution: {integrity: sha512-C3ZAHugKgovV5YvAMsxhq0gtXuwESUKc5MhEtjBpLoHPLYM+iuwSj3lflFwK3DPm68660rZ7G8BMcwSro7hD5w==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@unrs/resolver-binding-linux-x64-musl@1.11.1':
     resolution: {integrity: sha512-rV0YSoyhK2nZ4vEswT/QwqzqQXw5I6CjoaYMOX0TqBlWhojUf8P94mvI7nuJTeaCkkds3QE4+zS8Ko+GdXuZtA==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@unrs/resolver-binding-wasm32-wasi@1.11.1':
     resolution: {integrity: sha512-5u4RkfxJm+Ng7IWgkzi3qrFOvLvQYnPBmjmZQ8+szTK/b31fQCnleNl1GgEt7nIsZRIf5PLhPwT0WM+q45x/UQ==}
@@ -5420,8 +5461,8 @@ packages:
   bitcoin-address-validation@2.2.3:
     resolution: {integrity: sha512-1uGCGl26Ye8JG5qcExtFLQfuib6qEZWNDo1ZlLlwp/z7ygUFby3IxolgEfgMGaC+LG9csbVASLcH8fRLv7DIOg==}
 
-  bitcoinjs-lib@6.1.7:
-    resolution: {integrity: sha512-tlf/r2DGMbF7ky1MgUqXHzypYHakkEnm0SZP23CJKIqNY/5uNAnMbFhMJdhjrL/7anfb/U8+AlpdjPWjPnAalg==}
+  bitcoinjs-lib@6.1.10:
+    resolution: {integrity: sha512-9KpnS5JKVP0j0yfTsBNFIsNA6+JdBDb7VtL35F20I/pJYobosi3TmZFGtu6qxhJCfb0vubJixr5Zv61/lUYETw==}
     engines: {node: '>=8.0.0'}
 
   bl@4.1.0:
@@ -7849,7 +7890,7 @@ packages:
       '@ledgerhq/hw-transport': 6.31.10
       '@ledgerhq/hw-transport-webhid': 6.30.6
       '@ledgerhq/hw-transport-webusb': 6.29.10
-      bitcoinjs-lib: 6.1.5
+      bitcoinjs-lib: 6.1.10
 
   ledger-bitcoin@0.2.3:
     resolution: {integrity: sha512-sWdvMTR5CkebNlM0Mam9ROdpsD7Y4087kj4cbIaCCq8IXShCQ44vE3j0wTmt+sHp13eETgY63OWN1rkuIfMfuQ==}
@@ -11945,12 +11986,12 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@babylonlabs-io/btc-staking-ts@2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.7)':
+  '@babylonlabs-io/btc-staking-ts@2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.10)':
     dependencies:
       '@babylonlabs-io/babylon-proto-ts': link:packages/babylon-proto-ts
-      '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.3
+      '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.5
       '@cosmjs/encoding': 0.36.0
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
 
   '@base-org/account@1.1.1(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.22.4)':
     dependencies:
@@ -12002,7 +12043,7 @@ snapshots:
 
   '@biomejs/wasm-nodejs@2.2.2': {}
 
-  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.3':
+  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.5':
     dependencies:
       uint8array-tools: 0.0.7
 
@@ -12011,7 +12052,7 @@ snapshots:
       '@bitcoinerlab/miniscript': 1.4.0
       '@bitcoinerlab/secp256k1': 1.2.0
       bip32: 4.0.0
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       ecpair: 2.1.0
     optionalDependencies:
       ledger-bitcoin: 0.2.3
@@ -13992,7 +14033,7 @@ snapshots:
       '@wallet-standard/app': 1.1.0
       '@wallet-standard/base': 1.1.0
       '@walletconnect/universal-provider': 2.22.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       sats-connect: 3.5.0(typescript@5.9.2)
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -14036,7 +14077,7 @@ snapshots:
       '@wallet-standard/app': 1.1.0
       '@wallet-standard/base': 1.1.0
       '@walletconnect/universal-provider': 2.22.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       sats-connect: 3.5.0(typescript@5.9.2)
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -15957,7 +15998,7 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.0
 
-  '@tomo-inc/ledger-bitcoin-babylon@0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)':
+  '@tomo-inc/ledger-bitcoin-babylon@0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10)':
     dependencies:
       '@bitcoinerlab/descriptors': 1.1.1(ledger-bitcoin@0.2.3)
       '@bitcoinerlab/secp256k1': 1.2.0
@@ -15969,12 +16010,12 @@ snapshots:
       '@ledgerhq/hw-transport-webusb': 6.29.10
       '@scure/btc-signer': 1.8.1
       bip32-path: 0.4.2
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       crypto: 1.0.1
       ledger-bitcoin: 0.2.3
       process: 0.11.10
 
-  '@tomo-inc/tomo-wallet-provider@1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)':
+  '@tomo-inc/tomo-wallet-provider@1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)':
     dependencies:
       '@bitcoinerlab/secp256k1': 1.2.0
       '@cosmjs/stargate': 0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -15985,7 +16026,7 @@ snapshots:
       '@keystonehq/keystone-sdk': 0.12.3
       '@keystonehq/sdk': 0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@scure/bip32': 1.4.0
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       buffer: 6.0.3
       events: 3.3.0
       jsontokens: 4.0.1
@@ -15995,9 +16036,9 @@ snapshots:
     transitivePeerDependencies:
       - starknet
 
-  '@tomo-inc/wallet-connect-sdk@1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@tomo-inc/wallet-connect-sdk@1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@tomo-inc/tomo-wallet-provider': 1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)
+      '@tomo-inc/tomo-wallet-provider': 1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)
       animate.css: 4.1.1
       buffer: 6.0.3
       classnames: 2.5.1
@@ -18635,7 +18676,7 @@ snapshots:
       bech32: 2.0.0
       sha256-uint8array: 0.10.7
 
-  bitcoinjs-lib@6.1.7:
+  bitcoinjs-lib@6.1.10:
     dependencies:
       '@noble/hashes': 1.8.0
       bech32: 2.0.0
@@ -21438,7 +21479,7 @@ snapshots:
 
   kolorist@1.8.0: {}
 
-  ledger-bitcoin-babylon-boilerplate@0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7):
+  ledger-bitcoin-babylon-boilerplate@0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10):
     dependencies:
       '@bitcoinerlab/descriptors': 1.1.1(ledger-bitcoin@0.2.3)
       '@bitcoinerlab/secp256k1': 1.2.0
@@ -21451,7 +21492,7 @@ snapshots:
       '@noble/secp256k1': 2.3.0
       '@scure/btc-signer': 1.8.1
       bip32-path: 0.4.2
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       crypto: 1.0.1
       elliptic: 6.6.1
       ledger-bitcoin: 0.2.3
@@ -21463,7 +21504,7 @@ snapshots:
       '@bitcoinerlab/secp256k1': 1.2.0
       '@ledgerhq/hw-transport': 6.31.10
       bip32-path: 0.4.2
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
 
   leven@3.1.0: {}
 

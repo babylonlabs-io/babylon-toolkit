@@ -43,8 +43,8 @@ describe("dependency-clean package subpath boundaries", () => {
 
     expect(packageJson.peerDependencies).toEqual({
       "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
-      "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
-      "bitcoinjs-lib": "6.1.7",
+      "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.5",
+      "bitcoinjs-lib": "6.1.10",
       viem: "^2.38.2",
     });
     expect(packageJson.peerDependenciesMeta).toEqual({
