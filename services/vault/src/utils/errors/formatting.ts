@@ -666,9 +666,10 @@ export function formatPayoutSignatureError(error: unknown): {
         message: COPY.deposit.errors.appVersionUnsupported.body,
       };
     }
-    // Empty vault record from the registry reader. Usually a lagging RPC
-    // node rather than a missing deposit, so the copy points at waiting
-    // instead of asserting the deposit is gone. Shares the deposit-flow
+    // Empty vault record from the registry reader, or a registry list that
+    // lacks the target. Usually a lagging RPC node rather than a missing
+    // deposit, so the copy points at waiting instead of asserting the
+    // deposit is gone. Shares the deposit-flow
     // entry deliberately: same condition, same cause, so payout signing and
     // the deposit mapper must not drift apart on wording.
     if (isVaultRecordEmptyError(error)) {

@@ -2,8 +2,8 @@
  * DisconnectedOverview Component
  *
  * Entry / landing screen rendered when no wallet is connected. Left column:
- * stat chips, product pitch, the live borrow-APR row under a "Current Borrowing
- * Rates" heading, and the Connect CTA. Right column: one unbordered panel of
+ * stat chips, product pitch, the live base-APR row under a "Current Base
+ * Borrowing Rates" heading, and the Connect CTA. Right column: one unbordered panel of
  * feature rows; only one row expands, with single-open accordion behavior.
  */
 

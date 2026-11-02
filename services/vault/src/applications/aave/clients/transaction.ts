@@ -89,6 +89,25 @@ export async function getCoreSpokeAddress(
 }
 
 /**
+ * Read the interest fee the adapter charges borrowers on drawn interest.
+ *
+ * @param controllerAddress - Trusted AaveIntegrationAdapter address
+ * @returns Interest fee in basis points
+ */
+export async function getInterestFeeBps(
+  controllerAddress: Address,
+): Promise<number> {
+  const publicClient = ethClient.getPublicClient();
+  const interestFeeBps = await publicClient.readContract({
+    address: controllerAddress,
+    abi: AaveIntegrationAdapterABI,
+    functionName: "interestFeeBps",
+    args: [],
+  });
+  return Number(interestFeeBps as bigint);
+}
+
+/**
  * Read the vBTC reserve ID from the controller contract.
  *
  * VAULT_BTC_RESERVE_ID is an immutable property on the AaveIntegrationAdapter.

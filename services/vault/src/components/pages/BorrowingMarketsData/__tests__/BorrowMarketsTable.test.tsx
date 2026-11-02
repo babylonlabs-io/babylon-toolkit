@@ -60,7 +60,7 @@ describe("BorrowMarketsTable", () => {
 
     expect(screen.getByText("Asset")).toBeInTheDocument();
     expect(screen.getAllByText("Hub")).toHaveLength(2);
-    expect(screen.getAllByText("Borrow APR")).toHaveLength(2);
+    expect(screen.getAllByText("Base Borrow APR")).toHaveLength(2);
     expect(screen.getAllByText("Available Liquidity")).toHaveLength(2);
     expect(screen.getAllByText("Utilization")).toHaveLength(2);
     expect(screen.getAllByText("Borrowed")).toHaveLength(2);

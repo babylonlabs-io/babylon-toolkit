@@ -263,7 +263,7 @@ export default function BorrowingMarketsData() {
           aprPercent == null
             ? COPY.common.emptyValue
             : formatAprPercent(aprPercent),
-        tooltip: COPY.loans.borrowAprTooltip,
+        tooltip: COPY.marketData.baseBorrowAprTooltip,
       },
       {
         label: COPY.marketData.stats.supplied,

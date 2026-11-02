@@ -14,7 +14,7 @@ export type HistoryRange = "1d" | "1w" | "1m" | "6m" | "1y" | "all";
 export interface BorrowRateHistoryPoint {
   /** Sample time, unix ms (the endpoint's `t` is unix seconds). */
   timeMs: number;
-  /** Borrow APR percent at that time. */
+  /** Base borrow APR percent at that time. */
   ratePercent: number;
 }
 

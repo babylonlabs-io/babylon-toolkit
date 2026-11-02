@@ -551,10 +551,11 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.walletAccountChanged;
   }
 
-  // 4a'. Empty vault record from the registry reader. Far more often a
-  // lagging RPC node than a missing vault, and the raw "not found on-chain"
-  // wording reads as data loss to someone who just watched their registration
-  // succeed — so surface "still confirming" instead.
+  // 4a'. Empty vault record from the registry reader, or a registry list that
+  // lacks the target. Far more often a lagging RPC node than a missing vault,
+  // and the raw "not found on-chain" wording reads as data loss to someone who
+  // just watched their registration succeed — so surface "still confirming"
+  // instead.
   if (isVaultRecordEmptyError(err)) {
     return ERRORS.vaultRegistrationNotYetVisible;
   }

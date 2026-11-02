@@ -1,5 +1,5 @@
 /**
- * Pure chart helpers shared by the Aave market-data charts: the borrow-APR
+ * Pure chart helpers shared by the Aave market-data charts: the base borrow APR
  * history card (C3, Figma node 10088-61052) and the interest-rate-model card
  * (C2, Figma node 10088-61091). Kept free of React so the domain/tick/date
  * math is testable without rendering `LineChart`.
@@ -92,7 +92,7 @@ export function percentAxis(
 }
 
 /**
- * Borrow APR at `utilizationPercent`, linearly interpolated between the two
+ * Base borrow APR at `utilizationPercent`, linearly interpolated between the two
  * neighboring samples (exact for the on-chain piecewise-linear strategy,
  * whose kink is always an exact sample). Clamped to the curve's ends.
  *

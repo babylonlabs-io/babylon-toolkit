@@ -105,7 +105,7 @@ export async function rebuildDepositTermsCore(
   }
 
   // Completeness anchor: the single auth-anchor OP_RETURN sits at vout === HTLC
-  // count — the only guard against an indexer-lagged partial sibling set.
+  // count — the only guard against a partial sibling set.
   const found = findAuthAnchorOpReturn(
     stripHexPrefix(input.fundedPrePeginTxHex),
   );
@@ -121,8 +121,8 @@ export async function rebuildDepositTermsCore(
     throw new Error(
       `Auth-anchor OP_RETURN at vout ${found.vout} does not match the ` +
         `discovered sibling count ${siblingCount}; the discovered sibling set ` +
-        `does not cover this transaction's HTLC outputs (a lagging index can ` +
-        `cause this — retry later). Resume refused.`,
+        `does not cover this transaction's HTLC outputs (a sibling may not be ` +
+        `registered yet, or not by this depositor). Resume refused.`,
     );
   }
 

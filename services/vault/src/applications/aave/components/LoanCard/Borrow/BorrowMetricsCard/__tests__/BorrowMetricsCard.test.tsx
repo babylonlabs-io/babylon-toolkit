@@ -39,6 +39,14 @@ const baseProps = {
   healthFactorValue: 2.1,
 };
 
+describe("BorrowMetricsCard borrow APR row", () => {
+  it("explains what the figure includes and that borrowing applies the current premium", () => {
+    render(<BorrowMetricsCard {...baseProps} />);
+
+    expect(screen.getByText(COPY.loans.borrowAprTooltip)).toBeInTheDocument();
+  });
+});
+
 describe("BorrowMetricsCard available liquidity row", () => {
   it("shows available liquidity as current → projected when a projection is given", () => {
     render(

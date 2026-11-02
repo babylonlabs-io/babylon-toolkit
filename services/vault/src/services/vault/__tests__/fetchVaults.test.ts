@@ -8,7 +8,6 @@ import { graphqlClient } from "../../../clients/graphql/client";
 import { VaultStatus } from "../../../types/vault";
 import {
   fetchVaultById,
-  fetchVaultIdsByDepositor,
   fetchVaultPayoutScriptPubKey,
   fetchVaultRefundData,
   fetchVaultsByDepositor,
@@ -576,121 +575,6 @@ describe("fetchVaults", () => {
       await expect(
         fetchVaultRefundData(VALID_VAULT_ID as `0x${string}`),
       ).rejects.toThrow("indexer unavailable");
-    });
-  });
-
-  describe("fetchVaultIdsByDepositor", () => {
-    // The lean enumerator must NOT drop rows on transform failures of
-    // unrelated fields (e.g. a transient null depositorWotsPkHash on a
-    // sibling vault) — refund's sibling discovery depends on a
-    // complete vault-id list for the depositor.
-    it("returns ids for every vault row regardless of unrelated indexer fields", async () => {
-      // Three vault rows: one well-formed, one with a null
-      // depositorWotsPkHash (which `fetchVaultsByDepositor` would
-      // drop), and one with a null hashlock. Lean enumerator must
-      // surface all three.
-      const SIBLING_ID = "0x" + "11".repeat(32);
-      const OTHER_ID = "0x" + "22".repeat(32);
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [{ id: VALID_VAULT_ID }, { id: SIBLING_ID }, { id: OTHER_ID }],
-          pageInfo: { hasNextPage: false, endCursor: null },
-          totalCount: 3,
-        },
-      });
-
-      const ids = await fetchVaultIdsByDepositor(
-        "0xdepositor" as `0x${string}`,
-      );
-
-      expect(ids).toEqual([VALID_VAULT_ID, SIBLING_ID, OTHER_ID]);
-    });
-
-    it("lower-cases the depositor address in the GraphQL variable", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [],
-          pageInfo: { hasNextPage: false, endCursor: null },
-          totalCount: 0,
-        },
-      });
-
-      await fetchVaultIdsByDepositor(
-        "0xAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAb" as `0x${string}`,
-      );
-
-      expect(mockedRequest).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          depositor: "0xabababababababababababababababababababab",
-        }),
-      );
-    });
-
-    it("throws if a returned id is malformed hex", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [{ id: "not-a-hex-id" }],
-          pageInfo: { hasNextPage: false, endCursor: null },
-          totalCount: 1,
-        },
-      });
-
-      await expect(
-        fetchVaultIdsByDepositor("0xdepositor" as `0x${string}`),
-      ).rejects.toThrow(/Malformed hex/);
-    });
-
-    it("walks cursor pagination and returns ids from every page", async () => {
-      // A depositor with more vaults than one indexer page (devnet cap is
-      // 50) must get the complete id list, not the first page only.
-      const FIRST_ID = "0x" + "11".repeat(32);
-      const SECOND_ID = "0x" + "22".repeat(32);
-      mockedRequest
-        .mockResolvedValueOnce({
-          vaults: {
-            items: [{ id: FIRST_ID }],
-            pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
-            totalCount: 2,
-          },
-        })
-        .mockResolvedValueOnce({
-          vaults: {
-            items: [{ id: SECOND_ID }],
-            pageInfo: { hasNextPage: false, endCursor: null },
-          },
-        });
-
-      const ids = await fetchVaultIdsByDepositor(
-        "0xdepositor" as `0x${string}`,
-      );
-
-      expect(ids).toEqual([FIRST_ID, SECOND_ID]);
-      expect(mockedRequest).toHaveBeenCalledTimes(2);
-      expect(mockedRequest).toHaveBeenLastCalledWith(
-        expect.anything(),
-        expect.objectContaining({ after: "cursor-1" }),
-      );
-    });
-
-    it("throws when paginated ids disagree with the indexer's totalCount", async () => {
-      // An inconsistent paginated response could silently drop tail
-      // siblings of a batched Pre-PegIn. Refund's sibling discovery must
-      // fail closed instead of signing against an incomplete batch.
-      mockedRequest.mockResolvedValueOnce({
-        vaults: {
-          items: [
-            { id: "0x" + "11".repeat(32) },
-            { id: "0x" + "22".repeat(32) },
-          ],
-          pageInfo: { hasNextPage: false, endCursor: null },
-          totalCount: 5,
-        },
-      });
-
-      await expect(
-        fetchVaultIdsByDepositor("0xdepositor" as `0x${string}`),
-      ).rejects.toThrow(/inconsistent/);
     });
   });
 });

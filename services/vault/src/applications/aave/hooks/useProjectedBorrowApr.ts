@@ -1,8 +1,9 @@
 /**
- * Current and projected (post-borrow) borrow APR for the selected reserve.
+ * Current and projected (post-borrow) base borrow APR for the selected reserve,
+ * before the charges in `allInBorrowApr`.
  *
- * The borrow APR is a function of the Hub asset's utilization, which a new
- * borrow raises. Both endpoints are read from the asset's on-chain interest-rate
+ * The base rate is a function of the Hub asset's utilization, which a new borrow
+ * raises. Both endpoints are read from the asset's on-chain interest-rate
  * strategy (see `getProjectedBorrowAprPercentsSafe`) so the `current -> projected`
  * delta is exact rather than a frontend re-derivation of the rate curve.
  *
@@ -30,9 +31,9 @@ const ONE_MINUTE_MS = 60 * 1000;
 const AMOUNT_DEBOUNCE_MS = 300;
 
 export interface UseProjectedBorrowAprResult {
-  /** Current borrow APR percent, or null while loading/unavailable. */
+  /** Current base borrow APR percent, or null while loading/unavailable. */
   currentPercent: number | null;
-  /** Post-borrow borrow APR percent, or null while loading/unavailable. */
+  /** Post-borrow base borrow APR percent, or null while loading/unavailable. */
   projectedPercent: number | null;
   isLoading: boolean;
   error: Error | null;
