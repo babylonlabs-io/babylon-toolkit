@@ -142,12 +142,11 @@ that reaches a signature.
   VP. Downloaded to the user's disk; never transmitted anywhere by this app.
 - **CI credentials** — `SENTRY_AUTH_TOKEN`, the AWS OIDC roles assumed by
   `.github/workflows/service-release-vault.yml` (the shared `gha-s3-frontend-push` of each AWS
-  account, and `gha-s3-frontend-push-real-money-devnet`, reserved for `vault-real-money-devnet`, an
-  internal environment where testers sign real BTC, which the workflow assumes once that
-  environment's matrix entry returns), and the npm publish identity used by
-  `package-release.yml`. Compromise of an AWS role means arbitrary JavaScript served to every vault
-  user of the environments that role publishes for; compromise of the npm identity means arbitrary
-  code in every downstream consumer.
+  account, and `gha-s3-frontend-push-real-money-devnet`, reserved for `vault-real-money-devnet`, a
+  test environment on Bitcoin and Ethereum mainnet where testers sign real BTC), and the npm
+  publish identity used by `package-release.yml`. Compromise of an AWS role means arbitrary
+  JavaScript served to every vault user of the environments that role publishes for; compromise of
+  the npm identity means arbitrary code in every downstream consumer.
 - **`E2E_WALLET_MNEMONIC` / `E2E_WALLET_PASSWORD`** (`services/vault/e2e/real/secrets.ts`). Real
   signet/Sepolia funds. Sourced from the environment or a gitignored `.env.local`; must never be
   committed, printed, or added to a CI log.
@@ -885,11 +884,10 @@ roles have different review requirements. Satisfy both.
   bundle to S3. Note `continue-on-error` is set for the `prod: true` environment (`vault-testnet-3`)
   in multi-env runs so a prod OIDC failure cannot block devnet — deliberate, and
   worth knowing when reading a green run.
-  `vault-real-money-devnet` is out of the matrix until `services/vault/networks/real-money-devnet.json`
-  exists; its matrix entry and `ENVIRONMENT` dispatch option come back from git history with the
-  profile. Once present, it publishes with its own role, which trusts this workflow on
-  `refs/heads/main` alone; the shared role is denied on that environment's build and checksum
-  prefixes. Off `main` its leg is then left out of an all-environment run (a notice in the
+  `vault-real-money-devnet` builds the `real-money-devnet` profile (`expected_kind` `production`)
+  and publishes with its own role, which trusts this workflow on `refs/heads/main` alone; the
+  shared role is denied on that environment's build and checksum prefixes. Off `main` its leg is
+  left out of an all-environment run (a notice in the
   `setup` job names it) and refused when dispatched by name, so a green release-branch or tag run
   has not published it. It also has no immutable per-sha release manifest: that step stays
   `vault-testnet-3` only. Its checksums exist only in the checksum bucket,
