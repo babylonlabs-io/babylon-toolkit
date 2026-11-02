@@ -84,14 +84,23 @@ describe("useNewBorrowAprCharges", () => {
   });
 
   it("leaves the premium null when the reserve read fails, keeping the fee", async () => {
+    const client = makeClient();
     mocks.getReserve.mockRejectedValueOnce(new Error("RPC failure"));
 
     const { result } = renderHook(() => useNewBorrowAprCharges(), {
-      wrapper: wrapperFor(makeClient()),
+      wrapper: wrapperFor(client),
     });
 
+    await waitFor(() =>
+      expect(
+        client.getQueryState([
+          "aaveNewBorrowPremiumFraction",
+          SPOKE,
+          VBTC_RESERVE_ID.toString(),
+        ])?.status,
+      ).toBe("error"),
+    );
     await waitFor(() => expect(result.current.interestFeeBps).toBe(300));
-    await waitFor(() => expect(mocks.getReserve).toHaveBeenCalled());
     expect(result.current.premiumFraction).toBeNull();
   });
 
