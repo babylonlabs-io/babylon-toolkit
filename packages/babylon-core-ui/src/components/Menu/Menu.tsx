@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { Popover } from "../Popover";
-import { MobileDialog } from "../Dialog";
+import { Dialog } from "../Dialog";
 import { MenuProvider } from "./MenuContext";
 import { MenuDrawer } from "./MenuDrawer";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -119,7 +119,8 @@ export const Menu: React.FC<MenuProps> = ({
 
       {isMobile && !isPhonePopover ? (
         mobileMode === "dialog" ? (
-          <MobileDialog
+          <Dialog
+            mobile
             open={isOpen}
             onClose={onClose}
             className={twJoin(
@@ -128,7 +129,7 @@ export const Menu: React.FC<MenuProps> = ({
             )}
           >
             {menuContent}
-          </MobileDialog>
+          </Dialog>
         ) : (
           <MenuDrawer
             isOpen={isOpen}

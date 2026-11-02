@@ -6,6 +6,8 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 import {
   ArtifactsNotReadyError,
   fetchHttpArtifactsResponse,
@@ -88,6 +90,7 @@ const getToken = () => Promise.resolve(TOKEN);
 
 describe("fetchHttpArtifactsResponse", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -232,21 +235,94 @@ describe("fetchHttpArtifactsResponse", () => {
   });
 
   it.each([429, 502, 503])(
-    "retries a %i response after Retry-After",
+    "waits the full Retry-After above 30 seconds for a %i response",
     async (status) => {
+      vi.useFakeTimers();
       const fetchMock = mockFetch(
-        new Response(null, { status, headers: { "retry-after": "0.001" } }),
+        new Response(null, { status, headers: { "retry-after": "60" } }),
         jsonResponse(manifest({ [KEY_A]: SESSION_A })),
         sessionResponse(SESSION_A),
       );
 
-      const response = await fetchHttpArtifactsResponse(BASE, TXID, getToken);
+      const pending = fetchHttpArtifactsResponse(BASE, TXID, getToken);
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      const response = await pending;
       const result = JSON.parse(await response.text()).result;
 
       expect(result.babe_sessions[KEY_A].decryptor_artifacts_hex).toBe(
         bytesToHex(SESSION_A),
       );
       expect(fetchMock).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  it("stops immediately when Retry-After exceeds the remaining busy wait budget", async () => {
+    vi.useFakeTimers();
+    const response = jsonResponse({ error_name: "BUSY" }, 503);
+    response.headers.set("retry-after", "61");
+    const fetchMock = mockFetch(
+      new Response(null, { status: 503, headers: { "retry-after": "240" } }),
+      response,
+    );
+    const pending = fetchHttpArtifactsResponse(BASE, TXID, getToken).catch(
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(240_000);
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await pending).toEqual(
+      new Error("Artifact download failed: HTTP 503 BUSY"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels a busy wait without another fetch", async () => {
+    vi.useFakeTimers();
+    const fetchMock = mockFetch(
+      new Response(null, { status: 503, headers: { "retry-after": "60" } }),
+    );
+    const controller = new AbortController();
+    const pending = fetchHttpArtifactsResponse(
+      BASE,
+      TXID,
+      getToken,
+      controller.signal,
+    ).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    controller.abort();
+    expect(await pending).toBe(controller.signal.reason);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      status: 429,
+      message: COPY.deposit.recoveryArtifacts.downloadLimitReached,
+    },
+    {
+      status: 503,
+      message: "Artifact download failed: HTTP 503 DOWNLOAD_QUOTA_EXHAUSTED",
+    },
+  ])(
+    "maps HTTP $status DOWNLOAD_QUOTA_EXHAUSTED to the expected message",
+    async ({ status, message }) => {
+      const response = jsonResponse(
+        { error_name: "DOWNLOAD_QUOTA_EXHAUSTED" },
+        status,
+      );
+      response.headers.set("retry-after", "301");
+      const fetchMock = mockFetch(response);
+
+      await expect(
+        fetchHttpArtifactsResponse(BASE, TXID, getToken),
+      ).rejects.toEqual(new Error(message));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     },
   );
 

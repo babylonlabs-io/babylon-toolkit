@@ -1,6 +1,7 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
 import { logger } from "@/infrastructure";
+import { abortableSleep } from "@/utils/async";
 import {
   HTTP_GEO_BLOCKED,
   httpStatusOf,
@@ -69,6 +70,34 @@ export const shouldRetry = (failureCount: number, error: Error): boolean => {
 
   return true;
 };
+
+/**
+ * Runs `read` on the app's retry policy (`shouldRetry` and its backoff), for a
+ * queryFn that resolves a failure as data instead of throwing: React Query
+ * retries only a rejected queryFn, so such a query gets none of the client's
+ * retries unless it makes them itself. Rejects with the last error once the
+ * policy gives up, and with the abort reason if `signal` aborts while it waits
+ * to retry.
+ */
+export async function withQueryRetryPolicy<T>(
+  read: () => Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  for (let failureCount = 0; ; failureCount++) {
+    try {
+      return await read();
+    } catch (error) {
+      if (
+        signal.aborted ||
+        !(error instanceof Error) ||
+        !shouldRetry(failureCount, error)
+      ) {
+        throw error;
+      }
+      await abortableSleep(calculateRetryDelay(failureCount), signal);
+    }
+  }
+}
 
 /**
  * Query errors that reflect an expected, non-actionable condition rather than a

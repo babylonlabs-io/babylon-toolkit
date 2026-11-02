@@ -74,10 +74,15 @@ vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
 /** Whether the deposit dialog or the loan overlay is open over the page. */
 const openDialogs = vi.hoisted(() => ({ deposit: false, loan: false }));
 
+const pageActions = vi.hoisted(() => ({
+  openRepay: vi.fn(),
+  openDeposit: vi.fn(),
+}));
+
 vi.mock("@/hooks/useLoanActions", () => ({
   useLoanActions: () => ({
     openBorrowPicker: vi.fn(),
-    openRepay: vi.fn(),
+    openRepay: pageActions.openRepay,
     goToReserve: vi.fn(),
     isLoanFlowOpen: openDialogs.loan,
   }),
@@ -85,9 +90,30 @@ vi.mock("@/hooks/useLoanActions", () => ({
 
 vi.mock("react-router", () => ({
   useOutletContext: () => ({
-    openDeposit: vi.fn(),
+    openDeposit: pageActions.openDeposit,
     isDepositOpen: openDialogs.deposit,
   }),
+}));
+
+vi.mock("@/components/simple/PositionNotificationBanner", () => ({
+  PositionNotificationBanner: ({
+    connectedAddress,
+    onDeposit,
+    onRepay,
+  }: {
+    connectedAddress?: string;
+    onDeposit: () => void;
+    onRepay: () => void;
+  }) => (
+    <div data-testid="position-banner" data-address={connectedAddress}>
+      <button type="button" onClick={() => onDeposit()}>
+        banner deposit
+      </button>
+      <button type="button" onClick={() => onRepay()}>
+        banner repay
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/shared", () => ({
@@ -198,8 +224,8 @@ const resetButton = () =>
   screen.getByRole("button", { name: COPY.liquidations.reset });
 
 /**
- * The header's "Seized" figure. Scoped to its label because the chart's share
- * axis prints the same percentages.
+ * The header's "Seized" figure. Scoped to its label so an assertion reads this
+ * figure and no other percentage on the page.
  */
 const seizedSummary = () =>
   screen.getByText(COPY.liquidations.seizedSummaryLabel).parentElement
@@ -707,6 +733,44 @@ describe("Liquidation Dashboard simulator", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the reported second BTCVault after the first clears the debt", async () => {
+    // The report does not show CF or bonus. Use the existing launch case.
+    const params: CalculatorParams = {
+      btcPrice: 1_017,
+      totalDebtUsd: 103.4,
+      vaults: [
+        { id: "first", name: "Vault 1", btc: 0.12016827 },
+        { id: "second", name: "Vault 2", btc: 0.01 },
+      ],
+      CF: 0.78,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0005,
+    };
+    const result = calculate(params);
+    usePositionCascadeOverrideMock.mockReturnValue({
+      params,
+      result,
+      status: null,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.vaultsLiquidated(1, 2)),
+    ).toBeVisible();
+    expect(seizedSummary()).toContain("92%");
+    expect(
+      screen
+        .getByText(COPY.liquidations.vaultsLiquidated(1, 2))
+        .closest("section"),
+    ).toHaveTextContent(formatBtcAmount(0.01));
+    expect(screen.queryByTestId("liq-band-1")).not.toBeInTheDocument();
+    fireEvent.focus(screen.getByTestId("liq-band-0"));
+    expect(await screen.findByText("92% seized")).toBeVisible();
+  });
+
   it("liquidates the events the simulated price has fallen through, without mutating the live result", () => {
     render(<Liquidations />);
 
@@ -784,9 +848,9 @@ describe("Liquidation Dashboard simulator", () => {
     ).not.toBeInTheDocument();
   });
 
-  // `usePrices` refetches every 60s (15s when unhealthy), so resetting on a
-  // live-price change would throw away the depositor's what-if about once a
-  // minute mid-analysis.
+  // The live price refetches every minute, so resetting on a live-price
+  // change would throw away the depositor's what-if about once a minute
+  // mid-analysis.
   it("keeps the simulation through a live price refresh instead of discarding it", () => {
     const { rerender } = render(<Liquidations />);
 
@@ -935,6 +999,122 @@ describe("Liquidation Dashboard — no cascade to chart", () => {
         `${formatUsd(CONNECTED_WITH_CASCADE.collateralValueUsd)} USD`,
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Liquidation Dashboard — position unavailable", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+    disableGodMode();
+    disablePositionOverride();
+    connectWallet();
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      result: null,
+      params: null,
+      status: "position-unavailable",
+    });
+  });
+
+  it("explains itself instead of inviting a first deposit when the first read failed", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasCollateral: false,
+      hasLoans: false,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.positionUnavailableDescription),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.liquidations.empty.noDepositTitle),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("liquidations-empty-state")).toHaveAttribute(
+      "data-action-label",
+      "",
+    );
+  });
+
+  it("mounts the position banner above the explanation, for the connected account, with Deposit and Repay wired", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    const banner = screen.getByTestId("position-banner");
+    expect(banner).toHaveAttribute("data-address", walletMock.address);
+    expect(
+      banner.compareDocumentPosition(
+        screen.getByTestId("liquidations-empty-state"),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "banner repay" }));
+    expect(pageActions.openRepay).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "banner deposit" }));
+    expect(pageActions.openDeposit).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays on the explanation, not the loader, while the next poll retries that read", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasCollateral: false,
+      hasLoans: false,
+      isLoading: true,
+      isPositionUnavailable: true,
+    });
+
+    const { container } = render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.positionUnavailableDescription),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".bbn-loader")).not.toBeInTheDocument();
+  });
+
+  it("takes a cached position's figures off the page", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.positionUnavailableDescription),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        `${formatUsd(CONNECTED_WITH_CASCADE.collateralValueUsd)} USD`,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leaves a god-mode cascade charted", () => {
+    enableGodMode();
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.queryByText(
+        COPY.liquidations.empty.positionUnavailableDescription,
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
   });
 });
 

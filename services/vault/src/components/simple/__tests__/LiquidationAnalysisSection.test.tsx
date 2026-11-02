@@ -66,6 +66,7 @@ const LIQUIDATIONS_PAGE_MARKER = "liquidations page";
 function renderSection(props: {
   hasCollateral: boolean;
   hasLoans: boolean;
+  isPositionUnavailable?: boolean;
   onDeposit?: () => void;
   onBorrow?: () => void;
   cascade?: LiquidationCascade | null;
@@ -77,6 +78,7 @@ function renderSection(props: {
           path="/"
           element={
             <LiquidationAnalysisSection
+              isPositionUnavailable={false}
               onDeposit={vi.fn()}
               onBorrow={vi.fn()}
               {...props}
@@ -99,6 +101,35 @@ describe("LiquidationAnalysisSection", () => {
       isLoading: false,
       error: null,
     });
+  });
+
+  it("explains an unavailable position instead of calling the account empty", () => {
+    renderSection({
+      hasCollateral: false,
+      hasLoans: false,
+      isPositionUnavailable: true,
+    });
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.positionUnavailableDescription),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.liquidations.empty.noDepositTitle),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("explains an unavailable position instead of the silent gap a cached one would leave", () => {
+    renderSection({
+      hasCollateral: true,
+      hasLoans: true,
+      isPositionUnavailable: true,
+      cascade: null,
+    });
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.unavailableTitle),
+    ).toBeInTheDocument();
   });
 
   it("prompts for a deposit before any collateral exists", () => {
@@ -130,6 +161,7 @@ describe("LiquidationAnalysisSection", () => {
       <LiquidationAnalysisSection
         hasCollateral
         hasLoans
+        isPositionUnavailable={false}
         cascade={CASCADE}
         onDeposit={vi.fn()}
         onBorrow={vi.fn()}

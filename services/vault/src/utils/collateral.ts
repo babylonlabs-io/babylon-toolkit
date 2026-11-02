@@ -3,7 +3,10 @@
  * Business logic for filtering and transforming collateral data.
  */
 
+import { BPS_SCALE } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+
 import type { AavePositionCollateral } from "@/applications/aave/services/fetchPositions";
+import { calculateBorrowCapacityUsd } from "@/applications/aave/utils/borrowCapacity";
 import type {
   CollateralVaultEntry,
   CollateralVaultLifecycle,
@@ -114,8 +117,14 @@ export function applyPendingWithdrawals(
 }
 
 /**
- * Computes the maximum borrowable USD value for a collateral position:
- *   amountBtc * btcPrice * collateralFactor
+ * Computes the USD borrow capacity a deposit of `amountBtc` adds, with the
+ * same calculation the borrow form applies to a position with no debt:
+ *   amountBtc * btcPrice * collateralFactor / MIN_HEALTH_FACTOR_FOR_BORROW,
+ *   less BORROW_CAPACITY_HEADROOM
+ *
+ * Pass the collateral factor at the reserve's current config key, the one
+ * `borrow()` applies. Existing debt, reserve liquidity and the Hub draw cap
+ * are not counted; the borrow form can lower the figure for any of them.
  *
  * Returns `null` when any input is missing, non-finite, or non-positive,
  * so callers can hide the field rather than render a misleading `$0`.
@@ -130,5 +139,9 @@ export function computeMaxBorrowUsd(
   if (!Number.isFinite(collateralFactor) || collateralFactor <= 0) return null;
   const amount = parseFloat(amountBtc);
   if (!Number.isFinite(amount) || amount <= 0) return null;
-  return amount * btcPrice * collateralFactor;
+  return calculateBorrowCapacityUsd({
+    collateralValueUsd: amount * btcPrice,
+    currentDebtUsd: 0,
+    liquidationThresholdBps: Math.round(collateralFactor * BPS_SCALE),
+  }).availableToBorrowUsd;
 }

@@ -1,4 +1,4 @@
-import { toFunctionSelector } from "viem";
+import { RpcRequestError, toFunctionSelector } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
 import manifest from "../abis/vaultErrors.manifest.json";
@@ -187,21 +187,34 @@ describe("handleContractError", () => {
     ).toThrow(CONTRACT_ERRORS[DUPLICATE_HASHLOCK_SELECTOR]);
   });
 
-  it("throws a transaction-failed hint on gas-estimation errors", () => {
-    const err = new Error("gas limit too high");
-    expect(() => handleContractError(err)).toThrow(/Transaction failed/);
-  });
+  it.each(["gas limit too high", "21000000", "Internal JSON-RPC error"])(
+    "preserves OutOfFunds behind %s instead of inventing a contract rejection",
+    (message) => {
+      const cause = new RpcRequestError({
+        body: { method: "eth_estimateGas" },
+        error: { code: -32003, message: "EVM error: OutOfFunds" },
+        url: "https://eth-rpc-dapp.testnet.babylonlabs.io",
+      });
+      const err = new Error(message, { cause });
+      expect(() => handleContractError(err)).toThrow(
+        expect.objectContaining({ message, cause }),
+      );
+    },
+  );
 
-  it("includes the raw selector in the gas-error hint when extractable", () => {
-    const err = Object.assign(new Error("Internal JSON-RPC error"), {
-      data: "0xdeadbeef",
+  it("keeps an unknown selector and cause without the RPC request dump", () => {
+    const err = new RpcRequestError({
+      body: { method: "eth_estimateGas", params: [{ data: "0xdeadbeef" }] },
+      error: { code: 3, message: "execution reverted", data: "0xdeadbeef" },
+      url: "https://eth-rpc-dapp.testnet.babylonlabs.io",
     });
-    expect(() => handleContractError(err)).toThrow(/error code: 0xdeadbeef/);
-  });
-
-  it("re-throws an unknown Error unchanged", () => {
-    const err = new Error("something else");
-    expect(() => handleContractError(err)).toThrow(err);
+    expect(err.message).toContain("Request body:");
+    expect(() => handleContractError(err)).toThrow(
+      expect.objectContaining({
+        message: "Contract call reverted (error code: 0xdeadbeef)",
+        cause: err,
+      }),
+    );
   });
 
   it("throws the neutral empty-revert message when the revert data is exactly 0x", () => {

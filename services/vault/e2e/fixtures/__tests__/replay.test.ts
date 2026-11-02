@@ -420,11 +420,10 @@ describe("buildRecordedChain", () => {
 
   it("refuses an unrecorded argument to a getter the recording saw with several", () => {
     // `getReservesPrices` is recorded three times, once per borrowable
-    // reserve. The vault's own vBTC reserve - id 3 - is never priced, so
+    // reserve. Reserve 4 does not exist in the recorded deployment, so
     // falling back on the pair would answer with the previous reserve's
-    // price: a plausible BTC figure the recording never justified, rendered
-    // onto the very form this capture photographs. Unanswered is the only
-    // honest reply, and it is the one the gates can see.
+    // price: a plausible figure the recording never justified. Unanswered is
+    // the only honest reply, and it is the one the gates can see.
     const run = loadRecordedRun();
     const chain = buildRecordedChain(run);
     const getReservesPrices = parseAbi([
@@ -446,10 +445,29 @@ describe("buildRecordedChain", () => {
         "0xcdcb913a1f6dfdcf7779ab841931cc37e48e3569",
         encodeFunctionData({
           abi: getReservesPrices,
-          args: [[3n]],
+          args: [[4n]],
         }),
       ),
     ).toBeNull();
+  });
+
+  it("supplies the vBTC reserve price the recording predates, from the recorded WBTC reserve price", () => {
+    // The recording priced reserves 0-2 only. The deployment prices the vBTC
+    // reserve (3) and the WBTC reserve (2) from the same BTC price feed, so
+    // the vBTC answer is the recorded WBTC one.
+    const run = loadRecordedRun();
+    const chain = buildRecordedChain(run);
+    const getReservesPrices = parseAbi([
+      "function getReservesPrices(uint256[] ids) view returns (uint256[])",
+    ]);
+    const priceOf = (reserveId: bigint) =>
+      chain.answerCall(
+        "0xcdcb913a1f6dfdcf7779ab841931cc37e48e3569",
+        encodeFunctionData({ abi: getReservesPrices, args: [[reserveId]] }),
+      );
+
+    expect(priceOf(3n)).not.toBeNull();
+    expect(priceOf(3n)).toBe(priceOf(2n));
   });
 
   it("supplies the vBTC reserve id the recording predates, from the recording", () => {

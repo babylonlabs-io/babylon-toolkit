@@ -16,6 +16,7 @@ const PORT_FULL_ENV = 5175;
  */
 const PORT_GOD_MODE = 5176;
 const GOD_MODE_SPECS = [
+  "**/artifact-download-cancel.spec.ts",
   "**/deposit-progress-layout.spec.ts",
   "**/liquidation-tour.spec.ts",
 ];

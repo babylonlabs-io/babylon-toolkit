@@ -40,6 +40,8 @@ The Verify PR workflow regenerates those docs (in its "Lint, service builds and 
 
 Run the SDK's own `test` script rather than `vitest` directly when checking that package. `pnpm --filter @babylonlabs-io/ts-sdk run test` is `build && vitest run && node --test tests/wasm-facade.node.mjs`; invoking `vitest` alone skips the build and the WASM-facade pin check that CI runs.
 
+For `/pre-review`, read `.claude/skills/pre-review/SKILL.md` from this checkout. Use that procedure when a local skill copy differs.
+
 Before a PR is opened, the author runs `/pre-review`, records decisions and fixes the fix-now findings. Later runs verify fixes and inspect affected code. Once fixes are verified, the author runs `/pre-review --final` for one independent whole-change review. Changed inputs invalidate final completion. Each run keeps `PR.md` current for the PR body. Human code review is still required. The `pre-review-check` CI job requires a record from the PR's branch; it does not compare the code with the record or enforce final completion. `/pre-review` is user-invoked; remind the user of this step when implementation work is done. Do not start it unprompted. See [docs/pre-review.md](docs/pre-review.md).
 
 ---

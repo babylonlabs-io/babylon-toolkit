@@ -51,6 +51,12 @@ export interface AavePositionWithLiveData
   };
   /** Authoritative health factor and values from Spoke's on-chain oracle. */
   accountData: AaveSpokeUserAccountData;
+  /**
+   * When `accountData` was received (ms since epoch). Taken before the debt
+   * reads that follow it, so it dates the health factor rather than the
+   * whole position read.
+   */
+  accountDataReceivedAt: number;
   /** Only reserves with debt. Absent when the account has no debt. */
   debtPositions?: Map<bigint, DebtPosition>;
 }
@@ -138,6 +144,7 @@ export async function getUserPositionsWithLiveData(
       vbtcReserveId,
       proxyAddress,
     );
+  const accountDataReceivedAt = Date.now();
 
   let debtPositions: Map<bigint, DebtPosition> | undefined;
   if (accountData.borrowCount > 0n) {
@@ -175,6 +182,7 @@ export async function getUserPositionsWithLiveData(
         dynamicConfigKey: spokePosition.dynamicConfigKey,
       },
       accountData,
+      accountDataReceivedAt,
       debtPositions,
     },
   ];

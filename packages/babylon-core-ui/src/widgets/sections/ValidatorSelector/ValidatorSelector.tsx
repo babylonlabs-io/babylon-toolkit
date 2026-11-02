@@ -1,4 +1,4 @@
-import { Dialog, MobileDialog, DialogBody, DialogHeader, DialogFooter } from "@/components/Dialog";
+import { Dialog, DialogBody, DialogHeader, DialogFooter } from "@/components/Dialog";
 import { Table } from "@/components/Table";
 import { Input } from "@/components/Form/Input";
 import { Text } from "@/components/Text";
@@ -20,11 +20,11 @@ export type { ValidatorRow } from "./ValidatorSelector.types";
 
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
     const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
-    const DialogComponent = isMobileView ? MobileDialog : Dialog;
 
     return (
-        <DialogComponent
+        <Dialog
             {...restProps}
+            mobile={isMobileView}
             {...(!isMobileView ? { dialogClassName: "h-[90vh] min-h-[400px] max-h-[720px] flex flex-col" } : {})}
             className={twMerge("w-[41.25rem] max-w-full", className)}
         />

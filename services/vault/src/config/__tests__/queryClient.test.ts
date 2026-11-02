@@ -16,6 +16,7 @@ import {
   isExpectedQueryError,
   reportQueryCacheError,
   resetGeoBlockReportingForTests,
+  withQueryRetryPolicy,
 } from "../queryClient";
 
 /**
@@ -137,6 +138,84 @@ describe("default query retry policy", () => {
 
   it("gives up after three failures", () => {
     expect(retryFor(new Error("Failed to fetch"), 3)).toBe(false);
+  });
+});
+
+describe("withQueryRetryPolicy", () => {
+  it("retries a transient failure with the policy's backoff and returns the read", async () => {
+    vi.useFakeTimers();
+    try {
+      const read = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(new Error("Failed to fetch"))
+        .mockResolvedValueOnce("ok");
+
+      const result = withQueryRetryPolicy(read, new AbortController().signal);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(read).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+
+      await expect(result).resolves.toBe("ok");
+      expect(read).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects with the last error after three retries", async () => {
+    vi.useFakeTimers();
+    try {
+      const read = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(new Error("HTTP request failed. Status: 429"))
+        .mockRejectedValueOnce(new Error("HTTP request failed. Status: 429"))
+        .mockRejectedValueOnce(new Error("HTTP request failed. Status: 429"))
+        .mockRejectedValueOnce(new Error("execution reverted"));
+
+      const result = withQueryRetryPolicy(read, new AbortController().signal);
+      const settled = expect(result).rejects.toThrow("execution reverted");
+      // Backoff of 1s, 2s and 4s between the four attempts.
+      await vi.advanceTimersByTimeAsync(7_000);
+      await settled;
+
+      expect(read).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retry an error the policy marks as non-retryable", async () => {
+    const read = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValue(
+        Object.assign(new Error("incomplete roster"), { retryable: false }),
+      );
+
+    await expect(
+      withQueryRetryPolicy(read, new AbortController().signal),
+    ).rejects.toThrow("incomplete roster");
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops waiting to retry when the signal aborts", async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const read = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValue(new Error("Failed to fetch"));
+
+      const result = withQueryRetryPolicy(read, controller.signal);
+      const settled = expect(result).rejects.toBe("unmounted");
+      await vi.advanceTimersByTimeAsync(500);
+      controller.abort("unmounted");
+      await settled;
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(read).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

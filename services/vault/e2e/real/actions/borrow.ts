@@ -143,7 +143,7 @@ interface BorrowLeg {
  * activated, so fresh collateral is already readable. If that computation can't produce a positive
  * amount (read failed, max is 0, or the fraction rounds to 0 at the token's precision) it THROWS rather
  * than silently borrowing the form's full Max — full-max is only ever used when explicitly requested
- * via `--borrow-amount=max`, so a failed read can't pin the health factor at the liquidation edge.
+ * via `--borrow-amount=max`, so a failed read can't pin the health factor at the borrow floor.
  */
 async function resolveBorrowAmount(
   ctx: ActionContext,

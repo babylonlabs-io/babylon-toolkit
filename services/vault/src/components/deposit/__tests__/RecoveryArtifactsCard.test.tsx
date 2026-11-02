@@ -97,6 +97,43 @@ describe("RecoveryArtifactsCard — streaming download", () => {
       expect.objectContaining({ loading: false, error: "Download failed" }),
     );
   });
+
+  it.each(["activation", "vault"] as const)(
+    "shows the quota error and permits another download in %s",
+    (context) => {
+      const download = vi.fn();
+      hookState.current = {
+        ...IDLE_HOOK_STATE,
+        download,
+        error: COPY.deposit.recoveryArtifacts.downloadLimitReached,
+      };
+      const onStateChange = vi.fn();
+      const ref = createRef<RecoveryArtifactsCardHandle>();
+      render(
+        <RecoveryArtifactsCard
+          {...COMMON_PROPS}
+          context={context}
+          ref={ref}
+          onStateChange={onStateChange}
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          "Too many artifact download requests. Wait and try again later.",
+        ),
+      ).toBeVisible();
+      expect(onStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          loading: false,
+          error: COPY.deposit.recoveryArtifacts.downloadLimitReached,
+        }),
+      );
+      act(() => ref.current?.download());
+      expect(download).toHaveBeenCalledTimes(1);
+      expect(download).toHaveBeenCalledWith("0xprovider", "0xpegin", "0xpk");
+    },
+  );
 });
 
 describe("RecoveryArtifactsCard — idle card", () => {

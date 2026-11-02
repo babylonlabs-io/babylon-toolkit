@@ -28,6 +28,7 @@ type ActivatingEntry = {
 let mockCollaterals: unknown[] | null = null;
 let mockCollateralBtc = 0;
 let mockChainVaultIds: string[] = [];
+let mockIsPositionUnavailable = false;
 let mockCollateralValueUsd = 0;
 let mockDebtValueUsd = 0;
 let mockSplitParams: VaultSplitParams | null = null;
@@ -70,6 +71,7 @@ vi.mock("@/applications/aave/hooks", () => ({
     healthFactor: null,
     healthFactorStatus: null,
     isLoading: false,
+    isPositionUnavailable: mockIsPositionUnavailable,
   }),
   useAaveBorrowedAssets: () => ({
     borrowedAssets: [],
@@ -141,6 +143,7 @@ describe("useDashboardState", () => {
     mockCollaterals = null;
     mockCollateralBtc = 0;
     mockChainVaultIds = [];
+    mockIsPositionUnavailable = false;
     mockCollateralValueUsd = 0;
     mockDebtValueUsd = 0;
     mockSplitParams = null;
@@ -150,6 +153,14 @@ describe("useDashboardState", () => {
     mockReorderedOrder = null;
     mockActivatingVaults = new Map();
     mockPendingVaults = new Map();
+  });
+
+  it("exposes whether the position read is unavailable", () => {
+    mockIsPositionUnavailable = true;
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.isPositionUnavailable).toBe(true);
   });
 
   it("returns a stable collateralVaults reference across re-renders when position?.collaterals is undefined", () => {

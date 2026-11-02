@@ -185,9 +185,9 @@ describe("CriticalLiquidationTopBanner", () => {
   });
 
   it("keeps the calculated distance when the calculator's own urgent warning made it red, even with a live warning present", () => {
-    // The hook adds no live warning to the result when the calculator is
-    // already urgent and the live health factor is not below 1.0, so the live
-    // warning is a separate object here.
+    // The hook keeps the calculator's warning when both are urgent and agree
+    // the Spoke cannot liquidate yet (the calculator still shows a buffer), so
+    // the live warning is a separate object here.
     render(
       <CriticalLiquidationTopBanner
         result={makeResult({ distancePct: -4.3, urgent: true })}

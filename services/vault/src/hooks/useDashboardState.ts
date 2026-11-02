@@ -42,8 +42,10 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
     healthFactor,
     healthFactorStatus,
+    healthFactorReceivedAt,
     isLoading,
     error: positionError,
+    isPositionUnavailable,
     refetch: refetchPosition,
   } = useAaveUserPosition(connectedAddress);
 
@@ -251,6 +253,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralVaults,
     isLoading,
     positionError,
+    isPositionUnavailable,
+    healthFactorReceivedAt,
     refetchPosition,
   };
 }

@@ -130,6 +130,8 @@ export const DEPOSIT_FLOW_STOPS = {
    * next click asks them to sign, and they never do.
    */
   signEntry: "deposit-sign-entry",
+  /** The reported low-ETH error, rendered by the real progress view. */
+  insufficientEth: "deposit-insufficient-eth",
 } as const;
 
 /**
@@ -169,6 +171,19 @@ export const VAULT_REFUND_STOPS = {
   refunded: "vaults-refunded",
 } as const;
 
+export const HAS_ARTIFACT_DOWNLOAD_CONFIRMATION = readFileSync(
+  new URL("../../src/copy.ts", import.meta.url),
+  "utf8",
+).includes("Cancel artifact download?");
+export const ARTIFACT_DOWNLOAD_STOPS = {
+  activation: "artifact-download-activation-confirm",
+  vault: "artifact-download-vault-confirm",
+} as const;
+export const ARTIFACT_QUOTA_STOPS = {
+  activation: "artifact-download-activation-quota",
+  vault: "artifact-download-vault-quota",
+} as const;
+
 // CI runs this test harness against the earlier UI too.
 const vaultsLifecycleSource = readFileSync(
   new URL(
@@ -190,6 +205,9 @@ export const HAS_CONFIRMED_REFUND = vaultsLifecycleSource.includes(
  * `liquidationChart.visual.spec.ts`.
  */
 export const LIQUIDATION_CHART_STOP = "liquidations-chart";
+export const LIQUIDATION_SMALL_POSITION_STOP = "liquidations-small-position";
+export const LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP =
+  "liquidations-small-position-tooltip";
 
 // CI uses this harness with older app source that has no tour.
 export const HAS_LIQUIDATION_TOUR = existsSync(

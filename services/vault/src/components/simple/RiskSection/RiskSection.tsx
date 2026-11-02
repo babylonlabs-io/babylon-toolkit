@@ -14,6 +14,8 @@ interface RiskSectionProps {
   healthFactor: number | null;
   healthFactorStatus: HealthFactorStatus;
   hasPosition: boolean;
+  /** The position read failed: wins over `hasPosition` and the status. */
+  isPositionUnavailable: boolean;
   liquidationPriceText: string;
   btcPriceText: string;
   pctToLiquidationText: string;
@@ -27,6 +29,10 @@ const STATE_STYLE: Record<
   RiskDisplayState,
   { textClass: string; colorCss: string }
 > = {
+  unavailable: {
+    textClass: "text-risk-muted",
+    colorCss: "rgb(var(--risk-muted))",
+  },
   noPosition: {
     textClass: "text-risk-muted",
     colorCss: "rgb(var(--risk-muted))",
@@ -93,6 +99,7 @@ export function RiskSection({
   healthFactor,
   healthFactorStatus,
   hasPosition,
+  isPositionUnavailable,
   liquidationPriceText,
   btcPriceText,
   pctToLiquidationText,
@@ -101,11 +108,15 @@ export function RiskSection({
   btcPriceUsd,
   liquidationPriceUsd,
 }: RiskSectionProps) {
-  const state = getRiskDisplayState(healthFactorStatus, hasPosition);
+  const state = getRiskDisplayState(
+    healthFactorStatus,
+    hasPosition,
+    isPositionUnavailable,
+  );
   const { textClass, colorCss } = STATE_STYLE[state];
 
   let hfValueText: string;
-  if (state === "noPosition") {
+  if (state === "noPosition" || state === "unavailable") {
     hfValueText = COPY.common.emptyValue;
   } else if (state === "verySafe") {
     hfValueText = COPY.risk.healthFactorInfinity;

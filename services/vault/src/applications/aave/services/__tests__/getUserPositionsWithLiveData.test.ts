@@ -138,6 +138,27 @@ describe("getUserPositionsWithLiveData", () => {
     );
   });
 
+  it("dates the account data when it arrives, not after the debt reads that follow it", async () => {
+    // The health factor arrives with the account data; the debt reads after
+    // it can take seconds, and a price received meanwhile is newer than the
+    // health factor even though the position read completes after it.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000_000);
+      setupHappyPath(1n);
+      mockGetUserTotalDebtsBatch.mockImplementation(async () => {
+        vi.setSystemTime(1_005_000);
+        return [1000n];
+      });
+
+      const [result] = await load();
+
+      expect(result.accountDataReceivedAt).toBe(1_000_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not read debt reserves when the on-chain borrowCount is zero", async () => {
     const result = await load();
     expect(result).toHaveLength(1);

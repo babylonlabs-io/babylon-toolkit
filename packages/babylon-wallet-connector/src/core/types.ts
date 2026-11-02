@@ -535,8 +535,8 @@ export interface IBTCProvider extends IProvider {
    *
    * Resolve only from a real index. An empty array means "checked, none
    * inscribed", and `fetchOrdinals` then skips the ordinals API, which it uses
-   * only when this call rejects or times out. A wallet without an inscription
-   * index must reject, never resolve `[]`.
+   * only when this call rejects, times out or resolves a non-array. A wallet
+   * without an inscription index must reject, never resolve `[]`.
    * @returns A promise that resolves to the inscribed outpoints.
    */
   getInscriptions(): Promise<InscriptionIdentifier[]>;

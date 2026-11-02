@@ -1,7 +1,7 @@
 import { Button } from "@/components/Button";
 import { WINDOW_BREAKPOINT } from "../../../utils/constants";
 import { SimpleTable } from "@/components/SimpleTable";
-import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
 import { Heading } from "@/components/Heading";
 import { Text } from "@/components/Text";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -16,9 +16,8 @@ interface ResponsiveDialogProps extends DialogComponentProps {
 
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
   const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
-  const DialogComponent = isMobileView ? MobileDialog : Dialog;
 
-  return <DialogComponent {...restProps} className={twMerge("w-[41.25rem] max-w-full", className)} />;
+  return <Dialog {...restProps} mobile={isMobileView} className={twMerge("w-[41.25rem] max-w-full", className)} />;
 }
 
 interface Info {

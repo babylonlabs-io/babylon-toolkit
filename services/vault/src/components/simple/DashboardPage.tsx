@@ -4,7 +4,7 @@
  * Wires real data from Aave hooks and navigation to deposit/borrow/repay flows.
  */
 
-import { Container } from "@babylonlabs-io/core-ui";
+import { Container, Notification } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
@@ -23,11 +23,9 @@ import {
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { usablePriceUsd } from "@/hooks/priceHealth";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
-import { usePrices } from "@/hooks/usePrices";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import {
   resolveShownHealthFactor,
@@ -75,6 +73,7 @@ export function DashboardPage() {
     result: positionNotifications,
     params: positionParams,
     liveUrgentWarning,
+    btcPriceUsd,
   } = usePositionNotifications(isConnected ? address : undefined);
   // The chart takes the god-mode cascade when the panel publishes one, else the
   // live position cascade. A status-only override (stale price) carries no
@@ -106,6 +105,7 @@ export function DashboardPage() {
     borrowCapacityError,
     isLoading,
     positionError,
+    isPositionUnavailable,
   } = useDashboardState(isConnected ? address : undefined);
   // God-mode demo loans (dev only; compile-time null in production builds),
   // counted the way the Loans card counts them so the two cards agree.
@@ -124,8 +124,6 @@ export function DashboardPage() {
     isConnected ? address : undefined,
   );
 
-  const { prices, metadata } = usePrices();
-
   // Feed the critical top banner the same debug-aware result the mid-page banner
   // uses: the debug override when set, otherwise the live calculation.
   const criticalBannerResult = cascadeOverride?.result ?? positionNotifications;
@@ -137,11 +135,30 @@ export function DashboardPage() {
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
 
+  const healthFactorOverride = useHealthFactorOverride();
+
+  // The dev overrides simulate a position, so a failing live read says nothing
+  // about what they show.
+  const showsPositionUnavailable =
+    isPositionUnavailable &&
+    !cascadeOverride?.result &&
+    liquidationCardOverride === null &&
+    healthFactorOverride === null;
+  // Past the threshold the cached figures stay, with the notice beside them.
+  // With nothing cached they are zeros that would read as an empty account.
+  const isPositionUnknown = showsPositionUnavailable && position === null;
+
   // Format display values
-  const totalCollateralValue = formatUsdValue(collateralValueUsd);
-  const availableToBorrow = formatUsdValue(availableToBorrowUsd);
+  const totalCollateralValue = isPositionUnknown
+    ? COPY.common.emptyValue
+    : formatUsdValue(collateralValueUsd);
+  const availableToBorrow = isPositionUnknown
+    ? COPY.common.emptyValue
+    : formatUsdValue(availableToBorrowUsd);
   const borrowedValue = formatUsdValue(debtValueUsd);
-  const collateralBtcText = formatBtcAmount(collateralBtc);
+  const collateralBtcText = isPositionUnknown
+    ? COPY.common.emptyValue
+    : formatBtcAmount(collateralBtc);
   // The Overview is purely a financial summary: an empty position renders every
   // row as a placeholder ("Health factor –", "$0 USD", "$0 USD"), so suppress
   // the whole panel until there is real collateral or debt to summarize. Gate on
@@ -153,21 +170,18 @@ export function DashboardPage() {
     { hasCollateral, hasLoans },
   );
 
-  // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
-  // come from the first group of the position cascade (the price at which the
-  // first seizure triggers); BTC price comes from the live oracle feed. Fall
-  // back to the empty-value placeholder until the inputs are available, and
-  // suppress the BTC price whenever its oracle round is stale or fetch-failed
-  // (mirroring the guard in usePositionNotifications) so a price sourced from a
-  // bad feed never sits beside liquidation stats derived from that same feed.
-  // Note this does not cover the brief transient while the cascade is still
-  // loading: a freshly-fetched BTC price can render beside placeholder stats.
-  const firstLiquidationGroup = positionNotifications?.groups[0] ?? null;
-  const usableBtcPriceUsd = usablePriceUsd(prices, metadata, "BTC");
+  // Liquidation-risk gauge stats. The liquidation price and
+  // distance-to-liquidation come from the first group of the live position
+  // cascade (the price at which the first seizure triggers); the BTC price is
+  // the Spoke oracle's, the same price the cascade is calculated at, so the
+  // rail stays consistent with the Spoke's health factor beside it. The BTC
+  // price shows with or without a position to price, and is a placeholder
+  // while either price feed is loading, stale or unreadable.
+  const firstLiquidationGroup = showsPositionUnavailable
+    ? null
+    : (positionNotifications?.groups[0] ?? null);
   const btcPrice =
-    usableBtcPriceUsd !== null
-      ? formatUsdPrice(usableBtcPriceUsd)
-      : COPY.common.emptyValue;
+    btcPriceUsd !== null ? formatUsdPrice(btcPriceUsd) : COPY.common.emptyValue;
   // God-mode override (dev only; null in production). Health factor is
   // btcPrice / liquidationPrice, so a forced value implies the liquidation
   // price that produces it — the rail is charted from that price, not the HF.
@@ -175,7 +189,6 @@ export function DashboardPage() {
   // price there is nothing to imply a liquidation price from, and the stats
   // read as placeholders rather than mixing a forced HF with live liquidation
   // numbers (the case you hit inspecting the stale-price path).
-  const healthFactorOverride = useHealthFactorOverride();
   const {
     healthFactor: shownHealthFactor,
     healthFactorStatus: shownHealthFactorStatus,
@@ -185,8 +198,8 @@ export function DashboardPage() {
     healthFactorStatus,
   );
   const forcedLiquidationPriceUsd =
-    healthFactorOverride !== null && usableBtcPriceUsd !== null
-      ? usableBtcPriceUsd / healthFactorOverride
+    healthFactorOverride !== null && btcPriceUsd !== null
+      ? btcPriceUsd / healthFactorOverride
       : null;
   const liquidationPriceUsd =
     healthFactorOverride !== null
@@ -208,8 +221,10 @@ export function DashboardPage() {
     distanceToLiquidationPct !== null
       ? formatLiquidationDistancePercent(distanceToLiquidationPct)
       : COPY.common.emptyValue;
+  // With no position to read a stored key from, this would be the reserve's
+  // current collateral factor, which need not be the position's.
   const collateralFactorText =
-    collateralFactorBps !== null
+    collateralFactorBps !== null && !isPositionUnknown
       ? formatBasisPointsAsPercent(collateralFactorBps)
       : COPY.common.emptyValue;
 
@@ -255,7 +270,7 @@ export function DashboardPage() {
           maxBorrowReserves={maxBorrowReserves}
           borrowCount={cardBorrowCount(demoLoans, {
             position,
-            isLoading,
+            isLoading: isLoading || isPositionUnknown,
             positionError,
           })}
           availableToBorrow={availableToBorrow}
@@ -278,22 +293,37 @@ export function DashboardPage() {
 
         {cascadeBanner}
 
+        {/* Beside the banner, not in it: an urgent warning still leads, and this
+            stays up in every state until a read succeeds. Its testid is read by
+            e2e/position-unavailable.spec.ts. */}
+        {showsPositionUnavailable && (
+          <Notification
+            variant="warning"
+            title={COPY.liquidationWarnings.positionUnavailable.title}
+            data-testid="position-unavailable-notice"
+          >
+            {COPY.liquidationWarnings.positionUnavailable.detail}
+          </Notification>
+        )}
+
         <RiskSection
           healthFactor={shownHealthFactor}
           healthFactorStatus={shownHealthFactorStatus}
           hasPosition={hasOverviewData || healthFactorOverride !== null}
+          isPositionUnavailable={showsPositionUnavailable}
           liquidationPriceText={liquidationPrice}
           btcPriceText={btcPrice}
           pctToLiquidationText={pctToLiquidation}
           collateralFactorText={collateralFactorText}
           collateralFactorLoading={isBorrowCapacityLoading}
-          btcPriceUsd={usableBtcPriceUsd}
+          btcPriceUsd={btcPriceUsd}
           liquidationPriceUsd={liquidationPriceUsd}
         />
 
         <LiquidationAnalysisSection
           hasCollateral={liquidationCardState.hasCollateral}
           hasLoans={liquidationCardState.hasLoans}
+          isPositionUnavailable={showsPositionUnavailable}
           onDeposit={openDeposit}
           onBorrow={openBorrowPicker}
           cascade={liquidationCascade}

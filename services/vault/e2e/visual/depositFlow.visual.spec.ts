@@ -21,6 +21,7 @@ import {
 import { FLUID_CTA_SELECTOR } from "../real/actions/selectors";
 
 import {
+  assertNoErrorSurface,
   assertRecordingCovered,
   capture,
   ensureOutputDir,
@@ -30,6 +31,7 @@ import {
   STEP_MARKER,
   writeCaptures,
 } from "./capture";
+import { waitForVisualStability } from "./stabilize";
 import {
   DEPOSIT_FLOW_STOPS,
   DEPOSIT_SPLIT_MINIMUM_STOP,
@@ -84,6 +86,45 @@ const UTXO_COPIES_ABOVE_SPLIT_MINIMUM = 2;
 const SLIDER_WITH_MARKS = ".bbn-slider-with-steps";
 
 for (const viewport of VISUAL_VIEWPORTS) {
+  test(`capture the reported ETH shortfall at ${viewport.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({
+      width: viewport.width,
+      height: viewport.height,
+    });
+    const backend = await preparePage(page);
+    await page.goto("/e2e/fixtures/insufficientEth.html");
+    await page.addStyleTag({
+      content: ".tsqd-parent-container { display: none !important; }",
+    });
+    const root = page.locator("#root");
+    await expect(
+      page.getByText("Transaction failed", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("alert")).toBeVisible();
+
+    const retry = page.getByRole("button", { name: "Retry", exact: true });
+    await expect(retry).toBeEnabled();
+    await expect(retry).toBeInViewport({ ratio: 1 });
+    await waitForVisualStability(page, false);
+    await assertNoErrorSurface(page, "reported ETH shortfall");
+    await expect(page.locator(".tsqd-parent-container")).toBeHidden();
+    const shot = {
+      fileName: flowScreenshotFileName(
+        DEPOSIT_FLOW_STOPS.insufficientEth,
+        viewport,
+      ),
+      buffer: await page.screenshot(),
+    };
+    await retry.click();
+    await expect(root).toHaveAttribute("data-retried", "true");
+    assertRecordingCovered(backend, `ETH shortfall at ${viewport.name}`, [
+      "eth-rpc",
+    ]);
+    await writeCaptures([shot]);
+  });
+
   test(`capture the deposit flow at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize({
       width: viewport.width,

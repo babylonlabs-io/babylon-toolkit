@@ -38,7 +38,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import type { Address, Hex } from "viem";
+import { InsufficientFundsError, type Address, type Hex } from "viem";
 import { useAccount } from "wagmi";
 import { getAccount } from "wagmi/actions";
 
@@ -984,7 +984,10 @@ export function useDepositFlow(
           }
           if (ethBalance <= protocolFee * BigInt(vaultAmounts.length)) {
             await waitForEthTopUp(
-              new Error(COPY.deposit.errors.insufficientEthForGas.body),
+              Object.assign(new InsufficientFundsError(), {
+                required: protocolFee * BigInt(vaultAmounts.length) + 1n,
+                balance: ethBalance,
+              }),
             );
             await assertDepositorAllowListedNow();
             await assertPositionAcceptsRegistration();
@@ -1129,7 +1132,7 @@ export function useDepositFlow(
             // A send can have an unknown result. Retry only before it starts.
             if (
               registrationSendStarted ||
-              mapDepositError(err) !== COPY.deposit.errors.insufficientEthForGas
+              mapDepositError(err).kind !== "insufficient-eth"
             ) {
               throw err;
             }
@@ -1545,9 +1548,7 @@ export function useDepositFlow(
         const postBroadcastBtcWallet: typeof confirmedBtcWallet &
           Partial<DepositTermsApprover> = {
           ...confirmedBtcWallet,
-          // `isWaiting` flips to `false` while a popup is open and back
-          // to `true` after it closes, so the SDK polling that follows
-          // remains "You can close and come back later"-able.
+          // Wallet requests clear the wait state. Polling restores it.
           deriveContextHash: async (appName, context) => {
             const returnStep = baseStep;
             if (baseStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS) {
@@ -1570,7 +1571,7 @@ export function useDepositFlow(
             }
           },
           signPsbt: async (psbtHex, opts) => {
-            // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+            // Read the phase before the SDK reports progress.
             const isGraph = payoutClaimersDoneRef.current;
             if (isGraph) {
               advanceStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
@@ -1605,7 +1606,7 @@ export function useDepositFlow(
           ...(confirmedBtcWallet.signPsbts
             ? {
                 signPsbts: async (psbtHexes, opts) => {
-                  // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+                  // Read the phase before the SDK reports progress.
                   const phase = payoutClaimersDoneRef.current
                     ? "graph"
                     : "claimers";
@@ -1648,8 +1649,19 @@ export function useDepositFlow(
                 },
               }
             : {}),
-          // Object spread drops prototype methods — see forwardDepositApproval.
           ...forwardDepositApproval(confirmedBtcWallet),
+          ...(supportsDepositApproval(confirmedBtcWallet)
+            ? {
+                approveDepositTerms: async (terms) => {
+                  setIsWaiting(false);
+                  try {
+                    return await confirmedBtcWallet.approveDepositTerms(terms);
+                  } finally {
+                    setIsWaiting(true);
+                  }
+                },
+              }
+            : {}),
         };
 
         // Track per-vault outcomes so failed lanes don't block healthy siblings

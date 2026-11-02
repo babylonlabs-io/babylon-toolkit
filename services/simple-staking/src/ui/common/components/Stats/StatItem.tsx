@@ -2,7 +2,7 @@ import {
   Button,
   ListItem,
   Loader,
-  MobileDialog,
+  Dialog,
   type ListItemProps,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useId, useState, type JSX } from "react";
@@ -68,7 +68,7 @@ export const StatItem = ({
           >
             <AiOutlineInfoCircle size={20} />
           </span>
-          <MobileDialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+          <Dialog mobile open={dialogOpen} onClose={() => setDialogOpen(false)}>
             <div className="px-4 py-2 text-accent-primary">{tooltip}</div>
             <div className="p-4">
               <Button
@@ -79,7 +79,7 @@ export const StatItem = ({
                 Done
               </Button>
             </div>
-          </MobileDialog>
+          </Dialog>
         </>
       ) : (
         <>

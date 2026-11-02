@@ -53,6 +53,17 @@ const GET_RESERVE_ABI = parseAbi([
   "function getReserve(uint256 reserveId) view returns (Reserve)",
 ]);
 
+/** `ISpoke.ORACLE()`, same reasoning as above. */
+const ORACLE_ABI = parseAbi(["function ORACLE() view returns (address)"]);
+
+/** `IAaveOracle.getReservesPrices`. */
+const GET_RESERVES_PRICES_ABI = parseAbi([
+  "function getReservesPrices(uint256[] reserveIds) view returns (uint256[])",
+]);
+
+/** The reserve priced from the same BTC feed as the vaultBTC reserve. */
+const WBTC_SYMBOL = "WBTC";
+
 /** `ReserveFlagsMap` bit masks from aave-v4 `spoke/libraries/ReserveFlagsMap.sol`. */
 const RESERVE_PAUSED_MASK = 0x01;
 const RESERVE_FROZEN_MASK = 0x02;
@@ -84,6 +95,7 @@ interface RecordedReserveRow {
   readonly paused?: boolean | null;
   readonly frozen?: boolean | null;
   readonly borrowable?: boolean | null;
+  readonly underlyingToken?: { readonly symbol?: string | null } | null;
 }
 
 interface RecordedAaveAppConfig {
@@ -110,6 +122,25 @@ function reserveFlags(row: {
   );
 }
 
+/** The recorded answer to the adapter's `BTC_VAULT_CORE_SPOKE()`, or null. */
+function recordedCoreSpoke(
+  data: RecordedAaveAppConfig["data"],
+  recorded: RecordedAnswer,
+): Hex | null {
+  const adapterAddress = data?.aaveConfig?.adapterAddress;
+  if (!adapterAddress) return null;
+  const answer = recorded(
+    adapterAddress,
+    toFunctionSelector(BTC_VAULT_CORE_SPOKE_ABI[0]),
+  );
+  if (answer === null) return null;
+  return decodeFunctionResult({
+    abi: BTC_VAULT_CORE_SPOKE_ABI,
+    functionName: "BTC_VAULT_CORE_SPOKE",
+    data: answer,
+  });
+}
+
 /**
  * `fetchAaveAppConfig` proves every indexed reserve against the Core Spoke's
  * `getReserve` and throws on any disagreement, so each answer must equal the
@@ -125,20 +156,11 @@ function reserveSupplements(
   data: RecordedAaveAppConfig["data"],
   recorded: RecordedAnswer,
 ): Supplement[] {
-  const adapterAddress = data?.aaveConfig?.adapterAddress;
   const rows = data?.aaveReserves?.items ?? [];
-  if (!adapterAddress || rows.length === 0) return [];
+  if (rows.length === 0) return [];
 
-  const coreSpokeAnswer = recorded(
-    adapterAddress,
-    toFunctionSelector(BTC_VAULT_CORE_SPOKE_ABI[0]),
-  );
-  if (coreSpokeAnswer === null) return [];
-  const coreSpoke = decodeFunctionResult({
-    abi: BTC_VAULT_CORE_SPOKE_ABI,
-    functionName: "BTC_VAULT_CORE_SPOKE",
-    data: coreSpokeAnswer,
-  });
+  const coreSpoke = recordedCoreSpoke(data, recorded);
+  if (coreSpoke === null) return [];
 
   const supplements: Supplement[] = [];
   for (const row of rows) {
@@ -189,6 +211,59 @@ function reserveSupplements(
 }
 
 /**
+ * The app prices the liquidation cascade at the vaultBTC reserve's oracle
+ * price, a read the recording predates: it priced only the borrowable
+ * reserves. The deployment prices the vaultBTC reserve and the WBTC reserve
+ * from the same BTC price feed (vault-contracts-aave-v4@13bff487
+ * `script/applications/aave-v4/AddReservesToSpoke.s.sol:90-93,136-141`), so
+ * the recorded WBTC reserve price is the vaultBTC reserve's price. Both reads
+ * target the oracle the recorded Core Spoke's `ORACLE()` names.
+ */
+function vaultBtcPriceSupplement(
+  data: RecordedAaveAppConfig["data"],
+  recorded: RecordedAnswer,
+): Supplement | null {
+  const vaultBtcReserveId = data?.aaveConfig?.vaultBtcReserveId;
+  const wbtcReserveId = data?.aaveReserves?.items?.find(
+    (row) => row.underlyingToken?.symbol === WBTC_SYMBOL,
+  )?.id;
+  if (vaultBtcReserveId === undefined || wbtcReserveId == null) return null;
+
+  const coreSpoke = recordedCoreSpoke(data, recorded);
+  if (coreSpoke === null) return null;
+  const oracleAnswer = recorded(coreSpoke, toFunctionSelector(ORACLE_ABI[0]));
+  if (oracleAnswer === null) return null;
+  const oracle = decodeFunctionResult({
+    abi: ORACLE_ABI,
+    functionName: "ORACLE",
+    data: oracleAnswer,
+  });
+
+  const wbtcPrice = recorded(
+    oracle,
+    encodeFunctionData({
+      abi: GET_RESERVES_PRICES_ABI,
+      functionName: "getReservesPrices",
+      args: [[BigInt(wbtcReserveId)]],
+    }),
+  );
+  if (wbtcPrice === null) return null;
+
+  return {
+    target: oracle,
+    callData: encodeFunctionData({
+      abi: GET_RESERVES_PRICES_ABI,
+      functionName: "getReservesPrices",
+      args: [[BigInt(vaultBtcReserveId)]],
+    }),
+    returnData: wbtcPrice,
+    because:
+      `the recorded oracle prices WBTC reserve ${wbtcReserveId} from the ` +
+      "same BTC price feed the deployment prices the vaultBTC reserve from",
+  };
+}
+
+/**
  * Derive the supplements a given run needs.
  *
  * Derived per run rather than hardcoded: re-recording against a deployment
@@ -232,6 +307,9 @@ export function buildSupplements(
   }
 
   supplements.push(...reserveSupplements(data, recorded));
+
+  const vaultBtcPrice = vaultBtcPriceSupplement(data, recorded);
+  if (vaultBtcPrice) supplements.push(vaultBtcPrice);
 
   return supplements;
 }

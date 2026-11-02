@@ -93,7 +93,8 @@ export function RiskPriceRail({
   const layout = computeRailLayout(currentPriceUsd, liquidationPriceUsd);
   const { lo, hi, ticks, currentPct, liquidationPct, gradient } = layout;
 
-  const isNeutral = currentPct === null || state === "noPosition";
+  const isNeutral =
+    currentPct === null || state === "noPosition" || state === "unavailable";
   const isSolidGreen = !isNeutral && state === "verySafe";
   const showGradient = !isNeutral && !isSolidGreen && liquidationPct !== null;
   const showGapArrow =
@@ -103,6 +104,7 @@ export function RiskPriceRail({
     Math.abs(currentPct - liquidationPct) >= GAP_MIN_SEPARATION_PCT;
 
   const currentRingClass = {
+    unavailable: "border-risk-muted",
     noPosition: "border-risk-muted",
     verySafe: "border-risk-green",
     safe: "border-risk-green",

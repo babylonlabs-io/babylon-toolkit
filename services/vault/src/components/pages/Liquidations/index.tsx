@@ -14,6 +14,7 @@ import {
   CHART_LOADING_BOX_CLASS,
   PAGE_CONTENT_CLASS,
 } from "@/components/shared/layoutClasses";
+import { PositionNotificationBanner } from "@/components/simple/PositionNotificationBanner";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
@@ -88,6 +89,7 @@ export default function Liquidations() {
     hasLoans,
     collateralFactorBps,
     isLoading,
+    isPositionUnavailable,
     borrowedAssets,
   } = useDashboardState(account);
 
@@ -110,10 +112,10 @@ export default function Liquidations() {
   // hasn't synced yet).
   const [simulatedPrice, setSimulatedPrice] = useState<number | null>(null);
 
-  // Clamped to the live price rather than reset by it. `usePrices` refetches
-  // every 60s (15s when unhealthy) and BTC moves on essentially every poll, so
-  // resetting here would discard the depositor's what-if about once a minute
-  // mid-analysis. The simulator only looks downward, so a live price that
+  // Clamped to the live price rather than reset by it. The live price, the
+  // Spoke oracle's, refetches every minute and BTC moves on essentially every
+  // poll, so resetting here would discard the depositor's what-if about once a
+  // minute mid-analysis. The simulator only looks downward, so a live price that
   // falls past a held simulation re-clamps instead; the `isSimulating` chip is
   // what stops a simulated price from ever reading as live.
   const prices = useMemo(
@@ -212,6 +214,31 @@ export default function Liquidations() {
         <EmptyState
           title={COPY.liquidations.emptyDisconnected}
           isConnected={false}
+          withCard
+        />
+      </Container>
+    );
+  }
+
+  // Ahead of the loader: with nothing cached, every poll reports `isLoading` for
+  // its retries, and this page would flip between the two. Ahead of the position
+  // stats too, which would show cached figures as current. The banner keeps an
+  // urgent warning and its actions on this page, which has no top banner; with
+  // no urgent warning it renders nothing.
+  if (!isGodMode && isPositionUnavailable) {
+    return (
+      <Container
+        className={`${PAGE_CONTENT_CLASS} flex flex-1 flex-col gap-10 pb-6`}
+      >
+        <PositionNotificationBanner
+          connectedAddress={account}
+          onDeposit={openDeposit}
+          onRepay={openRepay}
+        />
+        <EmptyState
+          title={COPY.liquidations.empty.unavailableTitle}
+          description={COPY.liquidations.empty.positionUnavailableDescription}
+          isConnected
           withCard
         />
       </Container>

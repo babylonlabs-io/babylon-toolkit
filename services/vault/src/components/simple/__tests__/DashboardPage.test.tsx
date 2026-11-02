@@ -12,7 +12,9 @@ import type {
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { setHealthFactorOverride } from "@/overrides/borrowCapacity";
+import { setLiquidationCardOverride } from "@/overrides/liquidations";
 import { setPositionCascadeOverride } from "@/overrides/position";
+import { formatUsdPrice } from "@/utils/formatting";
 
 import { DashboardPage } from "../DashboardPage";
 
@@ -51,6 +53,10 @@ vi.mock("@/context/wallet", async () => ({
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
+const dashboardStateMock = vi.hoisted(() => ({
+  overrides: {} as Record<string, unknown>,
+}));
+
 vi.mock("@/hooks/useDashboardState", () => ({
   useDashboardState: vi.fn(() => ({
     collateralBtc: 0,
@@ -69,20 +75,13 @@ vi.mock("@/hooks/useDashboardState", () => ({
     hasDisplayCollateral: true,
     collateralVaults: [],
     isLoading: false,
+    isPositionUnavailable: false,
+    ...dashboardStateMock.overrides,
   })),
 }));
 
 vi.mock("@/hooks/useApplicationCap", () => ({
   useApplicationCap: () => ({ snapshot: null, isLoading: false }),
-}));
-
-const pricesMock = vi.hoisted(() => ({
-  prices: {} as Record<string, number>,
-  metadata: {} as Record<string, { isStale: boolean; fetchFailed: boolean }>,
-}));
-
-vi.mock("@/hooks/usePrices", () => ({
-  usePrices: () => pricesMock,
 }));
 
 vi.mock("@/dev/demoDeposit", () => ({
@@ -104,6 +103,7 @@ const positionNotificationsMock = vi.hoisted(() => ({
   result: null as CalculatorResult | null,
   liveUrgentWarning: null as Warning | null,
   params: null as CalculatorParams | null,
+  btcPriceUsd: null as number | null,
 }));
 
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
@@ -111,7 +111,25 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
 }));
 
 vi.mock("../OverviewSection", () => ({
-  OverviewSection: () => <div data-testid="overview-section" />,
+  OverviewSection: ({
+    totalCollateralValue,
+    collateralBtc,
+    availableToBorrow,
+    borrowCount,
+  }: {
+    totalCollateralValue: string;
+    collateralBtc: string;
+    availableToBorrow: string;
+    borrowCount: bigint | null;
+  }) => (
+    <div
+      data-testid="overview-section"
+      data-total-collateral={totalCollateralValue}
+      data-collateral-btc={collateralBtc}
+      data-available-to-borrow={availableToBorrow}
+      data-borrow-count={String(borrowCount)}
+    />
+  ),
 }));
 vi.mock("../MaxVaultsNotification", () => ({
   MaxVaultsNotification: () => <div data-testid="max-vaults" />,
@@ -143,16 +161,19 @@ const receivedCascade = vi.hoisted(() => ({
 vi.mock("../LiquidationAnalysisSection", () => ({
   LiquidationAnalysisSection: ({
     cascade,
+    isPositionUnavailable,
   }: {
     cascade?: {
       result: CalculatorResult;
       params: CalculatorParams;
     } | null;
+    isPositionUnavailable: boolean;
   }) => {
     receivedCascade.current = cascade ?? null;
     return (
       <div
         data-testid="liquidation-analysis"
+        data-position-unavailable={String(isPositionUnavailable)}
         data-cascade={cascade ? "yes" : "no"}
         data-btc-price={cascade?.params.btcPrice ?? ""}
         data-collateral-factor={cascade?.params.CF ?? ""}
@@ -175,10 +196,11 @@ beforeEach(() => {
   positionNotificationsMock.result = null;
   positionNotificationsMock.liveUrgentWarning = null;
   positionNotificationsMock.params = null;
+  positionNotificationsMock.btcPriceUsd = null;
+  dashboardStateMock.overrides = {};
   setPositionCascadeOverride(null);
-  pricesMock.prices = {};
-  pricesMock.metadata = {};
   setHealthFactorOverride(null);
+  setLiquidationCardOverride(null);
   receivedCascade.current = null;
 });
 
@@ -266,8 +288,9 @@ describe("DashboardPage composition", () => {
 describe("DashboardPage risk card under a forced health factor", () => {
   beforeEach(() => {
     featureFlagsMock.isGodModePanelEnabled = true;
-    pricesMock.prices = { BTC: 63488 };
-    pricesMock.metadata = { BTC: { isStale: false, fetchFailed: false } };
+    // The live Spoke price. There is no cascade: the forced value replaces
+    // the cascade's own liquidation figures.
+    positionNotificationsMock.btcPriceUsd = 63_488;
   });
 
   it("charts the liquidation price and distance implied by the forced value", () => {
@@ -291,7 +314,7 @@ describe("DashboardPage risk card under a forced health factor", () => {
   });
 
   it("shows placeholders rather than live stats when no usable BTC price backs the forced value", () => {
-    pricesMock.metadata = { BTC: { isStale: true, fetchFailed: false } };
+    positionNotificationsMock.btcPriceUsd = null;
     setHealthFactorOverride(2.4);
 
     render(<DashboardPage />);
@@ -411,5 +434,199 @@ describe("DashboardPage embedded liquidation preview", () => {
       "data-cascade",
       "no",
     );
+  });
+});
+
+describe("DashboardPage with the position unavailable", () => {
+  const NOTICE_TEST_ID = "position-unavailable-notice";
+  // The first read failed: nothing cached, so these are the hook's zeros.
+  const FIRST_READ_FAILED = {
+    position: null,
+    hasCollateral: false,
+    hasLoans: false,
+    isPositionUnavailable: true,
+  };
+  // Reads kept failing past the threshold: the last good position is cached.
+  const CACHED_READ_STALE = {
+    position: { accountData: { borrowCount: 1n } },
+    collateralValueUsd: 80_000,
+    availableToBorrowUsd: 5_000,
+    collateralBtc: 1,
+    healthFactor: 2.1,
+    healthFactorStatus: "safe",
+    isPositionUnavailable: true,
+  };
+
+  it("shows a notice with no way to dismiss it", () => {
+    dashboardStateMock.overrides = FIRST_READ_FAILED;
+
+    render(<DashboardPage />);
+
+    const notice = screen.getByTestId(NOTICE_TEST_ID);
+    expect(notice).toHaveTextContent(
+      COPY.liquidationWarnings.positionUnavailable.title,
+    );
+    expect(notice).toHaveTextContent(
+      COPY.liquidationWarnings.positionUnavailable.detail,
+    );
+    expect(notice.querySelector("button")).toBeNull();
+  });
+
+  it("removes the notice once a read succeeds", () => {
+    dashboardStateMock.overrides = FIRST_READ_FAILED;
+    const { rerender } = render(<DashboardPage />);
+    expect(screen.getByTestId(NOTICE_TEST_ID)).toBeInTheDocument();
+
+    dashboardStateMock.overrides = {};
+    rerender(<DashboardPage />);
+
+    expect(screen.queryByTestId(NOTICE_TEST_ID)).not.toBeInTheDocument();
+  });
+
+  it("keeps an urgent warning ahead of the notice", () => {
+    dashboardStateMock.overrides = CACHED_READ_STALE;
+
+    render(<DashboardPage />);
+
+    expect(
+      screen
+        .getByTestId("position-banner")
+        .compareDocumentPosition(screen.getByTestId(NOTICE_TEST_ID)) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows placeholders, not an empty account, when the first read failed", () => {
+    dashboardStateMock.overrides = FIRST_READ_FAILED;
+
+    render(<DashboardPage />);
+
+    const overview = screen.getByTestId("overview-section");
+    expect(overview.dataset.totalCollateral).toBe(COPY.common.emptyValue);
+    expect(overview.dataset.collateralBtc).toBe(COPY.common.emptyValue);
+    expect(overview.dataset.availableToBorrow).toBe(COPY.common.emptyValue);
+    expect(screen.getByText(COPY.risk.status.unavailable)).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.risk.status.noPosition),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("liquidation-analysis").dataset.positionUnavailable,
+    ).toBe("true");
+  });
+
+  it("withholds a collateral factor that isn't the position's when the first read failed", () => {
+    dashboardStateMock.overrides = FIRST_READ_FAILED;
+
+    render(<DashboardPage />);
+
+    expect(screen.queryByText("78%")).not.toBeInTheDocument();
+  });
+
+  it("keeps a cached position's overview figures next to the notice", () => {
+    dashboardStateMock.overrides = CACHED_READ_STALE;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId(NOTICE_TEST_ID)).toBeInTheDocument();
+    const overview = screen.getByTestId("overview-section");
+    expect(overview.dataset.totalCollateral).not.toBe(COPY.common.emptyValue);
+    expect(overview.dataset.availableToBorrow).not.toBe(COPY.common.emptyValue);
+    expect(screen.getByText("78%")).toBeInTheDocument();
+  });
+
+  it("claims no borrow count for an account last read as empty, while its first failing fetch retries", () => {
+    dashboardStateMock.overrides = {
+      ...FIRST_READ_FAILED,
+      positionError: null,
+    };
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("overview-section").dataset.borrowCount).toBe(
+      "null",
+    );
+  });
+
+  it("leaves a god-mode cascade charted", () => {
+    featureFlagsMock.isGodModePanelEnabled = true;
+    dashboardStateMock.overrides = FIRST_READ_FAILED;
+    setPositionCascadeOverride({
+      result: OVERRIDE_RESULT,
+      status: null,
+      params: OVERRIDE_PARAMS,
+    });
+
+    render(<DashboardPage />);
+
+    expect(screen.queryByTestId(NOTICE_TEST_ID)).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("liquidation-analysis").dataset.positionUnavailable,
+    ).toBe("false");
+  });
+
+  it("leaves a god-mode liquidation card showing", () => {
+    featureFlagsMock.isGodModePanelEnabled = true;
+    dashboardStateMock.overrides = FIRST_READ_FAILED;
+    setLiquidationCardOverride("no-loan");
+
+    render(<DashboardPage />);
+
+    expect(screen.queryByTestId(NOTICE_TEST_ID)).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("liquidation-analysis").dataset.positionUnavailable,
+    ).toBe("false");
+  });
+
+  it("takes a cached position's health factor and liquidation figures off the risk card", () => {
+    dashboardStateMock.overrides = CACHED_READ_STALE;
+    positionNotificationsMock.btcPriceUsd = 60_000;
+    // An urgent warning survives with its groups for the top banner; the risk
+    // card must not read a liquidation price from them.
+    positionNotificationsMock.result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 40_000,
+      vaults: [{ id: "v-1", name: "Vault 1", btc: 1 }],
+      CF: 0.75,
+      THF: 1.1,
+      LB: 1.05,
+      expectedHF: 0.95,
+      minPeginBtc: null,
+    });
+    const liquidationPrice = positionNotificationsMock.result.groups[0]
+      ?.liquidationPrice as number;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByText(COPY.risk.status.unavailable)).toBeInTheDocument();
+    expect(screen.queryByText(COPY.risk.status.safe)).not.toBeInTheDocument();
+    expect(screen.queryByText("2.10")).not.toBeInTheDocument();
+    expect(screen.queryByText(formatUsdPrice(liquidationPrice))).toBeNull();
+  });
+
+  it("leaves a god-mode health factor showing", () => {
+    featureFlagsMock.isGodModePanelEnabled = true;
+    dashboardStateMock.overrides = FIRST_READ_FAILED;
+    positionNotificationsMock.btcPriceUsd = 63_488;
+    setHealthFactorOverride(2.4);
+
+    render(<DashboardPage />);
+
+    expect(screen.queryByTestId(NOTICE_TEST_ID)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.risk.status.unavailable),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("$26,453")).toHaveLength(2);
+  });
+});
+
+describe("DashboardPage risk card", () => {
+  it("shows the Spoke BTC price with no position cascade to price", () => {
+    // A connected depositor without active vaults: no cascade, but the
+    // current BTC price is still known.
+    positionNotificationsMock.btcPriceUsd = 61_722.5;
+
+    render(<DashboardPage />);
+
+    expect(screen.getAllByText("$61,723").length).toBeGreaterThanOrEqual(1);
   });
 });

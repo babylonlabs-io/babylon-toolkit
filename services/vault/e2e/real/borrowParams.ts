@@ -9,7 +9,8 @@
  *     `fetchAaveAppConfig`), filtered `borrowable && !paused && !frozen && id !== vBTC`.
  *   - Collateral/debt: on-chain `getPosition` (ETH addr → proxy) + `getUserAccountData` (aggregate).
  *   - Max borrow: `calculateMaxBorrowTokens`'s formula (helper is app-side; `BPS_SCALE` +
- *     `MIN_HEALTH_FACTOR_FOR_BORROW` are SDK-exported), fed the vBTC liquidation threshold + oracle price.
+ *     `MIN_HEALTH_FACTOR_FOR_BORROW` are SDK-exported, `BORROW_CAPACITY_HEADROOM` is mirrored below),
+ *     fed the vBTC liquidation threshold at the reserve's current key + oracle price.
  *
  * Everything here is a best-effort ESTIMATE for a menu default / a "no collateral" heads-up — NEVER a
  * hard gate. The live borrow form (its Max button + validation) is the authoritative, position-aware
@@ -25,7 +26,6 @@ import {
   getReserve,
   getReservesPrices,
   getUserAccountData,
-  getUserPosition,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { gql } from "graphql-request";
@@ -42,13 +42,20 @@ import {
 
 /**
  * Default borrow = this fraction of the computed max, keeping the health factor well above the
- * MIN_HEALTH_FACTOR_FOR_BORROW (1.05) liquidation edge for a repeatable real-money test. The full max
+ * MIN_HEALTH_FACTOR_FOR_BORROW (1.05) borrow floor for a repeatable real-money test. The full max
  * stays reachable via `--borrow-amount` (or `--borrow-amount=max`) and the form's Max button.
  */
 export const CONSERVATIVE_BORROW_FRACTION = 0.25;
 
 /** The Aave oracle reports USD prices scaled by 1e8. */
 const ORACLE_PRICE_SCALE = 1e8;
+
+/**
+ * Fraction of borrow capacity the app holds back from the health-factor rail.
+ * KEEP IN SYNC with `BORROW_CAPACITY_HEADROOM` in src/applications/aave/constants.ts — app-side, so
+ * mirrored rather than imported (the e2e layer does not import from `src/`).
+ */
+const BORROW_CAPACITY_HEADROOM = 0.005;
 
 /** A reserve token as offered in the CLI menu / used to drive the asset picker. */
 export interface BorrowReserve {
@@ -383,10 +390,10 @@ export async function fetchActiveVaultCount(
 }
 
 /**
- * Max tokens borrowable while keeping health factor ≥ MIN_HEALTH_FACTOR_FOR_BORROW — the exact formula
- * of the app's `calculateMaxBorrowTokens` (the helper itself is app-side, but `BPS_SCALE` +
- * `MIN_HEALTH_FACTOR_FOR_BORROW` are SDK-exported). Not floored to token precision here — the caller
- * applies the conservative fraction + formatting.
+ * Max tokens borrowable while keeping health factor ≥ MIN_HEALTH_FACTOR_FOR_BORROW, less
+ * BORROW_CAPACITY_HEADROOM — the exact formula of the app's `calculateMaxBorrowTokens` (the helper
+ * itself is app-side, but `BPS_SCALE` + `MIN_HEALTH_FACTOR_FOR_BORROW` are SDK-exported). Not floored to
+ * token precision here — the caller applies the conservative fraction + formatting.
  *
  * KEEP IN SYNC with src/applications/aave/components/LoanCard/Borrow/hooks/calculateMaxBorrowTokens.ts.
  * Reimplemented (not imported) because there's no SDK equivalent and the e2e layer intentionally does
@@ -400,18 +407,19 @@ function computeMaxBorrowTokens(
 ): number {
   if (tokenPriceUsd <= 0) return 0;
   const maxTotalDebtUsd =
-    (collateralUsd * liquidationThresholdBps) /
-    BPS_SCALE /
-    MIN_HEALTH_FACTOR_FOR_BORROW;
+    ((collateralUsd * liquidationThresholdBps) /
+      BPS_SCALE /
+      MIN_HEALTH_FACTOR_FOR_BORROW) *
+    (1 - BORROW_CAPACITY_HEADROOM);
   const maxAdditionalBorrowUsd = maxTotalDebtUsd - currentDebtUsd;
   return Math.max(0, maxAdditionalBorrowUsd / tokenPriceUsd);
 }
 
 /**
  * Best-effort max-borrow estimate for one reserve on `network`, mirroring the app's borrow-form chain:
- * collateral/debt from the position, the vBTC reserve's liquidation threshold (the depositor's stored
- * `dynamicConfigKey` when a position exists, else the reserve's current key — matches the app), and the
- * token's oracle price. Returns `maxTokens: 0` when there's no collateral yet. Estimate only — the
+ * collateral/debt from the position, the vBTC reserve's liquidation threshold at the reserve's current
+ * `dynamicConfigKey` (the one `borrow()` applies, which the borrow form reads too), and the token's
+ * oracle price. Returns `maxTokens: 0` when there's no collateral yet. Estimate only — the
  * form's Max is authoritative.
  */
 export async function fetchMaxBorrow(
@@ -441,23 +449,15 @@ export async function fetchMaxBorrow(
     position.proxyContract,
   );
 
-  // Liquidation threshold from the vBTC reserve's dynamic config, keyed by the depositor's stored
-  // `dynamicConfigKey` when the position has one (else the reserve's current key) — matches the app's
-  // useVaultSplitParams. A missing user position falls back to the reserve baseline.
-  const userVbtcPosition = await getUserPosition(
-    client,
-    spoke,
-    vaultBtcReserveId,
-    position.proxyContract,
-  ).catch(() => null);
+  // Liquidation threshold from the vBTC reserve's dynamic config at the reserve's current key, not the
+  // position's stored one: `borrow()` copies the current key onto the position before it checks the
+  // health factor, which is why the borrow form calls useVaultSplitParams without an address.
   const vbtcReserve = await getReserve(client, spoke, vaultBtcReserveId);
-  const dynamicConfigKey =
-    userVbtcPosition?.dynamicConfigKey ?? vbtcReserve.dynamicConfigKey;
   const dynamicConfig = await getDynamicReserveConfig(
     client,
     spoke,
     vaultBtcReserveId,
-    dynamicConfigKey,
+    vbtcReserve.dynamicConfigKey,
   );
   const liquidationThresholdBps = Number(dynamicConfig.collateralFactor);
 

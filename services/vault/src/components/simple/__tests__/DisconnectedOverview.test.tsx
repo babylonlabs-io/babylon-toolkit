@@ -58,13 +58,15 @@ describe("DisconnectedOverview", () => {
 
     const tvlChip = screen.getByText(COPY_OVERVIEW.stats.tvlLabel);
     const capChip = screen.getByText(COPY_OVERVIEW.stats.capLabel);
-    const cfChip = screen.getByText(COPY_OVERVIEW.stats.maxCfLabel);
+    const borrowChip = screen.getByText(COPY_OVERVIEW.stats.maxBorrowLabel);
     const headline = screen.getByRole("heading", { level: 1 });
 
     // 90 BTC locked at $93k prices the protocol at $8.4M.
     expect(tvlChip.nextElementSibling).toHaveTextContent("$8.4M");
     expect(capChip.nextElementSibling).toHaveTextContent("90/100 BTC");
-    expect(cfChip.nextElementSibling).toHaveTextContent("78%");
+    // CF 78% ÷ 1.05, less 0.5% headroom, is 73.9%, floored to 73%: the share
+    // the Borrow form allows, not the raw collateral factor.
+    expect(borrowChip.nextElementSibling).toHaveTextContent("73%");
     expect(
       tvlChip.compareDocumentPosition(capChip) &
         Node.DOCUMENT_POSITION_FOLLOWING,

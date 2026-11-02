@@ -32,6 +32,8 @@ import type { RecordedBackend } from "../fixtures/replay/recording";
 
 import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
 import {
+  ARTIFACT_DOWNLOAD_STOPS,
+  ARTIFACT_QUOTA_STOPS,
   CONNECT_GUIDE_STOP,
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
@@ -39,9 +41,12 @@ import {
   DEPOSIT_SPLIT_MINIMUM_STOP,
   depositProgressStepStop,
   flowScreenshotFileName,
+  HAS_ARTIFACT_DOWNLOAD_CONFIRMATION,
   HAS_CONNECT_GUIDE,
   HAS_LIQUIDATION_TOUR,
   LIQUIDATION_CHART_STOP,
+  LIQUIDATION_SMALL_POSITION_STOP,
+  LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
   LIQUIDATION_TOUR_STOPS,
   screenshotFileName,
   VAULT_REFUND_STOPS,
@@ -437,10 +442,18 @@ export async function ensureOutputDir(): Promise<void> {
     ),
     ...[
       ...Object.values(VAULT_REFUND_STOPS),
+      ...(HAS_ARTIFACT_DOWNLOAD_CONFIRMATION
+        ? [
+            ...Object.values(ARTIFACT_DOWNLOAD_STOPS),
+            ...Object.values(ARTIFACT_QUOTA_STOPS),
+          ]
+        : []),
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
       DEPOSIT_SPLIT_MINIMUM_STOP,
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
       LIQUIDATION_CHART_STOP,
+      LIQUIDATION_SMALL_POSITION_STOP,
+      LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
       ...(HAS_LIQUIDATION_TOUR ? Object.values(LIQUIDATION_TOUR_STOPS) : []),
       ...(HAS_CONNECT_GUIDE ? [CONNECT_GUIDE_STOP] : []),
     ].flatMap((stop) =>

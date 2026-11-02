@@ -44,9 +44,9 @@ interface CriticalLiquidationTopBannerProps {
  * position is at `red` severity. When the calculator's own urgent warning made
  * it red, the message is the first group's distance to liquidation. When the
  * live Spoke health factor did, or there is no calculated result, the message
- * is the live health-factor warning: the calculated distance comes from an
- * independent price and cached risk parameters, and is the figure the Spoke
- * contradicts. A non-interactive `role="alert"` (core-ui's
+ * is the live health-factor warning: the calculated distance comes from a
+ * separately polled oracle price, indexed vault amounts and cached risk
+ * parameters, and is the figure the Spoke contradicts. A non-interactive `role="alert"` (core-ui's
  * `critical` Banner variant applies it) so assistive tech announces it;
  * non-dismissible by design — an imminent liquidation warning the user must not
  * be able to hide. The actionable Add Collateral / Repay Debt controls live on

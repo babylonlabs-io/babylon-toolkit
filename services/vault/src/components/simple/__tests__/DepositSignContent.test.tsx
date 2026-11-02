@@ -37,6 +37,7 @@ const flowErrorState = vi.hoisted(() => ({
   error: null as DepositErrorContent | null,
   resumableVaultIds: null as Hex[] | null,
   retryDeposit: null as (() => void) | null,
+  isWaiting: false,
 }));
 // Captures the latest `onSign` handed to DepositProgressView so a test can
 // invoke it twice synchronously — the real double-click race that happens
@@ -58,12 +59,13 @@ vi.mock("@/hooks/deposit/useDepositFlow", () => ({
     executeDeposit: mockExecuteDeposit,
     abort: vi.fn(),
     currentStep: "DERIVE_VAULT_SECRET",
+    currentVaultIndex: null,
     processing: false,
     error: flowErrorState.error,
     resumableVaultIds: flowErrorState.resumableVaultIds,
     retryDeposit: flowErrorState.retryDeposit,
     lastWarnings: [],
-    isWaiting: false,
+    isWaiting: flowErrorState.isWaiting,
     payoutSigningProgress: null,
     peginSigningProgress: null,
     btcConfirmationDetail: null,
@@ -181,6 +183,7 @@ describe("DepositSignContent", () => {
     flowErrorState.error = null;
     flowErrorState.resumableVaultIds = null;
     flowErrorState.retryDeposit = null;
+    flowErrorState.isWaiting = false;
   });
 
   it("keeps a deposit unstarted until the user retries after connection", () => {
@@ -253,6 +256,8 @@ describe("DepositSignContent", () => {
     expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
       expect.anything(),
       true,
+      null,
+      false,
     );
 
     fireEvent.click(getByTestId("retry"));
@@ -262,6 +267,28 @@ describe("DepositSignContent", () => {
     // double-notify on the same signing step.
     expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
       expect.anything(),
+      false,
+      null,
+      false,
+    );
+  });
+
+  it("passes the wallet wait state to the signing observer", () => {
+    flowErrorState.isWaiting = true;
+    const content = contentElement();
+    const view = render(content);
+    expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
+      expect.anything(),
+      false,
+      null,
+      true,
+    );
+    flowErrorState.isWaiting = false;
+    view.rerender(cloneElement(content));
+    expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
+      expect.anything(),
+      false,
+      null,
       false,
     );
   });

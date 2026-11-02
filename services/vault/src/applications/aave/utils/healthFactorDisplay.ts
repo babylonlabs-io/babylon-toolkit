@@ -2,6 +2,9 @@ import type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations
 
 import { HEALTH_FACTOR_DISPLAY_CAP } from "../constants";
 
+const HEALTH_FACTOR_DECIMALS = 2;
+const HEALTH_FACTOR_SCALE = 10 ** HEALTH_FACTOR_DECIMALS;
+
 export const HEALTH_FACTOR_COLORS = {
   GREEN: "#15B768",
   AMBER: "#F7931A",
@@ -40,5 +43,14 @@ export function formatHealthFactor(healthFactor: number | null): string {
   ) {
     return "-";
   }
-  return healthFactor.toFixed(2);
+  // Round down, never to nearest: the status bands are hundredths, so a value
+  // rounded up can read as a safer band than its color (a liquidatable 0.996
+  // would print "1.00"). Taking the largest hundredth that does not exceed the
+  // value, rather than flooring `healthFactor * 100`, keeps a value that is
+  // already a hundredth whole: 1.15 is stored as 1.1499…, and
+  // `1.15 * 100 === 114.99999999999999`.
+  const nearest = Math.round(healthFactor * HEALTH_FACTOR_SCALE);
+  const roundedDown =
+    nearest / HEALTH_FACTOR_SCALE > healthFactor ? nearest - 1 : nearest;
+  return (roundedDown / HEALTH_FACTOR_SCALE).toFixed(HEALTH_FACTOR_DECIMALS);
 }

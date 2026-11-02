@@ -1,5 +1,5 @@
 import { Button } from "@/components/Button";
-import { Dialog, MobileDialog, DialogBody, DialogHeader } from "@/components/Dialog";
+import { Dialog, DialogBody, DialogHeader } from "@/components/Dialog";
 import { WINDOW_BREAKPOINT } from "@/utils/constants";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useState } from "react";
@@ -20,7 +20,6 @@ interface SimpleTableModalProps {
 
 export const SimpleTableModal = ({ headers, data }: SimpleTableModalProps) => {
   const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
-  const DialogComponent = isMobileView ? MobileDialog : Dialog;
   const [visible, setVisibility] = useState(false);
 
   const onClose = () => {
@@ -43,12 +42,12 @@ export const SimpleTableModal = ({ headers, data }: SimpleTableModalProps) => {
       <Button onClick={() => setVisibility(true)}>
         Open
       </Button>
-      <DialogComponent className="w-[41.25rem] max-w-full" open={visible} onClose={onClose}>
+      <Dialog mobile={isMobileView} className="w-[41.25rem] max-w-full" open={visible} onClose={onClose}>
         <DialogHeader title="BSNs & Finality Providers" onClose={onClose} className="text-accent-primary" />
         <DialogBody className="mt-4 gap-4 text-accent-primary">
           <SimpleTable headers={headers} data={tableData} />
         </DialogBody>
-      </DialogComponent>
+      </Dialog>
     </>
   );
 };

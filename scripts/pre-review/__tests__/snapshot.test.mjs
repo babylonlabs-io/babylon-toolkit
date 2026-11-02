@@ -17,6 +17,7 @@ import {
   finalReviewStatus,
   parseSnapshots,
   recordBlobs,
+  visualCoverage,
 } from "../snapshot.mjs";
 
 const SCRIPTS = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -68,6 +69,117 @@ test("digestBlobs hashes byte-ordered path lines exactly as formats.md specifies
 
 test("digestBlobs rejects a value that is neither an object id nor deleted", () => {
   assert.throws(() => digestBlobs(new Map([["a.ts", "not-a-sha"]])), /a\.ts/);
+});
+
+test('UI changes without a changed visual test require a coverage review', () => {
+  const result = visualCoverage(new Map([
+    ['packages/babylon-core-ui/src/components/Dialog/Dialog.tsx', 'a'.repeat(40)],
+    ['packages/babylon-core-ui/src/components/Dialog/__tests__/ResponsiveDialog.test.tsx', 'a'.repeat(40)],
+  ]));
+  assert.equal(result.status, 'review-required');
+  assert.deepEqual(result.ui_files, [
+    'packages/babylon-core-ui/src/components/Dialog/Dialog.tsx',
+  ]);
+  assert.match(result.warning, /No visual test changed/);
+});
+
+test('a changed visual test remains a candidate rather than proof of coverage', () => {
+  const result = visualCoverage(new Map([
+    ['services/vault/src/copy.ts', 'a'.repeat(40)],
+    ['services/vault/e2e/visual/liquidationChart.visual.spec.ts', 'a'.repeat(40)],
+  ]));
+  assert.equal(result.status, 'review-required');
+  assert.equal(result.warning, null);
+  assert.deepEqual(result.visual_test_files, [
+    'services/vault/e2e/visual/liquidationChart.visual.spec.ts',
+  ]);
+});
+
+test('notification behavior lists browser evidence without treating it as visual evidence', () => {
+  const result = visualCoverage(new Map([
+    ['services/vault/src/hooks/deposit/useDepositSigningNotification.ts', 'a'.repeat(40)],
+    ['services/vault/e2e/signingNotification.spec.ts', 'a'.repeat(40)],
+  ]));
+  assert.equal(result.status, 'review-required');
+  assert.equal(result.browser_test_files.length, 1);
+  assert.equal(result.visual_test_files.length, 0);
+  assert.match(result.warning, /No visual test changed/);
+});
+
+test('stories and unit tests alone do not count as changed product UI', () => {
+  const result = visualCoverage(new Map([
+    ['packages/babylon-core-ui/src/components/Dialog/Dialog.stories.tsx', 'a'.repeat(40)],
+    ['packages/babylon-core-ui/src/components/Dialog/__tests__/ResponsiveDialog.test.tsx', 'a'.repeat(40)],
+    ['scripts/pre-review/snapshot.mjs', 'a'.repeat(40)],
+  ]));
+  assert.equal(result.status, 'not-detected');
+  assert.equal(result.warning, null);
+});
+
+test('a changed core-ui story is a visual candidate for the existing capture spec', () => {
+  const story = 'packages/babylon-core-ui/src/components/Dialog/Dialog.stories.tsx';
+  const result = visualCoverage(new Map([
+    ['packages/babylon-core-ui/src/components/Dialog/Dialog.tsx', 'a'.repeat(40)],
+    [story, 'a'.repeat(40)],
+    ['services/vault/src/components/Deposit.stories.tsx', 'a'.repeat(40)],
+  ]));
+  assert.deepEqual(result.visual_test_files, [story]);
+  assert.equal(result.status, 'review-required');
+  assert.equal(result.warning, null);
+});
+
+test('deleted UI stays in review scope while deleted tests are not candidates', () => {
+  const ui = 'packages/babylon-core-ui/src/components/Dialog/Dialog.tsx';
+  const result = visualCoverage(new Map([
+    [ui, DELETED],
+    ['packages/babylon-core-ui/src/components/Dialog/Dialog.stories.tsx', DELETED],
+    ['services/vault/e2e/visual/dialog.visual.spec.ts', DELETED],
+    ['services/vault/e2e/dialog.spec.ts', DELETED],
+  ]));
+  assert.deepEqual(result.ui_files, [ui]);
+  assert.deepEqual(result.visual_test_files, []);
+  assert.deepEqual(result.browser_test_files, []);
+  assert.match(result.warning, /No visual test changed/);
+});
+
+test('record prints coverage warnings without corrupting its snapshot JSON', (t) => {
+  const repo = scratchRepo(t);
+  repo.write(
+    'packages/babylon-core-ui/src/components/Dialog/Dialog.tsx',
+    'export {};\n',
+  );
+  const run = spawnSync(
+    'node',
+    [path.join(SCRIPTS, 'snapshot.mjs'), 'record', 'main'],
+    {
+      cwd: repo.dir,
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(run.status, 0);
+  assert.match(run.stderr, /pre-review: No visual test changed/);
+  const record = JSON.parse(run.stdout);
+  assert.equal(record.visual_coverage.status, 'review-required');
+  assert.equal(record.count, 1);
+});
+
+test('record keeps a deleted visual test in the snapshot without suppressing the warning', (t) => {
+  const repo = scratchRepo(t);
+  const visual = 'services/vault/e2e/visual/dialog.visual.spec.ts';
+  repo.write(visual, 'export {};\n');
+  repo.git('add', visual);
+  repo.git('commit', '--quiet', '-m', 'visual test');
+  fs.rmSync(path.join(repo.dir, visual));
+  repo.write('services/vault/src/components/Dialog.tsx', 'export {};\n');
+  const run = spawnSync('node', [path.join(SCRIPTS, 'snapshot.mjs'), 'record', 'HEAD'], {
+    cwd: repo.dir,
+    encoding: 'utf8',
+  });
+  assert.equal(run.status, 0);
+  const record = JSON.parse(run.stdout);
+  assert.equal(record.files[visual], DELETED);
+  assert.deepEqual(record.visual_coverage.visual_test_files, []);
+  assert.match(run.stderr, /pre-review: No visual test changed/);
 });
 
 test("recordBlobs covers edited, added and deleted files but not /pre-review's own", (t) => {

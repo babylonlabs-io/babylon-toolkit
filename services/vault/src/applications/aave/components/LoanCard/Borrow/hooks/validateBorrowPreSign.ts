@@ -6,6 +6,7 @@
  */
 import type { Address } from "viem";
 
+import { COPY } from "@/copy";
 import { ContractError, ErrorCode } from "@/utils/errors";
 import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
 
@@ -18,6 +19,7 @@ import {
   aaveValueToUsd,
   assertCfUnchanged,
   calculateHealthFactor,
+  formatHealthFactor,
 } from "../../../../utils";
 import {
   BorrowReserveCapUnavailableError,
@@ -124,8 +126,10 @@ export async function validateBorrowPreSign({
 
   if (isFinite(projectedHF) && projectedHF < MIN_HEALTH_FACTOR_FOR_BORROW) {
     throw new Error(
-      `Position data has changed. Projected health factor (${projectedHF.toFixed(2)}) ` +
-        `would be below ${MIN_HEALTH_FACTOR_FOR_BORROW}. Please reduce the borrow amount.`,
+      COPY.loans.borrowHealthFactorChangedError(
+        formatHealthFactor(projectedHF),
+        MIN_HEALTH_FACTOR_FOR_BORROW,
+      ),
     );
   }
 }

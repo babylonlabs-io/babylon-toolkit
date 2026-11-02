@@ -20,11 +20,19 @@ import type {
   Warning,
 } from "./types";
 
-/** Minimum position value (USD) for meaningful multi-event analysis */
+/** Minimum debt or collateral value (USD) for position advice. */
 const DUST_THRESHOLD_USD = 1000;
 
 /** Distance to liquidation (%) below which we raise an urgent warning */
 const URGENT_DISTANCE_PCT = 5;
+
+/**
+ * Health factor below which the calculator raises `urgent`. The first group's
+ * distance is exactly 1/HF − 1 (pLiq = debt / (BTC × CF), HF = BTC × price ×
+ * CF / debt), so "liquidatable or within {@link URGENT_DISTANCE_PCT}" is
+ * HF < 1 / (1 − 5%) ≈ 1.0526.
+ */
+export const URGENT_HEALTH_FACTOR = 1 / (1 - URGENT_DISTANCE_PCT / 100);
 
 /**
  * Minimum cascade-score improvement (in BTC) before we suggest a reorder.
@@ -116,8 +124,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     };
   }
 
-  // Dust (there IS debt but it's tiny, or the collateral is) forces one
-  // full-liquidation group through the normal loop below.
+  // Small positions suppress advice, but use the same liquidation calculation.
   const isDust =
     totalDebtUsd < DUST_THRESHOLD_USD || collateralValue < DUST_THRESHOLD_USD;
 
@@ -162,7 +169,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     let i = 0;
     while (
       i < remainingVaults.length &&
-      (isDust || prefixSum < curTargetSeizure * (1 - SEIZURE_TOL))
+      prefixSum < curTargetSeizure * (1 - SEIZURE_TOL)
     ) {
       prefixSum += remainingVaults[i].btc;
       i++;
@@ -297,8 +304,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     }
   }
 
-  // Dust skips the order, cliff and reorder advice. A sub-$1k position has no
-  // meaningful multi-event cascade.
+  // Small positions skip order, cliff and reorder advice.
   if (isDust) {
     return {
       groups,

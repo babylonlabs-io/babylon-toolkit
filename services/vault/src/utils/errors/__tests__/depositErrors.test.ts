@@ -18,6 +18,7 @@ import {
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { InsufficientFundsError, parseEther } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -348,17 +349,25 @@ describe("mapDepositError", () => {
     const err = new Error(
       "execution reverted: insufficient funds for gas * price + value",
     );
-    expect(mapDepositError(err)).toEqual(ERRORS.insufficientEthForGas);
+    expect(mapDepositError(err)).toEqual({
+      ...ERRORS.insufficientEthForGas,
+      kind: "insufficient-eth",
+    });
   });
 
-  it("maps viem's typed InsufficientFundsError (by name) to the insufficient-ETH callout", () => {
-    // classifyError keys off viem's error name, so it's robust even when the
-    // message wording changes across viem versions.
-    const err = Object.assign(new Error("Transaction execution failed"), {
-      name: "InsufficientFundsError",
-    });
-    expect(mapDepositError(err)).toEqual(ERRORS.insufficientEthForGas);
-  });
+  it.each([0n, 1n])(
+    "rounds the reported ETH shortfall upward by %s wei",
+    (extra) => {
+      const required = parseEther("0.01487") + extra;
+      const balance = parseEther("0.00277");
+      const content = mapDepositError(
+        Object.assign(new InsufficientFundsError(), { required, balance }),
+      );
+      const topUp = extra ? "0.012101" : "0.0121";
+      expect(content.body).toContain(`Add at least ${topUp} ETH`);
+      expect(String(content.body)).not.toMatch(/\d\.\d{7}/);
+    },
+  );
 
   it("maps a wallet-not-connected error to the wallet callout", () => {
     expect(

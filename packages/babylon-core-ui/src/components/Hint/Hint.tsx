@@ -9,7 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { InfoIcon } from "../Icons";
-import { MobileDialog } from "../Dialog";
+import { Dialog } from "../Dialog";
 import { Heading } from "../Heading";
 import { Text } from "../Text";
 import { useIsTouchFirst } from "../../hooks/useIsTouchFirst";
@@ -163,7 +163,8 @@ export function Hint({
     // it, select an enclosing row, or count as outside an enclosing popover.
     const sheet = (
       <span className="contents" onClick={stopPropagation} onMouseDown={stopPropagation}>
-        <MobileDialog
+        <Dialog
+          mobile
           open={sheetOpen}
           onClose={closeSheet}
           onKeyDown={keepFocusInSheet}
@@ -185,7 +186,7 @@ export function Hint({
               {tooltip}
             </Text>
           </div>
-        </MobileDialog>
+        </Dialog>
       </span>
     );
 

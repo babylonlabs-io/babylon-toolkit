@@ -163,6 +163,34 @@ describe("validateBorrowPreSign", () => {
     ).rejects.toThrow(/Projected health factor/);
   });
 
+  it("prints a projected health factor just under the minimum below it, not as the minimum", async () => {
+    // $1,000 collateral at LT 75% against a $715 borrow: HF = 750 / 715 =
+    // 1.0489…, which rounding to nearest printed as "1.05 would be below 1.05".
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.75,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    });
+    const refetchPosition = vi
+      .fn()
+      .mockResolvedValue(makePosition(1000n * USD_COLLATERAL, 0n));
+
+    await expect(
+      validateBorrowPreSign({
+        borrowAmount: 715,
+        oracleAddress: ORACLE,
+        reserveId: RESERVE_ID,
+        liquidationThresholdBps: 7500,
+        refetchSplitParams,
+        refetchPosition,
+        chainMaxBorrowReserves: { status: "loaded", limit: null },
+      }),
+    ).rejects.toThrow("Projected health factor (1.04) would be below 1.05");
+  });
+
   it("uses the FRESH oracle price, not a cached UI value", async () => {
     // The UI may have cached BTC at $80,000, but the oracle now returns
     // $100,000. With $80,000 collateral at CF=0.75 and a 1.0-unit borrow,

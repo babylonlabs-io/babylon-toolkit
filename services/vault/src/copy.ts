@@ -169,7 +169,7 @@ export const COPY = {
   tooltips: {
     // Risk card, markets collateral card, protocol parameters (LTV).
     collateralFactor:
-      "The maximum percentage of your total collateral value that can be borrowed.",
+      "The fraction of your collateral's value counted toward your borrowing capacity.",
     // Overview position cards, risk card body, borrow / repay detail cards.
     healthFactor:
       "Indicates the health of your position. If it falls below 1.0, your position may be liquidated.",
@@ -1008,6 +1008,12 @@ export const COPY = {
       // "Up to" hedge no longer applies because the file is on disk.
       cardSizeDownloaded: "~1 GB",
       downloadingButton: "Downloading...",
+      cancelConfirmation: {
+        title: "Cancel artifact download?",
+        body: "If you cancel, you must start the download again.",
+        keepButton: "Keep downloading",
+        cancelButton: "Yes, cancel download",
+      },
       // Caption under the progress bar while bytes are streaming.
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
@@ -1040,6 +1046,8 @@ export const COPY = {
       authenticationFailed: "Authentication failed",
       reauthenticationFailed: "Re-authentication failed",
       downloadFailed: "Download failed",
+      downloadLimitReached:
+        "Too many artifact download requests. Wait and try again later.",
       unknownRpcError: "Unknown RPC error",
       // Shown while the browser's save-location dialog is open. The picker is
       // opened before the wallet prompt, so this is the first status a user
@@ -1200,6 +1208,9 @@ export const COPY = {
       // CollateralFactorRow: leads with the max-borrowable USD, CF in parens.
       maxToBorrowLabel: "Max to Borrow:",
       cfParenthetical: (percent: string) => `(CF=${percent})`,
+      // CollateralFactorRow tooltip: why the figure sits below value × CF.
+      maxToBorrowTooltip: (minHealthFactor: number) =>
+        `Your deposit's value times the collateral factor, less a buffer that keeps your health factor above ${minHealthFactor} if you have no other debt. Existing debt, a market's available liquidity or its borrow limit can lower the amount you can actually borrow.`,
       // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
       depositFeeLabel: "Deposit Fee",
       depositFeeTooltip:
@@ -1359,6 +1370,8 @@ export const COPY = {
       insufficientEthForGas: {
         title: TRANSACTION_FAILED_TITLE,
         body: "Your wallet does not have enough ETH for the transaction payment and network gas. Add ETH on this network and try again.",
+        amounts: (required: string, balance: string, shortfall: string) =>
+          `Your wallet needs at least ${required} ETH and has ${balance} ETH. Add at least ${shortfall} ETH, then try again. Network gas can increase the amount needed.`,
       },
       depositChanged: {
         title: "Deposit changed",
@@ -2370,6 +2383,10 @@ export const COPY = {
     // A borrow refused because the indexer's reserve disagrees with the chain.
     borrowIntegrityError:
       "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
+    // A borrow refused at submit time because the refetched position projects
+    // a health factor under the borrow minimum.
+    borrowHealthFactorChangedError: (healthFactor: string, min: number) =>
+      `Position data has changed. Projected health factor (${healthFactor}) would be below ${min}. Please reduce the borrow amount.`,
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",
@@ -2703,6 +2720,8 @@ export const COPY = {
       unavailableTitle: "Liquidation analysis unavailable",
       unavailableDescription:
         "The BTC price feed is unavailable or out of date, so we can't project your liquidation events right now. Your position details above are unaffected.",
+      positionUnavailableDescription:
+        "We can't load your current position, so we can't project your liquidation events right now. Any position you hold can still be liquidated while this shows.",
     },
     reset: "Reset",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
@@ -2844,7 +2863,7 @@ export const COPY = {
         capValue: (deposited: string, total: string) =>
           `${deposited}/${total} BTC`,
         capUncapped: "Uncapped",
-        maxCfLabel: "Borrow up to:",
+        maxBorrowLabel: "Borrow up to:",
       },
       features: {
         competitiveRates: {
@@ -2973,6 +2992,7 @@ export const COPY = {
     healthFactorTitle: "Health Factor",
     healthFactorInfinity: "∞",
     status: {
+      unavailable: "Unavailable",
       noPosition: "No Position",
       verySafe: "Very Safe",
       safe: "Safe",
@@ -3236,9 +3256,9 @@ export const COPY = {
         `This position already has the maximum number of BTCVaults (${cap}).`,
     },
     dust: {
-      title: "Small position - simplified view",
+      title: "Small position",
       detail:
-        "Below $1,000 the cascade simplifies: all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+        "Below $1,000 of debt or collateral, liquidation still follows BTCVault order. Order, cliff and reorder advice is hidden.",
     },
     // The BTC price is stale or unreadable, so no cascade is computed.
     stalePrice: {
@@ -3258,6 +3278,12 @@ export const COPY = {
       title: "Liquidation warnings unavailable",
       detail:
         "We couldn't read the protocol's risk parameters, so liquidation warnings can't be calculated right now. Your BTCVaults and loan are unaffected. Reload the page to try again, and contact support if this persists.",
+    },
+    // The position read failed, so the figures on the page can't be trusted.
+    positionUnavailable: {
+      title: "Position data unavailable",
+      detail:
+        "We can't load your current position, so your collateral, debt, health factor and liquidation warnings may be missing or out of date. Any position you hold can still be liquidated while this shows. This notice clears once your position loads.",
     },
     weirdParams: {
       title: "Protocol parameters don't compute",

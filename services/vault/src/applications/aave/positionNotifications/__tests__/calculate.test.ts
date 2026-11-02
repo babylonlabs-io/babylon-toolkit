@@ -641,49 +641,43 @@ describe("consistency with the deposit split", () => {
   // Bonus at HF 0.99 on the launch curve (max 105.55%, factor 90%, max at HF 0.90)
   const LAUNCH_LB = 1.0504;
 
-  function launchSplitPosition(CF: number): CalculatorParams {
+  it.each([0.78, 0.86])("keeps the second BTCVault at CF %s", (CF) => {
+    const params = {
+      CF,
+      LB: LAUNCH_LB,
+      THF: SPLIT_TARGET_HEALTH_FACTOR,
+      expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+    };
     const split = computeOptimalSplit({
       totalBtc: 10n * BigInt(SATS_PER_BTC),
-      CF,
-      LB: LAUNCH_LB,
-      THF: SPLIT_TARGET_HEALTH_FACTOR,
-      expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+      ...params,
     });
-    return {
-      btcPrice: 60_000,
-      // 10 BTC at $60k with $390k debt: HF 1.20 at CF 78%, 1.32 at CF 86%
-      totalDebtUsd: 390_000,
-      vaults: [
-        {
-          id: "first",
-          name: "Vault 1",
-          btc: Number(split.sacrificialVault) / SATS_PER_BTC,
-        },
-        {
-          id: "second",
-          name: "Vault 2",
-          btc: Number(split.protectedVault) / SATS_PER_BTC,
-        },
-      ],
-      CF,
-      THF: SPLIT_TARGET_HEALTH_FACTOR,
-      LB: LAUNCH_LB,
-      expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-      minPeginBtc: 0.0005,
-    };
-  }
+    const first = v(Number(split.sacrificialVault) / SATS_PER_BTC);
+    const splitResult = calculate(
+      makeParams([first, v(Number(split.protectedVault) / SATS_PER_BTC)], {
+        ...params,
+        btcPrice: 60_000,
+        totalDebtUsd: 390_000,
+      }),
+    );
 
-  it("liquidates only the first BTCVault of a fresh split at CF 78%", () => {
-    const result = calculate(launchSplitPosition(0.78));
+    expect(hasWarning(splitResult.warnings, "cliff")).toBe(false);
+    expect(splitResult.groups[0].vaults).toEqual([first]);
 
-    expect(hasWarning(result.warnings, "cliff")).toBe(false);
-    expect(result.groups[0].vaults.map((vault) => vault.id)).toEqual(["first"]);
-  });
+    // Use the BTC amounts, debt and simulated price from issue #2858.
+    const reportedFirst = v(0.12016827);
+    const reported = calculate(
+      makeParams([reportedFirst, v(0.01)], {
+        ...params,
+        btcPrice: 1_017,
+        totalDebtUsd: 103.4,
+      }),
+    );
 
-  it("liquidates only the first BTCVault of a fresh split at CF 86%", () => {
-    const result = calculate(launchSplitPosition(0.86));
-
-    expect(hasWarning(result.warnings, "cliff")).toBe(false);
-    expect(result.groups[0].vaults.map((vault) => vault.id)).toEqual(["first"]);
+    expect(reported.groups).toHaveLength(1);
+    expect(reported.groups[0].vaults).toEqual([reportedFirst]);
+    expect(reported.groups[0].isFullLiquidation).toBe(false);
+    expect(reported.groups[0].debtRemainingAfter).toBe(0);
+    expect(reported.groups[0].btcRemainingAfter).toBeCloseTo(0.01, 8);
   });
 });
