@@ -237,6 +237,9 @@ export function useAaveUserPosition(
 
   useEffect(() => {
     if (isOnFailingRetries && dataUpdatedAt !== 0) {
+      // A write doesn't re-arm an entry's collection timer, so the default
+      // gcTime would forget this 5 minutes after the first write, mid-outage.
+      queryClient.setQueryDefaults(failingReadQueryKey, { gcTime: Infinity });
       queryClient.setQueryData(failingReadQueryKey, dataUpdatedAt);
     }
   }, [queryClient, failingReadQueryKey, isOnFailingRetries, dataUpdatedAt]);

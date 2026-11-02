@@ -425,6 +425,23 @@ describe("useAaveUserPosition isPositionUnavailable", () => {
     expect(seen).not.toContain(false);
   });
 
+  it("holds through a restart whose read never settles, long after the failure was remembered", async () => {
+    readsSucceed();
+    const { result, rerender } = renderPosition(USER);
+    await advance(SETTLE_MS);
+    readsFailSlowly();
+    // Two attempts have failed by t72.
+    await advance(75_000);
+
+    readPositions.mockReturnValue(new Promise(() => {}));
+    void result.current.refetch().catch(() => undefined);
+    // Past the 5 minutes the query cache keeps an entry by default.
+    await advance(6 * 60_000);
+    rerender({ account: USER });
+
+    expect(result.current.isPositionUnavailable).toBe(true);
+  });
+
   it("forgets the failures once a read succeeds, so a later healthy refocus never flips", async () => {
     readsSucceed();
     const { result, seen } = renderPosition(USER);
@@ -461,8 +478,7 @@ describe("useAaveUserPosition isPositionUnavailable", () => {
     const rendersBeforeHiding = seen.length;
 
     focusManager.setFocused(false);
-    // Old enough to count, and short of the query cache collecting the memory.
-    await advance(2 * 60_000);
+    await advance(5 * 60_000);
     readPositions.mockReturnValue(new Promise(() => {}));
     focusManager.setFocused(true);
     await advance(SETTLE_MS);

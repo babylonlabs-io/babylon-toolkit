@@ -50,9 +50,13 @@ const STALENESS_THRESHOLD_MS = 90_000;
 const REQUESTS_PER_FAILED_FETCH = 8;
 /** Long enough to see a poll's first attempts, before its second one fails. */
 const POLL_START_SAMPLE_MS = 1_000;
+/** Long enough for a failed fetch's last 503 to settle it in the page. */
+const FETCH_SETTLE_SAMPLE_MS = 500;
 const SAMPLE_INTERVAL_MS = 100;
 /** A full failed fetch takes about 8s of real retries. */
 const FAILED_FETCH_TIMEOUT_MS = 30_000;
+/** A started poll's first request arrives well within this. */
+const POLL_START_TIMEOUT_MS = 1_000;
 
 interface PositionReads {
   failing: boolean;
@@ -91,6 +95,24 @@ async function waitForFailedFetch(reads: PositionReads): Promise<void> {
     .toBeGreaterThanOrEqual(REQUESTS_PER_FAILED_FETCH);
 }
 
+/**
+ * Forwards until a new request shows a poll started. The count rises before the
+ * page has that request's 503, and a forward landing in that gap only joins the
+ * fetch on its way out, which puts the next poll a full interval away.
+ */
+async function forwardToNextPoll(
+  page: Page,
+  reads: PositionReads,
+): Promise<void> {
+  const failedSoFar = reads.failed;
+  await expect(async () => {
+    await page.clock.fastForward(POLL_INTERVAL_MS);
+    await expect
+      .poll(() => reads.failed, { timeout: POLL_START_TIMEOUT_MS })
+      .toBeGreaterThan(failedSoFar);
+  }).toPass();
+}
+
 /** Auto-retrying assertions would pass over a blink, so this samples instead. */
 async function expectVisibleThroughout(
   page: Page,
@@ -123,10 +145,7 @@ test.describe("position read failing", () => {
 
     // The next poll resets a query with no data to loading: the notice holds.
     await waitForFailedFetch(reads);
-    await page.clock.fastForward(POLL_INTERVAL_MS);
-    await expect
-      .poll(() => reads.failed)
-      .toBeGreaterThan(REQUESTS_PER_FAILED_FETCH);
+    await forwardToNextPoll(page, reads);
     await expectVisibleThroughout(page, notice, POLL_START_SAMPLE_MS);
 
     reads.failing = false;
@@ -166,7 +185,12 @@ test.describe("position read failing", () => {
     reads.failing = true;
     await connectAndGoTo(page, "/liquidations");
 
-    await expect(page.getByText(ANALYSIS_UNAVAILABLE_TITLE)).toBeVisible();
+    const message = page.getByText(ANALYSIS_UNAVAILABLE_TITLE);
+    await expect(message).toBeVisible();
+
+    // Through that read settling as failed, not only through its retries.
+    await waitForFailedFetch(reads);
+    await expectVisibleThroughout(page, message, FETCH_SETTLE_SAMPLE_MS);
     await expect(page.getByText(NO_DEPOSIT_TITLE)).toHaveCount(0);
   });
 });
