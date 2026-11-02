@@ -13,6 +13,7 @@ import {
   VaultLifecycleStateError,
 } from "@/utils/errors";
 
+import { getDepositorVaultIdsFromChain } from "../../../clients/eth-contract/btc-vault-registry/depositorVaultIds";
 import {
   getMaxAcceptableCommissionBpsFromChainWithGrace,
   getVaultFromChain,
@@ -25,7 +26,6 @@ import {
   getVaultKeeperReader,
   getVaultRegistryReader,
 } from "../../../clients/eth-contract/sdk-readers";
-import { fetchVaultIdsByDepositor } from "../fetchVaults";
 import {
   assertBatchLifecycleStatus,
   assertContiguousHtlcVector,
@@ -73,8 +73,14 @@ vi.mock("../../../clients/eth-contract/client", () => ({
 vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn(() => "signet"),
 }));
-vi.mock("../fetchVaults", () => ({
-  fetchVaultIdsByDepositor: vi.fn(),
+vi.mock(
+  "../../../clients/eth-contract/btc-vault-registry/depositorVaultIds",
+  () => ({ getDepositorVaultIdsFromChain: vi.fn() }),
+);
+// Mocked rather than run over `mockGetBlockNumber`, which stands for the
+// presign ack-window read: broadcast must leave that read uncalled.
+vi.mock("../../../clients/eth-contract/pinnedReadBlock", () => ({
+  resolvePinnedReadBlock: vi.fn().mockResolvedValue(998n),
 }));
 vi.mock("../vaultPayoutSignatureService", () => ({
   resolveVaultProviderBtcPubkey: vi.fn(),
@@ -364,7 +370,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       if (id === SIBLING_ID) return siblingVault;
       throw new Error(`unexpected vault id ${id}`);
     });
-    vi.mocked(fetchVaultIdsByDepositor).mockResolvedValue([
+    vi.mocked(getDepositorVaultIdsFromChain).mockResolvedValue([
       TARGET_ID,
       SIBLING_ID,
     ]);
@@ -560,7 +566,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       expectedDepositorBtcPubkey: onChainBtcPubkey,
       connectedBtcPubkey: DEPOSITOR_BTC.toLowerCase(),
     });
-    expect(fetchVaultIdsByDepositor).not.toHaveBeenCalled();
+    expect(getDepositorVaultIdsFromChain).not.toHaveBeenCalled();
     expect(getVaultRegistryReader).not.toHaveBeenCalled();
     expect(getVaultFromChain).not.toHaveBeenCalled();
     expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
@@ -656,7 +662,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
     await expect(
       assertPresignTargetSignable(TARGET_ID, targetVault),
     ).resolves.toBeUndefined();
-    expect(fetchVaultIdsByDepositor).not.toHaveBeenCalled();
+    expect(getDepositorVaultIdsFromChain).not.toHaveBeenCalled();
     expect(getVaultFromChain).not.toHaveBeenCalled();
   });
 
@@ -715,9 +721,10 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
     return tx.toHex();
   }
 
-  // Lagging-indexer end-to-end: discovery only enumerates what the indexer
-  // knows, so a truncated sibling set must be caught by the REAL core's
-  // auth-anchor completeness check — not silently rebuilt as a 1-vault batch.
+  // Late-registration end-to-end: discovery only sees what the registry listed
+  // at the pinned block, so a truncated sibling set must be caught by the REAL
+  // core's auth-anchor completeness check — not silently rebuilt as a 1-vault
+  // batch.
   it("refuses a truncated sibling set via the real core's auth-anchor check", async () => {
     const actual = await vi.importActual<
       typeof import("@babylonlabs-io/ts-sdk/tbv/core")
@@ -726,19 +733,19 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       actual.rebuildDepositTermsCore,
     );
 
-    // 2-HTLC funded tx (anchor at vout 2), but the indexer returns only the
+    // 2-HTLC funded tx (anchor at vout 2), but the registry lists only the
     // target vault id — the discovered sibling set covers 1 of 2 HTLCs.
     const fundedTxHex = makeFundedTx(2);
-    const laggedTarget = {
+    const targetOfPartialSet = {
       ...targetVault,
       prePeginTxHash: `0x${Transaction.fromHex(fundedTxHex).getId()}` as Hex,
     };
-    vi.mocked(fetchVaultIdsByDepositor).mockResolvedValue([TARGET_ID]);
+    vi.mocked(getDepositorVaultIdsFromChain).mockResolvedValue([TARGET_ID]);
 
     await expect(
       rebuildDepositTerms({
         ...baseParams(),
-        target: laggedTarget,
+        target: targetOfPartialSet,
         fundedPrePeginTxHex: fundedTxHex,
       }),
     ).rejects.toThrow(/does not match the discovered sibling count 1/);

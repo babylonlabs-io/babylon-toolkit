@@ -74,9 +74,8 @@ export interface RebuildDepositTermsForClaimParams {
  *         field or are non-contiguous, the fee is out of bounds, or the core
  *         refuses (see `rebuildDepositTermsCore`).
  *         A sibling registered in another block is missing from this read and
- *         surfaces as the core's auth-anchor refusal, whose message suggests a
- *         lagging index and a retry: on this path there is no index, and a
- *         retry cannot help — that sibling must be registered in the same block.
+ *         surfaces as the core's auth-anchor refusal. A retry cannot help on
+ *         this path: that sibling must be registered in the same block.
  * @experimental
  */
 export async function rebuildDepositTermsForClaim(

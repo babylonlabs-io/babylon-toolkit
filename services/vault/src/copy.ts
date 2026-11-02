@@ -1551,7 +1551,12 @@ export const COPY = {
         lastExpectedVout: number,
         observedVouts: string,
       ) =>
-        `Sibling BTCVault discovery produced a non-contiguous HTLC vector for prePeginTxHash ${prePeginTxHash}: expected vouts [0..${lastExpectedVout}], observed [${observedVouts}]. Refund refused. Sibling set incomplete or indexer out of sync.`,
+        `Sibling BTCVault discovery produced a non-contiguous HTLC vector for prePeginTxHash ${prePeginTxHash}: expected vouts [0..${lastExpectedVout}], observed [${observedVouts}]. Refund refused. Sibling set incomplete.`,
+      // The registry's list at the pinned block lacks the vault being refunded
+      // or resumed. Keeps "not found on-chain" so `isVaultRecordEmptyError`
+      // shows resume the still-confirming copy; a refund shows this as written.
+      vaultMissingFromDepositorList: (vaultId: string, blockNumber: bigint) =>
+        `BTCVault ${vaultId} not found on-chain among the depositor's registered BTCVaults at block ${blockNumber}. The node we're reading from may be behind. Try again shortly.`,
       vaultProviderMismatch: (
         vaultId: string,
         requested: string,

@@ -94,6 +94,18 @@ vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   }),
 }));
 
+vi.mock(
+  "../../../clients/eth-contract/btc-vault-registry/depositorVaultIds",
+  () => ({ getDepositorVaultIdsFromChain: vi.fn() }),
+);
+
+const { PINNED_READ_BLOCK } = vi.hoisted(() => ({
+  PINNED_READ_BLOCK: 1_000n,
+}));
+vi.mock("../../../clients/eth-contract/pinnedReadBlock", () => ({
+  resolvePinnedReadBlock: vi.fn().mockResolvedValue(PINNED_READ_BLOCK),
+}));
+
 vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
@@ -103,7 +115,7 @@ const mockGetVaultKeepersByVersion = vi.fn();
 const mockGetUniversalChallengersByVersion = vi.fn();
 const mockGetVaultProviderGenesisBtcPubKey = vi.fn();
 const mockGetCurrentVaultProviderOperationBtcKey = vi.fn();
-// Lean sibling pre-filter used by discoverBatch. Defaults to deriving
+// Lean sibling pre-filter behind discoverBatch. Defaults to deriving
 // prePeginTxHash from the same getVaultFromChain fixtures each test
 // configures, so sibling scenarios keep one source of truth. Tests that
 // exercise the broken-candidate path override it directly.
@@ -148,7 +160,6 @@ vi.mock("../fetchVaultProviders", () => ({
 
 vi.mock("../fetchVaults", () => ({
   fetchVaultRefundData: vi.fn(),
-  fetchVaultIdsByDepositor: vi.fn(),
 }));
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -165,10 +176,11 @@ import {
 } from "vitest";
 
 import { fetchHtlcSpend } from "../../../clients/btc/outspend";
+import { getDepositorVaultIdsFromChain } from "../../../clients/eth-contract/btc-vault-registry/depositorVaultIds";
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
 import { COPY } from "../../../copy";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
-import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "../fetchVaults";
+import { fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
   getRefundPreview,
@@ -267,7 +279,7 @@ describe("vaultRefundService - adapter wiring", () => {
     (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
     // Default: depositor has just the target vault. Sibling-discovery
     // tests below override this to exercise the multi-vault branch.
-    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([VAULT_ID]);
     mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
     (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
     mockGetVaultProviderGenesisBtcPubKey.mockResolvedValue(
@@ -341,7 +353,7 @@ describe("vaultRefundService - adapter wiring", () => {
     // prePeginTxHash pre-filter must exclude it BEFORE the validated read,
     // so the target's refund is unaffected.
     const brokenVaultId = "0xbroken_unrelated_vault" as `0x${string}`;
-    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([
       VAULT_ID,
       brokenVaultId,
     ]);
@@ -1018,7 +1030,7 @@ describe("vaultRefundService - sibling batch discovery", () => {
 
   it("builds a length-1 batch for a single-vault deposit", async () => {
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
-    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([VAULT_ID]);
 
     let observed: { batch: ReadonlyArray<unknown> } | null = null;
     mockBuildAndBroadcastRefund.mockImplementation(
@@ -1061,7 +1073,7 @@ describe("vaultRefundService - sibling batch discovery", () => {
       if (id === SIBLING_VAULT_ID) return Promise.resolve(SIBLING);
       throw new Error(`Unexpected vaultId ${id}`);
     });
-    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([
       VAULT_ID,
       SIBLING_VAULT_ID,
     ]);
@@ -1110,7 +1122,7 @@ describe("vaultRefundService - sibling batch discovery", () => {
       if (id === OTHER_VAULT_ID) return Promise.resolve(UNRELATED);
       throw new Error(`Unexpected vaultId ${id}`);
     });
-    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([
       VAULT_ID,
       OTHER_VAULT_ID,
     ]);
@@ -1147,7 +1159,7 @@ describe("vaultRefundService - sibling batch discovery", () => {
       if (id === SIBLING_VAULT_ID) return Promise.resolve(SIBLING);
       throw new Error(`Unexpected vaultId ${id}`);
     });
-    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([
       VAULT_ID,
       SIBLING_VAULT_ID,
     ]);
@@ -1166,9 +1178,9 @@ describe("vaultRefundService - sibling batch discovery", () => {
   it("throws when the connected wallet differs from the on-chain depositor", async () => {
     // Target vault is owned by ON_CHAIN_DEPOSITOR, but the user has a
     // different wallet connected (mid-flow wallet swap, stale modal,
-    // or opened a vault they don't own). Refuse before touching the
-    // indexer — sibling enumeration against the wrong wallet would
-    // produce an incomplete batch and a confusing downstream error.
+    // or opened a vault they don't own). Refuse before enumerating —
+    // sibling enumeration against the wrong wallet would produce an
+    // incomplete batch and a confusing downstream error.
     const ON_CHAIN_DEPOSITOR = ("0x" + "cd".repeat(20)) as `0x${string}`;
     (getVaultFromChain as Mock).mockResolvedValue({
       ...ON_CHAIN_VAULT,
@@ -1186,19 +1198,19 @@ describe("vaultRefundService - sibling batch discovery", () => {
     ).rejects.toThrow(
       /owned by .* but the connected wallet is .*Connect with the depositor wallet/,
     );
-    // Indexer must not have been queried — fail-closed before doing
-    // sibling lookup against the wrong wallet.
-    expect(fetchVaultIdsByDepositor).not.toHaveBeenCalled();
+    // The registry list must not have been read — fail-closed before
+    // doing sibling lookup against the wrong wallet.
+    expect(getDepositorVaultIdsFromChain).not.toHaveBeenCalled();
   });
 
   it("enumerates siblings using the on-chain depositor (not the connected-wallet input)", async () => {
     // Pass an upper-case variant of the on-chain depositor. The check
-    // is case-insensitive (Ethereum address checksum), and the indexer
-    // call must go out with the *on-chain* lowercase form — regardless
+    // is case-insensitive (Ethereum address checksum), and the registry
+    // read must go out with the *on-chain* lowercase form — regardless
     // of how the wallet provider spells the address.
     const CHECKSUMMED = DEPOSITOR_ADDRESS.toUpperCase() as `0x${string}`;
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
-    (fetchVaultIdsByDepositor as Mock).mockResolvedValue([VAULT_ID]);
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([VAULT_ID]);
 
     await buildAndBroadcastRefundTransaction({
       vaultId: VAULT_ID,
@@ -1208,9 +1220,10 @@ describe("vaultRefundService - sibling batch discovery", () => {
       feeRate: 10,
     });
 
-    expect(fetchVaultIdsByDepositor).toHaveBeenCalledTimes(1);
-    expect(fetchVaultIdsByDepositor).toHaveBeenCalledWith(
+    expect(getDepositorVaultIdsFromChain).toHaveBeenCalledTimes(1);
+    expect(getDepositorVaultIdsFromChain).toHaveBeenCalledWith(
       ON_CHAIN_VAULT.depositor,
+      PINNED_READ_BLOCK,
     );
   });
 });

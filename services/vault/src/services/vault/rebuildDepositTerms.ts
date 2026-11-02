@@ -6,9 +6,10 @@
  * chain + WASM only — never browser storage — at the vault's STAMPED versions;
  * the commission ceiling, which the contract discards, comes from each vault's
  * `PegInSubmitted` log (see `getMaxAcceptableCommissionBpsFromChainWithGrace`).
- * This orchestrator does the chain reads + sibling discovery (mirrors `discoverBatch` /
- * `prepareSigningContext` — shared-helper dedupe deferred); the WASM recompute +
- * Gate 0/1 byte-checks live in ts-sdk `rebuildDepositTermsCore`.
+ * This orchestrator does the chain reads + sibling discovery (the candidate read
+ * is shared with `discoverBatch`; the rest mirrors it and `prepareSigningContext`
+ * — shared-helper dedupe deferred); the WASM recompute + Gate 0/1 byte-checks
+ * live in ts-sdk `rebuildDepositTermsCore`.
  *
  * Two lifecycle modes, differing only in the status gate:
  * - `"broadcast"` (resume Pre-PegIn broadcast): every batch member must still
@@ -38,6 +39,7 @@ import {
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
+import { getPrePeginSiblingIdsFromChain } from "../../clients/eth-contract/btc-vault-registry/prePeginSiblings";
 import {
   getMaxAcceptableCommissionBpsFromChainWithGrace,
   getVaultFromChain,
@@ -50,11 +52,9 @@ import {
   getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
-  getVaultRegistryReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
-import { fetchVaultIdsByDepositor } from "./fetchVaults";
 import { resolveVaultProviderBtcPubkey } from "./vaultPayoutSignatureService";
 
 export interface RebuildDepositTermsParams {
@@ -202,9 +202,9 @@ export function assertContiguousHtlcVector(
 
 /**
  * Discover the complete sibling set sharing this Pre-PegIn tx, ordered by
- * htlcVout. Membership is on-chain `prePeginTxHash` equality (a stale indexer
- * can only enumerate ids); completeness is backstopped by the core's OP_RETURN
- * anchor check.
+ * htlcVout. Candidates come from the registry's list of the depositor's vaults
+ * and membership from on-chain `prePeginTxHash` equality; completeness is
+ * backstopped by the core's OP_RETURN anchor check.
  */
 async function discoverSiblings(
   lifecycle: VaultLifecycleStage,
@@ -222,18 +222,12 @@ async function discoverSiblings(
   }
 
   const txHashLower = target.prePeginTxHash.toLowerCase();
-  const targetIdLower = targetVaultId.toLowerCase();
-  const depositorVaultIds = await fetchVaultIdsByDepositor(target.depositor);
-  const candidateIds = depositorVaultIds.filter(
-    (id) => id.toLowerCase() !== targetIdLower,
-  );
 
-  // Lean hash-only multicall first; the fully-validated read runs only for
-  // actual siblings.
-  const candidateInfos =
-    await getVaultRegistryReader().getProtocolInfoBatch(candidateIds);
-  const siblingIds = candidateIds.filter(
-    (_, i) => candidateInfos[i].prePeginTxHash.toLowerCase() === txHashLower,
+  // Lean hash-only read first; the fully-validated read runs only for actual
+  // siblings.
+  const siblingIds = await getPrePeginSiblingIdsFromChain(
+    targetVaultId,
+    target,
   );
   const siblingMembers = (
     await Promise.all(
@@ -401,7 +395,7 @@ async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
  * the contract's order — `status == Pending`, then the ack window
  * (PeginLogic.submitACK, vault-contracts-aave-v4 @ 2e87a85a). Cheap (one block
  * read + one params read) and decidable from the target alone, so callers run
- * it BEFORE the mempool/indexer/sibling reads that precede the full rebuild:
+ * it BEFORE the mempool/sibling reads that precede the full rebuild:
  * for a stalled deposit the refund copy must win over a transient read error.
  * `rebuildDepositTerms` re-runs both gates itself — this is an early exit, not
  * a substitute.
