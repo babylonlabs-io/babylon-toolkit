@@ -810,6 +810,86 @@ describe("PositionNotificationBanner v3", () => {
     ).toBe("yellow");
   });
 
+  it("renders nothing for an unavailable position with no urgent warning, leaving the notice to the page", () => {
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      liveUrgentWarning: null,
+      status: "position-unavailable",
+      isLoading: true,
+      reorderVerificationContext: null,
+    });
+    const { container } = render(
+      <Wrapper>
+        <PositionNotificationBanner
+          connectedAddress="0xTestAddress"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("still shows the calculator's urgent warning on an unavailable position", () => {
+    const title = "Liquidation is 2.3% away";
+    mockUsePositionNotifications.mockReturnValue({
+      result: makeBaseResult({
+        warnings: [{ type: "urgent", title, detail: "..." }],
+      }) as never,
+      liveUrgentWarning: null,
+      status: "position-unavailable",
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          connectedAddress="0xTestAddress"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(
+      screen.getByTestId("position-notification-banner").dataset.severity,
+    ).toBe("red");
+    expect(
+      screen.queryByRole("button", { name: COPY.common.dismissNotification }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still shows the live urgent warning on an unavailable position with nothing calculated", () => {
+    const title = COPY.liquidationWarnings.liveHealthFactor.title("1.02");
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      liveUrgentWarning: {
+        type: "urgent",
+        title,
+        detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+      },
+      status: "position-unavailable",
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          connectedAddress="0xTestAddress"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(
+      screen.getByTestId("position-notification-banner").dataset.severity,
+    ).toBe("red");
+  });
+
   it("renders the cliff v3 card as dismissible and hides it once dismissed", () => {
     const result = makeBaseResult({
       warnings: [

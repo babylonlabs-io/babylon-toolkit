@@ -9,6 +9,9 @@ import type { QueryClient } from "@tanstack/react-query";
 import { VAULTS_QUERY_KEY } from "../hooks/useVaults";
 
 export const AAVE_USER_POSITION_QUERY_KEY = "aaveUserPosition";
+/** The read a position fetch was last seen failing against (useAaveUserPosition). */
+export const AAVE_USER_POSITION_FAILING_READ_QUERY_KEY =
+  "aaveUserPositionFailingRead";
 /** Registry-derived construction order for the adapter's collateral queue. */
 export const SPLIT_VAULT_ORDER_QUERY_KEY = "splitVaultOrder";
 /** Hub-wide liquidity per reserve (useAaveReserveLiquidity). */

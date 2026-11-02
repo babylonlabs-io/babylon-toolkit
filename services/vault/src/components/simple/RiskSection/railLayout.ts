@@ -4,6 +4,7 @@ import {
 } from "@/applications/aave/utils";
 
 export type RiskDisplayState =
+  | "unavailable"
   | "noPosition"
   | "verySafe"
   | "safe"
@@ -14,7 +15,9 @@ export type RiskDisplayState =
 export function getRiskDisplayState(
   status: HealthFactorStatus,
   hasPosition: boolean,
+  isPositionUnavailable: boolean,
 ): RiskDisplayState {
+  if (isPositionUnavailable) return "unavailable";
   if (!hasPosition) return "noPosition";
   switch (status) {
     case "no_debt":

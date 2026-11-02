@@ -91,6 +91,7 @@ const STATUS_MESSAGES: Record<
   "incomplete-position": COPY.liquidationWarnings.incompletePosition,
   "no-price": "Waiting for BTC price...",
   "params-unavailable": COPY.liquidationWarnings.paramsUnavailable.title,
+  "position-unavailable": COPY.liquidationWarnings.positionUnavailable.title,
   "stale-price": "BTC price is stale or unavailable",
 };
 

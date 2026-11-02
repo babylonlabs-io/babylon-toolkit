@@ -44,6 +44,8 @@ export interface LiquidationCascade {
 interface LiquidationAnalysisSectionProps {
   hasCollateral: boolean;
   hasLoans: boolean;
+  /** The position read failed: wins over `hasCollateral` and `hasLoans`. */
+  isPositionUnavailable: boolean;
   onDeposit: () => void;
   onBorrow: () => void;
   /**
@@ -54,8 +56,9 @@ interface LiquidationAnalysisSectionProps {
 }
 
 /**
- * Overview-page preview of the Liquidation Dashboard: no collateral,
- * collateral without a loan, or the price timeline at the live BTC price.
+ * Overview-page preview of the Liquidation Dashboard: a position that could not
+ * be read, no collateral, collateral without a loan, or the price timeline at
+ * the live BTC price.
  * The simulator itself lives on the dashboard page behind Explore.
  */
 
@@ -63,13 +66,11 @@ interface LiquidationAnalysisSectionProps {
 function EmptyState({
   title,
   description,
-  actionLabel,
-  onAction,
+  action,
 }: {
   title: string;
   description: string;
-  actionLabel: string;
-  onAction: () => void;
+  action?: { label: string; onClick: () => void };
 }) {
   return (
     <div className="flex min-h-[312px] flex-col items-center justify-center gap-1 text-center">
@@ -79,14 +80,16 @@ function EmptyState({
       <p className="max-w-[600px] text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
         {description}
       </p>
-      {/* Wrapped: passing by reference hands `openDeposit` the click event. */}
-      <button
-        type="button"
-        onClick={() => onAction()}
-        className={`mt-6 ${PRIMARY_BUTTON_CLASS}`}
-      >
-        {actionLabel}
-      </button>
+      {action && (
+        // Wrapped: passing by reference hands `openDeposit` the click event.
+        <button
+          type="button"
+          onClick={() => action.onClick()}
+          className={`mt-6 ${PRIMARY_BUTTON_CLASS}`}
+        >
+          {action.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -164,6 +167,7 @@ function LiquidationChartPanel({
 export function LiquidationAnalysisSection({
   hasCollateral,
   hasLoans,
+  isPositionUnavailable,
   onDeposit,
   onBorrow,
   cascade,
@@ -177,13 +181,24 @@ export function LiquidationAnalysisSection({
   const chartable = Boolean(cascade?.result.groups.length);
 
   let body;
-  if (!hasCollateral) {
+  if (isPositionUnavailable) {
+    // Checked first: the flags below describe a position this read can't vouch
+    // for, and with nothing cached they would call the account empty.
+    body = (
+      <EmptyState
+        title={COPY.liquidations.empty.unavailableTitle}
+        description={COPY.liquidations.empty.positionUnavailableDescription}
+      />
+    );
+  } else if (!hasCollateral) {
     body = (
       <EmptyState
         title={COPY.liquidations.empty.noDepositTitle}
         description={COPY.liquidations.empty.noDepositDescription}
-        actionLabel={COPY.liquidations.position.deposit}
-        onAction={onDeposit}
+        action={{
+          label: COPY.liquidations.position.deposit,
+          onClick: onDeposit,
+        }}
       />
     );
   } else if (!hasLoans) {
@@ -192,8 +207,7 @@ export function LiquidationAnalysisSection({
       <EmptyState
         title={COPY.liquidations.empty.noLoanTitle}
         description={COPY.liquidations.empty.noLoanDescription}
-        actionLabel={COPY.liquidations.empty.borrow}
-        onAction={onBorrow}
+        action={{ label: COPY.liquidations.empty.borrow, onClick: onBorrow }}
       />
     );
   } else if (cascade && chartable) {

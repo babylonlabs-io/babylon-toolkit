@@ -242,7 +242,11 @@ export function buildBorrowCapacityCards({
             <span>{borrowedTooltipBefore.body}</span>
           </span>
         ) : undefined,
-      value: firstBorrowed ? borrowedValue : COPY.overview.borrowedAssetEmpty,
+      value: firstBorrowed
+        ? borrowedValue
+        : borrowCount === null
+          ? COPY.common.emptyValue
+          : COPY.overview.borrowedAssetEmpty,
       actionLabel: COPY.overview.repayAction,
       onAction: onRepay,
       actionDisabled: !canRepay,

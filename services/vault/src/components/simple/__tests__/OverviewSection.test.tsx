@@ -141,4 +141,21 @@ describe("OverviewSection", () => {
     expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
     expect(screen.getByText("$2,000.00 USD")).toBeInTheDocument();
   });
+
+  it("claims no borrowed asset state while the position is unknown", () => {
+    renderSection({ borrowedAssets: [], borrowCount: null });
+
+    expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.overview.borrowedAssetEmpty),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says nothing is borrowed once the position is known to hold no debt", () => {
+    renderSection({ borrowedAssets: [], borrowCount: 0n });
+
+    expect(
+      screen.getByText(COPY.overview.borrowedAssetEmpty),
+    ).toBeInTheDocument();
+  });
 });

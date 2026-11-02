@@ -227,9 +227,15 @@ export function PositionNotificationBanner({
     return null;
   }
 
-  // When no override, respect loading states
+  // When no override, respect loading states. An unavailable position still
+  // shows its urgent warning here; the page shows the notice that explains it.
   if (!hasOverride) {
-    if (status !== "ready" || isLoading || !result) return null;
+    if (
+      (status !== "ready" && status !== "position-unavailable") ||
+      isLoading ||
+      !result
+    )
+      return null;
   }
 
   // With override, just check if result exists

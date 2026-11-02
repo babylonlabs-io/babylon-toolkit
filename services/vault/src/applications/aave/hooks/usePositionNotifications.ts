@@ -41,6 +41,13 @@ export type PositionNotificationsStatus =
   | "stale-price"
   /** The Spoke risk-parameter read failed; nothing can be calculated. */
   | "params-unavailable"
+  /**
+   * The position read failed and there is nothing current to show (see
+   * `isPositionUnavailable` on `useAaveUserPosition`). Wins over every other
+   * status, since each of them would describe a position this read can't vouch
+   * for.
+   */
+  | "position-unavailable"
   | "ready";
 
 export interface UsePositionNotificationsResult {
@@ -48,7 +55,8 @@ export interface UsePositionNotificationsResult {
    * The cascade priced at the Spoke oracle's BTC price. Its urgent warning is
    * reconciled with the Spoke's live health factor: the live warning can be
    * added or take its place, and a fresh live health factor outside the urgent
-   * band removes it.
+   * band removes it. With `status === "position-unavailable"` it is null, or
+   * carries only that urgent warning.
    */
   result: CalculatorResult | null;
   /**
@@ -81,6 +89,11 @@ export interface UsePositionNotificationsResult {
    */
   btcPriceUsd: number | null;
 }
+
+type Notifications = Pick<
+  UsePositionNotificationsResult,
+  "result" | "status" | "reorderVerificationContext" | "params"
+>;
 
 function buildLiveHfUrgentWarning(healthFactor: number): Warning {
   return {
@@ -127,6 +140,27 @@ function chooseUrgentWarning({
   return isLiveHfFresh ? liveUrgentWarning : calculatorUrgent;
 }
 
+/**
+ * What is left of the notifications once the position can't be trusted. A
+ * cached position may no longer describe what the Spoke holds, but alarm is the
+ * safe direction to be wrong in, so an urgent warning stays: the same object, as
+ * the top banner compares it by reference. Everything else is advice built on
+ * the cached debt, so it goes, along with the inputs a reorder would be checked
+ * against.
+ */
+function toPositionUnavailable(result: CalculatorResult | null): Notifications {
+  const urgentWarning = result?.warnings.find((w) => w.type === "urgent");
+  return {
+    result:
+      result && urgentWarning
+        ? { ...result, warnings: [urgentWarning], optimalVaultOrder: null }
+        : null,
+    status: "position-unavailable",
+    reorderVerificationContext: null,
+    params: null,
+  };
+}
+
 export function usePositionNotifications(
   connectedAddress: string | undefined,
 ): UsePositionNotificationsResult {
@@ -142,6 +176,7 @@ export function usePositionNotifications(
     healthFactor,
     indexerError,
     positionError,
+    isPositionUnavailable,
     healthFactorReceivedAt,
     isLoading: dashboardLoading,
   } = useDashboardState(connectedAddress);
@@ -220,12 +255,7 @@ export function usePositionNotifications(
     Date.now() - healthFactorReceivedAt <= POSITION_STALENESS_THRESHOLD_MS &&
     healthFactorReceivedAt >= spokeBtcPriceChangedAt;
 
-  const { result, status, reorderVerificationContext, params } = useMemo((): {
-    result: CalculatorResult | null;
-    status: PositionNotificationsStatus;
-    reorderVerificationContext: ReorderVerificationContext | null;
-    params: CalculatorParams | null;
-  } => {
+  const notifications = useMemo((): Notifications => {
     if (isLoading)
       return {
         result: null,
@@ -392,6 +422,14 @@ export function usePositionNotifications(
     liveUrgentWarning,
     isLiveHfFresh,
   ]);
+
+  const { result, status, reorderVerificationContext, params } = useMemo(
+    () =>
+      isPositionUnavailable
+        ? toPositionUnavailable(notifications.result)
+        : notifications,
+    [isPositionUnavailable, notifications],
+  );
 
   return {
     result,

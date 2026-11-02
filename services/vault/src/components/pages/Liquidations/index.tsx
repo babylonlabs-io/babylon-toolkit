@@ -14,6 +14,7 @@ import {
   CHART_LOADING_BOX_CLASS,
   PAGE_CONTENT_CLASS,
 } from "@/components/shared/layoutClasses";
+import { PositionNotificationBanner } from "@/components/simple/PositionNotificationBanner";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
@@ -88,6 +89,7 @@ export default function Liquidations() {
     hasLoans,
     collateralFactorBps,
     isLoading,
+    isPositionUnavailable,
     borrowedAssets,
   } = useDashboardState(account);
 
@@ -212,6 +214,31 @@ export default function Liquidations() {
         <EmptyState
           title={COPY.liquidations.emptyDisconnected}
           isConnected={false}
+          withCard
+        />
+      </Container>
+    );
+  }
+
+  // Ahead of the loader: with nothing cached, every poll reports `isLoading` for
+  // its retries, and this page would flip between the two. Ahead of the position
+  // stats too, which would show cached figures as current. The banner keeps an
+  // urgent warning and its actions on this page, which has no top banner; with
+  // no urgent warning it renders nothing.
+  if (!isGodMode && isPositionUnavailable) {
+    return (
+      <Container
+        className={`${PAGE_CONTENT_CLASS} flex flex-1 flex-col gap-10 pb-6`}
+      >
+        <PositionNotificationBanner
+          connectedAddress={account}
+          onDeposit={openDeposit}
+          onRepay={openRepay}
+        />
+        <EmptyState
+          title={COPY.liquidations.empty.unavailableTitle}
+          description={COPY.liquidations.empty.positionUnavailableDescription}
+          isConnected
           withCard
         />
       </Container>
