@@ -511,7 +511,7 @@ export function DepositForm({
           }}
           maxPosition="right"
           onMaxClick={onMaxClick}
-          inputClassName="h-10 w-auto rounded-lg bg-background-contrast px-4 text-xl leading-[1.6] tracking-0.15 [field-sizing:content] focus:ring-1 focus:ring-accent-primary"
+          inputClassName="h-10 w-auto rounded-lg bg-background-contrast px-4 text-lg md:text-xl leading-[1.6] tracking-0.15 [field-sizing:content] focus:ring-1 focus:ring-accent-primary"
         />
         <div
           className={pendingConfirmationNotice ? "text-sm" : "sr-only"}
