@@ -41,8 +41,9 @@ before any PR exists.
 6. Run `/pre-review --final`. It completes pending fix checks, then runs one
    independent reviewer over the whole change. If it finds a blocker, fix
    it, verify the fix and run `--final` on the new candidate.
-7. Commit, push, and open the PR with `PR.md` as the body. Human code review
-   is still required. See
+7. Commit with the first line of `PR.md` as the commit subject, push, and
+   open the PR with that line as its title and `PR.md` as the body. Human
+   code review is still required. See
    [Enforcement](#enforcement).
 
 Arguments are optional:
@@ -51,7 +52,7 @@ Arguments are optional:
 | --- | --- |
 | `--full` | Force the full reviewer set over the whole change, even when the change qualifies for the light tier or nothing has changed since the last run. |
 | `--final` | Complete pending review and checks, then run one independent whole-change review. Reuse a completed final result only when its inputs are unchanged. Combine with `--full` to force a new full review and final review. |
-| `--pr <n>` | The branch's PR number. Only used after a push, to read the posted body back and confirm it uploaded intact. Without it that check is skipped — the session will not ask, because a typed answer mid-run makes every command after it prompt. |
+| `--pr <n>` | The branch's PR number. Only used after a push, to read the posted title and body back and confirm they uploaded intact. Without it that check is skipped — the session will not ask, because a typed answer mid-run makes every command after it prompt. |
 | `--ci "<summary>"` | CI results you have read yourself. Passed to the reviewers attributed to you; the session cannot see CI and says nothing about it otherwise. |
 | anything else | A scope hint, passed to the reviewers unchanged. The session adds no steer of its own. |
 
@@ -68,7 +69,10 @@ in scope. Settled findings reopen only when new evidence changes the result.
 `PR.md` is written on the first run and updated on every run after it. The
 session asks up to two questions on the first run when it cannot tell what
 the change is for. Edits made to `PR.md` by hand are kept wherever they are
-still true. Decisions are recorded before any fix starts, so an interrupted
+still true, with three exceptions: the follow-up entries in "Not in this PR"
+and the collapsed Pre-review record are regenerated on every run, and a first
+line over 72 characters is shortened, because GitHub cuts it when it fills in
+the PR title. Decisions are recorded before any fix starts, so an interrupted
 fix loses nothing.
 
 > ⚠️ **Important**: Some packages' `lint` script runs `eslint --fix`, which

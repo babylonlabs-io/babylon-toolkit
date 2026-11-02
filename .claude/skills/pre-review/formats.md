@@ -276,8 +276,12 @@ reviewed content.
 
 When the file does not exist yet, write:
 
-1. **First line**: a one-line conventional commit message (`feat(vault): …`).
-   commitlint requires a scope.
+1. **First line**: a one-line conventional commit message (`feat(vault): …`)
+   of at most 72 characters, counted as characters, not bytes (`…` and `—`
+   are three bytes each). commitlint requires a scope but allows 100
+   characters, so it does not catch the limit that matters: GitHub cuts a
+   longer subject to its first 69 characters and an ellipsis when it fills in
+   the PR title, and the cut title is what gets merged.
 2. **What**: what the change does, in plain words, and what is in the diff.
 3. **Why**: the problem or need.
 4. **Approaches**: the options considered and why this one won. Rejected
