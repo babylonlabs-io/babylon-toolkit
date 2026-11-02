@@ -2720,6 +2720,8 @@ export const COPY = {
       unavailableTitle: "Liquidation analysis unavailable",
       unavailableDescription:
         "The BTC price feed is unavailable or out of date, so we can't project your liquidation events right now. Your position details above are unaffected.",
+      positionUnavailableDescription:
+        "We can't load your current position, so we can't project your liquidation events right now. Any position you hold can still be liquidated while this shows.",
     },
     reset: "Reset",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
@@ -2990,6 +2992,7 @@ export const COPY = {
     healthFactorTitle: "Health Factor",
     healthFactorInfinity: "∞",
     status: {
+      unavailable: "Unavailable",
       noPosition: "No Position",
       verySafe: "Very Safe",
       safe: "Safe",
@@ -3275,6 +3278,12 @@ export const COPY = {
       title: "Liquidation warnings unavailable",
       detail:
         "We couldn't read the protocol's risk parameters, so liquidation warnings can't be calculated right now. Your BTCVaults and loan are unaffected. Reload the page to try again, and contact support if this persists.",
+    },
+    // The position read failed, so the figures on the page can't be trusted.
+    positionUnavailable: {
+      title: "Position data unavailable",
+      detail:
+        "We can't load your current position, so your collateral, debt, health factor and liquidation warnings may be missing or out of date. Any position you hold can still be liquidated while this shows. This notice clears once your position loads.",
     },
     weirdParams: {
       title: "Protocol parameters don't compute",

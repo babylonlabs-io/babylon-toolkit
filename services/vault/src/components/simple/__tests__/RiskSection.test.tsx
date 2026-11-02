@@ -24,6 +24,7 @@ function renderSection(overrides: Record<string, unknown> = {}) {
       healthFactor={2.1}
       healthFactorStatus="safe"
       hasPosition={true}
+      isPositionUnavailable={false}
       liquidationPriceText="$77,600"
       btcPriceText="$88,400"
       pctToLiquidationText="12.2%"
@@ -37,45 +38,51 @@ function renderSection(overrides: Record<string, unknown> = {}) {
 }
 
 describe("getRiskDisplayState", () => {
+  it("returns unavailable over any status, with or without a position", () => {
+    expect(getRiskDisplayState("safe", true, true)).toBe("unavailable");
+    expect(getRiskDisplayState("danger", true, true)).toBe("unavailable");
+    expect(getRiskDisplayState("safe", false, true)).toBe("unavailable");
+  });
+
   it("returns noPosition regardless of status when there is no position", () => {
-    expect(getRiskDisplayState("danger", false)).toBe("noPosition");
-    expect(getRiskDisplayState("safe", false)).toBe("noPosition");
+    expect(getRiskDisplayState("danger", false, false)).toBe("noPosition");
+    expect(getRiskDisplayState("safe", false, false)).toBe("noPosition");
   });
 
   it("maps a no_debt position to verySafe", () => {
-    expect(getRiskDisplayState(getHealthFactorStatus(null, false), true)).toBe(
-      "verySafe",
-    );
+    expect(
+      getRiskDisplayState(getHealthFactorStatus(null, false), true, false),
+    ).toBe("verySafe");
   });
 
   it("keeps a position with debt at HF 60 safe", () => {
-    expect(getRiskDisplayState(getHealthFactorStatus(60, true), true)).toBe(
-      "safe",
-    );
+    expect(
+      getRiskDisplayState(getHealthFactorStatus(60, true), true, false),
+    ).toBe("safe");
   });
 
   it("maps HF 2.01 to safe", () => {
-    expect(getRiskDisplayState(getHealthFactorStatus(2.01, true), true)).toBe(
-      "safe",
-    );
+    expect(
+      getRiskDisplayState(getHealthFactorStatus(2.01, true), true, false),
+    ).toBe("safe");
   });
 
   it("maps HF 2.0 to moderate", () => {
-    expect(getRiskDisplayState(getHealthFactorStatus(2, true), true)).toBe(
-      "moderate",
-    );
+    expect(
+      getRiskDisplayState(getHealthFactorStatus(2, true), true, false),
+    ).toBe("moderate");
   });
 
   it("maps HF 1.05 to risky", () => {
-    expect(getRiskDisplayState(getHealthFactorStatus(1.05, true), true)).toBe(
-      "risky",
-    );
+    expect(
+      getRiskDisplayState(getHealthFactorStatus(1.05, true), true, false),
+    ).toBe("risky");
   });
 
   it("maps HF 0.99 to liquidatable", () => {
-    expect(getRiskDisplayState(getHealthFactorStatus(0.99, true), true)).toBe(
-      "liquidatable",
-    );
+    expect(
+      getRiskDisplayState(getHealthFactorStatus(0.99, true), true, false),
+    ).toBe("liquidatable");
   });
 });
 
@@ -97,6 +104,48 @@ describe("RiskSection rendering", () => {
       screen.queryByText(COPY.overview.pctToLiquidationLabel),
     ).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(/NaN|Infinity/);
+  });
+
+  it("hides a cached health factor and its status when the position is unavailable", () => {
+    renderSection({
+      isPositionUnavailable: true,
+      healthFactor: 2.1,
+      healthFactorStatus: "safe",
+      liquidationPriceText: COPY.common.emptyValue,
+      liquidationPriceUsd: null,
+    });
+
+    expect(screen.getByText(COPY.risk.status.unavailable)).toBeInTheDocument();
+    expect(screen.queryByText(COPY.risk.status.safe)).not.toBeInTheDocument();
+    expect(screen.queryByText("2.10")).not.toBeInTheDocument();
+  });
+
+  it("does not call an unavailable position empty", () => {
+    renderSection({
+      isPositionUnavailable: true,
+      hasPosition: false,
+      healthFactor: null,
+      liquidationPriceText: COPY.common.emptyValue,
+      liquidationPriceUsd: null,
+    });
+
+    expect(screen.getByText(COPY.risk.status.unavailable)).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.risk.status.noPosition),
+    ).not.toBeInTheDocument();
+  });
+
+  it("draws a neutral rail, never a green one, when the position is unavailable", () => {
+    const { container } = renderSection({
+      isPositionUnavailable: true,
+      liquidationPriceText: COPY.common.emptyValue,
+      liquidationPriceUsd: null,
+    });
+
+    expect(container.querySelector(".bg-risk-green")).toBeNull();
+    expect(screen.getByTestId("risk-marker-current")).toHaveClass(
+      "border-risk-muted",
+    );
   });
 
   it("renders debt at HF 60 as Safe with its numeric health factor", () => {

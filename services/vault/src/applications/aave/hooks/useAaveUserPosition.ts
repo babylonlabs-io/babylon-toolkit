@@ -5,13 +5,17 @@
  * Uses Aave's on-chain oracle prices for authoritative health factor and values.
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
-import { AAVE_USER_POSITION_QUERY_KEY } from "@/utils/queryKeys";
+import {
+  AAVE_USER_POSITION_FAILING_READ_QUERY_KEY,
+  AAVE_USER_POSITION_QUERY_KEY,
+} from "@/utils/queryKeys";
 
 import {
+  POSITION_FAILING_MIN_ATTEMPTS,
   POSITION_REFETCH_INTERVAL_MS,
   POSITION_STALENESS_THRESHOLD_MS,
 } from "../constants";
@@ -59,6 +63,20 @@ export interface UseAaveUserPositionResult {
    * staleness protections for liquidation decisions.
    */
   isPositionDataStale: boolean;
+  /**
+   * True when the position can't be trusted for risk display: reads are failing,
+   * and there is nothing cached or the last success is past the staleness
+   * threshold. Holds until a read succeeds.
+   *
+   * Neither `error` nor `isPositionDataStale` can drive a warning that must not
+   * blink. With nothing cached, every poll resets `error` to null and `isLoading`
+   * to true for its retries. With a cached read, `error` stays null until a
+   * fetch's retries run out, and `isPositionDataStale` reads false during each
+   * refetch. Age alone would flash this on a healthy tab refetching after being
+   * hidden, so it also needs reads to be failing; a read that stalls without ever
+   * failing does not trip it.
+   */
+  isPositionUnavailable: boolean;
   /**
    * When the account data `healthFactor` comes from was received (ms since
    * epoch), or null without a position. It dates the health factor itself,
@@ -108,6 +126,8 @@ export function useAaveUserPosition(
     data: positions,
     isLoading: positionsLoading,
     error: positionsError,
+    errorUpdatedAt,
+    failureCount,
     dataUpdatedAt,
     isFetching,
     refetch,
@@ -169,6 +189,64 @@ export function useAaveUserPosition(
     };
   }, [dataUpdatedAt, isFetching]);
 
+  // Read at render, unlike `isPositionDataStale`: it keeps counting through a
+  // refetch, is right on the first render after a mount, and catches up on the
+  // next render after timers were suspended. The timer only forces the render
+  // that notices a read crossing the threshold between polls; the extra
+  // millisecond is because the comparison is strict.
+  const [, forceRender] = useReducer((renders: number) => renders + 1, 0);
+  const isPastStalenessThreshold =
+    dataUpdatedAt !== 0 &&
+    Date.now() - dataUpdatedAt > POSITION_STALENESS_THRESHOLD_MS;
+
+  useEffect(() => {
+    if (dataUpdatedAt === 0) return;
+
+    const msUntilStale =
+      POSITION_STALENESS_THRESHOLD_MS - (Date.now() - dataUpdatedAt);
+    if (msUntilStale < 0) return;
+
+    const timer = setTimeout(forceRender, msUntilStale + 1);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [dataUpdatedAt]);
+
+  // A fetch that ran out of retries since the last success. Query-level, so it
+  // holds through later polls and restarts and for a component mounting after it.
+  const hasFailedFetch = errorUpdatedAt > dataUpdatedAt;
+  const isOnFailingRetries = failureCount >= POSITION_FAILING_MIN_ATTEMPTS;
+
+  // A restarted fetch (`refetch`, `invalidateQueries`) zeroes `failureCount`, and
+  // `error` is still null if no fetch has run out of retries yet, so the failure
+  // is remembered against the cached read it happened to. In the query cache, not
+  // this component, so a hook mounted later reads it on its first render; that
+  // first render also sees a `failureCount` of 0. A success moves `dataUpdatedAt`,
+  // and a query with no data has nothing to restart.
+  const queryClient = useQueryClient();
+  const failingReadQueryKey = useMemo(
+    () => [
+      AAVE_USER_POSITION_FAILING_READ_QUERY_KEY,
+      connectedAddress,
+      spokeAddress,
+      vbtcReserveId?.toString(),
+      borrowableReserveIdsKey,
+    ],
+    [connectedAddress, spokeAddress, vbtcReserveId, borrowableReserveIdsKey],
+  );
+
+  useEffect(() => {
+    if (isOnFailingRetries && dataUpdatedAt !== 0) {
+      queryClient.setQueryData(failingReadQueryKey, dataUpdatedAt);
+    }
+  }, [queryClient, failingReadQueryKey, isOnFailingRetries, dataUpdatedAt]);
+
+  const failingReadAt = queryClient.getQueryData<number>(failingReadQueryKey);
+  const areReadsFailing =
+    hasFailedFetch || isOnFailingRetries || failingReadAt === dataUpdatedAt;
+  const isPositionUnavailable =
+    areReadsFailing && (dataUpdatedAt === 0 || isPastStalenessThreshold);
+
   // User can only have one position (single vBTC collateral reserve)
   const position = positions?.[0] ?? null;
 
@@ -210,6 +288,7 @@ export function useAaveUserPosition(
     healthFactor,
     healthFactorStatus,
     isPositionDataStale,
+    isPositionUnavailable,
     healthFactorReceivedAt: position?.accountDataReceivedAt ?? null,
     isLoading: positionsLoading,
     error: positionsError as Error | null,

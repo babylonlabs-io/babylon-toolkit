@@ -4,7 +4,7 @@
  * Wires real data from Aave hooks and navigation to deposit/borrow/repay flows.
  */
 
-import { Container } from "@babylonlabs-io/core-ui";
+import { Container, Notification } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
@@ -105,6 +105,7 @@ export function DashboardPage() {
     borrowCapacityError,
     isLoading,
     positionError,
+    isPositionUnavailable,
   } = useDashboardState(isConnected ? address : undefined);
   // God-mode demo loans (dev only; compile-time null in production builds),
   // counted the way the Loans card counts them so the two cards agree.
@@ -134,11 +135,30 @@ export function DashboardPage() {
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
 
+  const healthFactorOverride = useHealthFactorOverride();
+
+  // The dev overrides simulate a position, so a failing live read says nothing
+  // about what they show.
+  const showsPositionUnavailable =
+    isPositionUnavailable &&
+    !cascadeOverride?.result &&
+    liquidationCardOverride === null &&
+    healthFactorOverride === null;
+  // Past the threshold the cached figures stay, with the notice beside them.
+  // With nothing cached they are zeros that would read as an empty account.
+  const isPositionUnknown = showsPositionUnavailable && position === null;
+
   // Format display values
-  const totalCollateralValue = formatUsdValue(collateralValueUsd);
-  const availableToBorrow = formatUsdValue(availableToBorrowUsd);
+  const totalCollateralValue = isPositionUnknown
+    ? COPY.common.emptyValue
+    : formatUsdValue(collateralValueUsd);
+  const availableToBorrow = isPositionUnknown
+    ? COPY.common.emptyValue
+    : formatUsdValue(availableToBorrowUsd);
   const borrowedValue = formatUsdValue(debtValueUsd);
-  const collateralBtcText = formatBtcAmount(collateralBtc);
+  const collateralBtcText = isPositionUnknown
+    ? COPY.common.emptyValue
+    : formatBtcAmount(collateralBtc);
   // The Overview is purely a financial summary: an empty position renders every
   // row as a placeholder ("Health factor –", "$0 USD", "$0 USD"), so suppress
   // the whole panel until there is real collateral or debt to summarize. Gate on
@@ -157,7 +177,9 @@ export function DashboardPage() {
   // rail stays consistent with the Spoke's health factor beside it. The BTC
   // price shows with or without a position to price, and is a placeholder
   // while either price feed is loading, stale or unreadable.
-  const firstLiquidationGroup = positionNotifications?.groups[0] ?? null;
+  const firstLiquidationGroup = showsPositionUnavailable
+    ? null
+    : (positionNotifications?.groups[0] ?? null);
   const btcPrice =
     btcPriceUsd !== null ? formatUsdPrice(btcPriceUsd) : COPY.common.emptyValue;
   // God-mode override (dev only; null in production). Health factor is
@@ -167,7 +189,6 @@ export function DashboardPage() {
   // price there is nothing to imply a liquidation price from, and the stats
   // read as placeholders rather than mixing a forced HF with live liquidation
   // numbers (the case you hit inspecting the stale-price path).
-  const healthFactorOverride = useHealthFactorOverride();
   const {
     healthFactor: shownHealthFactor,
     healthFactorStatus: shownHealthFactorStatus,
@@ -200,8 +221,10 @@ export function DashboardPage() {
     distanceToLiquidationPct !== null
       ? formatLiquidationDistancePercent(distanceToLiquidationPct)
       : COPY.common.emptyValue;
+  // With no position to read a stored key from, this would be the reserve's
+  // current collateral factor, which need not be the position's.
   const collateralFactorText =
-    collateralFactorBps !== null
+    collateralFactorBps !== null && !isPositionUnknown
       ? formatBasisPointsAsPercent(collateralFactorBps)
       : COPY.common.emptyValue;
 
@@ -247,7 +270,7 @@ export function DashboardPage() {
           maxBorrowReserves={maxBorrowReserves}
           borrowCount={cardBorrowCount(demoLoans, {
             position,
-            isLoading,
+            isLoading: isLoading || isPositionUnknown,
             positionError,
           })}
           availableToBorrow={availableToBorrow}
@@ -270,10 +293,24 @@ export function DashboardPage() {
 
         {cascadeBanner}
 
+        {/* Beside the banner, not in it: an urgent warning still leads, and this
+            stays up in every state until a read succeeds. Its testid is read by
+            e2e/position-unavailable.spec.ts. */}
+        {showsPositionUnavailable && (
+          <Notification
+            variant="warning"
+            title={COPY.liquidationWarnings.positionUnavailable.title}
+            data-testid="position-unavailable-notice"
+          >
+            {COPY.liquidationWarnings.positionUnavailable.detail}
+          </Notification>
+        )}
+
         <RiskSection
           healthFactor={shownHealthFactor}
           healthFactorStatus={shownHealthFactorStatus}
           hasPosition={hasOverviewData || healthFactorOverride !== null}
+          isPositionUnavailable={showsPositionUnavailable}
           liquidationPriceText={liquidationPrice}
           btcPriceText={btcPrice}
           pctToLiquidationText={pctToLiquidation}
@@ -286,6 +323,7 @@ export function DashboardPage() {
         <LiquidationAnalysisSection
           hasCollateral={liquidationCardState.hasCollateral}
           hasLoans={liquidationCardState.hasLoans}
+          isPositionUnavailable={showsPositionUnavailable}
           onDeposit={openDeposit}
           onBorrow={openBorrowPicker}
           cascade={liquidationCascade}

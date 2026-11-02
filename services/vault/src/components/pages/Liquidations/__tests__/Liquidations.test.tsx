@@ -74,10 +74,15 @@ vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
 /** Whether the deposit dialog or the loan overlay is open over the page. */
 const openDialogs = vi.hoisted(() => ({ deposit: false, loan: false }));
 
+const pageActions = vi.hoisted(() => ({
+  openRepay: vi.fn(),
+  openDeposit: vi.fn(),
+}));
+
 vi.mock("@/hooks/useLoanActions", () => ({
   useLoanActions: () => ({
     openBorrowPicker: vi.fn(),
-    openRepay: vi.fn(),
+    openRepay: pageActions.openRepay,
     goToReserve: vi.fn(),
     isLoanFlowOpen: openDialogs.loan,
   }),
@@ -85,9 +90,30 @@ vi.mock("@/hooks/useLoanActions", () => ({
 
 vi.mock("react-router", () => ({
   useOutletContext: () => ({
-    openDeposit: vi.fn(),
+    openDeposit: pageActions.openDeposit,
     isDepositOpen: openDialogs.deposit,
   }),
+}));
+
+vi.mock("@/components/simple/PositionNotificationBanner", () => ({
+  PositionNotificationBanner: ({
+    connectedAddress,
+    onDeposit,
+    onRepay,
+  }: {
+    connectedAddress?: string;
+    onDeposit: () => void;
+    onRepay: () => void;
+  }) => (
+    <div data-testid="position-banner" data-address={connectedAddress}>
+      <button type="button" onClick={() => onDeposit()}>
+        banner deposit
+      </button>
+      <button type="button" onClick={() => onRepay()}>
+        banner repay
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/shared", () => ({
@@ -973,6 +999,122 @@ describe("Liquidation Dashboard — no cascade to chart", () => {
         `${formatUsd(CONNECTED_WITH_CASCADE.collateralValueUsd)} USD`,
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Liquidation Dashboard — position unavailable", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+    disableGodMode();
+    disablePositionOverride();
+    connectWallet();
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      result: null,
+      params: null,
+      status: "position-unavailable",
+    });
+  });
+
+  it("explains itself instead of inviting a first deposit when the first read failed", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasCollateral: false,
+      hasLoans: false,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.positionUnavailableDescription),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.liquidations.empty.noDepositTitle),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("liquidations-empty-state")).toHaveAttribute(
+      "data-action-label",
+      "",
+    );
+  });
+
+  it("mounts the position banner above the explanation, for the connected account, with Deposit and Repay wired", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    const banner = screen.getByTestId("position-banner");
+    expect(banner).toHaveAttribute("data-address", walletMock.address);
+    expect(
+      banner.compareDocumentPosition(
+        screen.getByTestId("liquidations-empty-state"),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "banner repay" }));
+    expect(pageActions.openRepay).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "banner deposit" }));
+    expect(pageActions.openDeposit).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays on the explanation, not the loader, while the next poll retries that read", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasCollateral: false,
+      hasLoans: false,
+      isLoading: true,
+      isPositionUnavailable: true,
+    });
+
+    const { container } = render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.positionUnavailableDescription),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".bbn-loader")).not.toBeInTheDocument();
+  });
+
+  it("takes a cached position's figures off the page", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.empty.positionUnavailableDescription),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        `${formatUsd(CONNECTED_WITH_CASCADE.collateralValueUsd)} USD`,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leaves a god-mode cascade charted", () => {
+    enableGodMode();
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isPositionUnavailable: true,
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.queryByText(
+        COPY.liquidations.empty.positionUnavailableDescription,
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
   });
 });
 

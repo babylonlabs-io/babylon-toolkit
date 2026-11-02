@@ -69,6 +69,13 @@ export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
 export const POSITION_STALENESS_THRESHOLD_MS = POSITION_REFETCH_INTERVAL_MS * 3;
 
 /**
+ * Failed attempts within one position fetch before its reads count as failing,
+ * while the fetch is still on its retries. One attempt its own retry rescues
+ * (a tab waking on a network that isn't back yet) is a blip, not an outage.
+ */
+export const POSITION_FAILING_MIN_ATTEMPTS = 2;
+
+/**
  * Retry interval for an Aave oracle read (the oracle address or a reserve
  * price) while it is failing, once the read's own quick retries have given up.
  * Each retry is a single read, and each read reports a failure to error

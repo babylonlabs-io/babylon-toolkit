@@ -84,6 +84,7 @@ interface DashboardStateOverrides {
   isLoading?: boolean;
   indexerError?: Error | null;
   positionError?: Error | null;
+  isPositionUnavailable?: boolean;
   healthFactorReceivedAt?: number;
 }
 
@@ -102,6 +103,7 @@ function setDashboardState(overrides: DashboardStateOverrides = {}) {
     isLoading: false,
     indexerError: null,
     positionError: null,
+    isPositionUnavailable: false,
     healthFactorReceivedAt: SPOKE_PRICE_CHANGED_AT + 5_000,
     ...overrides,
   });
@@ -802,5 +804,203 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     const { result } = renderHook(() => usePositionNotifications(USER));
 
     expect(result.current.btcPriceUsd).toBeNull();
+  });
+});
+
+describe("usePositionNotifications — position unavailable", () => {
+  // A cached position is only ever unavailable with its last read failed.
+  const CACHED_READ_FAILING = {
+    isPositionUnavailable: true,
+    positionError: new Error("RPC failure"),
+  };
+
+  // 1 BTC against $40k of debt at a 0.8 collateral factor liquidates at $50k,
+  // the Spoke's price, while the cached health factor still reads 1.5.
+  function setCalculatorUrgentPosition(
+    overrides: DashboardStateOverrides = {},
+  ) {
+    setSpokeBtcPrice(50_000);
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      isLoading: false,
+    });
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 40_000,
+      healthFactor: 1.5,
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    setHappyPrices();
+    setSpokeBtcPrice(60_000);
+    setHappySplitParams();
+    setPegInConfig();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reports position-unavailable, not no-vaults, when the first read failed", () => {
+    setDashboardState({
+      collateralVaults: [],
+      debtValueUsd: 0,
+      healthFactor: null,
+      isPositionUnavailable: true,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("position-unavailable");
+    expect(result.current.result).toBeNull();
+    expect(result.current.liveUrgentWarning).toBeNull();
+  });
+
+  it("reports position-unavailable, not loading, while the next poll retries that read", () => {
+    setDashboardState({
+      collateralVaults: [],
+      debtValueUsd: 0,
+      healthFactor: null,
+      isLoading: true,
+      isPositionUnavailable: true,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("position-unavailable");
+  });
+
+  it("reports position-unavailable, not stale-price, when the price read fails too", () => {
+    setDashboardState(CACHED_READ_FAILING);
+    mockUsePrices.mockReturnValue({
+      prices: { BTC: 60_000 },
+      metadata: { BTC: { isStale: false, fetchFailed: true } },
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("position-unavailable");
+    expect(result.current.result).toBeNull();
+  });
+
+  it("withholds a cached position's advice and everything built on its debt", () => {
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+    });
+    const { result, rerender } = renderHook(() =>
+      usePositionNotifications(USER),
+    );
+    expect(result.current.status).toBe("ready");
+    expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
+      "cliff",
+    ]);
+    expect(result.current.params).not.toBeNull();
+    expect(result.current.reorderVerificationContext).not.toBeNull();
+
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      ...CACHED_READ_FAILING,
+    });
+    rerender();
+
+    expect(result.current.status).toBe("position-unavailable");
+    expect(result.current.result).toBeNull();
+    expect(result.current.params).toBeNull();
+    expect(result.current.reorderVerificationContext).toBeNull();
+  });
+
+  it("keeps only the calculator's urgent warning from a cached position", () => {
+    setCalculatorUrgentPosition(CACHED_READ_FAILING);
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("position-unavailable");
+    expect(result.current.result?.warnings.map((w) => w.title)).toEqual([
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    ]);
+    // The top banner reads the first group's distance.
+    expect(result.current.result?.groups.length).toBeGreaterThan(0);
+    expect(result.current.params).toBeNull();
+    expect(result.current.reorderVerificationContext).toBeNull();
+  });
+
+  it("offers no reorder alongside an urgent warning from a cached position", () => {
+    // A smaller vault ahead of a larger one has a safer order to suggest.
+    const vaults = [makeVault(VAULT_A, 0.35, 0), makeVault(VAULT_B, 0.65, 1)];
+    setCalculatorUrgentPosition({ collateralVaults: vaults });
+    const { result, rerender } = renderHook(() =>
+      usePositionNotifications(USER),
+    );
+    expect(result.current.result?.optimalVaultOrder).not.toBeNull();
+
+    setCalculatorUrgentPosition({
+      collateralVaults: vaults,
+      ...CACHED_READ_FAILING,
+    });
+    rerender();
+
+    expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
+      "urgent",
+    ]);
+    expect(result.current.result?.optimalVaultOrder).toBeNull();
+  });
+
+  it("keeps the live warning from a cached position as the same object", () => {
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+      debtValueUsd: 100,
+      healthFactor: 0.95,
+      ...CACHED_READ_FAILING,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("position-unavailable");
+    expect(result.current.result?.warnings).toEqual([
+      result.current.liveUrgentWarning,
+    ]);
+    expect(result.current.result?.warnings[0]).toBe(
+      result.current.liveUrgentWarning,
+    );
+  });
+
+  it("keeps the live warning when nothing else can be calculated", () => {
+    setDashboardState({
+      debtValueUsd: 30_000,
+      healthFactor: 1.02,
+      ...CACHED_READ_FAILING,
+    });
+    mockUsePrices.mockReturnValue({
+      prices: { BTC: 60_000 },
+      metadata: { BTC: { isStale: true, fetchFailed: false } },
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("position-unavailable");
+    expect(result.current.result).toBeNull();
+    expect(result.current.liveUrgentWarning?.title).toBe(
+      COPY.liquidationWarnings.liveHealthFactor.title("1.02"),
+    );
+  });
+
+  it("returns to ready once a read succeeds", () => {
+    setDashboardState(CACHED_READ_FAILING);
+    const { result, rerender } = renderHook(() =>
+      usePositionNotifications(USER),
+    );
+    expect(result.current.status).toBe("position-unavailable");
+
+    setDashboardState();
+    rerender();
+
+    expect(result.current.status).toBe("ready");
+    expect(result.current.params).not.toBeNull();
+    expect(result.current.reorderVerificationContext).not.toBeNull();
   });
 });
