@@ -8,6 +8,8 @@ overrides:
   '@walletconnect/logger': 3.0.0
   js-yaml: 4.3.2
   axios: 1.20.0
+  bitcoinjs-lib: 6.1.10
+  '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.5
 
 importers:
 
@@ -291,8 +293,8 @@ importers:
   packages/babylon-ledger-vault-signer:
     dependencies:
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@ledgerhq/device-management-kit':
         specifier: 1.7.1
         version: 1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10)
@@ -303,8 +305,8 @@ importers:
         specifier: 1.4.0
         version: 1.4.0
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -404,8 +406,8 @@ importers:
   packages/babylon-ts-sdk:
     dependencies:
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@noble/curves':
         specifier: 1.9.7
         version: 1.9.7
@@ -413,8 +415,8 @@ importers:
         specifier: 2.0.1
         version: 2.0.1
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -502,8 +504,8 @@ importers:
         specifier: workspace:*
         version: link:../babylon-ledger-vault-signer
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@chromatic-com/storybook':
         specifier: 3.2.7
         version: 3.2.7(react@18.3.1)(storybook@8.6.15(bufferutil@4.0.9)(prettier@3.6.2)(utf-8-validate@5.0.10))
@@ -584,10 +586,10 @@ importers:
         version: 16.3.0(@testing-library/dom@10.4.0)(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@tomo-inc/ledger-bitcoin-babylon':
         specifier: 0.3.5-alpha.0
-        version: 0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
+        version: 0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10)
       '@tomo-inc/wallet-connect-sdk':
         specifier: 1.0.0
-        version: 1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@types/node':
         specifier: 22.17.0
         version: 22.17.0
@@ -610,8 +612,8 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -650,7 +652,7 @@ importers:
         version: 20.0.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       ledger-bitcoin-babylon-boilerplate:
         specifier: 0.2.8
-        version: 0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)
+        version: 0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10)
       lint-staged:
         specifier: 15.5.2
         version: 15.5.2
@@ -710,7 +712,7 @@ importers:
         version: link:../../packages/babylon-proto-ts
       '@babylonlabs-io/btc-staking-ts':
         specifier: 2.8.6
-        version: 2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.7)
+        version: 2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.10)
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
@@ -721,8 +723,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/babylon-wallet-connector
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@cosmjs/proto-signing':
         specifier: 0.36.0
         version: 0.36.0
@@ -745,8 +747,8 @@ importers:
         specifier: 5.90.20
         version: 5.90.20(react@18.3.1)
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -989,8 +991,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/babylon-wallet-connector
       '@bitcoin-js/tiny-secp256k1-asmjs':
-        specifier: 2.2.3
-        version: 2.2.3
+        specifier: 2.2.5
+        version: 2.2.5
       '@dnd-kit/core':
         specifier: 6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1019,8 +1021,8 @@ importers:
         specifier: 5.90.20
         version: 5.90.20(react@18.3.1)
       bitcoinjs-lib:
-        specifier: 6.1.7
-        version: 6.1.7
+        specifier: 6.1.10
+        version: 6.1.10
       buffer:
         specifier: 6.0.3
         version: 6.0.3
@@ -1907,7 +1909,7 @@ packages:
     engines: {node: '>=22.0.0 <25.0.0'}
     peerDependencies:
       '@babylonlabs-io/babylon-proto-ts': 1.22.1
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
 
   '@base-org/account@1.1.1':
     resolution: {integrity: sha512-IfVJPrDPhHfqXRDb89472hXkpvJuQQR7FDI9isLPHEqSYt/45whIoBxSPgZ0ssTt379VhQo4+87PWI1DoLSfAQ==}
@@ -1936,8 +1938,8 @@ packages:
   '@biomejs/wasm-nodejs@2.2.2':
     resolution: {integrity: sha512-GxI0ejyXaCjIq6SxBr9e4jyf3zmI5Eyyq5fF0dlb4nECVXwAgUAnT6hQ5502ZACvBxoWmreXw08im/l3APpvIw==}
 
-  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.3':
-    resolution: {integrity: sha512-arFPdEZi9RIiaG76OZswTnAU0KfuiLwGw2VNfD66LKhzlbfOnX1o1WI/GI3qm9UbjG/0QOzZu/KmTNvL79x/DQ==}
+  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.5':
+    resolution: {integrity: sha512-bVAnsxcA1FOZ7hzu6zK2LoJFgpu6qvjnZjBrJXZrylJ4+6mG9cT31F04QVQBEKEWmYkE+0RvgcqF3Fb4/Ex80A==}
     engines: {node: '>=14.0.0'}
 
   '@bitcoinerlab/descriptors@1.1.1':
@@ -2751,12 +2753,15 @@ packages:
 
   '@ledgerhq/errors@6.25.0':
     resolution: {integrity: sha512-9cU0dgUyq3Adb1bHAjJnbwl+r+4WBjuPq0k+/DbBNpuYHwcz2xKtRIjLimUJyACjHti3iWwRt1sFcbQDDdI08w==}
+    deprecated: This package is no longer maintained and will not receive updates. Published versions remain available.
 
   '@ledgerhq/hw-transport-webhid@6.30.6':
     resolution: {integrity: sha512-AOzjFv5n1OTMfvEInAZRfLO11G5zfG8pB5zhmjK5d/mVQfFNcKsLZNAC2h4OZZMBtUy8UTT3n03z93e6k6n4pQ==}
+    deprecated: This package is no longer maintained. Use @ledgerhq/device-transport-kit-web-hid instead.
 
   '@ledgerhq/hw-transport-webusb@6.29.10':
     resolution: {integrity: sha512-3op7ipyZrM/Gg2qUBUM6tGKgYVh7k3hvXPE7z4i5ElAFHBdM5XMI4OD2cfl38XE0fij1dk/NCpKntOekIL7lmA==}
+    deprecated: This package is no longer maintained. Use @ledgerhq/device-transport-kit-web-hid instead.
 
   '@ledgerhq/hw-transport@6.31.10':
     resolution: {integrity: sha512-ruNtkTPMO3rFCaSM+oPTOXXerzxWFZF43pAHVAHhsjiQGhLWzLSkMc7qBEpWIpZPubKRAbWSXR2zXBIJPNy8oQ==}
@@ -3119,7 +3124,7 @@ packages:
 
   '@paulmillr/qr@0.2.1':
     resolution: {integrity: sha512-IHnV6A+zxU7XwmKFinmYjUcwlyK9+xkG3/s9KcQhI9BjQKycrJ1JRO+FbNYPwZiPKW3je/DR0k7w8/gLa5eaxQ==}
-    deprecated: 'The package is now available as "qr": npm install qr'
+    deprecated: 'Switch to "qr" (new package name) for security updates: npm install qr'
 
   '@phenomnomnominal/tsquery@5.0.1':
     resolution: {integrity: sha512-3nVv+e2FQwsW8Aw6qTU6f+1rfcJ3hrcnvH/mu9i8YhxO+9sqbOfpL8m6PbET5+xKOlz/VSbp0RoYWYCtIsnmuA==}
@@ -3424,6 +3429,7 @@ packages:
   '@safe-global/safe-gateway-typescript-sdk@3.23.1':
     resolution: {integrity: sha512-6ORQfwtEJYpalCeVO21L4XXGSdbEMfyp2hEv6cP82afKXSwvse6d3sdelgaPWUxHIsFRkWvHDdzh8IyyKHZKxw==}
     engines: {node: '>=16'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   '@sats-connect/core@0.6.5':
     resolution: {integrity: sha512-jltPdG3RzY6NPSp/ldoVTu7hOmMiuXr90osTHFPoQzprxcOs/1U4sZt/qAyGhfOM6B+ZXb7DF686BmFkUpPCJA==}
@@ -4009,7 +4015,7 @@ packages:
       '@ledgerhq/hw-transport': 6.31.10
       '@ledgerhq/hw-transport-webhid': 6.30.6
       '@ledgerhq/hw-transport-webusb': 6.29.10
-      bitcoinjs-lib: 6.1.5
+      bitcoinjs-lib: 6.1.10
 
   '@tomo-inc/tomo-wallet-provider@1.2.0-beta.1':
     resolution: {integrity: sha512-DD62p3D6w206ndVwSL9esYlN6Vx98gzuQNa3LrYBKzoDmlmf7weJwbwi6d7cG1/ZCPw0Y8Fb79f/HmjpBkWLqw==}
@@ -4021,7 +4027,7 @@ packages:
       '@keystonehq/keystone-sdk': 0.9.0
       '@keystonehq/sdk': 0.22.1
       '@scure/bip32': ^1.4.0
-      bitcoinjs-lib: ^6.1.5
+      bitcoinjs-lib: 6.1.10
       react: ^18
       react-dom: ^18
 
@@ -5120,8 +5126,8 @@ packages:
   bitcoin-address-validation@2.2.3:
     resolution: {integrity: sha512-1uGCGl26Ye8JG5qcExtFLQfuib6qEZWNDo1ZlLlwp/z7ygUFby3IxolgEfgMGaC+LG9csbVASLcH8fRLv7DIOg==}
 
-  bitcoinjs-lib@6.1.7:
-    resolution: {integrity: sha512-tlf/r2DGMbF7ky1MgUqXHzypYHakkEnm0SZP23CJKIqNY/5uNAnMbFhMJdhjrL/7anfb/U8+AlpdjPWjPnAalg==}
+  bitcoinjs-lib@6.1.10:
+    resolution: {integrity: sha512-9KpnS5JKVP0j0yfTsBNFIsNA6+JdBDb7VtL35F20I/pJYobosi3TmZFGtu6qxhJCfb0vubJixr5Zv61/lUYETw==}
     engines: {node: '>=8.0.0'}
 
   bl@4.1.0:
@@ -7462,7 +7468,7 @@ packages:
       '@ledgerhq/hw-transport': 6.31.10
       '@ledgerhq/hw-transport-webhid': 6.30.6
       '@ledgerhq/hw-transport-webusb': 6.29.10
-      bitcoinjs-lib: 6.1.5
+      bitcoinjs-lib: 6.1.10
 
   ledger-bitcoin@0.2.3:
     resolution: {integrity: sha512-sWdvMTR5CkebNlM0Mam9ROdpsD7Y4087kj4cbIaCCq8IXShCQ44vE3j0wTmt+sHp13eETgY63OWN1rkuIfMfuQ==}
@@ -9355,6 +9361,7 @@ packages:
 
   starknet@6.24.1:
     resolution: {integrity: sha512-g7tiCt73berhcNi41otlN3T3kxZnIvZhMi8WdC21Y6GC6zoQgbI2z1t7JAZF9c4xZiomlanwVnurcpyfEdyMpg==}
+    deprecated: starknet <10 is end-of-life and no longer receives security fixes. Upgrade to starknet@10 (10.8.0 or later).
 
   statuses@2.0.2:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
@@ -11436,12 +11443,12 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@babylonlabs-io/btc-staking-ts@2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.7)':
+  '@babylonlabs-io/btc-staking-ts@2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.10)':
     dependencies:
       '@babylonlabs-io/babylon-proto-ts': link:packages/babylon-proto-ts
-      '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.3
+      '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.5
       '@cosmjs/encoding': 0.36.0
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
 
   '@base-org/account@1.1.1(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.22.4)':
     dependencies:
@@ -11493,7 +11500,7 @@ snapshots:
 
   '@biomejs/wasm-nodejs@2.2.2': {}
 
-  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.3':
+  '@bitcoin-js/tiny-secp256k1-asmjs@2.2.5':
     dependencies:
       uint8array-tools: 0.0.7
 
@@ -11502,7 +11509,7 @@ snapshots:
       '@bitcoinerlab/miniscript': 1.4.0
       '@bitcoinerlab/secp256k1': 1.2.0
       bip32: 4.0.0
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       ecpair: 2.1.0
     optionalDependencies:
       ledger-bitcoin: 0.2.3
@@ -13230,7 +13237,7 @@ snapshots:
       '@wallet-standard/app': 1.1.0
       '@wallet-standard/base': 1.1.0
       '@walletconnect/universal-provider': 2.22.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       sats-connect: 3.5.0(typescript@5.9.2)
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -13274,7 +13281,7 @@ snapshots:
       '@wallet-standard/app': 1.1.0
       '@wallet-standard/base': 1.1.0
       '@walletconnect/universal-provider': 2.22.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       sats-connect: 3.5.0(typescript@5.9.2)
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -15195,7 +15202,7 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.0
 
-  '@tomo-inc/ledger-bitcoin-babylon@0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7)':
+  '@tomo-inc/ledger-bitcoin-babylon@0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10)':
     dependencies:
       '@bitcoinerlab/descriptors': 1.1.1(ledger-bitcoin@0.2.3)
       '@bitcoinerlab/secp256k1': 1.2.0
@@ -15207,12 +15214,12 @@ snapshots:
       '@ledgerhq/hw-transport-webusb': 6.29.10
       '@scure/btc-signer': 1.8.1
       bip32-path: 0.4.2
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       crypto: 1.0.1
       ledger-bitcoin: 0.2.3
       process: 0.11.10
 
-  '@tomo-inc/tomo-wallet-provider@1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)':
+  '@tomo-inc/tomo-wallet-provider@1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)':
     dependencies:
       '@bitcoinerlab/secp256k1': 1.2.0
       '@cosmjs/stargate': 0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -15223,7 +15230,7 @@ snapshots:
       '@keystonehq/keystone-sdk': 0.12.3
       '@keystonehq/sdk': 0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@scure/bip32': 1.4.0
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       buffer: 6.0.3
       events: 3.3.0
       jsontokens: 4.0.1
@@ -15233,9 +15240,9 @@ snapshots:
     transitivePeerDependencies:
       - starknet
 
-  '@tomo-inc/wallet-connect-sdk@1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@tomo-inc/wallet-connect-sdk@1.0.0(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@tomo-inc/tomo-wallet-provider': 1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)
+      '@tomo-inc/tomo-wallet-provider': 1.2.0-beta.1(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.12.3)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)
       animate.css: 4.1.1
       buffer: 6.0.3
       classnames: 2.5.1
@@ -17761,7 +17768,7 @@ snapshots:
       bech32: 2.0.0
       sha256-uint8array: 0.10.7
 
-  bitcoinjs-lib@6.1.7:
+  bitcoinjs-lib@6.1.10:
     dependencies:
       '@noble/hashes': 1.8.0
       bech32: 2.0.0
@@ -20462,7 +20469,7 @@ snapshots:
 
   kolorist@1.8.0: {}
 
-  ledger-bitcoin-babylon-boilerplate@0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.7):
+  ledger-bitcoin-babylon-boilerplate@0.2.8(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.10):
     dependencies:
       '@bitcoinerlab/descriptors': 1.1.1(ledger-bitcoin@0.2.3)
       '@bitcoinerlab/secp256k1': 1.2.0
@@ -20475,7 +20482,7 @@ snapshots:
       '@noble/secp256k1': 2.3.0
       '@scure/btc-signer': 1.8.1
       bip32-path: 0.4.2
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
       crypto: 1.0.1
       elliptic: 6.6.1
       ledger-bitcoin: 0.2.3
@@ -20487,7 +20494,7 @@ snapshots:
       '@bitcoinerlab/secp256k1': 1.2.0
       '@ledgerhq/hw-transport': 6.31.10
       bip32-path: 0.4.2
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.10
 
   leven@3.1.0: {}
 
