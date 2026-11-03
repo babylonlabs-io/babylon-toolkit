@@ -18,22 +18,31 @@
  *   siblings advance independently and no presigned byte depends on their
  *   status. Additionally refuses once the target's on-chain ack window has
  *   elapsed (see {@link assertAckWindowOpen}).
+ *
+ * A wallet with nothing to approve uses {@link verifyResumeHtlcOutputs}, the same
+ * broadcast output check without the terms or their fee and commission reads.
  */
 
 import {
+  assertFundedHtlcOutputsMatch,
   canonicalizeBtcPubkey,
   rebuildDepositTermsCore,
   resolveParticipantKeysAtEpochs,
   stripHexPrefix,
   type DepositTerms,
+  type FundedHtlcOutputsInput,
   type RebuildSibling,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  OnChainBtcVaultStatus,
+  type KeyEpochs,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
+  SiblingKeysMismatchError,
   VaultLifecycleStateError,
   type VaultLifecycleStage,
 } from "@/utils/errors";
@@ -52,6 +61,7 @@ import {
   getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
+  getVaultRegistryReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
@@ -86,6 +96,20 @@ export interface RebuildDepositTermsParams {
   signal?: AbortSignal;
 }
 
+/** {@link verifyResumeHtlcOutputs} needs no fee, ceiling or lifecycle choice. */
+export type VerifyResumeHtlcOutputsParams = Pick<
+  RebuildDepositTermsParams,
+  | "vaultId"
+  | "target"
+  | "fundedPrePeginTxHex"
+  | "connectedDepositorAddress"
+  | "depositorBtcPubkey"
+>;
+
+type ResolvedParticipantKeys = Awaited<
+  ReturnType<typeof resolveParticipantKeysAtEpochs>
+>;
+
 interface OrderedSibling extends RebuildSibling {
   htlcVout: number;
 }
@@ -99,16 +123,14 @@ export interface RebuildVaultRecord extends OnChainVaultData {
 /**
  * Fields that must be uniform across the batch: each sibling is stamped by its
  * own `submitPeginRequest`, so governance changes between registrations can
- * stamp them differently and a separately registered sibling can carry its
- * own ceiling — and Gate 1 cannot see fields not encoded in the HTLC outputs
- * (timelockPegin, timelockAssert, commission). Fail closed.
+ * stamp them differently — and Gate 1 cannot see fields not encoded in the HTLC
+ * outputs (timelockPegin, timelockAssert). Fail closed.
  */
 const SIBLING_HOMOGENEOUS_FIELDS = [
   "vaultCoreVersion",
   "offchainParamsVersion",
   "appVaultKeepersVersion",
   "universalChallengersVersion",
-  "maxAcceptableCommissionBps",
 ] as const;
 
 /** Batch member paired with its registry id so a refusal can name the vault. */
@@ -158,10 +180,29 @@ export function assertBatchLifecycleStatus(
   }
 }
 
-/** Exported for tests — pure, fail-closed. */
+/**
+ * Exported for tests — pure, fail-closed. A separately registered sibling can
+ * carry its own commission ceiling, and one set of terms has one ceiling.
+ */
 export function assertSiblingBatchHomogeneous(
   target: RebuildVaultRecord,
   siblings: readonly RebuildVaultRecord[],
+): void {
+  assertSiblingStampsHomogeneous(target, siblings);
+  for (const sib of siblings) {
+    if (sib.maxAcceptableCommissionBps !== target.maxAcceptableCommissionBps) {
+      throw new Error(
+        `Sibling vaults of this Pre-PegIn disagree on maxAcceptableCommissionBps ` +
+          `(${sib.maxAcceptableCommissionBps} vs ${target.maxAcceptableCommissionBps}); ` +
+          `the batch cannot be treated as one deposit. Resume refused.`,
+      );
+    }
+  }
+}
+
+function assertSiblingStampsHomogeneous(
+  target: OnChainVaultData,
+  siblings: readonly OnChainVaultData[],
 ): void {
   for (const sib of siblings) {
     for (const field of SIBLING_HOMOGENEOUS_FIELDS) {
@@ -169,7 +210,7 @@ export function assertSiblingBatchHomogeneous(
         throw new Error(
           `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
             `(${String(sib[field])} vs ${String(target[field])}); the batch ` +
-            `cannot be described by one set of deposit terms. Resume refused.`,
+            `cannot be treated as one deposit. Resume refused.`,
         );
       }
     }
@@ -178,7 +219,7 @@ export function assertSiblingBatchHomogeneous(
         throw new Error(
           `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
             `(${sib[field]} vs ${target[field]}); the batch cannot be ` +
-            `described by one set of deposit terms. Resume refused.`,
+            `treated as one deposit. Resume refused.`,
         );
       }
     }
@@ -200,19 +241,30 @@ export function assertContiguousHtlcVector(
   }
 }
 
+/** The batch's HTLCs by vout, refusing a vector that does not cover every vout. */
+function orderSiblings(vaults: readonly OnChainVaultData[]): OrderedSibling[] {
+  const siblings: OrderedSibling[] = vaults.map((v) => ({
+    hashlock: v.hashlock,
+    amount: v.amount,
+    htlcVout: v.htlcVout,
+  }));
+  siblings.sort((a, b) => a.htlcVout - b.htlcVout);
+  assertContiguousHtlcVector(siblings);
+  return siblings;
+}
+
 /**
- * Discover the complete sibling set sharing this Pre-PegIn tx, ordered by
- * htlcVout. Candidates come from the registry's list of the depositor's vaults
- * and membership from on-chain `prePeginTxHash` equality; completeness is
+ * Discover the other vaults sharing this Pre-PegIn tx and gate their status.
+ * Candidates come from the registry's list of the depositor's vaults and
+ * membership from on-chain `prePeginTxHash` equality; completeness is
  * backstopped by the core's OP_RETURN anchor check.
  */
-async function discoverSiblings(
+async function discoverSiblingMembers(
   lifecycle: VaultLifecycleStage,
   targetVaultId: Hex,
   connectedDepositor: Address,
   target: OnChainVaultData,
-  signal: AbortSignal | undefined,
-): Promise<{ siblings: OrderedSibling[]; target: RebuildVaultRecord }> {
+): Promise<LifecycleBatchMember[]> {
   if (target.depositor.toLowerCase() !== connectedDepositor.toLowerCase()) {
     throw new DepositorWalletMismatchError({
       vaultId: targetVaultId,
@@ -242,6 +294,27 @@ async function discoverSiblings(
     lifecycle,
     { vaultId: targetVaultId, vault: target },
     siblingMembers,
+  );
+  return siblingMembers;
+}
+
+/** {@link discoverSiblingMembers} plus each member's commission ceiling. */
+async function discoverSiblings(
+  lifecycle: VaultLifecycleStage,
+  targetVaultId: Hex,
+  connectedDepositor: Address,
+  target: OnChainVaultData,
+  signal: AbortSignal | undefined,
+): Promise<{
+  siblings: OrderedSibling[];
+  target: RebuildVaultRecord;
+  siblingMembers: LifecycleBatchMember[];
+}> {
+  const siblingMembers = await discoverSiblingMembers(
+    lifecycle,
+    targetVaultId,
+    connectedDepositor,
+    target,
   );
 
   // The ceiling lives only in registration logs, so it is read per
@@ -276,17 +349,11 @@ async function discoverSiblings(
   const [targetRecord, ...siblingRecords] = recordGroups.flat();
   assertSiblingBatchHomogeneous(targetRecord, siblingRecords);
 
-  const siblings: OrderedSibling[] = [targetRecord, ...siblingRecords].map(
-    (v) => ({
-      hashlock: v.hashlock,
-      amount: v.amount,
-      htlcVout: v.htlcVout,
-    }),
-  );
-  siblings.sort((a, b) => a.htlcVout - b.htlcVout);
-  assertContiguousHtlcVector(siblings);
-
-  return { siblings, target: targetRecord };
+  return {
+    siblings: orderSiblings([targetRecord, ...siblingRecords]),
+    target: targetRecord,
+    siblingMembers,
+  };
 }
 
 /**
@@ -375,19 +442,85 @@ async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
     );
   }
 
-  const participantKeys = await resolveParticipantKeysAtEpochs({
-    operationKeyReader,
-    query: {
-      vaultProviderEthAddress: target.vaultProvider,
-      vaultProviderGenesisBtcPubkey: `0x${registrationVpBtcPubkey}` as Hex,
-      applicationEntryPoint: target.applicationEntryPoint,
-      vaultKeepers,
-      universalChallengers,
-    },
-    epochs,
-  });
+  const resolveKeysAtEpochs = (keyEpochs: KeyEpochs) =>
+    resolveParticipantKeysAtEpochs({
+      operationKeyReader,
+      query: {
+        vaultProviderEthAddress: target.vaultProvider,
+        vaultProviderGenesisBtcPubkey: `0x${registrationVpBtcPubkey}` as Hex,
+        applicationEntryPoint: target.applicationEntryPoint,
+        vaultKeepers,
+        universalChallengers,
+      },
+      epochs: keyEpochs,
+    });
+  const participantKeys = await resolveKeysAtEpochs(epochs);
 
-  return { offchainParams, timelockPegin, participantKeys };
+  return {
+    offchainParams,
+    timelockPegin,
+    participantKeys,
+    epochs,
+    resolveKeysAtEpochs,
+  };
+}
+
+/**
+ * Broadcast only. One Pre-PegIn's outputs can match one key set, and a refund
+ * resolves each vault at its own epochs, so a sibling with different keys would
+ * lose its in-app refund. Compares resolved keys, because `vpKeyEpoch` is
+ * registry-wide and moves when any provider rotates. Sibling homogeneity already
+ * guarantees the same provider, application and rosters. The depositor key is
+ * stored per vault, so it is compared too.
+ */
+async function assertSiblingsShareKeys(params: {
+  vaultId: Hex;
+  siblingMembers: readonly LifecycleBatchMember[];
+  depositorBtcPubkey: string;
+  epochs: KeyEpochs;
+  participantKeys: ResolvedParticipantKeys;
+  resolveKeysAtEpochs: (epochs: KeyEpochs) => Promise<ResolvedParticipantKeys>;
+}): Promise<void> {
+  const { vaultId, siblingMembers, epochs, participantKeys } = params;
+  const { resolveKeysAtEpochs } = params;
+  const keySetFingerprint = (keys: ResolvedParticipantKeys) =>
+    JSON.stringify([
+      keys.vaultProvider.operationBtcPubkey,
+      keys.vaultKeeperOperationKeysSorted,
+      keys.universalChallengerOperationKeysSorted,
+    ]);
+
+  if (siblingMembers.length === 0) return;
+  for (const { vaultId: siblingId, vault } of siblingMembers) {
+    if (
+      canonicalizeBtcPubkey(vault.depositorBtcPubKey) !==
+      params.depositorBtcPubkey
+    ) {
+      throw new SiblingKeysMismatchError({ vaultId, siblingId });
+    }
+  }
+  const siblingVaultIds = siblingMembers.map((member) => member.vaultId);
+  const epochsPerSibling =
+    await getVaultRegistryReader().getVaultKeyEpochsBatch(siblingVaultIds);
+
+  await Promise.all(
+    siblingVaultIds.map(async (siblingId, i) => {
+      const siblingEpochs = epochsPerSibling[i];
+      if (
+        siblingEpochs.vpKeyEpoch === epochs.vpKeyEpoch &&
+        siblingEpochs.appKeeperKeyEpoch === epochs.appKeeperKeyEpoch &&
+        siblingEpochs.ucKeyEpoch === epochs.ucKeyEpoch
+      ) {
+        return;
+      }
+      const siblingKeys = await resolveKeysAtEpochs(siblingEpochs);
+      if (
+        keySetFingerprint(siblingKeys) !== keySetFingerprint(participantKeys)
+      ) {
+        throw new SiblingKeysMismatchError({ vaultId, siblingId });
+      }
+    }),
+  );
 }
 
 /**
@@ -408,9 +541,10 @@ export async function assertPresignTargetSignable(
   await assertAckWindowOpen(vaultId, target);
 }
 
-export async function rebuildDepositTerms(
-  params: RebuildDepositTermsParams,
-): Promise<DepositTerms> {
+/** Refuse an unbuildable version or a wallet that is not the depositor's. */
+async function assertCanRebuildForWallet(
+  params: VerifyResumeHtlcOutputsParams,
+): Promise<string> {
   const { target } = params;
 
   // Fail closed before any wallet popup if this build's WASM cannot construct
@@ -430,23 +564,19 @@ export async function rebuildDepositTerms(
       connectedBtcPubkey,
     });
   }
+  return connectedBtcPubkey;
+}
 
-  const { siblings, target: targetRecord } = await discoverSiblings(
-    params.lifecycle,
-    params.vaultId,
-    params.connectedDepositorAddress,
-    target,
-    params.signal,
-  );
-  // Runs after the status gate, so the refusal reports the still-PENDING
-  // status — the same order as submitACK's two preconditions.
-  if (params.lifecycle === "presign") {
-    await assertAckWindowOpen(params.vaultId, target);
-  }
-  const { offchainParams, timelockPegin, participantKeys } =
-    await readStampedVaultContext(params.vaultId, target);
-
-  return rebuildDepositTermsCore({
+/** The core's output-check input, from the vault's stamps and frozen keys. */
+function toFundedHtlcOutputsInput(
+  params: VerifyResumeHtlcOutputsParams,
+  siblings: readonly OrderedSibling[],
+  connectedBtcPubkey: string,
+  context: Awaited<ReturnType<typeof readStampedVaultContext>>,
+): FundedHtlcOutputsInput {
+  const { target } = params;
+  const { offchainParams, participantKeys } = context;
+  return {
     vaultCoreVersion: target.vaultCoreVersion,
     siblings: siblings.map((s) => ({ hashlock: s.hashlock, amount: s.amount })),
     fundedPrePeginTxHex: params.fundedPrePeginTxHex,
@@ -459,14 +589,89 @@ export async function rebuildDepositTerms(
     minPeginFeeRate: offchainParams.minPeginFeeRate,
     councilQuorum: offchainParams.councilQuorum,
     councilSize: offchainParams.securityCouncilKeys.length,
-    timelockPegin,
-    timelockAssert: Number(offchainParams.timelockAssert),
     timelockRefund: offchainParams.tRefund,
     prepeginTxid: stripHexPrefix(target.prePeginTxHash).toLowerCase(),
+    network: getBTCNetworkForWASM(),
+  };
+}
+
+/**
+ * Before a resumed broadcast by a wallet with nothing to approve, prove the
+ * transaction's HTLC outputs use the vault's registered keys and parameters. A
+ * mismatch would lock BTC the in-app refund cannot spend. Reads no fee and no
+ * commission ceiling: neither reaches an HTLC output, and this wallet gets no
+ * terms, so neither may refuse its deposit.
+ */
+export async function verifyResumeHtlcOutputs(
+  params: VerifyResumeHtlcOutputsParams,
+): Promise<void> {
+  const { vaultId, target } = params;
+  const connectedBtcPubkey = await assertCanRebuildForWallet(params);
+  const members = await discoverSiblingMembers(
+    "broadcast",
+    vaultId,
+    params.connectedDepositorAddress,
+    target,
+  );
+  const siblingVaults = members.map(({ vault }) => vault);
+  assertSiblingStampsHomogeneous(target, siblingVaults);
+  const siblings = orderSiblings([target, ...siblingVaults]);
+  const context = await readStampedVaultContext(vaultId, target);
+  await assertSiblingsShareKeys({
+    vaultId,
+    siblingMembers: members,
+    depositorBtcPubkey: connectedBtcPubkey,
+    epochs: context.epochs,
+    participantKeys: context.participantKeys,
+    resolveKeysAtEpochs: context.resolveKeysAtEpochs,
+  });
+  await assertFundedHtlcOutputsMatch(
+    toFundedHtlcOutputsInput(params, siblings, connectedBtcPubkey, context),
+  );
+}
+
+export async function rebuildDepositTerms(
+  params: RebuildDepositTermsParams,
+): Promise<DepositTerms> {
+  const { target } = params;
+  const connectedBtcPubkey = await assertCanRebuildForWallet(params);
+
+  const {
+    siblings,
+    target: targetRecord,
+    siblingMembers,
+  } = await discoverSiblings(
+    params.lifecycle,
+    params.vaultId,
+    params.connectedDepositorAddress,
+    target,
+    params.signal,
+  );
+  // Runs after the status gate, so the refusal reports the still-PENDING
+  // status — the same order as submitACK's two preconditions.
+  if (params.lifecycle === "presign") {
+    await assertAckWindowOpen(params.vaultId, target);
+  }
+  const context = await readStampedVaultContext(params.vaultId, target);
+
+  if (params.lifecycle === "broadcast") {
+    await assertSiblingsShareKeys({
+      vaultId: params.vaultId,
+      siblingMembers,
+      depositorBtcPubkey: connectedBtcPubkey,
+      epochs: context.epochs,
+      participantKeys: context.participantKeys,
+      resolveKeysAtEpochs: context.resolveKeysAtEpochs,
+    });
+  }
+
+  return rebuildDepositTermsCore({
+    ...toFundedHtlcOutputsInput(params, siblings, connectedBtcPubkey, context),
+    timelockPegin: context.timelockPegin,
+    timelockAssert: Number(context.offchainParams.timelockAssert),
     prepeginMaxFee: params.fundedTxFee,
     // The submitted ceiling, verbatim: the device must see the terms the
     // depositor originally approved, so nothing here caps or rewrites it.
     maxAcceptableCommissionBps: targetRecord.maxAcceptableCommissionBps,
-    network: getBTCNetworkForWASM(),
   });
 }

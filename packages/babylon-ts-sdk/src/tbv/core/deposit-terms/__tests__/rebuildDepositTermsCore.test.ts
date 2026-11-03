@@ -20,7 +20,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 import { calculateBtcTxHash } from "../../utils/transaction/btcTxHash";
+import { UnanchoredPrePeginError } from "../../recovery/recoveryErrors";
 import {
+  assertFundedHtlcOutputsMatch,
+  isHtlcOutputMismatchError,
   rebuildDepositTermsCore,
   type RebuildDepositTermsCoreInput,
 } from "../rebuildDepositTermsCore";
@@ -121,6 +124,18 @@ describe("rebuildDepositTermsCore guards", () => {
     await expect(
       rebuildDepositTermsCore(makeInput({ fundedPrePeginTxHex })),
     ).rejects.toThrow(/no single, unambiguous auth-anchor/);
+  });
+
+  it("throws a typed error when the auth anchor is absent", async () => {
+    const hex = makeFundedTx({ htlcCount: 1 });
+    await expect(
+      assertFundedHtlcOutputsMatch(
+        makeInput({
+          fundedPrePeginTxHex: hex,
+          prepeginTxid: stripHexPrefix(calculateBtcTxHash(hex)).toLowerCase(),
+        }),
+      ),
+    ).rejects.toBeInstanceOf(UnanchoredPrePeginError);
   });
 
   it("throws when the OP_RETURN vout disagrees with the sibling count", async () => {
@@ -278,5 +293,52 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     await expect(
       rebuildDepositTermsCore(baseInput(siblings, tamperedHex)),
     ).rejects.toThrow(/scriptPubKey .* does not match/);
+  });
+
+  it("rejects a funded tx built with a key the vault's epochs no longer resolve to", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 400_000n },
+    ];
+    const { txHex } = await buildRealFundedTx(1, siblings);
+
+    const error = await rebuildDepositTermsCore({
+      ...baseInput(siblings, txHex),
+      vaultProviderBtcPubkey: UCS[0],
+    }).catch((err: unknown) => err);
+
+    expect(isHtlcOutputMismatchError(error)).toBe(true);
+  });
+
+  it("assertFundedHtlcOutputsMatch accepts a transaction whose outputs match the keys", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 400_000n },
+      { hashlock: "cd".repeat(32), amount: 600_000n },
+    ];
+    const { txHex } = await buildRealFundedTx(1, siblings);
+
+    await expect(
+      assertFundedHtlcOutputsMatch(baseInput(siblings, txHex)),
+    ).resolves.toEqual({
+      depositorClaimValue: expect.any(BigInt),
+      peginMaxFee: expect.any(BigInt),
+    });
+  });
+
+  it("assertFundedHtlcOutputsMatch rejects a transaction built with a rotated key", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 400_000n },
+    ];
+    const { txHex } = await buildRealFundedTx(1, siblings);
+
+    const error = await assertFundedHtlcOutputsMatch({
+      ...baseInput(siblings, txHex),
+      vaultProviderBtcPubkey: UCS[0],
+    }).catch((err: unknown) => err);
+
+    expect(isHtlcOutputMismatchError(error)).toBe(true);
+  });
+
+  it("does not report another failure as an HTLC output mismatch", () => {
+    expect(isHtlcOutputMismatchError(new Error("network down"))).toBe(false);
   });
 });

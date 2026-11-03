@@ -80,6 +80,7 @@ import {
   isApplicationEntryPointMismatchError,
   isDepositNotAllowedError,
   isDepositTermsRejectedError,
+  isHtlcOutputMismatchError,
   isParticipantKeyDriftError,
   isPeginFingerprintChangedError,
   isPeginFingerprintInputError,
@@ -87,6 +88,7 @@ import {
   isPeginRegistrationNotFinalError,
   isRegisteredVaultVersionMismatchError,
   isUnsupportedPayoutScriptError,
+  UnanchoredPrePeginError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -129,6 +131,7 @@ import {
   isPositionCapacityExceededError,
   isPositionCapacityUnavailableError,
 } from "./positionCapacityError";
+import { SiblingKeysMismatchError } from "./siblingKeysMismatchError";
 import { isStaleProtocolAddressesError } from "./staleProtocolAddresses";
 import {
   isTypedUserRejectionFrame,
@@ -221,6 +224,37 @@ export function mapDepositErrorAfterRegistration(
   return resumeCopy
     ? { title: resumeCopy.title, body: resumeCopy.message }
     : content;
+}
+
+/**
+ * Error content for a resumed Pre-Pegin broadcast. A key or output mismatch is
+ * mapped here and not in `mapDepositError`: only this path can say nothing was
+ * broadcast.
+ */
+export function mapResumeBroadcastError(err: unknown): DepositErrorContent {
+  if (
+    isHtlcOutputMismatchError(err) ||
+    err instanceof SiblingKeysMismatchError
+  ) {
+    return ERRORS.resumeScriptMismatch;
+  }
+  if (err instanceof UnanchoredPrePeginError) {
+    return ERRORS.resumeMissingAnchor;
+  }
+  return mapDepositErrorAfterRegistration(err);
+}
+
+/** Whether a resumed broadcast's error is one a retry can only repeat. */
+export function isTerminalResumeBroadcastError(
+  content: DepositErrorContent,
+): boolean {
+  return (
+    content === ERRORS.resumeScriptMismatch ||
+    content === ERRORS.resumeMissingAnchor ||
+    content === ERRORS.participantKeyDrift ||
+    content === ERRORS.unsupportedPayoutScript ||
+    content === ERRORS.batchNoLongerPending
+  );
 }
 
 /**

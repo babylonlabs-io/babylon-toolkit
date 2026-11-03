@@ -1,4 +1,5 @@
 import {
+  assertFundedHtlcOutputsMatch,
   rebuildDepositTermsCore,
   resolveParticipantKeysAtEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -10,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
+  SiblingKeysMismatchError,
   VaultLifecycleStateError,
 } from "@/utils/errors";
 
@@ -32,6 +34,7 @@ import {
   assertPresignTargetSignable,
   assertSiblingBatchHomogeneous,
   rebuildDepositTerms,
+  verifyResumeHtlcOutputs,
   type RebuildVaultRecord,
 } from "../rebuildDepositTerms";
 import { resolveVaultProviderBtcPubkey } from "../vaultPayoutSignatureService";
@@ -42,6 +45,7 @@ import { resolveVaultProviderBtcPubkey } from "../vaultPayoutSignatureService";
 // the mapping IS the behavior under test. The pure-assert describes need none.
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
+  assertFundedHtlcOutputsMatch: vi.fn(),
   rebuildDepositTermsCore: vi.fn(),
   resolveParticipantKeysAtEpochs: vi.fn(),
 }));
@@ -378,6 +382,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       getProtocolInfoBatch: vi
         .fn()
         .mockResolvedValue([{ prePeginTxHash: PRE_PEGIN_TX_HASH }]),
+      getVaultKeyEpochsBatch: vi.fn().mockResolvedValue([{}]),
     } as never);
     mockGetTBVProtocolParams.mockResolvedValue({
       pegInAckTimeout: PEGIN_ACK_TIMEOUT_BLOCKS,
@@ -594,6 +599,260 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       /disagree on offchainParamsVersion/,
     );
     expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+  });
+
+  describe("verifyResumeHtlcOutputs", () => {
+    function verifyParams() {
+      return {
+        vaultId: TARGET_ID,
+        target: targetVault,
+        fundedPrePeginTxHex: "deadbeef",
+        connectedDepositorAddress: DEPOSITOR_ETH.toLowerCase() as `0x${string}`,
+        depositorBtcPubkey: DEPOSITOR_BTC,
+      };
+    }
+
+    it("checks every output against the frozen keys and stamped parameters", async () => {
+      await verifyResumeHtlcOutputs(verifyParams());
+
+      expect(assertFundedHtlcOutputsMatch).toHaveBeenCalledWith({
+        vaultCoreVersion: 2,
+        siblings: [
+          { hashlock: targetVault.hashlock, amount: 90_000n },
+          { hashlock: siblingVault.hashlock, amount: 120_000n },
+        ],
+        fundedPrePeginTxHex: "deadbeef",
+        depositorBtcPubkey: DEPOSITOR_BTC.toLowerCase(),
+        vaultProviderBtcPubkey: "dd".repeat(32),
+        vaultKeeperBtcPubkeys: ["ee".repeat(32)],
+        universalChallengerBtcPubkeys: ["ff".repeat(32)],
+        protocolFeeRate: 3n,
+        minPeginFeeRate: 7n,
+        councilQuorum: 2,
+        councilSize: 3,
+        timelockRefund: 144,
+        prepeginTxid: "12".repeat(32),
+        network: "signet",
+      });
+      expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+    });
+
+    it("does not read the commission ceiling, so a lagging log read cannot refuse", async () => {
+      vi.mocked(
+        getMaxAcceptableCommissionBpsFromChainWithGrace,
+      ).mockRejectedValue(new Error("no registration logs"));
+
+      await expect(
+        verifyResumeHtlcOutputs(verifyParams()),
+      ).resolves.toBeUndefined();
+
+      expect(
+        getMaxAcceptableCommissionBpsFromChainWithGrace,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("refuses when a sibling carries a different stamped version", async () => {
+      vi.mocked(getVaultFromChain).mockImplementation(async (id: Hex) => {
+        if (id === TARGET_ID) return targetVault;
+        return { ...siblingVault, offchainParamsVersion: 9 };
+      });
+
+      await expect(verifyResumeHtlcOutputs(verifyParams())).rejects.toThrow(
+        /disagree on offchainParamsVersion/,
+      );
+      expect(assertFundedHtlcOutputsMatch).not.toHaveBeenCalled();
+    });
+
+    it("refuses when a discovered sibling is no longer PENDING", async () => {
+      vi.mocked(getVaultFromChain).mockImplementation(async (id: Hex) => {
+        if (id === TARGET_ID) return targetVault;
+        return { ...siblingVault, status: OnChainBtcVaultStatus.EXPIRED };
+      });
+
+      await expect(
+        verifyResumeHtlcOutputs(verifyParams()),
+      ).rejects.toBeInstanceOf(VaultLifecycleStateError);
+    });
+
+    it("refuses when a sibling names a different depositor Bitcoin key", async () => {
+      vi.mocked(getVaultFromChain).mockImplementation(async (id: Hex) => {
+        if (id === TARGET_ID) return targetVault;
+        return {
+          ...siblingVault,
+          depositorBtcPubKey:
+            "0xc6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+        };
+      });
+
+      await expect(
+        verifyResumeHtlcOutputs(verifyParams()),
+      ).rejects.toBeInstanceOf(SiblingKeysMismatchError);
+      expect(assertFundedHtlcOutputsMatch).not.toHaveBeenCalled();
+    });
+
+    it("refuses a Bitcoin wallet that is not the vault's depositor", async () => {
+      await expect(
+        verifyResumeHtlcOutputs({
+          ...verifyParams(),
+          depositorBtcPubkey: "cc".repeat(32),
+        }),
+      ).rejects.toBeInstanceOf(DepositorBtcKeyMismatchError);
+    });
+
+    it("refuses an Ethereum wallet that is not the vault's depositor", async () => {
+      await expect(
+        verifyResumeHtlcOutputs({
+          ...verifyParams(),
+          connectedDepositorAddress: "0xother",
+        }),
+      ).rejects.toBeInstanceOf(DepositorWalletMismatchError);
+    });
+
+    it("refuses when a sibling's epochs resolve to different keys", async () => {
+      const batch = vi.fn().mockResolvedValue([{ vpKeyEpoch: 2n }]);
+      vi.mocked(getVaultRegistryReader).mockReturnValue({
+        getProtocolInfoBatch: vi
+          .fn()
+          .mockResolvedValue([{ prePeginTxHash: PRE_PEGIN_TX_HASH }]),
+        getVaultKeyEpochsBatch: batch,
+      } as never);
+      vi.mocked(resolveParticipantKeysAtEpochs).mockImplementation(
+        async ({ epochs }) =>
+          ({
+            vaultProvider: {
+              operationBtcPubkey:
+                epochs.vpKeyEpoch === 2n ? "11".repeat(32) : "dd".repeat(32),
+            },
+            vaultKeeperOperationKeysSorted: ["ee".repeat(32)],
+            universalChallengerOperationKeysSorted: ["ff".repeat(32)],
+          }) as never,
+      );
+
+      await expect(
+        verifyResumeHtlcOutputs(verifyParams()),
+      ).rejects.toBeInstanceOf(SiblingKeysMismatchError);
+      expect(assertFundedHtlcOutputsMatch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("sibling frozen keys", () => {
+    const TARGET_EPOCHS = {
+      vpKeyEpoch: 1n,
+      appKeeperKeyEpoch: 1n,
+      ucKeyEpoch: 1n,
+    };
+    const SIBLING_EPOCHS = { ...TARGET_EPOCHS, vpKeyEpoch: 2n };
+    const KEYS = {
+      vaultProvider: { operationBtcPubkey: "dd".repeat(32) },
+      vaultKeeperOperationKeysSorted: ["ee".repeat(32)],
+      universalChallengerOperationKeysSorted: ["ff".repeat(32)],
+    };
+
+    const mockGetVaultKeyEpochsBatch = vi.fn();
+
+    beforeEach(() => {
+      vi.mocked(getVaultKeyEpochsFromChain).mockResolvedValue(TARGET_EPOCHS);
+      mockGetVaultKeyEpochsBatch.mockReset();
+      mockGetVaultKeyEpochsBatch.mockResolvedValue([SIBLING_EPOCHS]);
+      vi.mocked(getVaultRegistryReader).mockReturnValue({
+        getProtocolInfoBatch: vi
+          .fn()
+          .mockResolvedValue([{ prePeginTxHash: PRE_PEGIN_TX_HASH }]),
+        getVaultKeyEpochsBatch: mockGetVaultKeyEpochsBatch,
+      } as never);
+    });
+
+    it("refuses a broadcast when a sibling names a different depositor Bitcoin key", async () => {
+      vi.mocked(getVaultFromChain).mockImplementation(async (id: Hex) => {
+        if (id === TARGET_ID) return targetVault;
+        return {
+          ...siblingVault,
+          // secp256k1 2G.x, a valid key that is not the depositor's.
+          depositorBtcPubKey:
+            "0xc6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+        };
+      });
+
+      await expect(rebuildDepositTerms(baseParams())).rejects.toBeInstanceOf(
+        SiblingKeysMismatchError,
+      );
+      expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+    });
+
+    it("does not compare a sibling's depositor key when presigning after the broadcast", async () => {
+      vi.mocked(getVaultFromChain).mockImplementation(async (id: Hex) => {
+        if (id === TARGET_ID) return targetVault;
+        return {
+          ...siblingVault,
+          depositorBtcPubKey:
+            "0xc6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+        };
+      });
+
+      await rebuildDepositTerms({ ...baseParams(), lifecycle: "presign" });
+
+      expect(rebuildDepositTermsCore).toHaveBeenCalledTimes(1);
+    });
+
+    it("reads every sibling's epochs in one batch", async () => {
+      await rebuildDepositTerms(baseParams());
+
+      expect(mockGetVaultKeyEpochsBatch).toHaveBeenCalledTimes(1);
+      expect(mockGetVaultKeyEpochsBatch).toHaveBeenCalledWith([SIBLING_ID]);
+    });
+
+    it("reads no sibling epochs for a single-vault deposit", async () => {
+      vi.mocked(getDepositorVaultIdsFromChain).mockResolvedValue([TARGET_ID]);
+
+      await rebuildDepositTerms(baseParams());
+
+      expect(mockGetVaultKeyEpochsBatch).not.toHaveBeenCalled();
+    });
+
+    it("refuses a broadcast when a sibling's epochs resolve to different keys", async () => {
+      vi.mocked(resolveParticipantKeysAtEpochs).mockImplementation(
+        async ({ epochs }) =>
+          (epochs.vpKeyEpoch === SIBLING_EPOCHS.vpKeyEpoch
+            ? {
+                ...KEYS,
+                vaultProvider: { operationBtcPubkey: "11".repeat(32) },
+              }
+            : KEYS) as never,
+      );
+
+      await expect(rebuildDepositTerms(baseParams())).rejects.toBeInstanceOf(
+        SiblingKeysMismatchError,
+      );
+      expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+    });
+
+    // The provider epoch is a registry-wide counter, so another provider's
+    // rotation moves it without changing this vault's keys.
+    it("accepts a sibling whose different epochs resolve to the same keys", async () => {
+      vi.mocked(resolveParticipantKeysAtEpochs).mockResolvedValue(
+        KEYS as never,
+      );
+
+      await expect(rebuildDepositTerms(baseParams())).resolves.toEqual({
+        prepeginTxid: "sentinel",
+      });
+      expect(resolveParticipantKeysAtEpochs).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not resolve keys again for a sibling with the target's epochs", async () => {
+      mockGetVaultKeyEpochsBatch.mockResolvedValue([TARGET_EPOCHS]);
+
+      await rebuildDepositTerms(baseParams());
+
+      expect(resolveParticipantKeysAtEpochs).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not compare sibling keys when presigning after the broadcast", async () => {
+      await rebuildDepositTerms({ ...baseParams(), lifecycle: "presign" });
+
+      expect(mockGetVaultKeyEpochsBatch).not.toHaveBeenCalled();
+      expect(rebuildDepositTermsCore).toHaveBeenCalledTimes(1);
+    });
   });
 
   // Threads lifecycle through discovery: broadcast mode would refuse this

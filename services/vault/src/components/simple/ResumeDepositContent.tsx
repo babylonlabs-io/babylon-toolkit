@@ -68,7 +68,10 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
-import { mapDepositErrorAfterRegistration } from "@/utils/errors";
+import {
+  isTerminalResumeBroadcastError,
+  mapDepositErrorAfterRegistration,
+} from "@/utils/errors";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -342,7 +345,12 @@ function ResumeBroadcastContentConnected({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
-      onRetry={error ? handleBroadcast : undefined}
+      // A terminal refusal cannot succeed on Retry.
+      onRetry={
+        error && !isTerminalResumeBroadcastError(error)
+          ? handleBroadcast
+          : undefined
+      }
     />
   );
 }

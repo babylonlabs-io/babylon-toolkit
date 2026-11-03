@@ -11,6 +11,7 @@ import {
   handleContractError,
   PeginRegistrationMissingError,
   PeginRegistrationNotFinalError,
+  UnanchoredPrePeginError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JsonRpcError,
@@ -28,8 +29,10 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   isDeviceDisconnectedContent,
   isResumableDepositError,
+  isTerminalResumeBroadcastError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
+  mapResumeBroadcastError,
   postRegistrationWalletErrorMessage,
 } from "../depositErrors";
 import {
@@ -40,6 +43,7 @@ import {
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
 } from "../positionCapacityError";
+import { SiblingKeysMismatchError } from "../siblingKeysMismatchError";
 import { SendOutcomeUnknownError } from "../transactionOutcome";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
@@ -906,6 +910,65 @@ describe("mapDepositError", () => {
       "Failed to sign Pre-Pegin transaction: nope",
     );
     expect(mapDepositError(withoutCause)).toEqual(ERRORS.signingFailed);
+  });
+});
+
+describe("mapResumeBroadcastError", () => {
+  it("says the Pre-Pegin was not broadcast when its outputs do not match the registered keys", () => {
+    const mismatch = new Error("HTLC output scriptPubKey does not match");
+    mismatch.name = "HtlcOutputMismatchError";
+
+    expect(mapResumeBroadcastError(mismatch)).toEqual(
+      COPY.deposit.errors.resumeScriptMismatch,
+    );
+  });
+
+  it("says the Pre-Pegin was not broadcast when a sibling's keys differ", () => {
+    const mismatch = new SiblingKeysMismatchError({
+      vaultId: "0xtarget",
+      siblingId: "0xsibling",
+    });
+
+    expect(mapResumeBroadcastError(mismatch)).toEqual(
+      COPY.deposit.errors.resumeScriptMismatch,
+    );
+  });
+
+  it("says the Pre-Pegin was not broadcast when its auth anchor is missing", () => {
+    expect(
+      mapResumeBroadcastError(new UnanchoredPrePeginError("no anchor")),
+    ).toEqual(COPY.deposit.errors.resumeMissingAnchor);
+  });
+
+  it("treats permanent refusals as terminal and others as retryable", () => {
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.resumeScriptMismatch),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.resumeMissingAnchor),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.participantKeyDrift),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(
+        COPY.deposit.errors.unsupportedPayoutScript,
+      ),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.batchNoLongerPending),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.preparationFailed),
+    ).toBe(false);
+  });
+
+  it("maps any other failure as a post-registration error", () => {
+    const err = new Error("network down");
+
+    expect(mapResumeBroadcastError(err)).toEqual(
+      mapDepositErrorAfterRegistration(err),
+    );
   });
 });
 

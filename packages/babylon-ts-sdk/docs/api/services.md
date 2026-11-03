@@ -860,10 +860,9 @@ Key drift breaks exactly that assumption. The registered hash commits to a
 transaction whose scripts embed the *pre-rotation* keys, while the vault
 froze the *post-rotation* epoch — so every counterparty resolves a different
 funding output and the deposit can never activate. Dropping the record would
-discard `buildParticipantOperationKeys`, the only thing that lets the resume
-path re-detect the drift; the next attempt would fall back to the indexer's
-copy, pass the hash check, and broadcast the very transaction this refused,
-locking BTC until the refund timelock.
+discard `buildParticipantOperationKeys`, which gives the resume path this
+specific refusal; the next attempt would fall back to the indexer's copy and
+pass the hash check, leaving only the app's resume output check to stop it.
 
 So: callers must keep the pending record when they catch this.
 

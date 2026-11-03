@@ -65,7 +65,7 @@ import {
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
-  mapDepositErrorAfterRegistration,
+  mapResumeBroadcastError,
   SendOutcomeUnknownError,
   type DepositErrorContent,
 } from "@/utils/errors";
@@ -94,7 +94,10 @@ import type { ActivationRedeemReason } from "../../services/vault/activationRede
 import { activationRedeemReasonFromReveal } from "../../services/vault/activationRedeemReasonFromReveal";
 import { appendActivationRevertNotice } from "../../services/vault/activationRevertNotice";
 import { assertResumePositionCapacity } from "../../services/vault/positionCapacity";
-import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
+import {
+  rebuildDepositTerms,
+  verifyResumeHtlcOutputs,
+} from "../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
   activateVaultWithSecret,
@@ -588,12 +591,10 @@ export function useVaultActions(): UseVaultActionsReturn {
       // before this shipped carry no stamp and skip the check.
       //
       // Deliberately NOT wrapped in the cleanup above: dropping the record on
-      // drift would discard the stamp, and the next attempt would find no
-      // local copy, fall back to the indexer's transaction, pass the
-      // `prePeginTxHash` check — it is the registered transaction — and
-      // broadcast the very Pre-PegIn this just refused. The hash proves the
-      // transaction was not substituted; it does not prove the vault's frozen
-      // epochs still resolve to the keys inside its scripts.
+      // drift would discard the stamp and this more specific refusal, leaving
+      // only the output check below. The hash proves the transaction was not
+      // substituted; it does not prove the vault's frozen epochs still resolve
+      // to the keys inside its scripts.
       if (pendingPegin?.buildParticipantOperationKeys) {
         await verifyResumeParticipantKeys({
           vaultId,
@@ -601,6 +602,10 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
+      // Both branches bind the transaction's HTLC outputs to the vault's frozen
+      // keys and stamped parameters, with or without a local record. A mismatch
+      // would lock BTC the in-app refund cannot spend. Do NOT drop the pending
+      // record on this refusal.
       let expectedUtxos;
       let depositTerms: DepositTerms | undefined;
       // Approval wallets need fresh terms and prevouts for the device fee check.
@@ -619,6 +624,13 @@ export function useVaultActions(): UseVaultActionsReturn {
           signal,
         });
       } else {
+        await verifyResumeHtlcOutputs({
+          vaultId,
+          target: onChainVault,
+          fundedPrePeginTxHex: unsignedTxHex,
+          connectedDepositorAddress: depositorEthAddress as Hex,
+          depositorBtcPubkey,
+        });
         // Local UTXOs apply only to the local transaction. Otherwise, the service
         // resolves every input from the mempool.
         expectedUtxos =
@@ -669,7 +681,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         // instead of the Ethereum-confirmation one.
         // Every resume is post-registration, so a spent input gets the
         // terminal callout here too, not the SDK's new-deposit wording.
-        setBroadcastError(mapDepositErrorAfterRegistration(err));
+        setBroadcastError(mapResumeBroadcastError(err));
         // Mapping replaces the raw message with friendly copy, and only the
         // fallback branch carries `diagnostics`. Log the original so a mapped
         // failure is still diagnosable — `useBroadcastState`'s catch cannot do
