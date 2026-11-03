@@ -36,6 +36,7 @@ import { VaultsSummaryCard } from "@/components/vaults/VaultsSummaryCard";
 import { FeatureFlags } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
+import { useDepositStepInterrupted } from "@/hooks/useDepositStepInterrupted";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
@@ -51,6 +52,8 @@ export default function VaultsPage() {
   const { address } = useETHWallet();
   const gate = useProtocolGateState();
   const queryClient = useQueryClient();
+  const { isInterrupted, onDepositViewChange } =
+    useDepositStepInterrupted(isConnected);
   // The page's single usePendingDeposits instance — shared by the emptiness
   // hook and the lifecycle sections so the recovery modal state is
   // instantiated once.
@@ -188,6 +191,7 @@ export default function VaultsPage() {
         deposits={deposits}
         returnedRedeemedActivities={returnedRedeemedActivities}
         onDownloadArtifacts={setArtifactParams}
+        onDepositViewChange={onDepositViewChange}
       >
         <VaultsActiveSection
           vaults={displayVaults}
@@ -234,6 +238,15 @@ export default function VaultsPage() {
   return (
     <Container as="main" className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="flex flex-col gap-8">
+        {isInterrupted && (
+          <Notification
+            variant="warning"
+            title={COPY.vaults.depositStepInterrupted.title}
+            data-testid="deposit-step-interrupted"
+          >
+            <p>{COPY.vaults.depositStepInterrupted.body}</p>
+          </Notification>
+        )}
         {/* A data source failed, or the browser's own deposit records could
             not be read — the page prefers showing what it has, but the gap
             must never be silent: a failed position read would otherwise
