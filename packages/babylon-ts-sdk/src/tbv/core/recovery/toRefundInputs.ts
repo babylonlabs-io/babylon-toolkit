@@ -21,13 +21,40 @@
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { Address, Hex } from "viem";
 
-import { ensureHexPrefix } from "../primitives/utils/bitcoin";
+import { ensureHexPrefix, stripHexPrefix } from "../primitives/utils/bitcoin";
 import type {
   RefundPrePeginContext,
   VaultRefundData,
 } from "../services/refund/buildAndBroadcastRefund";
 
 import type { ReconstructPeginParamsResult } from "./reconstructPeginParams";
+
+/** Hex length of a 65-byte SEC1 key: prefix, X and Y. */
+const UNCOMPRESSED_PUBKEY_HEX_LEN = 130;
+/** SEC1 uncompressed form: `04`, 32-byte X, 32-byte Y. */
+const UNCOMPRESSED_PUBKEY_RE = /^04([0-9a-fA-F]{64})[0-9a-fA-F]{63}([0-9a-fA-F])$/;
+
+/**
+ * The refund accepts 32 or 33 bytes and hands the key to the wallet, so the
+ * `0x` prefix goes and a 65-byte key becomes the compressed form: `02`/`03` by
+ * Y parity (SEC1 2.3.3).
+ */
+function toRefundPubkey(depositorBtcPubkey: string): string {
+  const cleanHex = stripHexPrefix(depositorBtcPubkey);
+  if (cleanHex.length !== UNCOMPRESSED_PUBKEY_HEX_LEN) {
+    return cleanHex;
+  }
+  const match = UNCOMPRESSED_PUBKEY_RE.exec(cleanHex);
+  if (match === null) {
+    throw new Error(
+      "toRefundInputs: depositorBtcPubkey has 65 bytes but is not an " +
+        "uncompressed public key (expected 04, then X and Y in hex).",
+    );
+  }
+  const [, x, lastYDigit] = match;
+  const isYOdd = parseInt(lastYDigit, 16) % 2 === 1;
+  return `${isYOdd ? "03" : "02"}${x}`;
+}
 
 export interface ToRefundInputsOptions {
   /**
@@ -39,7 +66,9 @@ export interface ToRefundInputsOptions {
   /**
    * Depositor BTC pubkey, the same value the reconstruction was run with.
    * Passed through rather than re-derived so the refund is built against the
-   * key that was actually verified.
+   * key that was actually verified. Its `0x` prefix is removed and a 65-byte
+   * uncompressed key is converted to its compressed form, the only changes
+   * made to it.
    *
    * Deliberately NOT narrowed to x-only here. `VaultRefundData.depositorBtcPubkey`
    * accepts "32 or 33 bytes of hex", and `buildAndBroadcastRefund` narrows it
@@ -81,8 +110,9 @@ export interface RefundInputsFromRecovery {
  * projection and not a second validation pass. The orchestrator re-checks the
  * parts it owns regardless.
  *
- * @throws If `htlcVout` does not index the reconstructed batch, or the
- *   hashlock vector disagrees with the reconstructed amounts.
+ * @throws If `htlcVout` does not index the reconstructed batch, the hashlock
+ *   vector disagrees with the reconstructed amounts, or a 65-byte
+ *   `depositorBtcPubkey` is not a valid uncompressed key encoding.
  */
 export function toRefundInputs(
   result: ReconstructPeginParamsResult,
@@ -137,7 +167,7 @@ export function toRefundInputs(
     applicationEntryPoint,
     amount: peginAmounts[htlcVout],
     unsignedPrePeginTxHex: fundedPrePeginTxHex,
-    depositorBtcPubkey,
+    depositorBtcPubkey: toRefundPubkey(depositorBtcPubkey),
     batch,
   };
 

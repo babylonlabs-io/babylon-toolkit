@@ -19,15 +19,17 @@ import {
   peginP2aAnchorOutput,
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { networks, payments, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   TEST_KEYS,
   initializeWasmForTests,
 } from "../../primitives/psbt/__tests__/helpers";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
+import { buildAndBroadcastRefund } from "../../services/refund/buildAndBroadcastRefund";
 import {
   buildPeginParamsCandidates,
   type OffchainParamsCandidate,
@@ -138,11 +140,15 @@ async function buildFundedTx(siblings: Sibling[]): Promise<string> {
   return tx.toHex();
 }
 
-function recover(siblings: Sibling[], txHex: string) {
+function recover(
+  siblings: Sibling[],
+  txHex: string,
+  depositorBtcPubkey: string = DEPOSITOR,
+) {
   return reconstructPeginParams({
     hashlocks: siblings.map((s) => s.hashlock),
     fundedPrePeginTxHex: txHex,
-    depositorBtcPubkey: DEPOSITOR,
+    depositorBtcPubkey,
     prepeginMaxFee: PREPEGIN_MAX_FEE,
     maxAcceptableCommissionBps: COMMISSION_BPS,
     network: NETWORK,
@@ -364,6 +370,127 @@ describe("toRefundInputs", () => {
     });
 
     expect(vault.depositorBtcPubkey).toBe(compressed);
+  });
+
+  it("compresses an uncompressed pubkey with the parity of its Y coordinate", async () => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 1_000_000n },
+    ];
+    const txHex = await buildFundedTx(siblings);
+    const result = await recover(siblings, txHex);
+    const prefixes = new Set<string>();
+
+    for (let scalar = 1; scalar <= 16; scalar++) {
+      const privateKey = new Uint8Array(32);
+      privateKey[31] = scalar;
+      const uncompressed = Buffer.from(
+        ecc.pointFromScalar(privateKey, false)!,
+      ).toString("hex");
+      const compressed = Buffer.from(
+        ecc.pointFromScalar(privateKey, true)!,
+      ).toString("hex");
+      prefixes.add(compressed.slice(0, 2));
+
+      const { vault } = toRefundInputs(result, {
+        htlcVout: 0,
+        depositorBtcPubkey: uncompressed,
+        applicationEntryPoint: APP_ENTRY_POINT,
+        hashlocks: siblings.map((s) => s.hashlock),
+        network: NETWORK,
+      });
+
+      expect(vault.depositorBtcPubkey).toBe(compressed);
+    }
+    expect(prefixes).toEqual(new Set(["02", "03"]));
+  });
+
+  it.each([
+    ["a hybrid prefix", `06${"ab".repeat(64)}`],
+    ["a non-hex Y coordinate", `04${"ab".repeat(63)}zz`],
+  ])("refuses a 65-byte pubkey with %s", async (_label, depositorBtcPubkey) => {
+    const siblings: Sibling[] = [
+      { hashlock: "ab".repeat(32), amount: 1_000_000n },
+    ];
+    const txHex = await buildFundedTx(siblings);
+    const result = await recover(siblings, txHex);
+
+    expect(() =>
+      toRefundInputs(result, {
+        htlcVout: 0,
+        depositorBtcPubkey,
+        applicationEntryPoint: APP_ENTRY_POINT,
+        hashlocks: siblings.map((s) => s.hashlock),
+        network: NETWORK,
+      }),
+    ).toThrow(/uncompressed public key/);
+  });
+
+  describe("from recovery into refund signing", () => {
+    const COMPRESSED = `02${DEPOSITOR}`;
+    const UNCOMPRESSED = Buffer.from(
+      ecc.pointCompress(Buffer.from(COMPRESSED, "hex"), false),
+    ).toString("hex");
+
+    it.each([
+      ["x-only", DEPOSITOR, DEPOSITOR],
+      ["compressed", COMPRESSED, COMPRESSED],
+      ["uncompressed", UNCOMPRESSED, COMPRESSED],
+      ["0x-prefixed uncompressed", `0x${UNCOMPRESSED}`, COMPRESSED],
+      ["0x-prefixed x-only", `0x${DEPOSITOR}`, DEPOSITOR],
+      ["0x-prefixed compressed", `0x${COMPRESSED}`, COMPRESSED],
+      ["0X-prefixed x-only", `0X${DEPOSITOR}`, DEPOSITOR],
+      ["0X-prefixed compressed", `0X${COMPRESSED}`, COMPRESSED],
+    ])(
+      "reaches the wallet with the same PSBT for a %s key",
+      async (_label, depositorBtcPubkey, expectedSignerKey) => {
+        const siblings: Sibling[] = [
+          { hashlock: "ab".repeat(32), amount: 1_000_000n },
+        ];
+        const txHex = await buildFundedTx(siblings);
+        const result = await recover(siblings, txHex, depositorBtcPubkey);
+        const { vault, context } = toRefundInputs(result, {
+          htlcVout: 0,
+          depositorBtcPubkey,
+          applicationEntryPoint: APP_ENTRY_POINT,
+          hashlocks: siblings.map((s) => s.hashlock),
+          network: NETWORK,
+        });
+        const walletReached = new Error("wallet reached");
+        const signPsbt = vi.fn().mockRejectedValue(walletReached);
+        const broadcastTx = vi.fn();
+
+        await expect(
+          buildAndBroadcastRefund({
+            vaultId: `0x${"ee".repeat(32)}`,
+            readVault: async () => vault,
+            readPrePeginContext: async () => context,
+            feeRate: 1,
+            signPsbt,
+            broadcastTx,
+          }),
+        ).rejects.toBe(walletReached);
+
+        const [psbtHex, signOptions] = signPsbt.mock.calls[0];
+        const baseline = await buildAndBroadcastRefund({
+          vaultId: `0x${"ee".repeat(32)}`,
+          readVault: async () => ({
+            ...vault,
+            depositorBtcPubkey: DEPOSITOR,
+          }),
+          readPrePeginContext: async () => context,
+          feeRate: 1,
+          signPsbt: async (baselinePsbtHex) => {
+            expect(psbtHex).toBe(baselinePsbtHex);
+            throw walletReached;
+          },
+          broadcastTx,
+        }).catch((error: unknown) => error);
+
+        expect(baseline).toBe(walletReached);
+        expect(signOptions.signInputs[0].publicKey).toBe(expectedSignerKey);
+        expect(broadcastTx).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it("refuses an htlcVout outside the reconstructed batch", async () => {
