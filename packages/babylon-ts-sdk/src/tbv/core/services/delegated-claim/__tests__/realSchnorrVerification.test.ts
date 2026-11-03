@@ -14,6 +14,7 @@ import {
   DEPOSITOR_PUBKEY,
   DEPOSITOR_XONLY_PUBKEY,
   REGISTERED_PAYOUT_SCRIPT,
+  SERVED_GRAPH_JSON,
   SIGNER_ADDRESS,
   TIMELOCK_ASSERT,
   TIMELOCK_PEGIN,
@@ -30,6 +31,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
   computePayoutFeeFloor: vi.fn(),
+  verifyGraphPresignatures: vi.fn(),
   extractTapScriptSig: vi.fn(),
 }));
 vi.mock("../../../wasm", async (importOriginal) => ({
@@ -47,7 +49,7 @@ const PROTOCOL_FEE_RATE = 2n;
 const params = {
   depositorPublicKey: DEPOSITOR_PUBKEY,
   btcNetwork: "testnet" as const,
-  source: { txGraphJson: "{graph}", verifyingKeyHex: "beef" },
+  source: { txGraphJson: SERVED_GRAPH_JSON, verifyingKeyHex: "beef" },
   trustedVerifyingKeyHex: "beef",
   vault: {
     vaultId: VAULT_ID,

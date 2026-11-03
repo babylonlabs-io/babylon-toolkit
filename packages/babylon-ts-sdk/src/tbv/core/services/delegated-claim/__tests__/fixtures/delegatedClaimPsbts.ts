@@ -22,6 +22,37 @@ export const DEPOSITOR_PUBKEY =
 /** x-only form of {@link DEPOSITOR_PUBKEY}, as the registry records it. */
 export const DEPOSITOR_XONLY_PUBKEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798" as OnChainBtcPubkey;
+/** CSV sequence the Payout's two inputs carry unless a test overrides them. */
+export const TIMELOCK_PEGIN = 684;
+export const TIMELOCK_ASSERT = 700;
+/** Served graph for the mocked-WASM tests: only the participant check reads it. */
+export const SERVED_GRAPH_JSON = JSON.stringify({
+  claimer_pubkey: DEPOSITOR_XONLY_PUBKEY,
+  depositor_pubkey: DEPOSITOR_XONLY_PUBKEY,
+  // A graph carries x-only keys; the context holds the compressed form.
+  vault_provider_pubkey: VAULT_PROVIDER_PUBKEY.slice(2),
+  vault_keepers: [CHALLENGER_A],
+  universal_challengers: [CHALLENGER_B],
+  challenger_pubkeys: { local: [CHALLENGER_A], universal: [CHALLENGER_B] },
+  // One connector per bound field, as the check requires on every graph.
+  pegin_tx: {
+    depositor_claim_connector: { pubkey: DEPOSITOR_XONLY_PUBKEY },
+    pegin_payout_connector: {
+      depositor: DEPOSITOR_XONLY_PUBKEY,
+      vault_provider: VAULT_PROVIDER_PUBKEY.slice(2),
+      vault_keepers: [CHALLENGER_A],
+      universal_challengers: [CHALLENGER_B],
+      timelock_pegin: TIMELOCK_PEGIN,
+    },
+  },
+  assert_tx: {
+    assert_payout_nopayout_council_connector: {
+      claimer: DEPOSITOR_XONLY_PUBKEY,
+      challengers: { local: [CHALLENGER_A], universal: [CHALLENGER_B] },
+      timelock_assert: TIMELOCK_ASSERT,
+    },
+  },
+});
 export const SIGNER_ADDRESS =
   "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2";
 export const OTHER_ADDRESS =
@@ -57,9 +88,6 @@ const PAYOUT_ANCHOR_SATS = 546;
 const PAYOUT_VALUE_SATS = 99_000;
 /** Value of PegIn:0, the prevout of Payout input 0. */
 export const VAULT_UTXO_SATS = 100_000;
-/** CSV sequence the Payout's two inputs carry unless a test overrides them. */
-export const TIMELOCK_PEGIN = 684;
-export const TIMELOCK_ASSERT = 700;
 const CONNECTOR_SATS = 1_000;
 const LEAF_VERSION = 0xc0;
 // PegIn txid in internal byte order, as CLAIM_PSBT spends it.

@@ -22,10 +22,11 @@ const VAULT_WASM_BRANCH = 'main';
 // (v1 @ 2c1177ec, v2 @ 27c0062b, v3 @ b534ff9e) are gone. Post-reset Core 1
 // is the pre-reset Core 3 graph under a new number, so for the same inputs
 // graph v1 now builds the bytes graph v3 built (pinned by vault-wasm's golden
-// test); the vault-secret derivations are unchanged. The commit is on
-// vault-wasm main, and the only btc-vault rev it bundles, 5bc96f5c, is on
+// test); the vault-secret derivations are unchanged. 1bd94af adds only the
+// verifyGraphPresignatures export over the same btc-vault rev. The commit is
+// on vault-wasm main, and the only btc-vault rev it bundles, 5bc96f5c, is on
 // btc-vault main.
-const VAULT_WASM_COMMIT = '7a0e88715ddd0a50ecb1c177c3f389cc46cf3bd8';
+const VAULT_WASM_COMMIT = '1bd94af221d15a14b5a0e3860d7b851460051044';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');

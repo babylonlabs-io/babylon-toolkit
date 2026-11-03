@@ -28,6 +28,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
   computePayoutFeeFloor: vi.fn(),
+  verifyGraphPresignatures: vi.fn(),
   extractTapScriptSig: vi.fn(),
   finalizeClaimTx: vi.fn(),
   buildWatchtowerArtifacts: vi.fn(),
@@ -53,6 +54,7 @@ import {
   OTHER_ADDRESS,
   OTHER_VAULT_CLAIM_PSBT,
   REGISTERED_PAYOUT_SCRIPT,
+  SERVED_GRAPH_JSON,
   SIGNER_ADDRESS,
   TIMELOCK_ASSERT,
   TIMELOCK_PEGIN,
@@ -115,7 +117,7 @@ async function assemble(wallet: BitcoinWallet): Promise<void> {
     btcWallet: wallet,
     depositorPublicKey: DEPOSITOR_PUBKEY,
     btcNetwork: "testnet",
-    source: { txGraphJson: "{graph}", verifyingKeyHex: "beef" },
+    source: { txGraphJson: SERVED_GRAPH_JSON, verifyingKeyHex: "beef" },
     trustedVerifyingKeyHex: "beef",
     vault: {
       vaultId: VAULT_ID,
@@ -172,7 +174,7 @@ describe("assembleWatchtowerArtifacts", () => {
     expect(inputs.payoutClaimerSigHex).toBe("sig:psbt-payout");
     expect(wasm.finalizeClaimTx).toHaveBeenCalledWith(
       1,
-      "{graph}",
+      SERVED_GRAPH_JSON,
       "sig:psbt-claim",
     );
     expect(inputs.signedClaimTxHex).toBe("signed-claim-tx-hex");

@@ -637,6 +637,21 @@ export async function verifyWatchtowerArtifacts(
   );
 }
 
+/**
+ * Verifies every presigning-phase signature in a vault provider's served graph.
+ *
+ * @experimental
+ */
+export async function verifyGraphPresignatures(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<void> {
+  return (await loadTbvWasm()).verifyGraphPresignatures(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
 export type {
   AssertNoPayoutScriptInfo,
   AssertPayoutNoPayoutConnectorParams,
