@@ -63,6 +63,13 @@ const VAULT_B =
 const VAULT_C =
   "0xcccc000000000000000000000000000000000000000000000000000000000003" as Hex;
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 /**
  * High-debt context where the optimizer prefers concentrating seizure on
  * the larger vault first ([A=0.6, B=0.1] → suggested [A, B]). Current
@@ -73,6 +80,7 @@ const CONTEXT_BASE: ReorderVerificationContext = {
   CF: 0.7,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: 0.0005,
   btcPrice: 60_000,

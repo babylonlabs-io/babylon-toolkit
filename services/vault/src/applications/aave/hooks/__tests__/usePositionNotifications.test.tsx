@@ -116,6 +116,13 @@ function setHappyPrices() {
   });
 }
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 function setSpokeBtcPrice(priceUsd: number) {
   mockUseAaveReservePrice.mockReturnValue({
     priceUsd,
@@ -128,7 +135,14 @@ function setSpokeBtcPrice(priceUsd: number) {
 
 function setHappySplitParams() {
   mockUseVaultSplitParams.mockReturnValue({
-    params: { THF: 1.1, expectedHF: 0.95, CF: 0.7, LB: 1.05, maxLB: 1.05 },
+    params: {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.7,
+      LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
+      maxLB: 1.05,
+    },
     isLoading: false,
   });
 }
@@ -205,6 +219,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
         expectedHF: 0.99,
         CF: 0.78,
         LB: null,
+        bonusCurve: null,
         lbUnavailableReason: "",
         maxLB: 1.0555,
       },
@@ -216,6 +231,18 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
 
     expect(result.current.status).toBe("params-unavailable");
     expect(result.current.result).toBeNull();
+  });
+
+  it("hands the Spoke's bonus curve to the calculator and the reorder guard", () => {
+    setDashboardState();
+    setHappySplitParams();
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.params?.bonusCurve).toBe(FLAT_BONUS_CURVE);
+    expect(result.current.reorderVerificationContext?.bonusCurve).toBe(
+      FLAT_BONUS_CURVE,
+    );
   });
 
   it("reports no-vaults rather than params-unavailable when there is nothing to warn about", () => {
@@ -523,7 +550,14 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     });
     setSpokeBtcPrice(75_000);
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      params: {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.8,
+        LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
+        maxLB: 1.05,
+      },
       isLoading: false,
     });
     setDashboardState({
@@ -550,7 +584,14 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     // liquidation price, while the Spoke's newer read says health factor 1.5.
     setSpokeBtcPrice(50_000);
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      params: {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.8,
+        LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
+        maxLB: 1.05,
+      },
       isLoading: false,
     });
     setDashboardState({
@@ -570,7 +611,14 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     vi.setSystemTime(STALE_NOW);
     setSpokeBtcPrice(50_000);
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      params: {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.8,
+        LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
+        maxLB: 1.05,
+      },
       isLoading: false,
     });
     setDashboardState({
@@ -592,7 +640,14 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
   it("keeps the calculator's urgent warning when the last position refetch failed", () => {
     setSpokeBtcPrice(50_000);
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      params: {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.8,
+        LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
+        maxLB: 1.05,
+      },
       isLoading: false,
     });
     setDashboardState({
@@ -618,7 +673,14 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     // was read an hour earlier.
     setSpokeBtcPrice(50_000);
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      params: {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.8,
+        LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
+        maxLB: 1.05,
+      },
       isLoading: false,
     });
     setDashboardState({
@@ -643,7 +705,14 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     // read 20s before the price moved is not stale, but is older.
     setSpokeBtcPrice(50_000);
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      params: {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.8,
+        LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
+        maxLB: 1.05,
+      },
       isLoading: false,
     });
     setDashboardState({
@@ -821,7 +890,14 @@ describe("usePositionNotifications — position unavailable", () => {
   ) {
     setSpokeBtcPrice(50_000);
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8, LB: 1.05, maxLB: 1.05 },
+      params: {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.8,
+        LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
+        maxLB: 1.05,
+      },
       isLoading: false,
     });
     setDashboardState({

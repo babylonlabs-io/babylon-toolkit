@@ -22,6 +22,11 @@ const LAUNCH_SPLIT_PARAMS = vi.hoisted(() => ({
     expectedHF: 0.99,
     CF: 0.78,
     LB: 1.0504,
+    bonusCurve: {
+      healthFactorForMaxBonus: 900_000_000_000_000_000n,
+      liquidationBonusFactor: 9_000n,
+      maxLiquidationBonus: 10_555n,
+    },
     lbUnavailableReason: null,
     maxLB: 1.0555,
   },
@@ -101,6 +106,7 @@ describe("useProtocolFeeRows", () => {
       params: {
         ...LAUNCH_SPLIT_PARAMS.params,
         LB: null,
+        bonusCurve: null,
         lbUnavailableReason: "bonus curve out of range",
       },
     });

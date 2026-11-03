@@ -27,8 +27,8 @@ import {
  *  - post-liquidation Health Factor: remaining collateral × price × CF ÷ debt.
  *    Uses the collateral factor, matching `calculate.ts`, NOT the SDK's
  *    liquidation-threshold HF.
- *  - fairness payment in wBTC: `fairnessPaymentUsd / group.liquidationPrice`
- *    — the event's own trigger price, not the simulated price, since the
+ *  - fairness payment in wBTC: `fairnessPaymentUsd / group.executionPrice`
+ *    — the price that event is seized at, not the simulated price, since the
  *    fairness payment is a property of that liquidation, not of wherever the
  *    simulator currently sits.
  */
@@ -62,6 +62,9 @@ export interface LiquidationEventCard {
   targetSeizure: AmountParts;
   overSeizure: AmountParts;
   collateralLiquidatedLabel: string;
+  /** The price the estimates use, when BTC is already below this event's
+   *  trigger. Null when they use the trigger itself, which the card shows. */
+  executionPriceLabel: string | null;
   debtRepaidLabel: string;
   liquidatorProfitLabel: string;
   /** Show a positive fairness payment in wBTC. Otherwise show fairness debt repaid. */
@@ -158,12 +161,68 @@ export function buildSimulationSummary(
  */
 const AXIS_FLOOR_MARGIN = 0.05;
 
-/** Bottom of the price axis: just under the last trigger, or 0 with no events.
- *  Also the simulator's lower bound. */
+/** Just under the lowest of `prices`, or 0 with none. */
+function floorUnder(prices: number[]): number {
+  if (prices.length === 0) return 0;
+  return Math.min(...prices) * (1 - AXIS_FLOOR_MARGIN);
+}
+
+/**
+ * Bottom of the price axis: just under the last trigger, or 0 with no events.
+ * It also clears the price a gapped event executes at, which sits below that
+ * event's trigger, so the price line and the candles of the fall stay on the
+ * plot.
+ */
 export function axisFloorPrice(result: CalculatorResult): number {
-  const triggers = result.groups.map((g) => g.liquidationPrice);
-  if (triggers.length === 0) return 0;
-  return Math.min(...triggers) * (1 - AXIS_FLOOR_MARGIN);
+  return floorUnder(
+    result.groups.flatMap((g) => [g.liquidationPrice, g.executionPrice]),
+  );
+}
+
+/**
+ * The simulator's lower bound: just under the last trigger, below which no event
+ * is left to reach. A live price at or under it leaves nothing to simulate, and
+ * the toolbar disables itself.
+ */
+export function simulatorFloorPrice(result: CalculatorResult): number {
+  return floorUnder(result.groups.map((g) => g.liquidationPrice));
+}
+
+/**
+ * Simulator slider granularity. $100 keeps the whole cascade reachable without
+ * the thumb snapping past a trigger price.
+ */
+export const SIMULATOR_PRICE_STEP_USD = 100;
+
+/**
+ * The lowest price the simulator offers. A native range input only lands on
+ * `min + n*step`, and the floor isn't step-aligned with the live price, so this
+ * realigns down to the nearest step below it. That guarantees the live price
+ * itself sits on the grid and is reachable by dragging fully right.
+ *
+ * The inner `Math.max(0, …)` guards an already-liquidatable position, where the
+ * live price sits BELOW the simulator floor: the span would go negative and put
+ * the min above the live price, and a range input with `min > max` silently
+ * clamps `max` to `min`, pinning the thumb and making every typed price a no-op.
+ * The outer one keeps the min off negative prices: rounding the span UP to a
+ * whole step overshoots by up to one step, which lands below zero whenever the
+ * lowest trigger is under ~$105 (ordinary on a well over-collateralised
+ * position). A range input accepts a negative `min` happily, so a full-left drag
+ * would otherwise feed a negative price into the cascade and paint `$-23.00` on
+ * the axis.
+ */
+export function simulatorMinPrice(
+  livePrice: number,
+  floorPrice: number,
+): number {
+  return Math.max(
+    0,
+    livePrice -
+      Math.ceil(
+        Math.max(0, livePrice - floorPrice) / SIMULATOR_PRICE_STEP_USD,
+      ) *
+        SIMULATOR_PRICE_STEP_USD,
+  );
 }
 
 /**
@@ -236,10 +295,14 @@ export function buildTimelinePriceAxis(
     label: formatLabel(value),
   });
   const toFloorTick = (value: number): PriceAxisTick => ({ value, label: "" });
+  // A trigger the price has already fallen through sits above the live price.
+  // With no candle above it, it would fall off the axis and take its level line
+  // and price pill with it.
+  const axisTop = Math.max(topPrice, firstTrigger);
 
-  if (!Number.isFinite(topPrice) || topPrice <= floorPrice) {
-    // Degenerate input — a broken price feed, or a floor at or above the live
-    // price. The two ticks still have to be strictly descending: `Math.max`
+  if (!Number.isFinite(axisTop) || axisTop <= floorPrice) {
+    // Degenerate input — a broken price feed, or no event and no price above
+    // zero. The two ticks still have to be strictly descending: `Math.max`
     // propagates NaN, and a NaN or duplicated tick trips the chart's axis
     // assertion, taking the whole card down with it.
     const top =
@@ -250,25 +313,25 @@ export function buildTimelinePriceAxis(
   }
 
   // Below the first trigger the scale is compressed per event, so the ticks
-  // stop there and the (unlabelled) floor tick closes the axis.
-  const tickFloor = topPrice > firstTrigger ? firstTrigger : liveFloor;
-  const span = topPrice - tickFloor;
-  if (span <= 0) return [toTick(topPrice), toFloorTick(floorPrice)];
-
+  // stop there and the (unlabelled) floor tick closes the axis. A trigger at the
+  // axis top leaves no span above it to size the step from, so the step reads the
+  // span down to the floor.
+  const span = axisTop - (axisTop > firstTrigger ? firstTrigger : liveFloor);
   const step = niceStep(span, TIMELINE_AXIS_TICK_TARGET);
   const tickCutoff = Math.max(
-    tickFloor,
-    projected?.groups[0]?.liquidationPrice ?? tickFloor,
+    firstTrigger,
+    projected?.groups[0]?.liquidationPrice ?? firstTrigger,
   );
   const ticks: PriceAxisTick[] = [];
-  const top = Math.ceil(topPrice / step) * step;
+  const top = Math.ceil(axisTop / step) * step;
   for (let i = 0; i < TIMELINE_AXIS_MAX_TICKS; i++) {
     const value = top - i * step;
     if (value <= tickCutoff) break;
     ticks.push(toTick(value));
   }
-  // The top tick bounds the domain, so a projection triggering above it keeps
-  // that one tick rather than collapsing the axis onto the floor.
+  // The top tick bounds the domain, so a trigger landing on it, or a projection
+  // triggering above it, keeps that one tick rather than collapsing the axis onto
+  // the floor.
   return [
     ...(ticks.length > 0 ? ticks : [toTick(top)]),
     toFloorTick(floorPrice),
@@ -424,16 +487,16 @@ function toAmountParts(btc: number, sign: "" | "+" = ""): AmountParts {
 function hfAfter(group: LiquidationGroup, cf: number): string {
   if (group.debtRemainingAfter <= 0) return "∞";
   return (
-    (group.btcRemainingAfter * group.liquidationPrice * cf) /
+    (group.btcRemainingAfter * group.executionPrice * cf) /
     group.debtRemainingAfter
   ).toFixed(3);
 }
 
 // `position` is the group's array index: `calculate()` emits 1-based
 // `group.index`, so array position is the only safe identity for titles
-// and keys. Aftermath figures are priced at the event's own trigger —
-// the price at which the liquidation actually executes — never the ambient
-// (possibly simulated) price.
+// and keys. Aftermath figures are priced at `group.executionPrice` — the price
+// at which the liquidation actually executes — never the ambient (possibly
+// simulated) price.
 function toCard(
   group: LiquidationGroup,
   position: number,
@@ -445,7 +508,7 @@ function toCard(
     group.fairnessPaymentUsd > 0
       ? {
           label: COPY.liquidations.events.fairnessPaymentWbtc,
-          value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / group.liquidationPrice)})`,
+          value: `${formatUsd(group.fairnessPaymentUsd)} (${formatBtcAmount(group.fairnessPaymentUsd / group.executionPrice)})`,
           tooltip: COPY.liquidations.events.fairnessPaymentTooltip,
         }
       : {
@@ -474,6 +537,10 @@ function toCard(
     targetSeizure: toAmountParts(group.targetSeizureBtc),
     overSeizure: toAmountParts(group.overSeizureBtc, "+"),
     collateralLiquidatedLabel: formatBtcAmount(group.combinedBtc),
+    executionPriceLabel:
+      group.executionPrice === group.liquidationPrice
+        ? null
+        : formatPriceUsd(group.executionPrice),
     debtRepaidLabel: formatUsd(group.debtRepaid),
     liquidatorProfitLabel: formatUsd(group.liquidatorProfitUsd),
     fairness,

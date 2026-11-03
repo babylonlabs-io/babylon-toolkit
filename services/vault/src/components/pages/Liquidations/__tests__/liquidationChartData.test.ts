@@ -11,7 +11,7 @@ import type {
   Vault,
 } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
-import { formatBtcAmount } from "@/utils/formatting";
+import { formatBtcAmount, formatPriceUsd } from "@/utils/formatting";
 
 import {
   axisFloorPrice,
@@ -21,6 +21,8 @@ import {
   buildTimelineSafeZone,
   formatCandleDate,
   formatCandleTimestamp,
+  simulatorFloorPrice,
+  simulatorMinPrice,
   withAmountInBandLabel,
 } from "../liquidationChartData";
 
@@ -37,6 +39,7 @@ function makeGroup(
     vaults: [{ id: `v${index}`, name: `Vault ${index}`, btc: 0.5 }],
     combinedBtc: 0.5,
     liquidationPrice: 60000,
+    executionPrice: overrides.liquidationPrice ?? 60000,
     distancePct: -10,
     targetSeizureBtc: 0.48,
     overSeizureBtc: 0.02,
@@ -62,6 +65,20 @@ const REAL_EXPECTED_HF = 0.95;
 const REAL_BTC_PRICE = 61722.5;
 const REAL_DEBT_USD = 44287.72;
 
+// The launch curve: 1.0504 at HF 0.99, and its 105.55% maximum at HF 0.90.
+const LAUNCH_BONUS_CURVE = {
+  healthFactorForMaxBonus: 900_000_000_000_000_000n,
+  liquidationBonusFactor: 9_000n,
+  maxLiquidationBonus: 10_555n,
+};
+
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 function realCascadeResult(): CalculatorResult {
   const vaults: Vault[] = [
     { id: "v1", name: "Vault 1", btc: 0.42 },
@@ -75,6 +92,7 @@ function realCascadeResult(): CalculatorResult {
     CF: REAL_CF,
     THF: REAL_THF,
     LB: REAL_MAX_LB,
+    bonusCurve: FLAT_BONUS_CURVE,
     expectedHF: REAL_EXPECTED_HF,
     minPeginBtc: 0.0005,
   });
@@ -210,6 +228,7 @@ describe("buildLiquidationChartData", () => {
       CF: REAL_CF,
       THF: REAL_THF,
       LB: REAL_MAX_LB,
+      bonusCurve: FLAT_BONUS_CURVE,
       expectedHF: REAL_EXPECTED_HF,
       minPeginBtc: 0.0005,
     });
@@ -276,6 +295,150 @@ describe("buildLiquidationChartData", () => {
     expect(bands[0].label).toBe("Liq Event 1");
     expect(cards[0].title).toBe("Liq Event 1");
     expect(cards[1].title).toBe("Liq Event 2");
+  });
+
+  it("prices the aftermath of a gapped event at its execution price, not its trigger", () => {
+    const result = makeResult([
+      makeGroup(1, {
+        liquidationPrice: 60_000,
+        executionPrice: 45_000,
+        btcRemainingAfter: 0.5,
+        debtRemainingAfter: 5_000,
+      }),
+    ]);
+    const { cards } = buildLiquidationChartData(result, {
+      vaultsTotal: vaultCount(result),
+      btcPrice: 45_000,
+      collateralFactor: CF,
+    });
+
+    expect(cards[0].hfAfterLabel).toBe(
+      ((0.5 * 45_000 * CF) / 5_000).toFixed(3),
+    );
+  });
+
+  it("converts a gapped event's fairness payment at its execution price", () => {
+    const result = makeResult([
+      makeGroup(1, {
+        liquidationPrice: 60_000,
+        executionPrice: 45_000,
+        fairnessPaymentUsd: 4_500,
+      }),
+    ]);
+    const { cards } = buildLiquidationChartData(result, {
+      vaultsTotal: vaultCount(result),
+      btcPrice: 45_000,
+      collateralFactor: CF,
+    });
+
+    expect(cards[0].fairness.value).toContain(formatBtcAmount(0.1));
+  });
+
+  it("names the execution price on a gapped event's card", () => {
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 60_000, executionPrice: 45_000 }),
+    ]);
+    const { cards } = buildLiquidationChartData(result, {
+      vaultsTotal: vaultCount(result),
+      btcPrice: 45_000,
+      collateralFactor: CF,
+    });
+
+    expect(cards[0].executionPriceLabel).toBe(formatPriceUsd(45_000));
+    expect(cards[0].liqPriceLabel).toBe(formatPriceUsd(60_000));
+  });
+
+  // Its distance row is measured to the trigger, so the two have to agree.
+  it("keeps a gapped band's popover on its trigger", () => {
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 60_000, executionPrice: 45_000 }),
+    ]);
+    const { bands } = buildLiquidationChartData(result, {
+      vaultsTotal: vaultCount(result),
+      btcPrice: 45_000,
+      collateralFactor: CF,
+    });
+
+    expect(bands[0].popoverMetrics?.[0]).toMatchObject({
+      label: COPY.liquidations.popover.atPrice,
+      value: formatPriceUsd(60_000),
+    });
+  });
+
+  it("keeps the axis floor under the price a gapped event executes at", () => {
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 66_000, executionPrice: 58_000 }),
+    ]);
+
+    expect(axisFloorPrice(result)).toBeCloseTo(58_000 * 0.95, 6);
+  });
+
+  it("bounds the simulator by the triggers alone", () => {
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 66_000, executionPrice: 58_000 }),
+    ]);
+
+    expect(simulatorFloorPrice(result)).toBeCloseTo(66_000 * 0.95, 6);
+  });
+
+  // With no candle above it, as after a failed candle fetch, the Timeline would
+  // otherwise drop the trigger's level line and price pill.
+  it("keeps a gapped event's trigger on the axis when no candle reaches it", () => {
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 66_000, executionPrice: 58_000 }),
+    ]);
+
+    const values = buildTimelinePriceAxis(result, 58_000).map((t) => t.value);
+
+    expect(values[0]).toBeGreaterThanOrEqual(66_000);
+    expect(values[values.length - 1]).toBeCloseTo(58_000 * 0.95, 6);
+    expect(values).toEqual([...values].sort((a, b) => b - a));
+    expect(new Set(values).size).toBe(values.length);
+  });
+
+  // Everything under the trigger is compressed into event rows, where a round
+  // label would land inside a row.
+  it("labels no price under a gapped event's trigger when no candle reaches it", () => {
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 66_000, executionPrice: 58_000 }),
+    ]);
+
+    const values = buildTimelinePriceAxis(result, 58_000).map((t) => t.value);
+
+    expect(values).toEqual([70_000, axisFloorPrice(result)]);
+  });
+
+  it("keeps a gapped event's trigger as the top tick when it lands on a round price", () => {
+    const result = makeResult([
+      makeGroup(1, { liquidationPrice: 65_000, executionPrice: 58_000 }),
+    ]);
+
+    const values = buildTimelinePriceAxis(result, 58_000).map((t) => t.value);
+
+    expect(values).toEqual([65_000, axisFloorPrice(result)]);
+  });
+
+  it("offers the simulator's lowest price on the step grid under the floor", () => {
+    expect(simulatorMinPrice(62_000, 51_873)).toBe(51_800);
+  });
+
+  it("offers nothing below a live price at or under the floor", () => {
+    expect(simulatorMinPrice(58_000, 63_333)).toBe(58_000);
+  });
+
+  it("never offers a negative price", () => {
+    expect(simulatorMinPrice(50, 10)).toBe(0);
+  });
+
+  it("names no execution price on an event priced at its trigger", () => {
+    const result = makeResult([makeGroup(1, { liquidationPrice: 60_000 })]);
+    const { cards } = buildLiquidationChartData(result, {
+      vaultsTotal: vaultCount(result),
+      btcPrice: 45_000,
+      collateralFactor: CF,
+    });
+
+    expect(cards[0].executionPriceLabel).toBeNull();
   });
 
   it("prices each event's aftermath at its own trigger, not the simulated price", () => {
@@ -694,6 +857,7 @@ describe("buildSimulationSummary", () => {
       CF: 0.78,
       THF: SPLIT_TARGET_HEALTH_FACTOR,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
       minPeginBtc: 0.0005,
     });

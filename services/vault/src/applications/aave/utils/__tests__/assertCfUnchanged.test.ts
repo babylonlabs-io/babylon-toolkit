@@ -3,11 +3,19 @@ import { describe, expect, it, vi } from "vitest";
 import type { VaultSplitParams } from "../../hooks/useVaultSplitParams";
 import { assertCfUnchanged } from "../assertCfUnchanged";
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 const CF_75 = {
   THF: 1.1,
   expectedHF: 0.95,
   CF: 0.75,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   lbUnavailableReason: null,
   maxLB: 1.05,
 } satisfies VaultSplitParams;
@@ -16,6 +24,7 @@ const CF_70 = {
   expectedHF: 0.95,
   CF: 0.7,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   lbUnavailableReason: null,
   maxLB: 1.05,
 } satisfies VaultSplitParams;
@@ -62,6 +71,7 @@ describe("assertCfUnchanged", () => {
     const refetchSplitParams = vi.fn().mockResolvedValue({
       ...CF_75,
       LB: null,
+      bonusCurve: null,
       lbUnavailableReason: "bonus curve out of range",
     } satisfies VaultSplitParams);
 

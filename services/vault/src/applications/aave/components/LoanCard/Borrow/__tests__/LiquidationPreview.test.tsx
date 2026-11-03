@@ -49,6 +49,13 @@ const YEAR_OF_CANDLES = Array.from({ length: 365 }, (_, i) => ({
 }));
 let mockCandles = YEAR_OF_CANDLES;
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 /**
  * A real two-vault position: 0.4 + 0.3 BTC at $88,400 against $22,000 of debt,
  * CF 0.5.
@@ -63,6 +70,7 @@ const PARAMS: CalculatorParams = {
   CF: 0.5,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: null,
 };
@@ -82,6 +90,7 @@ const SINGLE_VAULT_PARAMS: CalculatorParams = {
   CF: 0.5,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: null,
 };
@@ -145,6 +154,24 @@ describe("LiquidationPreview", () => {
     expect(
       within(container).getByText(
         COPY.liquidations.preview.bandLabel(1, amounts),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // The form refuses such an amount, but the preview still renders it while the
+  // depositor types. $42,000 of debt puts the trigger above the $88,400 price.
+  it("charts a borrow amount that would make the position liquidatable", () => {
+    mockParams = PARAMS;
+    const borrowedUsd = 20_000;
+
+    const { container } = render(
+      <LiquidationPreview additionalDebtUsd={borrowedUsd} />,
+    );
+
+    expect(firstTrigger(borrowedUsd)).toBeGreaterThan(PARAMS.btcPrice);
+    expect(
+      within(container).getByText(
+        COPY.liquidations.preview.bandLabel(1, "0.4"),
       ),
     ).toBeInTheDocument();
   });

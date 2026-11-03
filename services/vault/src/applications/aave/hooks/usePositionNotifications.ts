@@ -76,10 +76,10 @@ export interface UsePositionNotificationsResult {
   reorderVerificationContext: ReorderVerificationContext | null;
   /**
    * The exact params `result` was computed from. Non-null only when
-   * `status === "ready"`. Lets what-if consumers (the liquidation
-   * dashboard's price simulator) re-run the pure `calculate()` with an
-   * overridden `btcPrice` without touching this live path. `btcPrice` is the
-   * Spoke oracle's vBTC price, the price the Spoke liquidates at.
+   * `status === "ready"`. Lets what-if consumers (the borrow preview, the
+   * split-order warning) re-run the pure `calculate()` with overridden debt or
+   * vaults without touching this live path. `btcPrice` is the Spoke oracle's
+   * vBTC price, the price the Spoke liquidates at.
    */
   params: CalculatorParams | null;
   /**
@@ -329,7 +329,7 @@ export function usePositionNotifications(
     // show. The collateral factor survives in the same query on purpose, for
     // the borrow and repay pre-sign checks. Keyed on the value itself, not on
     // the reason string, so an empty reason cannot strand this on "loading".
-    if (splitParams.LB === null)
+    if (splitParams.LB === null || splitParams.bonusCurve === null)
       return {
         result: null,
         status: "params-unavailable",
@@ -350,6 +350,7 @@ export function usePositionNotifications(
       CF: splitParams.CF,
       THF: splitParams.THF,
       LB: splitParams.LB,
+      bonusCurve: splitParams.bonusCurve,
       expectedHF: splitParams.expectedHF,
       minPeginBtc: pegInConfig
         ? satoshiToBtcNumber(pegInConfig.minimumPegInAmount)
@@ -400,6 +401,7 @@ export function usePositionNotifications(
         CF: splitParams.CF,
         THF: splitParams.THF,
         LB: splitParams.LB,
+        bonusCurve: splitParams.bonusCurve,
         expectedHF: splitParams.expectedHF,
         minPeginBtc: calculatorParams.minPeginBtc,
         btcPrice: btcPriceUsd,

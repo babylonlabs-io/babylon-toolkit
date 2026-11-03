@@ -191,8 +191,8 @@ export function computeOptimalOrder<T extends CascadeVault>(
     return { order: fallback, ...sim };
   }
 
-  // Compute real metrics via cascade simulation (debt-aware, matches what
-  // calculate() produces for the group breakdown shown in the UI).
+  // Compute real metrics via cascade simulation (debt-aware, matches the group
+  // breakdown the UI shows while the price is at or above each trigger).
   const sim = simulateCascade(
     order,
     totalDebt,

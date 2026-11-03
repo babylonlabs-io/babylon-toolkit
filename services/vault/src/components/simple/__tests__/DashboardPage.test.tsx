@@ -326,6 +326,13 @@ describe("DashboardPage risk card under a forced health factor", () => {
   });
 });
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 // A real 2-vault position and a deliberately differently-shaped 1-vault
 // god-mode cascade, so which one reached the chart is unambiguous.
 const LIVE_PARAMS: CalculatorParams = {
@@ -338,6 +345,7 @@ const LIVE_PARAMS: CalculatorParams = {
   CF: 0.75,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: 0.0005,
 };
@@ -350,6 +358,7 @@ const OVERRIDE_PARAMS: CalculatorParams = {
   CF: 0.5,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: 0.0005,
 };
@@ -589,6 +598,7 @@ describe("DashboardPage with the position unavailable", () => {
       CF: 0.75,
       THF: 1.1,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       expectedHF: 0.95,
       minPeginBtc: null,
     });

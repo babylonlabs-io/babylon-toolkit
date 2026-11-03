@@ -1,11 +1,12 @@
+import { isFirstEventGapped } from "./calculate";
 import type { CalculatorResult, Warning, WarningType } from "./types";
 
 /**
  * Calculator warnings map to red (urgent), yellow (cliff / too-many-vaults — the
  * orange warning banner per Figma), soft (everything else advisory), green
- * (none), or hidden (no groups, or a non-urgent dust position). "yellow" also
- * backs the stale-price banner, which is driven separately by a status override
- * rather than a calculator warning.
+ * (none), or hidden (no groups, a non-urgent dust position, or a better order
+ * that cannot be offered). "yellow" also backs the stale-price banner, which is
+ * driven separately by a status override rather than a calculator warning.
  */
 export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
 
@@ -28,7 +29,8 @@ export interface BannerState {
    * The engine found a safer liquidation order than the current on-chain order.
    * Drives the manual "Apply Optimal Order" affordance, independent of the
    * risk warnings — it can accompany an urgent/cliff banner or stand alone on an
-   * otherwise-healthy position.
+   * otherwise-healthy position. False once the next event is below its trigger,
+   * where the contract would revert the reorder.
    */
   suggestReorder: boolean;
 }
@@ -56,11 +58,14 @@ const PRIMARY_ORDER: WarningType[] = [
  * Soft:   any other advisory warning (reorder / weird-params), or a
  *         healthy position whose vault order is suboptimal
  * Green:  no warnings and order already optimal
- * Hidden: no groups, or a dust position with no urgent warning
+ * Hidden: no groups, a dust position with no urgent warning, or no warnings with
+ *         a better order that cannot be offered because the first event is
+ *         below its trigger
  */
 export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
-  const suggestReorder = result.optimalVaultOrder != null;
+  const suggestReorder =
+    result.optimalVaultOrder != null && !isFirstEventGapped(groups);
 
   // Small positions hide advice unless a liquidation warning is urgent.
   if (warnings.some((w) => w.type === "dust")) {
@@ -106,6 +111,19 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
       primaryWarning: null,
       secondaryWarnings: [],
       suggestReorder: true,
+    };
+  }
+
+  // Below a trigger with no warning left: a fresh Spoke reading has dropped the
+  // calculator's urgent one, as it can while a new vault waits to be indexed. A
+  // better order exists but is not offered, so calling this one optimal would be
+  // false.
+  if (result.optimalVaultOrder != null) {
+    return {
+      severity: "hidden",
+      primaryWarning: null,
+      secondaryWarnings: [],
+      suggestReorder: false,
     };
   }
 

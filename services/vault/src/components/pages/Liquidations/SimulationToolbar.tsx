@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { COPY } from "@/copy";
 import { formatPriceUsd } from "@/utils/formatting";
 
-/**
- * Slider granularity. $100 keeps the whole cascade reachable without the thumb
- * snapping past a trigger price.
- */
-const PRICE_STEP_USD = 100;
+import {
+  SIMULATOR_PRICE_STEP_USD,
+  simulatorMinPrice,
+} from "./liquidationChartData";
 
 interface SimulationToolbarProps {
   livePrice: number;
@@ -76,28 +75,7 @@ export function SimulationToolbar({
 }: SimulationToolbarProps) {
   const isSimulating = price !== livePrice;
 
-  // A native range input only lands on `min + n*step`. `floorPrice` isn't
-  // step-aligned with `livePrice`, so realign the slider's own min down to
-  // the nearest step below it — this guarantees `livePrice` itself sits on
-  // the grid and is reachable by dragging fully right.
-  //
-  // The inner `Math.max(0, …)` guards an already-liquidatable position, where
-  // the live price sits BELOW the axis floor: the span would go negative and
-  // put the min above `livePrice`, and a range input with `min > max` silently
-  // clamps `max` to `min`, pinning the thumb and making every typed price a
-  // no-op. The outer one keeps the min off negative prices: rounding the span
-  // UP to a whole step overshoots by up to one step, which lands below zero
-  // whenever the lowest trigger is under ~$105 (ordinary on a well
-  // over-collateralised position). A range input accepts a negative `min`
-  // happily, so a full-left drag would otherwise feed a negative price into
-  // `calculate()` and paint `$-23.00` on the axis. `PriceInput` strips `-`,
-  // so only the slider could reach it.
-  const sliderMin = Math.max(
-    0,
-    livePrice -
-      Math.ceil(Math.max(0, livePrice - floorPrice) / PRICE_STEP_USD) *
-        PRICE_STEP_USD,
-  );
+  const sliderMin = simulatorMinPrice(livePrice, floorPrice);
 
   // Nothing left to simulate down to: the whole cascade already sits at or
   // above the live price. `min === max` makes the core-ui Slider divide by a
@@ -123,7 +101,7 @@ export function SimulationToolbar({
             value={price}
             min={sliderMin}
             max={livePrice}
-            step={PRICE_STEP_USD}
+            step={SIMULATOR_PRICE_STEP_USD}
             steps={[]}
             onChange={onPriceChange}
             variant="primary"

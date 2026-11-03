@@ -140,7 +140,7 @@ vi.mock("@/components/shared", () => ({
 }));
 
 import Liquidations from "../index";
-import { axisFloorPrice } from "../liquidationChartData";
+import { axisFloorPrice, simulatorFloorPrice } from "../liquidationChartData";
 
 const CANDLES = Array.from({ length: 30 }, (_, i) => ({
   time: Date.UTC(2026, 4, 5) + i * 86_400_000,
@@ -149,6 +149,20 @@ const CANDLES = Array.from({ length: 30 }, (_, i) => ({
   low: 58_000,
   close: 62_000,
 }));
+
+// The launch curve: 1.0504 at HF 0.99, and its 105.55% maximum at HF 0.90.
+const LAUNCH_BONUS_CURVE = {
+  healthFactorForMaxBonus: 900_000_000_000_000_000n,
+  liquidationBonusFactor: 9_000n,
+  maxLiquidationBonus: 10_555n,
+};
+
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
 
 // A real 2-vault, non-cliff, non-dust position (B1 in calculate.test.ts:
 // [0.65, 0.35] at the default params produces exactly 2 groups, the second a
@@ -163,6 +177,7 @@ const LIVE_PARAMS: CalculatorParams = {
   CF: 0.75,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: 0.0005,
 };
@@ -203,6 +218,7 @@ const GOD_MODE_PARAMS: CalculatorParams = {
   CF: 0.5,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: 0.0005,
 };
@@ -745,6 +761,7 @@ describe("Liquidation Dashboard simulator", () => {
       CF: 0.78,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: 0.0005,
     };
@@ -769,6 +786,83 @@ describe("Liquidation Dashboard simulator", () => {
     expect(screen.queryByTestId("liq-band-1")).not.toBeInTheDocument();
     fireEvent.focus(screen.getByTestId("liq-band-0"));
     expect(await screen.findByText("92% seized")).toBeVisible();
+  });
+
+  it("keeps a simulated event priced at its trigger, moving only its distance", () => {
+    render(<Liquidations />);
+    const simulated = Math.round(firstGroup.liquidationPrice * 0.9);
+    const distanceAt = (price: number) =>
+      `${(((firstGroup.liquidationPrice - price) / price) * 100).toFixed(1)}%`;
+
+    setPrice(simulated);
+
+    expect(
+      screen.getAllByText(formatUsd(firstGroup.debtRepaid)).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(`+${distanceAt(simulated)}`)).toBeVisible();
+    expect(
+      screen.queryByText(COPY.liquidations.events.estimatedAtPrice),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says the events ahead assume a gradual fall", () => {
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.simulationAssumption),
+    ).toBeVisible();
+  });
+
+  it("prices an event at the live price when BTC is already below its trigger", () => {
+    const params = { ...LIVE_PARAMS, btcPrice: 50_000 };
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      params,
+      result: calculate(params),
+    });
+
+    render(<Liquidations />);
+
+    expect(
+      screen.getByText(COPY.liquidations.events.estimatedAtPrice),
+    ).toBeVisible();
+    expect(
+      screen.getByText(COPY.liquidations.events.estimatedAtPrice).parentElement
+        ?.parentElement,
+    ).toHaveTextContent(formatPriceUsd(50_000));
+    expect(
+      screen.queryByText(formatUsd(firstGroup.debtRepaid)),
+    ).not.toBeInTheDocument();
+  });
+
+  // The Timeline's price scale throws on triggers out of order. Below HF
+  // LB × CF (0.7875 here) a seizure lowers the health factor, so a later trigger
+  // could rise past an earlier one. Four equal vaults with a $50,000 first
+  // trigger keep those triggers under the $66,000 candles, inside the axis,
+  // where the scale would see them.
+  it("charts a live gap at every depth without throwing", () => {
+    for (const hf of [0.99, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]) {
+      const params: CalculatorParams = {
+        ...LIVE_PARAMS,
+        btcPrice: 50_000 * hf,
+        totalDebtUsd: 37_500,
+        vaults: [1, 2, 3, 4].map((n) => ({
+          id: `vault-${n}`,
+          name: `Vault ${n}`,
+          btc: 0.25,
+        })),
+      };
+      usePositionNotificationsMock.mockReturnValue({
+        ...READY_NOTIFICATIONS,
+        params,
+        result: calculate(params),
+      });
+
+      const { unmount } = render(<Liquidations />);
+
+      expect(screen.getByTestId("liq-band-0")).toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("liquidates the events the simulated price has fallen through, without mutating the live result", () => {
@@ -876,10 +970,68 @@ describe("Liquidation Dashboard simulator", () => {
     ).toBeInTheDocument();
   });
 
+  it("reads a held simulation as live once a gap leaves nothing to simulate", () => {
+    const { rerender } = render(<Liquidations />);
+
+    setPrice(secondGroup.liquidationPrice);
+    expect(resetButton()).toBeEnabled();
+
+    // At $40,000 the Spoke seizes both vaults, so no trigger is left below.
+    const params = { ...LIVE_PARAMS, btcPrice: 40_000 };
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      params,
+      result: calculate(params),
+    });
+    rerender(<Liquidations />);
+
+    expect(priceInput()).toHaveValue(formatPriceUsd(40_000));
+    expect(resetButton()).toBeDisabled();
+    expect(
+      screen.queryByText(COPY.liquidations.simulationChip),
+    ).not.toBeInTheDocument();
+  });
+
+  it("re-clamps a held simulation to the slider's lowest price when a gap lifts it past that price", () => {
+    const { rerender } = render(<Liquidations />);
+
+    setPrice(secondGroup.liquidationPrice);
+
+    // At $52,000 one vault goes and the next trigger rises, lifting the floor.
+    const params = { ...LIVE_PARAMS, btcPrice: 52_000 };
+    const result = calculate(params);
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      params,
+      result,
+    });
+    rerender(<Liquidations />);
+
+    const lowest = Number(priceSlider().min);
+    expect(lowest).toBeGreaterThan(secondGroup.liquidationPrice);
+    expect(priceInput()).toHaveValue(formatPriceUsd(lowest));
+    // The chart reads its own deferred copy of the price: its pill has to agree.
+    expect(
+      screen.getByText(formatPriceUsd(lowest), { selector: "tspan" }),
+    ).toBeInTheDocument();
+    expect(resetButton()).toBeEnabled();
+  });
+
+  it("holds a full-left drag on the slider's grid", () => {
+    render(<Liquidations />);
+
+    setPrice(1);
+
+    const lowest = Number(priceSlider().min);
+    expect(lowest).toBeLessThan(simulatorFloorPrice(LIVE_RESULT));
+    expect(priceInput()).toHaveValue(formatPriceUsd(lowest));
+    expect(priceSlider().value).toBe(String(lowest));
+  });
+
   // Rounding the span up to a whole step overshoots by up to one step, which
   // lands under zero whenever the lowest trigger is small. A range input takes
   // a negative `min` happily, so a full-left drag would feed a negative price
-  // into `calculate()` and paint `$-23.00` on the axis.
+  // into the cascade and paint `$-23.00` on the axis.
   it("never offers a negative price, even with a trigger near zero", () => {
     const params = {
       ...LIVE_PARAMS,
@@ -945,7 +1097,9 @@ describe("Liquidation Dashboard simulator — nothing left to simulate", () => {
       vaults: [{ id: "vault-1", name: "Vault 1", btc: 1 }],
     };
     const result = calculate(params);
-    expect(axisFloorPrice(result)).toBeGreaterThan(params.btcPrice);
+    expect(simulatorFloorPrice(result)).toBeGreaterThan(params.btcPrice);
+    // The price line itself stays on the plot.
+    expect(axisFloorPrice(result)).toBeLessThan(params.btcPrice);
 
     usePositionNotificationsMock.mockReturnValue({
       ...READY_NOTIFICATIONS,

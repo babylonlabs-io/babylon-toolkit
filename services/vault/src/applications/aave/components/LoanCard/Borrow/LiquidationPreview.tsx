@@ -113,7 +113,6 @@ export function LiquidationPreview({
   // slider steps a thousand times across its range, so the cascade reads a
   // deferred debt: the metrics card above still tracks the entered amount
   // directly, and React drops the intermediate cascades it never finishes.
-  // Same treatment the /liquidations price simulator gives its slider.
   // The null is deferred with the number, and the card withdraws while EITHER
   // side is unknown: deferring only the number would chart the position
   // without the amount for a commit after the debt becomes known.

@@ -4,9 +4,10 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
-import type {
-  CalculatorResult,
-  Warning,
+import {
+  calculate,
+  type CalculatorResult,
+  type Warning,
 } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 
@@ -190,6 +191,7 @@ function makeBaseResult(
         vaults: [{ id: "v-1", name: "Vault 1", btc: 0.65 }],
         combinedBtc: 0.65,
         liquidationPrice: 50000,
+        executionPrice: 50000,
         distancePct: 10,
         targetSeizureBtc: 0.28,
         overSeizureBtc: 0.37,
@@ -681,6 +683,53 @@ describe("PositionNotificationBanner", () => {
     expect(screen.getByText("Repay Debt")).toBeTruthy();
     fireEvent.click(screen.getByText("Add 0.72 BTC"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
+  // Real calculator results below the first trigger: health factor 0.99 on 0.3
+  // and 0.7 BTC. A better order exists, and the contract would refuse it.
+  const belowTrigger = () =>
+    calculate({
+      btcPrice: 132_000,
+      totalDebtUsd: 100_000,
+      vaults: [
+        { id: "0xabc", name: "Vault 1", btc: 0.3 },
+        { id: "0xdef", name: "Vault 2", btc: 0.7 },
+      ],
+      CF: 0.75,
+      THF: 1.1,
+      LB: 1.05,
+      bonusCurve: {
+        healthFactorForMaxBonus: 0n,
+        liquidationBonusFactor: 10_000n,
+        maxLiquidationBonus: 10_500n,
+      },
+      expectedHF: 0.95,
+      minPeginBtc: 0.0005,
+    });
+
+  it("offers no reorder below a trigger", () => {
+    const result = belowTrigger();
+    expect(result.optimalVaultOrder).not.toBeNull();
+
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("red");
+    expect(screen.queryByText(COPY.banner.applyOptimalOrder)).toBeNull();
+    expect(
+      screen.queryByText(COPY.liquidationWarnings.reorder.title),
+    ).toBeNull();
+  });
+
+  // A fresh Spoke reading can drop the calculator's urgent warning.
+  it("renders nothing below a trigger when a better order exists and no warning is left", () => {
+    const { container } = renderBanner(
+      { ...belowTrigger(), warnings: [] },
+      onDeposit,
+      onRepay,
+    );
+
+    expect(container.innerHTML).toBe("");
   });
 });
 
