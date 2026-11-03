@@ -687,25 +687,33 @@ describe("PositionNotificationBanner", () => {
 
   // Real calculator results below the first trigger: health factor 0.99 on 0.3
   // and 0.7 BTC. A better order exists, and the contract would refuse it.
-  const belowTrigger = () =>
-    calculate({
-      btcPrice: 132_000,
-      totalDebtUsd: 100_000,
-      vaults: [
-        { id: "0xabc", name: "Vault 1", btc: 0.3 },
-        { id: "0xdef", name: "Vault 2", btc: 0.7 },
-      ],
-      CF: 0.75,
-      THF: 1.1,
-      LB: 1.05,
-      bonusCurve: {
-        healthFactorForMaxBonus: 0n,
-        liquidationBonusFactor: 10_000n,
-        maxLiquidationBonus: 10_500n,
-      },
-      expectedHF: 0.95,
-      minPeginBtc: 0.0005,
-    });
+  const belowTriggerParams = {
+    btcPrice: 132_000,
+    totalDebtUsd: 100_000,
+    vaults: [
+      { id: "0xabc", name: "Vault 1", btc: 0.3 },
+      { id: "0xdef", name: "Vault 2", btc: 0.7 },
+    ],
+    CF: 0.75,
+    THF: 1.1,
+    LB: 1.05,
+    bonusCurve: {
+      healthFactorForMaxBonus: 0n,
+      liquidationBonusFactor: 10_000n,
+      maxLiquidationBonus: 10_500n,
+    },
+    expectedHF: 0.95,
+    minPeginBtc: 0.0005,
+  };
+  const belowTrigger = () => calculate(belowTriggerParams);
+  // What the hook returns when a fresh Spoke reading of 1.5 overrules that.
+  const overruledBelowTrigger = () => {
+    const result = calculate(belowTriggerParams, "gradual");
+    return {
+      ...result,
+      warnings: result.warnings.filter((w) => w.type !== "urgent"),
+    };
+  };
 
   it("offers no reorder below a trigger", () => {
     const result = belowTrigger();
@@ -721,15 +729,34 @@ describe("PositionNotificationBanner", () => {
     ).toBeNull();
   });
 
-  // A fresh Spoke reading can drop the calculator's urgent warning.
-  it("renders nothing below a trigger when a better order exists and no warning is left", () => {
-    const { container } = renderBanner(
-      { ...belowTrigger(), warnings: [] },
-      onDeposit,
-      onRepay,
-    );
+  it("offers the better order when a fresh Spoke reading overrules the trigger", () => {
+    renderBanner(overruledBelowTrigger(), onDeposit, onRepay);
 
-    expect(container.innerHTML).toBe("");
+    expect(
+      screen.getByTestId("position-notification-banner").dataset.severity,
+    ).toBe("soft");
+    expect(screen.getByText(COPY.banner.applyOptimalOrder)).toBeTruthy();
+  });
+
+  it("keeps a failed reorder's error when a fresh Spoke reading overrules the trigger", () => {
+    reorderVaultsMock.value.error = "You can't reorder BTCVaults right now";
+
+    renderBanner(overruledBelowTrigger(), onDeposit, onRepay);
+
+    expect(screen.getByRole("note").textContent).toBe(
+      "You can't reorder BTCVaults right now",
+    );
+  });
+
+  it("keeps a reorder's notice when a fresh Spoke reading overrules the trigger", () => {
+    reorderVaultsMock.value.notice =
+      COPY.common.unconfirmedTransaction.inProgress;
+
+    renderBanner(overruledBelowTrigger(), onDeposit, onRepay);
+
+    expect(screen.getByRole("note").textContent).toBe(
+      COPY.common.unconfirmedTransaction.inProgress,
+    );
   });
 
   // A price poll can land below the trigger while a reorder is in flight, which

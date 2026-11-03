@@ -352,6 +352,10 @@ export function withDistancesAt(
  * events does not: below a trigger on a position with several vaults there is no
  * reorder advice, and the cliff warning follows the event that happens next.
  *
+ * `pricing` is `"gradual"` for a position the Spoke itself reads as healthy, so
+ * that nothing executes at `btcPrice`: every event stays at its own trigger, and
+ * the advice reads as it does above the first trigger.
+ *
  * Warnings: `weird-params` (invalid protocol params, soft — suppresses all
  * other advisories), `too-many-vaults` (optimizer fell back past its cap),
  * `urgent` (already liquidatable or within 5%), `cliff` (all vaults consolidate
@@ -359,7 +363,10 @@ export function withDistancesAt(
  * safer order exists), or `dust` (returned together with any `urgent` warning;
  * suppresses the other advisories).
  */
-export function calculate(params: CalculatorParams): CalculatorResult {
+export function calculate(
+  params: CalculatorParams,
+  pricing: "live" | "gradual" = "live",
+): CalculatorResult {
   const {
     btcPrice,
     totalDebtUsd,
@@ -455,6 +462,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       btc: remainingBtc,
     };
     const group =
+      pricing === "live" &&
       healthFactorAt(remainingBtc, btcPrice, CF, remainingDebt) < 1
         ? buildGappedGroup(step)
         : buildPathGroup(step);

@@ -56,8 +56,10 @@ export interface UsePositionNotificationsResult {
    * The cascade priced at the Spoke oracle's BTC price. Its urgent warning is
    * reconciled with the Spoke's live health factor: the live warning can be
    * added or take its place, and a fresh live health factor outside the urgent
-   * band removes it. With `status === "position-unavailable"` it is null, or
-   * carries only that urgent warning.
+   * band removes it. A fresh live health factor at or above 1 also overrules a
+   * first event the calculator has below its trigger: every event then stays
+   * priced at its own trigger. With `status === "position-unavailable"` it is
+   * null, or carries only that urgent warning.
    */
   result: CalculatorResult | null;
   /**
@@ -380,23 +382,23 @@ export function usePositionNotifications(
         healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
       isLiveHfFresh,
     });
-    // The cliff on a gapped first event with several vaults comes from the same
-    // below-trigger reading as the calculator's urgent warning, so it goes when
-    // the Spoke overrules that. A single vault's cliff holds at any price.
-    const isGapOverruled =
+    // The calculator has the first event below its trigger, and a fresh Spoke
+    // reading at or above 1 overrules it, as can happen while a new vault waits
+    // to be indexed. Nothing executes at this price then, so nothing is shown
+    // priced at it, and the events and advice read as on any healthy position.
+    const cascade =
       urgentWarning !== calculatorUrgent &&
-      indexedVaults.length > 1 &&
-      isFirstEventGapped(calculatorResult.groups);
+      isFirstEventGapped(calculatorResult.groups)
+        ? calculate(calculatorParams, "gradual")
+        : calculatorResult;
     // The live warning goes in as the returned `liveUrgentWarning` object
     // itself, never a copy: the top banner compares by reference.
-    const otherWarnings = calculatorResult.warnings.filter(
-      (w) => w !== calculatorUrgent && !(isGapOverruled && w.type === "cliff"),
-    );
+    const otherWarnings = cascade.warnings.filter((w) => w.type !== "urgent");
     const resultWithLiveHf: CalculatorResult =
       urgentWarning === calculatorUrgent
         ? calculatorResult
         : {
-            ...calculatorResult,
+            ...cascade,
             warnings: urgentWarning
               ? [urgentWarning, ...otherWarnings]
               : otherWarnings,

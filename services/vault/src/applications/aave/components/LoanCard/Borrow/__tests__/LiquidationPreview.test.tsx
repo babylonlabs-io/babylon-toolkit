@@ -2,7 +2,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { calculate } from "@/applications/aave/positionNotifications";
-import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
+import type {
+  CalculatorParams,
+  CalculatorResult,
+} from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
 import { formatBtcAmount, formatCompactPrice } from "@/utils/formatting";
 
@@ -15,6 +18,8 @@ import { LiquidationPreview } from "../LiquidationPreview";
  * maths the component re-runs.
  */
 let mockParams: CalculatorParams | null = null;
+/** The hook's result when it is not simply `calculate(mockParams)`. */
+let mockResult: CalculatorResult | null = null;
 
 vi.mock("@/context/wallet", () => ({
   useETHWallet: () => ({ address: "0xdepositor" }),
@@ -24,7 +29,7 @@ vi.mock("@/context/wallet", () => ({
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   usePositionNotifications: () => ({
     params: mockParams,
-    result: mockParams ? calculate(mockParams) : null,
+    result: mockResult ?? (mockParams ? calculate(mockParams) : null),
   }),
 }));
 
@@ -122,6 +127,7 @@ function firstTrigger(extraDebtUsd: number, params = PARAMS): number {
 describe("LiquidationPreview", () => {
   beforeEach(() => {
     mockCandles = YEAR_OF_CANDLES;
+    mockResult = null;
   });
 
   it("charts the events the entered borrow amount would create, not the current ones", () => {
@@ -172,6 +178,24 @@ describe("LiquidationPreview", () => {
     expect(
       within(container).getByText(
         COPY.liquidations.preview.bandLabel(1, "0.4"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // A fresh Spoke reading has overruled the calculator, so the live cascade the
+  // axis reads stays at its triggers while the projection is priced at $88,400,
+  // below them. $51,000 of debt walks both vaults there.
+  it("charts a borrow amount beside a live cascade the Spoke has overruled", () => {
+    mockParams = { ...PARAMS, totalDebtUsd: 50_000 };
+    mockResult = calculate(mockParams, "gradual");
+
+    const { container } = render(
+      <LiquidationPreview additionalDebtUsd={1_000} />,
+    );
+
+    expect(
+      within(container).getByText(
+        COPY.liquidations.preview.bandLabel(1, "0.4 + 0.3"),
       ),
     ).toBeInTheDocument();
   });

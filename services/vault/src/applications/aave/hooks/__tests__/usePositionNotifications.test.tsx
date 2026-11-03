@@ -49,6 +49,7 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   pegInConfigQueryOptions: () => ({ queryKey: ["pegInConfig"] }),
 }));
 
+import { deriveBannerState } from "../../positionNotifications";
 import { usePositionNotifications } from "../usePositionNotifications";
 
 const VAULT_A =
@@ -609,118 +610,109 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
 
   // At $90,000 the calculator has both vaults going in a gapped first event. The
   // Spoke's reading can be higher while a newly added vault waits to be indexed.
-  it("drops the gapped cliff with the urgent warning when a fresh live HF is outside the urgent band", () => {
-    setSpokeBtcPrice(90_000);
-    mockUseVaultSplitParams.mockReturnValue({
-      params: {
-        THF: 1.1,
-        expectedHF: 0.95,
-        CF: 0.75,
-        LB: 1.05,
-        bonusCurve: FLAT_BONUS_CURVE,
-        maxLB: 1.05,
-      },
-      isLoading: false,
-    });
-    setDashboardState({
-      collateralVaults: [
-        makeVault(VAULT_A, 0.3, 0),
-        makeVault(VAULT_B, 0.7, 1),
-      ],
-      debtValueUsd: 100_000,
-      healthFactor: 1.5,
-    });
+  describe("a gapped first event", () => {
+    function setGappedPosition(healthFactor: number) {
+      setSpokeBtcPrice(90_000);
+      mockUseVaultSplitParams.mockReturnValue({
+        params: {
+          THF: 1.1,
+          expectedHF: 0.95,
+          CF: 0.75,
+          LB: 1.05,
+          bonusCurve: FLAT_BONUS_CURVE,
+          maxLB: 1.05,
+        },
+        isLoading: false,
+      });
+      setDashboardState({
+        collateralVaults: [
+          makeVault(VAULT_A, 0.3, 0),
+          makeVault(VAULT_B, 0.7, 1),
+        ],
+        debtValueUsd: 100_000,
+        healthFactor,
+      });
+    }
 
-    const { result } = renderHook(() => usePositionNotifications(USER));
+    it("stays priced at its trigger when a fresh live HF outside the urgent band overrules it", () => {
+      setGappedPosition(1.5);
 
-    expect(result.current.result?.groups[0].vaults).toHaveLength(2);
-    expect(result.current.result?.warnings).toEqual([]);
-  });
+      const { result } = renderHook(() => usePositionNotifications(USER));
 
-  it("drops the gapped cliff when a fresh live HF inside the urgent band replaces the calculator's warning", () => {
-    setSpokeBtcPrice(90_000);
-    mockUseVaultSplitParams.mockReturnValue({
-      params: {
-        THF: 1.1,
-        expectedHF: 0.95,
-        CF: 0.75,
-        LB: 1.05,
-        bonusCurve: FLAT_BONUS_CURVE,
-        maxLB: 1.05,
-      },
-      isLoading: false,
-    });
-    setDashboardState({
-      collateralVaults: [
-        makeVault(VAULT_A, 0.3, 0),
-        makeVault(VAULT_B, 0.7, 1),
-      ],
-      debtValueUsd: 100_000,
-      healthFactor: 1.02,
+      const first = result.current.result?.groups[0];
+      expect(first?.executionPrice).toBe(first?.liquidationPrice);
+      expect(first?.debtRepaid).toBe(100_000);
     });
 
-    const { result } = renderHook(() => usePositionNotifications(USER));
+    it("stays priced at its trigger when a fresh live HF inside the urgent band overrules it", () => {
+      setGappedPosition(1.02);
 
-    expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
-      "urgent",
-    ]);
-  });
+      const { result } = renderHook(() => usePositionNotifications(USER));
 
-  it("keeps the gapped cliff when the live HF read is too old to overrule the calculator", () => {
-    vi.setSystemTime(STALE_NOW);
-    setSpokeBtcPrice(90_000);
-    mockUseVaultSplitParams.mockReturnValue({
-      params: {
-        THF: 1.1,
-        expectedHF: 0.95,
-        CF: 0.75,
-        LB: 1.05,
-        bonusCurve: FLAT_BONUS_CURVE,
-        maxLB: 1.05,
-      },
-      isLoading: false,
-    });
-    setDashboardState({
-      collateralVaults: [
-        makeVault(VAULT_A, 0.3, 0),
-        makeVault(VAULT_B, 0.7, 1),
-      ],
-      debtValueUsd: 100_000,
-      healthFactor: 1.5,
+      const first = result.current.result?.groups[0];
+      expect(first?.executionPrice).toBe(first?.liquidationPrice);
     });
 
-    const { result } = renderHook(() => usePositionNotifications(USER));
+    it("gives the live warning and the trigger-priced advice when a fresh live HF inside the urgent band overrules it", () => {
+      setGappedPosition(1.02);
 
-    expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
-      "urgent",
-      "cliff",
-    ]);
-  });
+      const { result } = renderHook(() => usePositionNotifications(USER));
 
-  it("keeps a single vault's cliff below its trigger when a fresh live HF overrules the calculator", () => {
-    setSpokeBtcPrice(90_000);
-    mockUseVaultSplitParams.mockReturnValue({
-      params: {
-        THF: 1.1,
-        expectedHF: 0.95,
-        CF: 0.75,
-        LB: 1.05,
-        bonusCurve: FLAT_BONUS_CURVE,
-        maxLB: 1.05,
-      },
-      isLoading: false,
-    });
-    setDashboardState({
-      collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
-      debtValueUsd: 100_000,
-      healthFactor: 1.5,
+      const warnings = result.current.result?.warnings;
+      expect(warnings?.map((w) => w.type)).toEqual(["urgent", "reorder"]);
+      expect(warnings?.[0]).toBe(result.current.liveUrgentWarning);
     });
 
-    const { result } = renderHook(() => usePositionNotifications(USER));
+    // The state where the banner used to go empty: the reorder card is back, and
+    // with it how the last reorder ended.
+    it("offers the better order when a fresh live HF outside the urgent band overrules it", () => {
+      setGappedPosition(1.5);
 
-    expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
-      "cliff",
-    ]);
+      const { result } = renderHook(() => usePositionNotifications(USER));
+
+      const state = deriveBannerState(result.current.result!);
+      expect(state.severity).toBe("soft");
+      expect(state.primaryWarning?.type).toBe("reorder");
+      expect(state.suggestReorder).toBe(true);
+    });
+
+    it("stays priced at the market when the live HF read is too old to overrule it", () => {
+      vi.setSystemTime(STALE_NOW);
+      setGappedPosition(1.5);
+
+      const { result } = renderHook(() => usePositionNotifications(USER));
+
+      expect(result.current.result?.groups[0].executionPrice).toBe(90_000);
+      expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
+        "urgent",
+        "cliff",
+      ]);
+    });
+
+    it("stays priced at the market when the live HF also reads below 1", () => {
+      setGappedPosition(0.9);
+
+      const { result } = renderHook(() => usePositionNotifications(USER));
+
+      expect(result.current.result?.groups[0].executionPrice).toBe(90_000);
+    });
+
+    it("stays priced at its trigger on a single vault when a fresh live HF overrules it", () => {
+      setGappedPosition(1.5);
+      setDashboardState({
+        collateralVaults: [makeVault(VAULT_A, 1.0, 0)],
+        debtValueUsd: 100_000,
+        healthFactor: 1.5,
+      });
+
+      const { result } = renderHook(() => usePositionNotifications(USER));
+
+      const first = result.current.result?.groups[0];
+      expect(first?.executionPrice).toBe(first?.liquidationPrice);
+      expect(result.current.result?.warnings.map((w) => w.type)).toEqual([
+        "cliff",
+      ]);
+    });
   });
 
   it("keeps the calculator's urgent warning when the live HF read is older than the staleness threshold", () => {

@@ -996,33 +996,72 @@ describe("price already below the first trigger", () => {
     expect(deriveBannerState(below).suggestReorder).toBe(false);
   });
 
-  // A fresh Spoke reading can drop the calculator's urgent warning, as it can
-  // while a new vault waits to be indexed.
-  it("calls no order optimal below the trigger when a better one exists and no warning is left", () => {
-    const below = calculate(
-      makeParams([v(0.3), v(0.7)], {
-        totalDebtUsd: 100_000,
-        btcPrice: 132_000,
-      }),
+  // The reading for a position the Spoke itself reads as healthy.
+  it("keeps every event at its own trigger below the trigger in the gradual reading", () => {
+    const vaults = [v(0.5), v(0.5), v(1)];
+    const params = makeParams(vaults, { ...GAP_PARAMS, btcPrice: 50_000 });
+    const above = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 70_000 }),
     );
 
-    expect(below.optimalVaultOrder).not.toBeNull();
-    expect(deriveBannerState({ ...below, warnings: [] }).severity).toBe(
-      "hidden",
+    const gradual = calculate(params, "gradual");
+
+    expect(gradual.groups).toEqual(
+      withDistancesAt(above, params.btcPrice).groups,
     );
   });
 
-  it("still calls the order optimal below the trigger when no better one exists", () => {
-    const below = calculate(
-      makeParams([v(0.7), v(0.3)], {
-        totalDebtUsd: 100_000,
-        btcPrice: 132_000,
+  it("measures the gradual reading's distances to the live price", () => {
+    const { groups } = calculate(
+      makeParams([v(1)], {
+        ...GAP_PARAMS,
+        btcPrice: 50_000,
+        totalDebtUsd: 75_000,
       }),
+      "gradual",
     );
 
-    expect(below.optimalVaultOrder).toBeNull();
-    expect(deriveBannerState({ ...below, warnings: [] }).severity).toBe(
-      "green",
+    // A $100,000 trigger, at 0.75 CF, is 100% above $50,000.
+    expect(groups[0].liquidationPrice).toBeCloseTo(100_000);
+    expect(groups[0].distancePct).toBeCloseTo(100);
+  });
+
+  it("gives the reorder advice in the gradual reading, which the live one leaves out", () => {
+    const params = makeParams([v(1), v(0.5), v(0.5)], {
+      ...GAP_PARAMS,
+      btcPrice: 50_000,
+    });
+
+    expect(hasWarning(calculate(params).warnings, "reorder")).toBe(false);
+    expect(hasWarning(calculate(params, "gradual").warnings, "reorder")).toBe(
+      true,
+    );
+  });
+
+  it("leaves out the gapped cliff in the gradual reading", () => {
+    const params = makeParams([v(0.5), v(0.5), v(1)], {
+      ...GAP_PARAMS,
+      btcPrice: 50_000,
+    });
+
+    expect(hasWarning(calculate(params).warnings, "cliff")).toBe(true);
+    expect(hasWarning(calculate(params, "gradual").warnings, "cliff")).toBe(
+      false,
+    );
+  });
+
+  // `assertOptimalOrderMatchesOnChain` compares the order against the live
+  // reading before signing.
+  it("suggests the same order in the gradual and live readings", () => {
+    const params = makeParams([v(1), v(0.5), v(0.5)], {
+      ...GAP_PARAMS,
+      btcPrice: 50_000,
+    });
+    const live = calculate(params);
+
+    expect(live.optimalVaultOrder).not.toBeNull();
+    expect(calculate(params, "gradual").optimalVaultOrder).toEqual(
+      live.optimalVaultOrder,
     );
   });
 

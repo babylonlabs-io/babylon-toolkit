@@ -835,6 +835,24 @@ describe("Liquidation Dashboard simulator", () => {
     ).not.toBeInTheDocument();
   });
 
+  // What `usePositionNotifications` returns when a fresh Spoke reading at or
+  // above 1 overrules a calculator that has the price below every trigger.
+  it("charts the overruled cascade at its triggers, with no market-priced estimate", () => {
+    const params = { ...LIVE_PARAMS, btcPrice: 10_000 };
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      params,
+      result: calculate(params, "gradual"),
+    });
+
+    render(<Liquidations />);
+
+    expect(screen.getByTestId("liq-band-0")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.liquidations.events.estimatedAtPrice),
+    ).not.toBeInTheDocument();
+  });
+
   // The Timeline's price scale throws on triggers out of order. Below HF
   // LB × CF (0.7875 here) a seizure lowers the health factor, so a later trigger
   // could rise past an earlier one. Four equal vaults with a $50,000 first
