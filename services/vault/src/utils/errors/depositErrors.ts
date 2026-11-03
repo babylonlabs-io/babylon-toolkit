@@ -80,6 +80,7 @@ import {
   isApplicationEntryPointMismatchError,
   isDepositNotAllowedError,
   isDepositTermsRejectedError,
+  isHtlcOutputMismatchError,
   isParticipantKeyDriftError,
   isPeginFingerprintChangedError,
   isPeginFingerprintInputError,
@@ -221,6 +222,16 @@ export function mapDepositErrorAfterRegistration(
   return resumeCopy
     ? { title: resumeCopy.title, body: resumeCopy.message }
     : content;
+}
+
+/**
+ * Error content for a resumed Pre-Pegin broadcast. An output mismatch is mapped
+ * here and not in `mapDepositError`: only this path can say nothing was broadcast.
+ */
+export function mapResumeBroadcastError(err: unknown): DepositErrorContent {
+  return isHtlcOutputMismatchError(err)
+    ? ERRORS.resumeScriptMismatch
+    : mapDepositErrorAfterRegistration(err);
 }
 
 /**

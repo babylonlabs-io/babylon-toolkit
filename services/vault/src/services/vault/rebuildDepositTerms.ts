@@ -14,6 +14,8 @@
  * Two lifecycle modes, differing only in the status gate:
  * - `"broadcast"` (resume Pre-PegIn broadcast): every batch member must still
  *   be PENDING — a non-PENDING member would be silently funded by the shared tx.
+ *   Runs for every wallet, because its Gate 1 is what proves the HTLC outputs
+ *   use the registered keys; only an intent wallet receives the terms.
  * - `"presign"` (resume payout presigning): only the TARGET must be PENDING;
  *   siblings advance independently and no presigned byte depends on their
  *   status. Additionally refuses once the target's on-chain ack window has

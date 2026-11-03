@@ -1616,6 +1616,12 @@ export const COPY = {
         title: "Vault operator keys changed",
         body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered BTCVault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own. Please start a new deposit.",
       },
+      // Refused before a resumed broadcast, and terminal: the transaction and
+      // the vault's frozen keys cannot change, so a retry would refuse again.
+      resumeScriptMismatch: {
+        title: "Deposit does not match its BTCVault",
+        body: "This deposit's Bitcoin transaction does not match the keys and settings registered for its BTCVault, so a refund in this app would not work. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own. Please start a new deposit.",
+      },
       // Refused before broadcast, and terminal: the payout script is frozen at
       // the vault's key epochs, so a retry would refuse again.
       unsupportedPayoutScript: {

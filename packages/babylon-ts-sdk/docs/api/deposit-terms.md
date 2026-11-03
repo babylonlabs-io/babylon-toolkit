@@ -1282,6 +1282,32 @@ If approval-capable but no terms are provided, or the provided terms
 
 ***
 
+### isHtlcOutputMismatchError()
+
+```ts
+function isHtlcOutputMismatchError(err): boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+Whether an error means the funded transaction's HTLC outputs differ from what
+the registered keys and parameters produce.
+
+`instanceof` alone fails across module boundaries (duplicate SDK copies, test
+mocks), so this falls back to the name field, as the key drift guard does.
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`boolean`
+
+***
+
 ### rebuildDepositTermsCore()
 
 ```ts

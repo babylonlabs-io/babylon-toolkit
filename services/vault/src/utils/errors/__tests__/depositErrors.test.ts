@@ -30,6 +30,7 @@ import {
   isResumableDepositError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
+  mapResumeBroadcastError,
   postRegistrationWalletErrorMessage,
 } from "../depositErrors";
 import {
@@ -906,6 +907,25 @@ describe("mapDepositError", () => {
       "Failed to sign Pre-Pegin transaction: nope",
     );
     expect(mapDepositError(withoutCause)).toEqual(ERRORS.signingFailed);
+  });
+});
+
+describe("mapResumeBroadcastError", () => {
+  it("says the Pre-Pegin was not broadcast when its outputs do not match the registered keys", () => {
+    const mismatch = new Error("HTLC output scriptPubKey does not match");
+    mismatch.name = "HtlcOutputMismatchError";
+
+    expect(mapResumeBroadcastError(mismatch)).toEqual(
+      COPY.deposit.errors.resumeScriptMismatch,
+    );
+  });
+
+  it("maps any other failure as a post-registration error", () => {
+    const err = new Error("network down");
+
+    expect(mapResumeBroadcastError(err)).toEqual(
+      mapDepositErrorAfterRegistration(err),
+    );
   });
 });
 

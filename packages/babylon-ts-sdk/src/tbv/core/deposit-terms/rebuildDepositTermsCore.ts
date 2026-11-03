@@ -17,7 +17,10 @@ import { computeMinClaimValue, getPrePeginHtlcConnectorInfo } from "../wasm";
 import { Transaction } from "bitcoinjs-lib";
 
 import { findAuthAnchorOpReturn } from "../managers/pegin/assertAuthAnchorOpReturn";
-import { assertEncodedHtlcOutputsMatch } from "../primitives/psbt/assertWasmPeginSizing";
+import {
+  assertEncodedHtlcOutputsMatch,
+  HtlcOutputMismatchError,
+} from "../primitives/psbt/assertWasmPeginSizing";
 import { PEGIN_P2A_ANCHOR_VALUE_SATS } from "../primitives/psbt/constants";
 import { stripHexPrefix } from "../primitives/utils/bitcoin";
 import { computeMinPeginFeeSats } from "../utils/fee/peginFeeMath";
@@ -65,6 +68,20 @@ export interface RebuildDepositTermsCoreInput {
 
   /** WASM network descriptor for scriptPubKey derivation. */
   network: Parameters<typeof getPrePeginHtlcConnectorInfo>[0]["network"];
+}
+
+/**
+ * Whether an error means the funded transaction's HTLC outputs differ from what
+ * the registered keys and parameters produce.
+ *
+ * `instanceof` alone fails across module boundaries (duplicate SDK copies, test
+ * mocks), so this falls back to the name field, as the key drift guard does.
+ */
+export function isHtlcOutputMismatchError(err: unknown): boolean {
+  return (
+    err instanceof HtlcOutputMismatchError ||
+    (err instanceof Error && err.name === "HtlcOutputMismatchError")
+  );
 }
 
 export async function rebuildDepositTermsCore(

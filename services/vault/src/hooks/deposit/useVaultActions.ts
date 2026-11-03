@@ -65,7 +65,7 @@ import {
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
-  mapDepositErrorAfterRegistration,
+  mapResumeBroadcastError,
   SendOutcomeUnknownError,
   type DepositErrorContent,
 } from "@/utils/errors";
@@ -601,23 +601,29 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
+      // Every wallet, with or without a local record: the registered hash binds
+      // the transaction, and this rebuild binds its HTLC outputs to the vault's
+      // frozen keys and stamped parameters. A mismatch would lock BTC the in-app
+      // refund cannot spend. Do NOT drop the pending record on this refusal.
+      const { expectedUtxos: resolvedUtxos, fundedTxFee } =
+        await resolveFundedTxFeeAndUtxos(unsignedTxHex);
+      const rebuiltTerms = await rebuildDepositTerms({
+        vaultId,
+        target: onChainVault,
+        fundedPrePeginTxHex: unsignedTxHex,
+        connectedDepositorAddress: depositorEthAddress as Hex,
+        depositorBtcPubkey,
+        fundedTxFee,
+        lifecycle: "broadcast",
+        signal,
+      });
+
       let expectedUtxos;
       let depositTerms: DepositTerms | undefined;
-      // Approval wallets need fresh terms and prevouts for the device fee check.
+      // Approval wallets need the terms and prevouts for the device fee check.
       if (supportsDepositApproval(btcWalletProvider)) {
-        const { expectedUtxos: resolvedUtxos, fundedTxFee } =
-          await resolveFundedTxFeeAndUtxos(unsignedTxHex);
         expectedUtxos = resolvedUtxos;
-        depositTerms = await rebuildDepositTerms({
-          vaultId,
-          target: onChainVault,
-          fundedPrePeginTxHex: unsignedTxHex,
-          connectedDepositorAddress: depositorEthAddress as Hex,
-          depositorBtcPubkey,
-          fundedTxFee,
-          lifecycle: "broadcast",
-          signal,
-        });
+        depositTerms = rebuiltTerms;
       } else {
         // Local UTXOs apply only to the local transaction. Otherwise, the service
         // resolves every input from the mempool.
@@ -669,7 +675,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         // instead of the Ethereum-confirmation one.
         // Every resume is post-registration, so a spent input gets the
         // terminal callout here too, not the SDK's new-deposit wording.
-        setBroadcastError(mapDepositErrorAfterRegistration(err));
+        setBroadcastError(mapResumeBroadcastError(err));
         // Mapping replaces the raw message with friendly copy, and only the
         // fallback branch carries `diagnostics`. Log the original so a mapped
         // failure is still diagnosable — `useBroadcastState`'s catch cannot do
