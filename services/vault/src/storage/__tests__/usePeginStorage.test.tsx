@@ -12,9 +12,15 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
+import {
+  ContractStatus,
+  PEGIN_DISPLAY_LABELS,
+} from "@/models/peginStateMachine";
+import type { VaultActivity } from "@/types/activity";
 
 import {
   addPendingPegin,
+  getPendingPegins,
   getPendingPeginsStorageKey,
   PendingPeginStorageReadError,
 } from "../peginStorage";
@@ -214,5 +220,67 @@ describe("usePeginStorage read failures", () => {
     });
 
     expect(logger.error).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("usePeginStorage record cleanup", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    addPendingPegin(ETH_ADDRESS, {
+      id: VAULT_ID,
+      peginTxHash: PEGIN_TXHASH,
+      unsignedTxHex: "0xdeadbeef",
+      buildOffchainParamsVersion: REGISTERED_VERSION,
+      buildAppVaultKeepersVersion: 3,
+      buildUniversalChallengersVersion: 5,
+      buildVaultCoreVersion: 1,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function expiredActivity(overrides: Partial<VaultActivity>): VaultActivity {
+    return {
+      id: VAULT_ID,
+      collateral: { amount: "1", symbol: "BTC" },
+      providers: [],
+      displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+      unsignedPrePeginTx: "0xdeadbeef",
+      depositorWotsPkHash: `0x${"0".repeat(64)}`,
+      contractStatus: ContractStatus.EXPIRED,
+      ...overrides,
+    };
+  }
+
+  it("keeps the record of a vault whose expiry nobody has reported, which a raised timeout can reopen", () => {
+    renderHook(() =>
+      usePeginStorage({
+        ethAddress: ETH_ADDRESS,
+        confirmedPegins: [expiredActivity({ expiryUnreported: true })],
+      }),
+    );
+
+    act(() => vi.advanceTimersByTime(500));
+
+    expect(getPendingPegins(ETH_ADDRESS).map((p) => p.id)).toEqual([VAULT_ID]);
+  });
+
+  it("removes the record once the expiry is recorded", () => {
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(1);
+
+    renderHook(() =>
+      usePeginStorage({
+        ethAddress: ETH_ADDRESS,
+        confirmedPegins: [expiredActivity({})],
+      }),
+    );
+
+    act(() => vi.advanceTimersByTime(500));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
   });
 });

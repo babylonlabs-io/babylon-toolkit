@@ -63,7 +63,6 @@ function makeInputs(
     requiredDepth: 6,
     protocolParamsError: null,
     refundTimelock: 10,
-    activationDeadlinePassed: false,
     stuckStateConfirmedOnChain: false,
     claimExpiredWindow: undefined,
     isLoading: false,
@@ -309,7 +308,7 @@ describe("computeDepositPollingResult — missing Pre-PegIn", () => {
   );
 });
 
-describe("computeDepositPollingResult — activation deadline gate", () => {
+describe("computeDepositPollingResult — VERIFIED activation", () => {
   function makeVerifiedActivity(): VaultActivity {
     return {
       ...makeExpiredActivity(),
@@ -319,23 +318,9 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     };
   }
 
-  it("gates Activate to expired when the deadline is confirmed passed", () => {
+  it("offers Activate on a VERIFIED vault", () => {
     const result = computeDepositPollingResult(
-      makeInputs({
-        activity: makeVerifiedActivity(),
-        activationDeadlinePassed: true,
-      }),
-    );
-    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
-    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
-  });
-
-  it("leaves Activate available when the deadline has not passed", () => {
-    const result = computeDepositPollingResult(
-      makeInputs({
-        activity: makeVerifiedActivity(),
-        activationDeadlinePassed: false,
-      }),
+      makeInputs({ activity: makeVerifiedActivity() }),
     );
     expect(result.peginState.availableActions).toContain(
       PeginAction.ACTIVATE_VAULT,
@@ -405,6 +390,54 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     expect(result.peginState.displayLabel).not.toBe(
       PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
     );
+  });
+
+  it("does not call a PegIn sweep a completed refund when the stuck check has not confirmed it", () => {
+    // A refund that lost the race leaves its marker behind. The stuck check
+    // fails open on the same failed reads that leave this row reading VERIFIED,
+    // so the row reaches the refund display with the PegIn as the spender.
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        stuckStateConfirmedOnChain: false,
+        optimisticStatuses: new Map([
+          [VAULT_ID, LocalStorageStatus.REFUND_BROADCAST],
+        ]),
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            {
+              spent: true,
+              confirmed: true,
+              spendingTxid: PEGIN_TX.slice("0x".length),
+            },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
+    expect(result.peginState.message).toBe(COPY.pegin.messages.refundUnsettled);
+    expect(result.refundTxId).toBeUndefined();
+  });
+
+  it("reads Refunded when the confirmed spender of a vault this device refunded is not the PegIn", () => {
+    const refundTxid = REFUND_TX.slice("0x".length);
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        optimisticStatuses: new Map([
+          [VAULT_ID, LocalStorageStatus.REFUND_BROADCAST],
+        ]),
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: true, spendingTxid: refundTxid },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+    expect(result.refundTxId).toBe(refundTxid);
   });
 
   it("does not flag the stuck state when the HTLC spender is not the PegIn tx", () => {
@@ -1061,5 +1094,140 @@ describe("computeDepositPollingResult — activation returned", () => {
 
     expect(isVaultActivationReturned(result.peginState)).toBe(false);
     expect(isVaultActivated(result.peginState)).toBe(true);
+  });
+});
+
+describe("computeDepositPollingResult — expiry nobody has reported", () => {
+  function makeUnreportedActivity(
+    overrides: Partial<VaultActivity> = {},
+  ): VaultActivity {
+    return {
+      ...makeExpiredActivity(),
+      peginTxHash: PEGIN_TX,
+      expiryUnreported: true,
+      expirationReason: "activation_timeout",
+      ...overrides,
+    };
+  }
+
+  const SPENT_BY_PEGIN = new Map([
+    [
+      VAULT_ID.toLowerCase(),
+      { spent: true, confirmed: true, spendingTxid: PEGIN_TX },
+    ],
+  ]);
+
+  it("offers the refund once Bitcoin would accept it", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeUnreportedActivity(),
+        matureRefundTxids: new Set(),
+        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, 10]]),
+        refundTimelock: 10,
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.REFUND_HTLC,
+    ]);
+  });
+
+  it("counts down instead of offering a refund Bitcoin would reject", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeUnreportedActivity(),
+        matureRefundTxids: new Set(),
+        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, 4]]),
+        refundTimelock: 10,
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.refundMaturesInBlocks).toBe(6);
+  });
+
+  it("withholds the redeem from a swept vault, which needs the registry's Expired", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeUnreportedActivity(),
+        htlcRefundByDepositId: SPENT_BY_PEGIN,
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.peginSweptExpiryUnreported,
+    );
+  });
+
+  it("offers the redeem on a swept vault once the registry records the expiry", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeUnreportedActivity({ expiryUnreported: undefined }),
+        htlcRefundByDepositId: SPENT_BY_PEGIN,
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    ]);
+  });
+
+  it("reports a settled refund on a vault nobody has reported, which stays Refunded after the report", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeUnreportedActivity(),
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: true, spendingTxid: REFUND_TX },
+          ],
+        ]),
+      }),
+    );
+
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+  });
+});
+
+describe("computeDepositPollingResult — provider errors on an expired vault", () => {
+  it("drops an error left over from a PENDING poll, which would hide the refund", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        errors: new Map([[VAULT_ID, new Error("Provider reports expired")]]),
+      }),
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.REFUND_HTLC,
+    ]);
+  });
+
+  it("still reports a protocol-params failure, since maturity depends on the params", () => {
+    const paramsError = new Error("params unavailable");
+
+    const result = computeDepositPollingResult(
+      makeInputs({ protocolParamsError: paramsError }),
+    );
+
+    expect(result.error).toBe(paramsError);
+  });
+
+  it("keeps a provider error on a PENDING vault, whose poll can still answer", () => {
+    const providerError = new Error("Provider unreachable");
+
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.PENDING,
+        },
+        errors: new Map([[VAULT_ID, providerError]]),
+      }),
+    );
+
+    expect(result.error).toBe(providerError);
   });
 });

@@ -78,6 +78,7 @@ import {
   ContractStatus,
   getPeginProgressStep,
   hasActionableStep,
+  hasLeftDepositFlow,
   isRefundInFlightOrSettled,
   isVaultActivationReturned,
   LocalStorageStatus,
@@ -225,10 +226,14 @@ function PendingRow({
     : { type: "noAction" };
 
   // No estimate for a returned activation: the vault will never activate, and
-  // an estimate would hide the message saying the BTC is being returned.
+  // an estimate would hide the message saying the BTC is being returned. The
+  // same goes for a deposit that has left the flow.
+  const leftDepositFlow =
+    peginState !== undefined && hasLeftDepositFlow(peginState);
   const estimateMinutes =
     peginState?.displayVariant === "pending" &&
     !isVaultActivationReturned(peginState) &&
+    !leftDepositFlow &&
     !hasActionableStep(peginState, result?.depositorBtcPubkey) &&
     result?.requiredPrePeginDepth !== undefined
       ? pendingActivationEstimateMinutes(
@@ -260,9 +265,14 @@ function PendingRow({
     onOpenDetails(activity.id, action);
   };
 
-  // Pre-PegIn first: while a deposit is in flight the Pre-PegIn tx exists
-  // before the peg-in tx does (active rows prefer the opposite).
-  const hash = activity.prePeginTxHash ?? activity.peginTxHash;
+  // A refund row shows the refund, as the inactive rows do. Otherwise Pre-PegIn
+  // first: while a deposit is in flight the Pre-PegIn tx exists before the
+  // peg-in tx does (active rows prefer the opposite).
+  const refundTxId =
+    peginState && isRefundInFlightOrSettled(peginState)
+      ? result?.refundTxId
+      : undefined;
+  const hash = refundTxId ?? activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
     // This row's data-testid is a real-wallet E2E hook
@@ -346,22 +356,32 @@ function PendingRow({
 
       {/* Transaction hash */}
       <div
-        className={`flex items-center [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
+        className={`flex flex-col items-start justify-center [&_a]:underline ${LIST_ROW_COLUMN_CLASS}`}
       >
+        {refundTxId && (
+          <span className="text-xs text-accent-secondary">
+            {COPY.vaults.refundTransactionLabel}
+          </span>
+        )}
         {hash && (
           <CopyableHash
             hash={hash}
             chain="BTC"
-            explorerUrl={getRowExplorerUrl(activity, peginState)}
+            explorerUrl={
+              refundTxId
+                ? getBtcExplorerTxUrl(refundTxId)
+                : getRowExplorerUrl(activity, peginState)
+            }
           />
         )}
       </div>
 
       {/* Primary action or details, then the dismiss control, inside the same
           fixed trailing cell the Active and Inactive rows use so this row's
-          columns stay level with theirs. */}
+          columns stay level with theirs. Below `xl`, where the row wraps, an
+          empty cell is hidden so it does not take a line of its own. */}
       <div
-        className={`${LIST_ROW_TRAILING_CLASS} max-md:basis-full max-md:flex-col max-md:items-stretch`}
+        className={`${LIST_ROW_TRAILING_CLASS} max-xl:empty:hidden max-md:basis-full max-md:flex-col max-md:items-stretch`}
       >
         {actionStatus.type === "available" ? (
           // This control's data-testid is a real-wallet E2E hook
@@ -391,7 +411,8 @@ function PendingRow({
               {actionStatus.action?.label ?? COPY.vaults.actions.viewDetails}
             </button>
           </Hint>
-        ) : (
+        ) : leftDepositFlow ? null : (
+          // No details: the view tracks a deposit's progress toward activation.
           <button
             type="button"
             onClick={() => onOpenDetails(activity.id, null)}

@@ -77,8 +77,9 @@ export interface DepositPollingInputs {
   confirmedTxids: Set<string>;
   matureRefundTxids: Set<string>;
   /**
-   * Live HTLC spend status keyed by lowercased vault id, from the EXPIRED
-   * `outspend` poll. A spent HTLC means the refund already landed.
+   * Live HTLC spend status keyed by lowercased vault id, from the `outspend`
+   * poll of expired and Verified vaults and of a Pending vault this device
+   * refunded. Which transaction spent the HTLC decides what the spend means.
    */
   htlcRefundByDepositId: Map<string, HtlcSpend>;
   /**
@@ -113,12 +114,6 @@ export interface DepositPollingInputs {
    */
   refundTimelock: number | undefined;
   /**
-   * VERIFIED only: confirmed (Tier-2 chain read) past the on-chain activation
-   * deadline. Gates the Activate CTA. Defaults false (fail-safe) when not a
-   * suspect, the RPC failed, or the vault isn't on chain yet.
-   */
-  activationDeadlinePassed: boolean;
-  /**
    * VERIFIED only: the chain CONFIRMS this vault is still unactivated, and its
    * PegIn, fetched from Bitcoin, validly spends the HTLC — the secret and every
    * participant's signature in its witness — so the escape hatch reveals no
@@ -136,8 +131,7 @@ export interface DepositPollingInputs {
   /**
    * Blocks left before the on-chain activation floor opens for THIS deposit.
    * `undefined` = not gated, `null` = gated with an unknown remainder
-   * (fail-closed). Resolved by the caller, mirroring
-   * `activationDeadlinePassed`. See `useActivationFloorGate`.
+   * (fail-closed). Resolved by the caller. See `useActivationFloorGate`.
    */
   activationFloorBlocksRemaining: number | null | undefined;
   /**
@@ -205,7 +199,6 @@ export function computeDepositPollingResult(
     requiredDepth,
     protocolParamsError,
     refundTimelock,
-    activationDeadlinePassed,
     stuckStateConfirmedOnChain,
     activationFloorBlocksRemaining,
     activationBlockedBySibling,
@@ -239,7 +232,15 @@ export function computeDepositPollingResult(
     pendingPegins,
   );
 
-  const depositError = errors?.get(depositId);
+  // Only a PENDING vault is polled, so an expired one's entry is left over from
+  // its last PENDING tick, and it stays for good. A row that first read PENDING
+  // gets one on every load, before the chain read says it expired. It must not
+  // reach `error`, which hides the action: the vault provider has no part in a
+  // Bitcoin refund or an on-chain redeem.
+  const depositError =
+    contractStatus === ContractStatus.EXPIRED
+      ? undefined
+      : errors?.get(depositId);
   const vpTerminalError =
     depositError && isTerminalPollingError(depositError)
       ? depositError.message
@@ -350,11 +351,13 @@ export function computeDepositPollingResult(
   const refundConfirmed =
     refundedHtlcs.has(depositIdKey) || liveRefund?.confirmed === true;
   const refundPending = !refundConfirmed && liveRefund?.spent === true;
-  // Attribute before settling. Without this the EXPIRED branch reports
-  // "Refund complete" for ANY spend, including the PegIn's own sweep — telling
-  // a depositor their BTC came back when it did not.
+  // Attribute before settling. Without this the display reports "Refund
+  // complete" for ANY spend, including the PegIn's own sweep — telling a
+  // depositor their BTC came back when it did not. On every status: a refund
+  // that lost the race leaves its marker behind, and a row reading VERIFIED
+  // reaches the refund display when the stuck check has not confirmed the sweep.
   const refundSettlement: "confirmed" | "pending" | undefined =
-    peginSweptWhileExpired
+    htlcSpendIsPeginTx
       ? undefined
       : refundConfirmed
         ? "confirmed"
@@ -380,8 +383,12 @@ export function computeDepositPollingResult(
   // refund. The window fails open: only a chain read that says closed (or that
   // the redeem already landed) withholds it, because hiding the only exit over
   // a failed read is the worse outcome and the contract enforces the deadline.
+  // An unreported expiry withholds it outright: the redeem needs the registry's
+  // Expired, and `useClaimExpiredVault` refuses without it, but only after the
+  // modal has asked the wallet to derive the secret.
   const canClaimExpired =
     peginSweptWhileExpired &&
+    !activity.expiryUnreported &&
     claimExpiredWindow?.state !== "closed" &&
     claimExpiredWindow?.state !== "redeemed";
 
@@ -423,7 +430,7 @@ export function computeDepositPollingResult(
     prePeginBroadcastNotFound,
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
-    activationDeadlinePassed,
+    expiryUnreported: activity.expiryUnreported,
     htlcSpentByPeginTx,
     activationFloorBlocksRemaining,
     activationBlockedBySibling,
@@ -470,7 +477,7 @@ export function computeDepositPollingResult(
     // A per-deposit VP error is more specific, so it wins; the params failure
     // is the fallback so an outage suppresses actions on every deposit
     // rather than being dropped (see the input doc above).
-    error: errors?.get(depositId) ?? protocolParamsError,
+    error: depositError ?? protocolParamsError,
     peginState,
     refundTxId:
       typeof refundTxId === "string" &&

@@ -1,9 +1,9 @@
 // Activation FLOOR gate for VERIFIED vaults — the lower bound the registry
-// enforces (`_requireActivationDelayElapsed`), mirroring
-// `useActivationDeadlineGate`'s upper bound. Two things differ, and both matter.
+// enforces (`_requireActivationDelayElapsed`). `useChainExpiryCheck` covers the
+// upper bound. Two things about this one matter.
 //
-// 1. FAIL CLOSED. The deadline gate fails open on every error, because
-//    over-gating there would lock a depositor out of a valid activation. Here
+// 1. FAIL CLOSED. The expiry check fails open, because over-gating there would
+//    lock a depositor out of a valid activation. Here
 //    the risk points the other way: letting Activate through early sends the
 //    HTLC secret into `simulateContract` calldata and so to the RPC provider,
 //    the leak `useVaultActions` already guards against when it insists on an
@@ -111,9 +111,9 @@ export function useActivationFloorGate(
     // deliberate: this query is mounted app-wide, and a rejection reaches the
     // global QueryCache.onError -> logger.error -> captureException. A
     // deployment without the getter would then emit a Sentry event every
-    // poll, for every session, forever. `useActivationDeadlineGate`
-    // wraps its body for the same reason. Safety is unaffected — the map is
-    // seeded gated and only a proven read can relax an entry.
+    // poll, for every session, forever. `useChainExpiryCheck` wraps its body
+    // for the same reason. Safety is unaffected — the map is seeded gated and
+    // only a proven read can relax an entry.
     queryFn: async (): Promise<Map<string, number | null>> => {
       // `null` = gated, remaining unknown. `0` = proven open. Every candidate
       // keeps an entry so the public map below can tell "resolved open" apart

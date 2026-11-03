@@ -57,6 +57,23 @@ export function ackDeadlineBlocksRemaining(params: {
 }
 
 /**
+ * Whether a vault's on-chain acknowledgment window has closed. Mirrors the
+ * registry's strict bound: an ACK reverts, and a Pending vault can be reported
+ * expired, once `block.number > createdAt + pegInAckTimeout`, so a boundary-equal
+ * block has not passed (vault-contracts-aave-v4 @ d240ec03:
+ * `src/protocol/lib/PeginLogic.sol:638,968`). The activation deadline's twin
+ * lives in the SDK (`isActivationDeadlinePassedOnChain`).
+ */
+export function isAckDeadlinePassedOnChain(params: {
+  currentBlock: bigint;
+  createdAtBlock: bigint;
+  pegInAckTimeout: bigint;
+}): boolean {
+  const { currentBlock, createdAtBlock, pegInAckTimeout } = params;
+  return currentBlock > createdAtBlock + pegInAckTimeout;
+}
+
+/**
  * Blocks that must remain before the acknowledgment deadline for a Pre-PegIn
  * broadcast to be worth signing.
  *

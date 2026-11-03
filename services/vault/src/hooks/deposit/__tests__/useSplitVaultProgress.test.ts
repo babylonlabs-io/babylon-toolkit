@@ -37,6 +37,7 @@ vi.mock("@/models/peginStateMachine", () => ({
     localStatus === "confirming"
       ? DepositFlowStep.AWAIT_BTC_CONFIRMATION
       : DepositFlowStep.SUBMIT_WOTS_KEYS,
+  hasLeftDepositFlow: (s: { leftFlow?: boolean }) => s.leftFlow === true,
   isVaultPastActivation: (s: { pastActivation: boolean } | undefined) =>
     s?.pastActivation === true,
 }));
@@ -47,6 +48,7 @@ type FakeState = {
   pastActivation: boolean;
   displayVariant?: "pending" | "active" | "inactive" | "warning" | "danger";
   localStatus?: string;
+  leftFlow?: boolean;
 };
 
 function pollingFor(states: Record<string, FakeState>) {
@@ -57,6 +59,34 @@ function pollingFor(states: Record<string, FakeState>) {
 }
 
 describe("deriveSplitVaultProgress", () => {
+  it("freezes a sibling that has left the flow instead of mirroring the active vault", () => {
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.RETRIEVE_SECRET,
+        pastActivation: false,
+      },
+      "0xrefunded": {
+        displayStep: null,
+        pastActivation: false,
+        displayVariant: "pending",
+        leftFlow: true,
+        localStatus: "confirming",
+      },
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xrefunded"],
+      "0xactive",
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+
+    expect(perVaultSteps).toEqual([
+      DepositFlowStep.RETRIEVE_SECRET,
+      DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    ]);
+  });
+
   it("marks a fully-activated sibling COMPLETED instead of mirroring the active vault", () => {
     // Active vault mid-activation (Retrieve secret); the sibling already
     // activated — getPeginDisplayStep is null for it. It must render complete,

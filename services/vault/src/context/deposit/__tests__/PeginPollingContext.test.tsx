@@ -87,20 +87,8 @@ vi.mock("../../../hooks/useBtcHtlcRefundStatus", () => ({
     mockUseBtcHtlcRefundStatus(outpoints),
 }));
 
-// Activation-deadline gate uses react-query + chain reads — stub so the
-// provider renders in isolation. Default: nothing gated. Tests can inject a
-// gated vault id via `mockReturnValue`.
-const { mockUseActivationDeadlineGate } = vi.hoisted(() => ({
-  mockUseActivationDeadlineGate: vi.fn<() => ReadonlySet<string>>(
-    () => new Set<string>(),
-  ),
-}));
-vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
-  useActivationDeadlineGate: () => mockUseActivationDeadlineGate(),
-}));
-
-// Stuck-state chain confirm: same story as the deadline gate — react-query plus
-// a chain read. Default is the empty set, i.e. nothing confirmed stuck, which
+// Stuck-state chain confirm: react-query plus a chain read. Default is the empty
+// set, i.e. nothing confirmed stuck, which
 // is also the production fail-open default.
 const { mockUseStuckVaultChainConfirm } = vi.hoisted(() => ({
   mockUseStuckVaultChainConfirm: vi.fn<
@@ -121,7 +109,7 @@ vi.mock("../../../hooks/useClaimExpiredWindowGate", () => ({
 }));
 
 // Floor gate issues chain reads for VERIFIED vaults; stub it so the provider
-// renders without a QueryClient, exactly as the deadline gate above is stubbed.
+// renders without a QueryClient.
 vi.mock("../../../hooks/useActivationFloorGate", () => ({
   useActivationFloorGate: () => new Map<string, number | null>(),
 }));
@@ -136,7 +124,6 @@ const mockVersionedParams = new Map<number, { tRefund: number }>();
 const mockProtocolParams = {
   ready: true,
   error: null as Error | null,
-  pegInActivationTimeout: undefined as bigint | undefined,
   resolveRequiredPrePeginDepth: (): number | undefined =>
     mockProtocolParams.ready ? 6 : undefined,
   resolveRefundTimelock: (v?: number): number | undefined =>
@@ -275,6 +262,61 @@ describe("PeginPollingContext", () => {
 
     expect(result.current.count).toBe(2);
     expect(result.current.progress).toBeCloseTo(2 / 3, 12);
+  });
+
+  it("counts a refunded deposit, whose row stays in the section, without blanking the others' progress", () => {
+    const refundedId = "0xpeginOther" as Hex;
+    const { result: polling } = renderProvider(true, [
+      ACTIVITY,
+      { ...ACTIVITY, id: refundedId, contractStatus: ContractStatus.VERIFIED },
+    ]);
+    const { result } = renderHook(usePendingDepositSummary);
+    expect(result.current.count).toBe(2);
+
+    act(() => {
+      polling.current.setOptimisticStatus(
+        refundedId,
+        LocalStorageStatus.REFUND_BROADCAST,
+      );
+    });
+
+    expect(result.current.count).toBe(2);
+    expect(result.current.progress).not.toBeNull();
+  });
+
+  it("probes a PENDING vault's HTLC only once this device has refunded it", () => {
+    const activity: VaultActivity = {
+      ...ACTIVITY,
+      prePeginTxHash: `0x${"ab".repeat(32)}` as Hex,
+      htlcVout: 0,
+    };
+    const { unmount } = renderProvider(true, [activity]);
+    expect(mockUseBtcHtlcRefundStatus.mock.calls.at(-1)?.[0]).toEqual([]);
+    unmount();
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[activity]}
+        pendingPegins={[
+          {
+            id: ACTIVITY_ID,
+            timestamp: 0,
+            status: LocalStorageStatus.REFUND_BROADCAST,
+            peginTxHash: `0x${"ab".repeat(32)}` as Hex,
+            unsignedTxHex: "",
+          },
+        ]}
+        btcPublicKey={BTC_PUBKEY}
+        isConnected
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    renderHook(() => usePeginPolling(), { wrapper });
+
+    expect(mockUseBtcHtlcRefundStatus.mock.calls.at(-1)?.[0]).toEqual([
+      expect.objectContaining({ depositId: ACTIVITY_ID }),
+    ]);
   });
 
   it("excludes completed demo deposits from the pending summary", () => {

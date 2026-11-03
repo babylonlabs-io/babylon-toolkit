@@ -5,7 +5,8 @@
  *  - pendingActivities: in-flight deposits (contractStatus 0=PENDING or 1=VERIFIED).
  *  - expiredActivities: refundable expired deposits (contractStatus 7=EXPIRED with
  *    unsignedPrePeginTx — the only indexer-sourced field required to build the
- *    refund PSBT; hashlock and htlcVout come from the on-chain contract).
+ *    refund PSBT; hashlock and htlcVout come from the on-chain contract). EXPIRED
+ *    here is the indexer's or a chain read's, see `useChainExpiryCheck`.
  *  - reclaimableCandidates: settled deposits (contractStatus 6=DEPOSITOR_WITHDRAWN or 8=NON_DEPOSITOR_SPEND)
  *    whose depositor-claim reserve may still be unspent. Candidates only —
  *    eligibility is decided on Bitcoin, not from this status.

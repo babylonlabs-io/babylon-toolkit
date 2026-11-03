@@ -202,8 +202,8 @@ export function useRefundState({
           // The PegIn, not a refund, spent the HTLC. Record nothing: a refunded
           // marker would drop the vault from the HTLC probe and hide the redeem
           // that is now the only exit. The message points the depositor there,
-          // so re-probe now for the row to offer it, and refuse a retry that
-          // could only end in a rejected refund.
+          // so re-probe now for the row to offer it once the expiry is recorded,
+          // and refuse a retry that could only end in a rejected refund.
           if (err instanceof HtlcSweptByPeginError) {
             setError(err.message);
             setErrorTerminal(true);

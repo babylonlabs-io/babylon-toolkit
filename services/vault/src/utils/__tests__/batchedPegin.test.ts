@@ -149,6 +149,27 @@ describe("isActivationBlockedByEarlierSibling", () => {
     ).toBe(false);
   });
 
+  it("blocks index 1 while index 0 is expired but nobody has reported it", () => {
+    const sacrificial = {
+      ...withStatus(
+        activity("0xsacrificial", "0xaaaa", 0),
+        ContractStatus.EXPIRED,
+      ),
+      expiryUnreported: true,
+    };
+    const protectedVault = withStatus(
+      activity("0xprotected", "0xaaaa", 1),
+      ContractStatus.VERIFIED,
+    );
+
+    expect(
+      isActivationBlockedByEarlierSibling(
+        [sacrificial, protectedVault],
+        protectedVault,
+      ),
+    ).toBe(true);
+  });
+
   it("releases index 1 when index 0 expired and can never be queued", () => {
     const sacrificial = withStatus(
       activity("0xsacrificial", "0xaaaa", 0),

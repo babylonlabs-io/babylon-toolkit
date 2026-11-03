@@ -1,5 +1,6 @@
-// Centralized poller for whether each EXPIRED vault's Pre-PegIn HTLC output
-// has been spent (the depositor's CSV refund). Mirrors
+// Centralized poller for whether each expired or Verified vault's Pre-PegIn HTLC
+// output has been spent (the depositor's CSV refund, or the PegIn), and that of a
+// Pending vault this device refunded. Mirrors
 // `useBtcMempoolConfirmations`: one batched query, concurrency-capped against
 // the public mempool.space rate limit, keyed by vault id (siblings of a
 // batched Pre-PegIn share a txid but own distinct HTLC outputs).
@@ -21,8 +22,8 @@ const MAX_CONCURRENT_REQUESTS = 4;
 
 // Singleton for the no-data render. A fresh `new Map()` per render would mint
 // a new identity every render while the query is disabled or unloaded — the
-// common case, since this poll only runs for sessions with EXPIRED vaults —
-// and React Query's structural sharing cannot share Maps either. Every
+// common case, since this poll only runs for sessions with such vaults — and
+// React Query's structural sharing cannot share Maps either. Every
 // downstream memo keyed on the result (the provider's `getPollingResult`
 // among them) would recompute per render, and consumers that react to it
 // identity-wise would loop.

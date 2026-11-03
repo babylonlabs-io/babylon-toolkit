@@ -24,6 +24,7 @@ import { usePeginStorage } from "../storage/usePeginStorage";
 import { transformVaultToActivity } from "../utils/vaultTransformers";
 
 import { useActiveVaultChainCheck } from "./useActiveVaultChainCheck";
+import { useChainExpiryCheck } from "./useChainExpiryCheck";
 import { useVaults } from "./useVaults";
 
 /**
@@ -69,29 +70,87 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     new Map(),
   );
 
-  // Transform vaults to vault activities. The registry status replaces an
-  // indexer ACTIVE that the chain has not reached, so the activities built
-  // here (and the deposit views, storage cleanup and milestones that read
-  // them) never show a false activation success or hide the Activate action.
-  // While a vault's registry read has not settled, it keeps the status it
-  // last had, or is held out if it had none: its ACTIVE alone would delete
-  // the local record and emit the completion milestone.
-  const confirmedActivities = useMemo(() => {
-    if (!data) return [];
-
+  // The registry status replaces an indexer ACTIVE that the chain has not
+  // reached, so the activities built below (and the deposit views, storage
+  // cleanup and milestones that read them) never show a false activation
+  // success or hide the Activate action. While a vault's registry read has not
+  // settled, it keeps the status it last had, or is held out if it had none:
+  // its ACTIVE alone would delete the local record and emit the completion
+  // milestone.
+  const resolvedStatuses = useMemo(() => {
     const statuses = new Map<string, ContractStatus>();
-    const activities = data.vaults.flatMap((vault) => {
+    if (!data) return statuses;
+
+    for (const vault of data.vaults) {
       const id = vault.id.toLowerCase();
       const status = chainCheck.pendingIds.has(id)
         ? lastStatusesRef.current.get(id)
         : (chainCheck.statuses.get(id) ?? vault.status);
-      if (status === undefined) return [];
-      statuses.set(id, status);
-      return [transformVaultToActivity({ ...vault, status })];
-    });
+      if (status !== undefined) statuses.set(id, status);
+    }
     lastStatusesRef.current = statuses;
-    return activities;
+    return statuses;
   }, [data, chainCheck]);
+
+  const expiryCandidateIds = useMemo(
+    () =>
+      (data?.vaults ?? [])
+        .filter((vault) => {
+          const status = resolvedStatuses.get(vault.id.toLowerCase());
+          return (
+            status === ContractStatus.PENDING ||
+            status === ContractStatus.VERIFIED
+          );
+        })
+        .map((vault) => vault.id),
+    [data, resolvedStatuses],
+  );
+  const chainExpiries = useChainExpiryCheck(expiryCandidateIds);
+
+  // Transform vaults to vault activities. A vault the chain has expired reads
+  // EXPIRED from here on, so its refund is offered from chain state, not from
+  // the indexer seeing an expiry report that may never come. Everything keyed
+  // on EXPIRED follows: the Bitcoin polling, the refund action, the lists. The
+  // few things that need the registry's own Expired read `expiryUnreported`.
+  const confirmedActivities = useMemo(() => {
+    if (!data) return [];
+
+    return data.vaults.flatMap((vault) => {
+      const id = vault.id.toLowerCase();
+      const status = resolvedStatuses.get(id);
+      if (status === undefined) return [];
+      const expiry = chainExpiries.get(id);
+      if (!expiry) return [transformVaultToActivity({ ...vault, status })];
+      if (expiry.reported) {
+        return [
+          transformVaultToActivity({
+            ...vault,
+            status: ContractStatus.EXPIRED,
+            // The indexer's reason is missing while it lags, and the artifact
+            // download and the row's message need one. A row reading VERIFIED
+            // settles it: the registry expires a Verified vault only on the
+            // activation timeout (vault-contracts-aave-v4@d240ec03:
+            // src/protocol/lib/PeginLogic.sol:985-989).
+            expirationReason:
+              vault.expirationReason ??
+              (status === ContractStatus.VERIFIED
+                ? "activation_timeout"
+                : undefined),
+          }),
+        ];
+      }
+      return [
+        {
+          ...transformVaultToActivity({
+            ...vault,
+            status: ContractStatus.EXPIRED,
+            expirationReason: expiry.reason,
+          }),
+          expiryUnreported: true,
+        },
+      ];
+    });
+  }, [data, resolvedStatuses, chainExpiries]);
 
   /**
    * Lowercased ids of every vault the indexer returned, or null unless that
@@ -143,9 +202,13 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
         },
       );
 
+      // EXPIRED only: its Refunding ends with a TTL. A row this device refunded
+      // that reads PENDING or VERIFIED again has none, and could keep this up
+      // until a raised deadline passes.
       return (
         state.displayLabel === PEGIN_DISPLAY_LABELS.PROCESSING ||
-        state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDING
+        (state.displayLabel === PEGIN_DISPLAY_LABELS.REFUNDING &&
+          activity.contractStatus === ContractStatus.EXPIRED)
       );
     });
 

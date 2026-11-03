@@ -321,28 +321,6 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toEqual([PeginAction.NONE]);
     });
 
-    it("gates Activate as expired when the activation deadline passed on-chain", () => {
-      const state = getPeginState(ContractStatus.VERIFIED, {
-        activationDeadlinePassed: true,
-      });
-      expect(state.availableActions).toEqual([PeginAction.NONE]);
-      expect(state.availableActions).not.toContain(PeginAction.ACTIVATE_VAULT);
-      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
-      expect(state.displayVariant).toBe("warning");
-      expect(state.message).toContain("not activated in time");
-      expect(getPrimaryActionButton(state)).toBeNull();
-      // warning variant → no progress step
-      expect(getPeginDisplayStep(state)).toBeNull();
-    });
-
-    it("keeps Activate available when the deadline has not passed", () => {
-      const state = getPeginState(ContractStatus.VERIFIED, {
-        activationDeadlinePassed: false,
-      });
-      expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
-      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE);
-    });
-
     it("shows activation incomplete with the withdraw escape hatch when the HTLC is spent", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
         htlcSpentByPeginTx: true,
@@ -367,14 +345,167 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
       expect(state.availableActions).toEqual([PeginAction.NONE]);
     });
+  });
 
-    it("strips the escape hatch too once the activation deadline passed on-chain", () => {
+  describe("getPeginState - VERIFIED after this device refunded", () => {
+    it("does not offer Activate against BTC that has come back", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
-        htlcSpentByPeginTx: true,
-        activationDeadlinePassed: true,
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("reads Refunding, with no progress step, while the refund is unsettled", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
+      expect(getPeginDisplayStep(state)).toBeNull();
+    });
+
+    it("reads Refunded once the refund confirms", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        refundSettlement: "confirmed",
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+    });
+
+    it("keeps the escape hatch when the PegIn won the race against the refund", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        htlcSpentByPeginTx: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.ACTIVATE_AND_REDEEM]);
+      expect(state.displayLabel).toBe(
+        PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+      );
+    });
+  });
+
+  describe("getPeginState - PENDING after this device refunded", () => {
+    it("offers nothing that would advance a deposit whose BTC has come back", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        transactionsReady: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("reads Refunding, with no progress step, while the refund is unsettled", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
+      expect(getPeginDisplayStep(state)).toBeNull();
+    });
+
+    it("reads Refunded once the refund confirms", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        refundSettlement: "confirmed",
+      });
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+    });
+  });
+
+  describe("getPeginState - refund message on a vault reading in flight again", () => {
+    it("promises a confirmation only when the probe found the refund's spend", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        refundSettlement: "pending",
+      });
+      expect(state.message).toBe(COPY.pegin.messages.refundBroadcast);
+    });
+
+    it("promises nothing when no refund spend was found", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+      });
+      expect(state.message).toBe(COPY.pegin.messages.refundUnsettled);
+    });
+  });
+
+  describe("getPeginState - redeem confirmed while the indexer lags", () => {
+    it.each([
+      ["VERIFIED", ContractStatus.VERIFIED, {}],
+      ["PENDING", ContractStatus.PENDING, { transactionsReady: true }],
+    ])(
+      "offers nothing on a redeemed vault reading %s",
+      (_name, status, options) => {
+        const state = getPeginState(status, {
+          ...options,
+          localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
+        });
+        expect(state.availableActions).toEqual([PeginAction.NONE]);
+      },
+    );
+
+    it.each([
+      ["VERIFIED", ContractStatus.VERIFIED],
+      ["PENDING", ContractStatus.PENDING],
+    ])(
+      "reads as the redemption, with no progress step, on %s",
+      (_name, status) => {
+        const state = getPeginState(status, {
+          localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
+        });
+        expect(state.displayLabel).toBe(
+          PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+        );
+        expect(getPeginDisplayStep(state)).toBeNull();
+      },
+    );
+  });
+
+  describe("isCandidateVault - a deposit that has left the flow", () => {
+    it("is not a candidate once its refund is in flight", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.REFUND_BROADCAST,
+      });
+      expect(isCandidateVault(state)).toBe(false);
+    });
+
+    it("is not a candidate once its redeem has confirmed", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
+      });
+      expect(isCandidateVault(state)).toBe(false);
+    });
+
+    it("stays a candidate while it is waiting to activate", () => {
+      expect(isCandidateVault(getPeginState(ContractStatus.VERIFIED))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe("getPeginState - EXPIRED, swept, expiry nobody has reported", () => {
+    it("tells a verified vault the redeem opens once the expiry is recorded", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        peginSweptWhileExpired: true,
+        expiryUnreported: true,
+        expirationReason: "activation_timeout",
+      });
+      expect(state.displayLabel).toBe(
+        PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+      );
+      expect(state.message).toBe(
+        COPY.pegin.messages.peginSweptExpiryUnreported,
+      );
+      expect(state.inlineSubtext).toBe(
+        COPY.pegin.messages.peginSweptExpiryUnreportedSubtext,
+      );
+    });
+
+    it("does not promise a redeem to a vault that was never verified", () => {
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        peginSweptWhileExpired: true,
+        expiryUnreported: true,
+        expirationReason: "ack_timeout",
+      });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
+      expect(state.message).toBe(COPY.pegin.messages.peginSweptWindowClosed);
     });
   });
 
@@ -837,8 +968,8 @@ describe("peginStateMachine", () => {
     });
 
     it("excludes other warning states", () => {
-      const state = getPeginState(ContractStatus.VERIFIED, {
-        activationDeadlinePassed: true,
+      const state = getPeginState(ContractStatus.PENDING, {
+        vpTerminalError: "The vault provider rejected this deposit",
       });
       expect(state.displayVariant).toBe("warning");
       expect(isCandidateVault(state)).toBe(false);

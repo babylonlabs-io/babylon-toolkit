@@ -242,7 +242,14 @@ describe("Activity page — wallet gating", () => {
 
   it("offers Withdraw on a refundable expired deposit's feed row", () => {
     usePendingDepositsMock.mockReturnValue({
-      expiredActivities: [{ id: "vault-1" }],
+      expiredActivities: [
+        {
+          id: "vault-1",
+          timestamp: Date.parse("2026-01-01T00:00:00Z"),
+          collateral: { amount: "1.00", symbol: "BTC" },
+          prePeginTxHash: "abcd1234",
+        },
+      ],
       allActivities: [],
       ethAddress: "0xabc0000000000000000000000000000000000001",
       refundModal: { handleRefundClick: vi.fn() },

@@ -88,8 +88,11 @@ const CAN_STILL_ACTIVATE: ReadonlySet<number> = new Set([
 /**
  * True while a lower construction-index sibling can still activate. A sibling
  * that is ACTIVE is already queued ahead, and a terminal one (redeemed,
- * expired, …) can never be queued, so neither blocks. UX only: the chain
- * guard in `assertActivationFollowsConstructionOrder` is authoritative.
+ * expired, …) can never be queued, so neither blocks. An unreported expiry does
+ * block: the registry still holds that sibling PENDING or VERIFIED, and a raised
+ * timeout could reopen it behind this vault. UX only: the chain guard in
+ * `assertActivationFollowsConstructionOrder` is authoritative, and refuses in
+ * the same case.
  */
 export function isActivationBlockedByEarlierSibling(
   activities: VaultActivity[],
@@ -101,6 +104,9 @@ export function isActivationBlockedByEarlierSibling(
     (sibling) =>
       sibling.constructionIndex !== undefined &&
       sibling.constructionIndex < index &&
-      CAN_STILL_ACTIVATE.has(sibling.contractStatus ?? ContractStatus.PENDING),
+      (sibling.expiryUnreported === true ||
+        CAN_STILL_ACTIVATE.has(
+          sibling.contractStatus ?? ContractStatus.PENDING,
+        )),
   );
 }

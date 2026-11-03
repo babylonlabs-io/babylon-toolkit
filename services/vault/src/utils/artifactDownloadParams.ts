@@ -84,7 +84,10 @@ export function getArtifactDownloadParams(
  * The download inputs of a vault that expired after Verified, or null. Only an
  * activation-timeout expiry got past Verified, and the provider serves its
  * package while the vault is Expired or, after `claimExpiredVault`, Redeemed
- * (btc-vault #3042, `retains_depositor_artifacts`). That provider serves
+ * (btc-vault #3042, `retains_depositor_artifacts`). An expiry nobody has reported
+ * counts: the provider moves to Expired only on `PeginExpired`, and serves the
+ * package in the state before it too (btc-vault @ 56ca500a:
+ * `crates/vaultd/src/depositor_artifacts/http.rs:84-88`). That provider serves
  * artifacts over HTTP only, so the download is offered only on that route.
  */
 export function getExpiredArtifactDownloadParams(

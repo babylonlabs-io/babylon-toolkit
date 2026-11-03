@@ -276,6 +276,13 @@ export const COPY = {
       peginSweptWindowClosed:
         "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, and the grace window to redeem it has closed. It can no longer be redeemed from here.",
       peginSweptWindowClosedSubtext: "Grace window to redeem has closed",
+      // Past the deadline, but nobody has reported the expiry on Ethereum. The
+      // redeem reverts until someone does. The grace window starts at that
+      // report, so no deadline is quoted.
+      peginSweptExpiryUnreported:
+        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, so a refund is no longer possible. Your BTC is not lost: once the expiry is recorded on Ethereum, you can redeem this BTCVault, and the vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission. The grace window to redeem starts when the expiry is recorded.",
+      peginSweptExpiryUnreportedSubtext:
+        "Refund unavailable: redeem opens once the expiry is recorded",
       // Approximate remaining grace window, interpolated into the subtext and
       // the redeem modal.
       claimWindowRemaining: {
@@ -322,8 +329,8 @@ export const COPY = {
       // Split-deposit activation order. The earlier (sacrificial) BTCVault must
       // join the liquidation queue before the later one.
       activationOrderWaiting:
-        "This split deposit activates in order. Activate the earlier BTCVault first, so it is liquidated before this one.",
-      activationOrderSubtext: "Activate the earlier BTCVault first",
+        "This split deposit activates in order. Activate the earlier BTCVault first, so it is liquidated before this one. If the earlier BTCVault has expired or been refunded, this one can activate once its expiry is recorded on Ethereum.",
+      activationOrderSubtext: "Waiting on the earlier BTCVault",
       activationOrderBlocked:
         "Activate the earlier BTCVault in this split deposit first. Nothing was submitted. The split's liquidation order must match its construction order.",
       activationOrderUnavailable:
@@ -348,6 +355,11 @@ export const COPY = {
         "This BTCVault was liquidated. The collateral was seized to cover unpaid debt.",
       refundBroadcast:
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
+      // A vault reading in flight again that this device refunded, with no
+      // refund spend on Bitcoin to point at. It may have been evicted, so no
+      // confirmation is promised.
+      refundUnsettled:
+        "A refund was broadcast from this device, and it has not confirmed on Bitcoin.",
       refundComplete:
         "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
       // Longest sub-line the lifecycle rows render. It exceeds
@@ -862,12 +874,13 @@ export const COPY = {
     // Names the way out instead of a retry: the refund can never land. Two
     // stages, because the spend can be found before the wallet signs or only
     // when the signed refund is rejected at broadcast. The redeem pointer is
-    // conditional: once the grace window closes, the row offers no Redeem.
+    // conditional: the row offers no Redeem until the expiry is recorded, which
+    // is what opens the grace window, or once that window closes.
     refundSweptByPegin: {
       beforeSigning:
-        "The peg-in transaction already spent this deposit on Bitcoin, so it can no longer be refunded. Nothing was signed. If this BTCVault's grace window is still open, redeem it from its row instead.",
+        "The peg-in transaction already spent this deposit on Bitcoin, so it can no longer be refunded. Nothing was signed. Once this BTCVault's expiry is recorded on Ethereum, and while its grace window is open, you can redeem it from its row instead.",
       afterSigning:
-        "The peg-in transaction spent this deposit on Bitcoin before your refund could be broadcast, so it can no longer be refunded. The signed refund was not broadcast. If this BTCVault's grace window is still open, redeem it from its row instead.",
+        "The peg-in transaction spent this deposit on Bitcoin before your refund could be broadcast, so it can no longer be refunded. The signed refund was not broadcast. Once this BTCVault's expiry is recorded on Ethereum, and while its grace window is open, you can redeem it from its row instead.",
     },
     // The deposit is spent but the spending transaction was not reported, so
     // it can be neither recorded as a refund nor attributed to the peg-in.
@@ -1471,7 +1484,7 @@ export const COPY = {
       // predict expiry. The title holds whether blocks remain or none do.
       broadcastAckWindowElapsed: {
         title: "Deposit can't be completed in time",
-        body: "Too little of the acknowledgment window remains for the Pre-Pegin to confirm and be acknowledged in time, so this attempt did not broadcast it. No BTC was sent or locked by this attempt. If the BTCVault is not acknowledged in time, it will show as expired once the timeout is recorded on Ethereum.",
+        body: "Too little of the acknowledgment window remains for the Pre-Pegin to confirm and be acknowledged in time, so this attempt did not broadcast it. No BTC was sent or locked by this attempt. If the BTCVault is not acknowledged in time, it will show as expired.",
       },
       // The same gate could not read the chain (head unreadable, or a
       // parameter read failed), so it refused without a verdict. Nothing was

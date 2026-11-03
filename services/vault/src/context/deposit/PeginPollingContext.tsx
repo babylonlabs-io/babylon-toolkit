@@ -32,7 +32,6 @@ import { isHtlcSpentByPegin } from "../../clients/btc/outspend";
 import { usePeginPollingProtocolParams } from "../../hooks/deposit/usePeginPollingProtocolParams";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
-import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
 import { useClaimExpiredWindowGate } from "../../hooks/useClaimExpiredWindowGate";
@@ -40,6 +39,7 @@ import { useStuckVaultChainConfirm } from "../../hooks/useStuckVaultChainConfirm
 import {
   ContractStatus,
   getPeginProgressStep,
+  hasLeftDepositFlow,
   LocalStorageStatus,
 } from "../../models/peginStateMachine";
 import {
@@ -268,15 +268,7 @@ export function PeginPollingProvider({
   // connected or not — the pre-hoist footprint only paid them when a pending
   // section actually rendered.
   const params = usePeginPollingProtocolParams(activities.length > 0);
-  // Tiered (Tier-1 estimate → Tier-2 chain confirm) activation-deadline gate.
-  // Lowercased ids of VERIFIED vaults confirmed past their activation window.
-  // Fails safe on an undefined timeout (gate stays closed until params land).
-  const activationDeadlinePassedIds = useActivationDeadlineGate(
-    activities,
-    params.pegInActivationTimeout,
-  );
-  // Lower bound on activation, the mirror of the deadline gate above. Fails
-  // closed — see `useActivationFloorGate`.
+  // Lower bound on activation. Fails closed — see `useActivationFloorGate`.
   const activationFloorBlocks = useActivationFloorGate(activities);
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
@@ -351,10 +343,11 @@ export function PeginPollingProvider({
     );
 
   // Probe whether each owned EXPIRED or VERIFIED vault's HTLC output is
-  // already spent. Neither spend emits an Ethereum event, so the indexer
-  // never sees them — read Bitcoin directly. For EXPIRED vaults a spend is
-  // the refund landing; for VERIFIED vaults it is the stuck-state signal
-  // (peg-in swept without activation → activate-and-redeem escape hatch).
+  // already spent, and that of a PENDING vault this device refunded. Neither
+  // spend emits an Ethereum event, so the indexer never sees them — read
+  // Bitcoin directly. For EXPIRED vaults a spend is the refund landing; for
+  // VERIFIED vaults it is the stuck-state signal (peg-in swept without
+  // activation → activate-and-redeem escape hatch), or this device's refund.
   // The cache keeps confirmed refunds and their hashes out of this poll.
   const htlcRefundOutpoints = useMemo(
     () =>
@@ -363,9 +356,15 @@ export function PeginPollingProvider({
           if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
             return false;
           const status = (a.contractStatus ?? 0) as ContractStatus;
+          // A PENDING vault's HTLC is probed only once this device has refunded
+          // it, which is the one case its display reads the spend.
+          const refundedWhilePending =
+            status === ContractStatus.PENDING &&
+            localStatusById.get(a.id) === LocalStorageStatus.REFUND_BROADCAST;
           if (
             status !== ContractStatus.EXPIRED &&
-            status !== ContractStatus.VERIFIED
+            status !== ContractStatus.VERIFIED &&
+            !refundedWhilePending
           )
             return false;
           // Once this device has submitted the reveal (CONFIRMED), a spend is
@@ -501,7 +500,7 @@ export function PeginPollingProvider({
   // Cache confirmed refunds to keep the action blocked during a read failure.
   // The live poll supplies the refund hash for pending and confirmed spends.
   // EXPIRED vaults only: for them a confirmed spend IS the refund landing
-  // (terminal). A VERIFIED vault's confirmed spend is the VP sweep of the
+  // (terminal). A VERIFIED vault's confirmed spend can be the VP sweep of the
   // stuck state — caching it as "refunded" would mislabel the vault if it
   // later flips to EXPIRED, so those stay in the live poll.
   useEffect(() => {
@@ -641,9 +640,6 @@ export function PeginPollingProvider({
         refundedHtlcs,
         requiredDepth: getRequiredPrePeginDepth(activity),
         refundTimelock,
-        activationDeadlinePassed: activationDeadlinePassedIds.has(
-          activity.id.toLowerCase(),
-        ),
         stuckStateConfirmedOnChain: stuckConfirmedIds.has(
           activity.id.toLowerCase(),
         ),
@@ -685,7 +681,6 @@ export function PeginPollingProvider({
       refundedHtlcs,
       getRequiredPrePeginDepth,
       resolveRefundTimelock,
-      activationDeadlinePassedIds,
       stuckConfirmedIds,
       claimExpiredWindows,
       activationFloorBlocks,
@@ -710,7 +705,14 @@ export function PeginPollingProvider({
         activity.contractStatus === ContractStatus.PENDING ||
         activity.contractStatus === ContractStatus.VERIFIED,
     );
-    const fills = pending.map((activity) => {
+    // A deposit that has left the flow still counts, since its row is in the
+    // pending section, but it has no progress step: averaging it in would blank
+    // the progress of every other deposit.
+    const inFlow = pending.filter((activity) => {
+      const result = getPollingResult(activity.id);
+      return !(result && hasLeftDepositFlow(result.peginState));
+    });
+    const fills = inFlow.map((activity) => {
       const result = getPollingResult(activity.id);
       const step =
         result && !result.loading

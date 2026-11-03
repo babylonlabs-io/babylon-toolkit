@@ -59,6 +59,15 @@ export interface VaultActivity {
   /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired, 8=NonDepositorSpend) */
   contractStatus?: number;
 
+  /**
+   * Set with `contractStatus` EXPIRED when a chain read puts the vault past its
+   * deadline but nobody has called `reportExpiredPegins`: the registry still
+   * reports it PENDING or VERIFIED. Bitcoin's refund does not care, but
+   * anything that needs the registry's Expired does, and governance can reopen
+   * the vault by raising a timeout. See `useChainExpiryCheck`.
+   */
+  expiryUnreported?: boolean;
+
   /** Application usage status - whether vault is in use by an application */
   isInUse?: boolean;
 

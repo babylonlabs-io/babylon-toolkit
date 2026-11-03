@@ -1,4 +1,4 @@
-// The floor gate is the mirror of `useActivationDeadlineGate` with the
+// The floor gate is the mirror of `useChainExpiryCheck` with the
 // fail-safe direction INVERTED: unresolved must mean GATED. These tests exist
 // mainly to pin that — every "unresolved" path must keep the vault gated, and
 // a key may only leave the map on proof that the window is open.
