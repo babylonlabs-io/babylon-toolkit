@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProtocolGateState } from "@/components/shared/protocolStatus";
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { COPY } from "@/copy";
+import { useDepositStepInterrupted } from "@/hooks/useDepositStepInterrupted";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
@@ -134,15 +135,18 @@ vi.mock("@/components/simple/PostDepositContinuationContent", () => ({
   PostDepositContinuationContent: ({
     vaultIds,
     autoStartAction,
+    onClose,
   }: {
     vaultIds: readonly string[];
     autoStartAction: string | null;
+    onClose: () => void;
   }) => (
     <>
       <div data-testid="continuation-vault-ids">{vaultIds.join(",")}</div>
       <div data-testid="continuation-auto-start-action">
         {String(autoStartAction)}
       </div>
+      <button data-testid="continuation-close" onClick={onClose} />
     </>
   ),
 }));
@@ -726,6 +730,109 @@ describe("VaultsLifecycleSections deposit view", () => {
     expect(screen.getByTestId("continuation-vault-ids").textContent).toBe(
       `${first.id},${second.id}`,
     );
+  });
+
+  it("reports the deposit view opening and closing", () => {
+    mockUseDepositPollingResult.mockReturnValue(
+      pollingResult(PROCESSING_STATE),
+    );
+    const onDepositViewChange = vi.fn();
+    render(
+      <VaultsLifecycleSections
+        deposits={makeDeposits({}, vi.fn())}
+        returnedRedeemedActivities={[]}
+        onDownloadArtifacts={vi.fn()}
+        onDepositViewChange={onDepositViewChange}
+      />,
+    );
+    expect(onDepositViewChange).toHaveBeenLastCalledWith(false);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.vaults.actions.viewDetails }),
+    );
+
+    expect(onDepositViewChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByTestId("continuation-close"));
+
+    expect(onDepositViewChange).toHaveBeenLastCalledWith(false);
+  });
+
+  // The real hook and section together, because the result depends on the
+  // order React runs their effects in when the page drops the section.
+  function InterruptionHost({
+    isConnected,
+    showSection,
+    deposits,
+  }: {
+    isConnected: boolean;
+    showSection: boolean;
+    deposits: ReturnType<typeof usePendingDeposits>;
+  }) {
+    const { isInterrupted, onDepositViewChange } =
+      useDepositStepInterrupted(isConnected);
+    return (
+      <>
+        {isInterrupted && <div data-testid="interrupted" />}
+        {showSection && (
+          <VaultsLifecycleSections
+            deposits={deposits}
+            returnedRedeemedActivities={[]}
+            onDownloadArtifacts={vi.fn()}
+            onDepositViewChange={onDepositViewChange}
+          />
+        )}
+      </>
+    );
+  }
+
+  it("flags the interruption when a disconnect drops the section with the view open", () => {
+    mockUseDepositPollingResult.mockReturnValue(
+      pollingResult(PROCESSING_STATE),
+    );
+    const deposits = makeDeposits({}, vi.fn());
+    const { rerender } = render(
+      <InterruptionHost isConnected showSection deposits={deposits} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.vaults.actions.viewDetails }),
+    );
+
+    rerender(
+      <InterruptionHost
+        isConnected={false}
+        showSection={false}
+        deposits={deposits}
+      />,
+    );
+
+    expect(screen.getByTestId("interrupted")).toBeInTheDocument();
+  });
+
+  it("does not flag a later disconnect after the section was dropped while connected", () => {
+    mockUseDepositPollingResult.mockReturnValue(
+      pollingResult(PROCESSING_STATE),
+    );
+    const deposits = makeDeposits({}, vi.fn());
+    const { rerender } = render(
+      <InterruptionHost isConnected showSection deposits={deposits} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.vaults.actions.viewDetails }),
+    );
+    rerender(
+      <InterruptionHost isConnected showSection={false} deposits={deposits} />,
+    );
+
+    rerender(
+      <InterruptionHost
+        isConnected={false}
+        showSection={false}
+        deposits={deposits}
+      />,
+    );
+
+    expect(screen.queryByTestId("interrupted")).not.toBeInTheDocument();
   });
 
   it("opens View Details without naming an action to start", () => {

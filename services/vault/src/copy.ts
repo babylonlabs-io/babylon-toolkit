@@ -2940,6 +2940,10 @@ export const COPY = {
       title: "Some of your BTCVault data couldn't be loaded",
       body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
     },
+    depositStepInterrupted: {
+      title: "Wallet disconnected",
+      body: "Any deposit step in progress may have stopped. Reconnect your wallet to check your deposit and continue.",
+    },
     splitOrderWarning: {
       title: "BTCVault liquidation order needs attention",
       body: "This split deposit is not ordered as it was constructed. Until the order is restored, a liquidation could seize the protected BTCVault before the sacrificial BTCVault.",

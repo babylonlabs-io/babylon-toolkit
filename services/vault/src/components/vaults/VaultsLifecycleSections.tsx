@@ -23,7 +23,13 @@ import {
   InfoIcon,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { IoClose } from "react-icons/io5";
 import { twMerge } from "tailwind-merge";
 import type { Address, Hex } from "viem";
@@ -752,6 +758,7 @@ export function VaultsLifecycleSections({
   deposits,
   returnedRedeemedActivities,
   onDownloadArtifacts,
+  onDepositViewChange,
   children,
 }: {
   /** The page's single `usePendingDeposits` result, shared with the emptiness hook. */
@@ -763,11 +770,18 @@ export function VaultsLifecycleSections({
   returnedRedeemedActivities: VaultActivity[];
   /** Opens the page's artifact download modal. */
   onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
+  /** Tells the page whether the deposit view is open, to explain a disconnect. */
+  onDepositViewChange?: (open: boolean) => void;
   children?: ReactNode;
 }) {
   // The batch whose multistepper view modal is open — the full batch for a
   // split pegin — or null when closed. It shows `viewingVaultIds`.
   const [viewingBatch, setViewingBatch] = useState<ViewingBatch | null>(null);
+  const isDepositViewOpen = viewingBatch !== null;
+  useEffect(() => {
+    onDepositViewChange?.(isDepositViewOpen);
+    return () => onDepositViewChange?.(false);
+  }, [isDepositViewOpen, onDepositViewChange]);
   // The batch the open confirmation would remove, snapshotted when it opened
   // so the dialog keeps naming the same records while polling continues.
   const [dismissBatch, setDismissBatch] = useState<VaultActivity[] | null>(

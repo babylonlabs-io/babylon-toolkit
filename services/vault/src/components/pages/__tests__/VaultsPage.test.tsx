@@ -137,15 +137,25 @@ vi.mock("@/components/vaults/VaultsSummaryCard", () => ({
 vi.mock("@/components/vaults/VaultsLifecycleSections", () => ({
   VaultsLifecycleSections: ({
     returnedRedeemedActivities,
+    onDepositViewChange,
     children,
   }: {
     returnedRedeemedActivities: VaultActivity[];
+    onDepositViewChange: (open: boolean) => void;
     children?: ReactNode;
   }) => (
     <div data-testid="vaults-lifecycle-sections">
       <span data-testid="returned-redeemed-ids">
         {returnedRedeemedActivities.map((a) => a.id).join(",")}
       </span>
+      <button
+        data-testid="open-deposit-view"
+        onClick={() => onDepositViewChange(true)}
+      />
+      <button
+        data-testid="close-deposit-view"
+        onClick={() => onDepositViewChange(false)}
+      />
       {children}
     </div>
   ),
@@ -188,8 +198,9 @@ vi.mock("@/components/Wallet", () => ({
 }));
 
 function renderVaultsPage(openDeposit = vi.fn()) {
-  const view = render(
-    <QueryClientProvider client={new QueryClient()}>
+  const queryClient = new QueryClient();
+  const tree = () => (
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <Routes>
           <Route element={<Outlet context={{ openDeposit }} />}>
@@ -197,9 +208,15 @@ function renderVaultsPage(openDeposit = vi.fn()) {
           </Route>
         </Routes>
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
-  return { openDeposit, view };
+  const view = render(tree());
+  return { openDeposit, view, rerenderPage: () => view.rerender(tree()) };
+}
+
+function setEthWalletConnected(connected: boolean) {
+  walletState.ethConnected = connected;
+  emptinessState.isEmpty = !connected;
 }
 
 describe("VaultsPage", () => {
@@ -253,6 +270,61 @@ describe("VaultsPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByText(COPY.vaults.empty.description),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says a deposit step stopped when the wallet disconnects with the deposit view open", () => {
+    setEthWalletConnected(true);
+    const { rerenderPage } = renderVaultsPage();
+    fireEvent.click(screen.getByTestId("open-deposit-view"));
+
+    setEthWalletConnected(false);
+    rerenderPage();
+
+    expect(screen.getByTestId("deposit-step-interrupted")).toHaveTextContent(
+      COPY.vaults.depositStepInterrupted.body,
+    );
+    expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+  });
+
+  it("shows no interruption notice when the wallet disconnects with the deposit view closed", () => {
+    setEthWalletConnected(true);
+    const { rerenderPage } = renderVaultsPage();
+
+    setEthWalletConnected(false);
+    rerenderPage();
+
+    expect(
+      screen.queryByTestId("deposit-step-interrupted"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no interruption notice when the deposit view was opened and closed before the disconnect", () => {
+    setEthWalletConnected(true);
+    const { rerenderPage } = renderVaultsPage();
+    fireEvent.click(screen.getByTestId("open-deposit-view"));
+    fireEvent.click(screen.getByTestId("close-deposit-view"));
+
+    setEthWalletConnected(false);
+    rerenderPage();
+
+    expect(
+      screen.queryByTestId("deposit-step-interrupted"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the interruption notice once the wallet reconnects", () => {
+    setEthWalletConnected(true);
+    const { rerenderPage } = renderVaultsPage();
+    fireEvent.click(screen.getByTestId("open-deposit-view"));
+    setEthWalletConnected(false);
+    rerenderPage();
+
+    setEthWalletConnected(true);
+    rerenderPage();
+
+    expect(
+      screen.queryByTestId("deposit-step-interrupted"),
     ).not.toBeInTheDocument();
   });
 
