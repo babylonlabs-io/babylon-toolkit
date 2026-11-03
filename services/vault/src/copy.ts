@@ -1622,6 +1622,12 @@ export const COPY = {
         title: "Deposit does not match its BTCVault",
         body: "This deposit's Bitcoin transaction does not match the keys and settings registered for its BTCVault, so a refund in this app would not work. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own. Please start a new deposit.",
       },
+      // Refused before a resumed broadcast, and terminal: the transaction cannot
+      // change, so a retry would refuse again.
+      resumeMissingAnchor: {
+        title: "Deposit cannot be broadcast",
+        body: "This deposit's Bitcoin transaction doesn't have the data this app needs, in the form it needs, to confirm it. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own. Please start a new deposit.",
+      },
       // Refused before broadcast, and terminal: the payout script is frozen at
       // the vault's key epochs, so a retry would refuse again.
       unsupportedPayoutScript: {

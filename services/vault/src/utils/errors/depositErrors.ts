@@ -88,6 +88,7 @@ import {
   isPeginRegistrationNotFinalError,
   isRegisteredVaultVersionMismatchError,
   isUnsupportedPayoutScriptError,
+  UnanchoredPrePeginError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
@@ -231,10 +232,29 @@ export function mapDepositErrorAfterRegistration(
  * broadcast.
  */
 export function mapResumeBroadcastError(err: unknown): DepositErrorContent {
-  return isHtlcOutputMismatchError(err) ||
+  if (
+    isHtlcOutputMismatchError(err) ||
     err instanceof SiblingKeysMismatchError
-    ? ERRORS.resumeScriptMismatch
-    : mapDepositErrorAfterRegistration(err);
+  ) {
+    return ERRORS.resumeScriptMismatch;
+  }
+  if (err instanceof UnanchoredPrePeginError) {
+    return ERRORS.resumeMissingAnchor;
+  }
+  return mapDepositErrorAfterRegistration(err);
+}
+
+/** Whether a resumed broadcast's error is one a retry can only repeat. */
+export function isTerminalResumeBroadcastError(
+  content: DepositErrorContent,
+): boolean {
+  return (
+    content === ERRORS.resumeScriptMismatch ||
+    content === ERRORS.resumeMissingAnchor ||
+    content === ERRORS.participantKeyDrift ||
+    content === ERRORS.unsupportedPayoutScript ||
+    content === ERRORS.batchNoLongerPending
+  );
 }
 
 /**

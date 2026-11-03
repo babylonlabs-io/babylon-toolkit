@@ -68,7 +68,10 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
-import { mapDepositErrorAfterRegistration } from "@/utils/errors";
+import {
+  isTerminalResumeBroadcastError,
+  mapDepositErrorAfterRegistration,
+} from "@/utils/errors";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -342,9 +345,9 @@ function ResumeBroadcastContentConnected({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
-      // A mismatch with the registered vault cannot succeed on Retry.
+      // A terminal refusal cannot succeed on Retry.
       onRetry={
-        error && error !== COPY.deposit.errors.resumeScriptMismatch
+        error && !isTerminalResumeBroadcastError(error)
           ? handleBroadcast
           : undefined
       }

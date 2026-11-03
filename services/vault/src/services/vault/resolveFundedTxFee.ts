@@ -2,9 +2,8 @@
  * Resolve every prevout of a funded Pre-PegIn tx and compute its fee
  * (inputs − outputs). Mempool-only — nothing the device approves may originate
  * in browser storage (`assertUtxosAvailable` already guarantees the inputs are
- * mempool-visible). Returns a COMPLETE record that an approval wallet's
- * broadcast reuses verbatim, so the fee in the rebuilt terms is the fee it signs
- * (no drift).
+ * mempool-visible). Returns a COMPLETE record that the broadcast reuses
+ * verbatim, so the fee in the rebuilt terms is the fee it signs (no drift).
  *
  * The fee bounds here deliberately overlap `validateInputOutputBalance`
  * (vaultPeginBroadcastService) — this copy bounds the fee at the terms-minting
@@ -15,9 +14,14 @@ import { MAX_REASONABLE_FEE_SATS } from "@babylonlabs-io/ts-sdk";
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import { mapWithConcurrency } from "@/utils/concurrency";
+
 import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
 
 type UtxoRecord = Record<string, { scriptPubKey: string; value: number }>;
+
+/** The public mempool.space endpoint rate-limits (429s); as in `positionCapacity`. */
+const MEMPOOL_LOOKUP_CONCURRENCY = 4;
 
 export async function resolveFundedTxFeeAndUtxos(
   fundedPrePeginTxHex: string,
@@ -27,14 +31,16 @@ export async function resolveFundedTxFeeAndUtxos(
     : fundedPrePeginTxHex;
   const tx = Transaction.fromHex(cleanHex);
 
-  const resolvedInputs = await Promise.all(
-    tx.ins.map(async (input) => {
+  const resolvedInputs = await mapWithConcurrency(
+    tx.ins,
+    MEMPOOL_LOOKUP_CONCURRENCY,
+    async (input) => {
       // Bitcoin stores the prev-txid in reverse (internal) byte order.
       const txid = Buffer.from(input.hash).reverse().toString("hex");
       const key = `${txid}:${input.index}`;
       const utxo = await fetchUTXOFromMempool(txid, input.index);
       return { key, utxo };
-    }),
+    },
   );
 
   const expectedUtxos: UtxoRecord = {};

@@ -71,6 +71,29 @@ describe("resolveFundedTxFeeAndUtxos", () => {
     });
   });
 
+  it("reads at most four prevouts at once", async () => {
+    const inputs = Array.from({ length: 10 }, (_, vout) => ({
+      txid: TXID_A,
+      vout,
+    }));
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.mocked(fetchUTXOFromMempool).mockImplementation(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight--;
+      return { scriptPubKey: "0014aa", value: 1000 };
+    });
+
+    const { expectedUtxos } = await resolveFundedTxFeeAndUtxos(
+      makeTxHex(inputs, [5000]),
+    );
+
+    expect(maxInFlight).toBe(4);
+    expect(Object.keys(expectedUtxos)).toHaveLength(10);
+  });
+
   it("accepts 0x-prefixed tx hex", async () => {
     const hex = makeTxHex([{ txid: TXID_A, vout: 3 }], [999]);
     vi.mocked(fetchUTXOFromMempool).mockResolvedValue({

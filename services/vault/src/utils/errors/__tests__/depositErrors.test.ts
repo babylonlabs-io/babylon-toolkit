@@ -11,6 +11,7 @@ import {
   handleContractError,
   PeginRegistrationMissingError,
   PeginRegistrationNotFinalError,
+  UnanchoredPrePeginError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JsonRpcError,
@@ -28,6 +29,7 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   isDeviceDisconnectedContent,
   isResumableDepositError,
+  isTerminalResumeBroadcastError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
   mapResumeBroadcastError,
@@ -930,6 +932,35 @@ describe("mapResumeBroadcastError", () => {
     expect(mapResumeBroadcastError(mismatch)).toEqual(
       COPY.deposit.errors.resumeScriptMismatch,
     );
+  });
+
+  it("says the Pre-Pegin was not broadcast when its auth anchor is missing", () => {
+    expect(
+      mapResumeBroadcastError(new UnanchoredPrePeginError("no anchor")),
+    ).toEqual(COPY.deposit.errors.resumeMissingAnchor);
+  });
+
+  it("treats permanent refusals as terminal and others as retryable", () => {
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.resumeScriptMismatch),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.resumeMissingAnchor),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.participantKeyDrift),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(
+        COPY.deposit.errors.unsupportedPayoutScript,
+      ),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.batchNoLongerPending),
+    ).toBe(true);
+    expect(
+      isTerminalResumeBroadcastError(COPY.deposit.errors.preparationFailed),
+    ).toBe(false);
   });
 
   it("maps any other failure as a post-registration error", () => {

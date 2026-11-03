@@ -30,7 +30,10 @@ import {
 } from "@/services/vault";
 import { activationRedeemReasonFromReveal } from "@/services/vault/activationRedeemReasonFromReveal";
 import { waitForEthRegistrationDepth } from "@/services/vault/ethConfirmationGate";
-import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
+import {
+  rebuildDepositTerms,
+  verifyResumeHtlcOutputs,
+} from "@/services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee";
 import {
   activateVaultWithSecret,
@@ -290,13 +293,12 @@ vi.mock("@/services/vault/activationRedeemReasonFromReveal", () => ({
 }));
 
 vi.mock("@/services/vault/rebuildDepositTerms", () => ({
-  rebuildDepositTerms: vi.fn().mockResolvedValue({}),
+  rebuildDepositTerms: vi.fn(),
+  verifyResumeHtlcOutputs: vi.fn(),
 }));
 
 vi.mock("@/services/vault/resolveFundedTxFee", () => ({
-  resolveFundedTxFeeAndUtxos: vi
-    .fn()
-    .mockResolvedValue({ expectedUtxos: {}, fundedTxFee: 1n }),
+  resolveFundedTxFeeAndUtxos: vi.fn(),
 }));
 
 vi.mock("@/services/vault/vaultPeginBroadcastService", () => ({
@@ -2672,7 +2674,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     expect(result.current.broadcastError?.body).toContain("disagree on");
   });
 
-  it("checks a software wallet's transaction against the chain without handing the wallet any terms", async () => {
+  it("checks a software wallet's outputs without the terms rebuild or its fee and commission reads", async () => {
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
       await result.current.handleBroadcast({
@@ -2682,15 +2684,38 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     });
 
     expect(result.current.broadcastError).toBeNull();
-    expect(rebuildDepositTerms).toHaveBeenCalledTimes(1);
+    expect(verifyResumeHtlcOutputs).toHaveBeenCalledWith({
+      vaultId: "0xvaultId",
+      target: ONCHAIN_VAULT,
+      fundedPrePeginTxHex: TRUSTED_TX_HEX,
+      connectedDepositorAddress: "0xconnected_depositor",
+      depositorBtcPubkey: DEPOSITOR_BTC_KEY,
+    });
+    expect(rebuildDepositTerms).not.toHaveBeenCalled();
+    expect(resolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
     const broadcastArg = mockBroadcastPrePeginTransaction.mock.calls[0][0];
     expect("depositTerms" in broadcastArg).toBe(false);
+  });
+
+  it("does not run the software wallet's output check for an approval wallet", async () => {
+    connectIntentWallet();
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      }),
+    );
+
+    expect(verifyResumeHtlcOutputs).not.toHaveBeenCalled();
+    expect(rebuildDepositTerms).toHaveBeenCalledTimes(1);
   });
 
   it("refuses a software wallet with no local record when the transaction does not match the registered keys", async () => {
     const mismatch = new Error("HTLC output scriptPubKey does not match");
     mismatch.name = "HtlcOutputMismatchError";
-    vi.mocked(rebuildDepositTerms).mockRejectedValueOnce(mismatch);
+    vi.mocked(verifyResumeHtlcOutputs).mockRejectedValueOnce(mismatch);
     mockFetchVaultById.mockResolvedValue({
       ...baseVault,
       unsignedPrePeginTx: TRUSTED_TX_HEX,
@@ -2705,30 +2730,11 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     );
 
     expect(mockVerifyResumeParticipantKeys).not.toHaveBeenCalled();
-    expect(rebuildDepositTerms).toHaveBeenCalledTimes(1);
+    expect(verifyResumeHtlcOutputs).toHaveBeenCalledTimes(1);
     expect(mockSignPsbt).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(result.current.broadcastError).toEqual(
       COPY.deposit.errors.resumeScriptMismatch,
-    );
-  });
-
-  it("says no Bitcoin was broadcast when the transaction's inputs cannot be read", async () => {
-    vi.mocked(resolveFundedTxFeeAndUtxos).mockRejectedValueOnce(
-      new Error("Failed to fetch UTXO from mempool: 429"),
-    );
-
-    const { result } = renderHook(() => useVaultActions());
-    await act(() =>
-      result.current.handleBroadcast({
-        ...baseBroadcastParams,
-        pendingPegin: { ...basePendingPegin },
-      }),
-    );
-
-    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
-    expect(result.current.broadcastError).toEqual(
-      COPY.deposit.errors.preparationFailed,
     );
   });
 
@@ -2737,7 +2743,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
   it("keeps the pending record when the transaction does not match the registered keys", async () => {
     const mismatch = new Error("HTLC output scriptPubKey does not match");
     mismatch.name = "HtlcOutputMismatchError";
-    vi.mocked(rebuildDepositTerms).mockRejectedValueOnce(mismatch);
+    vi.mocked(verifyResumeHtlcOutputs).mockRejectedValueOnce(mismatch);
     const removePendingPegin = vi.fn();
 
     const { result } = renderHook(() => useVaultActions());

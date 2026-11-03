@@ -94,7 +94,10 @@ import type { ActivationRedeemReason } from "../../services/vault/activationRede
 import { activationRedeemReasonFromReveal } from "../../services/vault/activationRedeemReasonFromReveal";
 import { appendActivationRevertNotice } from "../../services/vault/activationRevertNotice";
 import { assertResumePositionCapacity } from "../../services/vault/positionCapacity";
-import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
+import {
+  rebuildDepositTerms,
+  verifyResumeHtlcOutputs,
+} from "../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
   activateVaultWithSecret,
@@ -599,38 +602,35 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
-      // Every wallet, with or without a local record: the registered hash binds
-      // the transaction, and this rebuild binds its HTLC outputs to the vault's
-      // frozen keys and stamped parameters. A mismatch would lock BTC the in-app
-      // refund cannot spend. Do NOT drop the pending record on this refusal.
-      const { expectedUtxos: resolvedUtxos, fundedTxFee } =
-        await resolveFundedTxFeeAndUtxos(unsignedTxHex).catch(
-          (cause: unknown) => {
-            // The label routes `mapDepositError` to the prepare-stage copy.
-            throw new Error(
-              `${COPY.deposit.errors.prePeginStageFailed.prepare}: ${String(cause)}`,
-              { cause },
-            );
-          },
-        );
-      const rebuiltTerms = await rebuildDepositTerms({
-        vaultId,
-        target: onChainVault,
-        fundedPrePeginTxHex: unsignedTxHex,
-        connectedDepositorAddress: depositorEthAddress as Hex,
-        depositorBtcPubkey,
-        fundedTxFee,
-        lifecycle: "broadcast",
-        signal,
-      });
-
+      // Both branches bind the transaction's HTLC outputs to the vault's frozen
+      // keys and stamped parameters, with or without a local record. A mismatch
+      // would lock BTC the in-app refund cannot spend. Do NOT drop the pending
+      // record on this refusal.
       let expectedUtxos;
       let depositTerms: DepositTerms | undefined;
-      // Approval wallets need the terms and prevouts for the device fee check.
+      // Approval wallets need fresh terms and prevouts for the device fee check.
       if (supportsDepositApproval(btcWalletProvider)) {
+        const { expectedUtxos: resolvedUtxos, fundedTxFee } =
+          await resolveFundedTxFeeAndUtxos(unsignedTxHex);
         expectedUtxos = resolvedUtxos;
-        depositTerms = rebuiltTerms;
+        depositTerms = await rebuildDepositTerms({
+          vaultId,
+          target: onChainVault,
+          fundedPrePeginTxHex: unsignedTxHex,
+          connectedDepositorAddress: depositorEthAddress as Hex,
+          depositorBtcPubkey,
+          fundedTxFee,
+          lifecycle: "broadcast",
+          signal,
+        });
       } else {
+        await verifyResumeHtlcOutputs({
+          vaultId,
+          target: onChainVault,
+          fundedPrePeginTxHex: unsignedTxHex,
+          connectedDepositorAddress: depositorEthAddress as Hex,
+          depositorBtcPubkey,
+        });
         // Local UTXOs apply only to the local transaction. Otherwise, the service
         // resolves every input from the mempool.
         expectedUtxos =

@@ -725,9 +725,15 @@ btc-vault `pegin_amount` for this sibling (satoshis).
 
 ***
 
-### RebuildDepositTermsCoreInput
+### FundedHtlcOutputsInput
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+What [assertFundedHtlcOutputsMatch](#assertfundedhtlcoutputsmatch) checks a funded tx against.
+
+#### Extended by
+
+- [`RebuildDepositTermsCoreInput`](#rebuilddeposittermscoreinput)
 
 #### Properties
 
@@ -825,22 +831,6 @@ councilSize: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
 
-##### timelockPegin
-
-```ts
-timelockPegin: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
-
-##### timelockAssert
-
-```ts
-timelockAssert: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
-
 ##### timelockRefund
 
 ```ts
@@ -853,6 +843,226 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTe
 
 ```ts
 prepeginTxid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+On-chain Pre-PegIn txid the funded tx must hash to.
+
+##### network
+
+```ts
+network: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+WASM network descriptor for scriptPubKey derivation.
+
+***
+
+### RebuildDepositTermsCoreInput
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+What [assertFundedHtlcOutputsMatch](#assertfundedhtlcoutputsmatch) checks a funded tx against.
+
+#### Extends
+
+- [`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput)
+
+#### Properties
+
+##### vaultCoreVersion
+
+```ts
+vaultCoreVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+Stamped tx-graph version (NOT chain-active).
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`vaultCoreVersion`](#vaultcoreversion-2)
+
+##### siblings
+
+```ts
+siblings: readonly RebuildSibling[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+Sibling HTLCs ordered by htlcVout; index === htlcVout (asserted by the app).
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`siblings`](#siblings)
+
+##### fundedPrePeginTxHex
+
+```ts
+fundedPrePeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+Funded Pre-PegIn tx hex. Gate 0 (hash vs prepeginTxid) is SELF-verified below — callers need not pre-verify.
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`fundedPrePeginTxHex`](#fundedprepegintxhex-1)
+
+##### depositorBtcPubkey
+
+```ts
+depositorBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`depositorBtcPubkey`](#depositorbtcpubkey-1)
+
+##### vaultProviderBtcPubkey
+
+```ts
+vaultProviderBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`vaultProviderBtcPubkey`](#vaultproviderbtcpubkey-2)
+
+##### vaultKeeperBtcPubkeys
+
+```ts
+vaultKeeperBtcPubkeys: readonly string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`vaultKeeperBtcPubkeys`](#vaultkeeperbtcpubkeys-2)
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: readonly string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`universalChallengerBtcPubkeys`](#universalchallengerbtcpubkeys-2)
+
+##### protocolFeeRate
+
+```ts
+protocolFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`protocolFeeRate`](#protocolfeerate-2)
+
+##### minPeginFeeRate
+
+```ts
+minPeginFeeRate: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`minPeginFeeRate`](#minpeginfeerate)
+
+##### councilQuorum
+
+```ts
+councilQuorum: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`councilQuorum`](#councilquorum)
+
+##### councilSize
+
+```ts
+councilSize: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`councilSize`](#councilsize)
+
+##### timelockRefund
+
+```ts
+timelockRefund: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`timelockRefund`](#timelockrefund-2)
+
+##### prepeginTxid
+
+```ts
+prepeginTxid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+On-chain Pre-PegIn txid the funded tx must hash to.
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`prepeginTxid`](#prepegintxid-2)
+
+##### network
+
+```ts
+network: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+WASM network descriptor for scriptPubKey derivation.
+
+###### Inherited from
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput).[`network`](#network)
+
+##### timelockPegin
+
+```ts
+timelockPegin: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+##### timelockAssert
+
+```ts
+timelockAssert: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
@@ -874,16 +1084,6 @@ maxAcceptableCommissionBps: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
-
-##### network
-
-```ts
-network: Network;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
-
-WASM network descriptor for scriptPubKey derivation.
 
 ***
 
@@ -1305,6 +1505,44 @@ mocks), so this falls back to the name field, as the key drift guard does.
 #### Returns
 
 `boolean`
+
+***
+
+### assertFundedHtlcOutputsMatch()
+
+```ts
+function assertFundedHtlcOutputsMatch(input): Promise<{
+  depositorClaimValue: bigint;
+  peginMaxFee: bigint;
+}>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsCore.ts)
+
+Prove a funded Pre-PegIn's HTLC outputs are the ones the registered keys and
+parameters produce: the hash, sibling completeness, then each output's value
+and scriptPubKey. Needs no fee or commission value, and no wallet capability.
+
+#### Parameters
+
+##### input
+
+[`FundedHtlcOutputsInput`](#fundedhtlcoutputsinput)
+
+#### Returns
+
+`Promise`\<\{
+  `depositorClaimValue`: `bigint`;
+  `peginMaxFee`: `bigint`;
+\}\>
+
+#### Throws
+
+If no single auth-anchor OP_RETURN exists.
+
+#### Throws
+
+If any HTLC output differs.
 
 ***
 

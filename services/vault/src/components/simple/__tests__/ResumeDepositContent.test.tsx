@@ -1824,6 +1824,27 @@ describe("Bitcoin action prompt", () => {
     expect(view.getByTestId("has-retry").textContent).toBe("false");
   });
 
+  it("offers no Retry when the transaction has no auth anchor", () => {
+    btcActionWallet.connected = true;
+    vi.mocked(useBroadcastState).mockReturnValueOnce({
+      broadcasting: false,
+      error: COPY.deposit.errors.resumeMissingAnchor,
+      handleBroadcast: vi.fn(),
+    } as never);
+
+    const view = render(
+      <ResumeBroadcastContent
+        activity={baseActivity}
+        batchVaultIds={[baseActivity.id]}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(view.getByTestId("has-retry").textContent).toBe("false");
+  });
+
   it("keeps Retry for a broadcast failure that can recover", () => {
     btcActionWallet.connected = true;
     vi.mocked(useBroadcastState).mockReturnValueOnce({

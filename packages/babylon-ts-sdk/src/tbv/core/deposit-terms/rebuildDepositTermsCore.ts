@@ -23,6 +23,7 @@ import {
 } from "../primitives/psbt/assertWasmPeginSizing";
 import { PEGIN_P2A_ANCHOR_VALUE_SATS } from "../primitives/psbt/constants";
 import { stripHexPrefix } from "../primitives/utils/bitcoin";
+import { UnanchoredPrePeginError } from "../recovery/recoveryErrors";
 import { computeMinPeginFeeSats } from "../utils/fee/peginFeeMath";
 import { calculateBtcTxHash } from "../utils/transaction/btcTxHash";
 
@@ -37,7 +38,8 @@ export interface RebuildSibling {
   amount: bigint;
 }
 
-export interface RebuildDepositTermsCoreInput {
+/** What {@link assertFundedHtlcOutputsMatch} checks a funded tx against. */
+export interface FundedHtlcOutputsInput {
   /** Stamped tx-graph version (NOT chain-active). */
   vaultCoreVersion: number;
   /** Sibling HTLCs ordered by htlcVout; index === htlcVout (asserted by the app). */
@@ -56,18 +58,22 @@ export interface RebuildDepositTermsCoreInput {
   minPeginFeeRate: bigint;
   councilQuorum: number;
   councilSize: number;
-  timelockPegin: number;
-  timelockAssert: number;
   timelockRefund: number;
 
-  // Pass-through into DepositTerms.
+  /** On-chain Pre-PegIn txid the funded tx must hash to. */
   prepeginTxid: string;
-  /** Funded-tx fee (Σin − Σout), computed by the app; the device's `prepegin_max_fee` bound. */
-  prepeginMaxFee: bigint;
-  maxAcceptableCommissionBps: number;
 
   /** WASM network descriptor for scriptPubKey derivation. */
   network: Parameters<typeof getPrePeginHtlcConnectorInfo>[0]["network"];
+}
+
+export interface RebuildDepositTermsCoreInput extends FundedHtlcOutputsInput {
+  // Pass-through into DepositTerms; no HTLC output encodes these.
+  timelockPegin: number;
+  timelockAssert: number;
+  /** Funded-tx fee (Σin − Σout), computed by the app; the device's `prepegin_max_fee` bound. */
+  prepeginMaxFee: bigint;
+  maxAcceptableCommissionBps: number;
 }
 
 /**
@@ -84,9 +90,17 @@ export function isHtlcOutputMismatchError(err: unknown): boolean {
   );
 }
 
-export async function rebuildDepositTermsCore(
-  input: RebuildDepositTermsCoreInput,
-): Promise<DepositTerms> {
+/**
+ * Prove a funded Pre-PegIn's HTLC outputs are the ones the registered keys and
+ * parameters produce: the hash, sibling completeness, then each output's value
+ * and scriptPubKey. Needs no fee or commission value, and no wallet capability.
+ *
+ * @throws {UnanchoredPrePeginError} If no single auth-anchor OP_RETURN exists.
+ * @throws {HtlcOutputMismatchError} If any HTLC output differs.
+ */
+export async function assertFundedHtlcOutputsMatch(
+  input: FundedHtlcOutputsInput,
+): Promise<{ depositorClaimValue: bigint; peginMaxFee: bigint }> {
   const siblingCount = input.siblings.length;
   if (siblingCount === 0) {
     throw new Error(
@@ -100,11 +114,6 @@ export async function rebuildDepositTermsCore(
           `amount ${sibling.amount}; the chain-read vault record is invalid. Resume refused.`,
       );
     }
-  }
-  if (input.prepeginMaxFee <= 0n) {
-    throw new Error(
-      `rebuildDepositTermsCore: prepeginMaxFee must be > 0, got ${input.prepeginMaxFee}`,
-    );
   }
 
   // Gate 0, self-verified: everything below trusts these bytes, and a
@@ -127,7 +136,7 @@ export async function rebuildDepositTermsCore(
     stripHexPrefix(input.fundedPrePeginTxHex),
   );
   if (found === undefined) {
-    throw new Error(
+    throw new UnanchoredPrePeginError(
       `Funded Pre-PegIn carries no single, unambiguous auth-anchor OP_RETURN ` +
         `commitment — it either predates auth anchoring or is malformed. The ` +
         `anchor is required to prove sibling completeness. Resume refused.`,
@@ -197,6 +206,21 @@ export async function rebuildDepositTermsCore(
     expectedHtlcValues,
     expectedHtlcScriptPubKeys,
   );
+
+  return { depositorClaimValue, peginMaxFee };
+}
+
+export async function rebuildDepositTermsCore(
+  input: RebuildDepositTermsCoreInput,
+): Promise<DepositTerms> {
+  if (input.prepeginMaxFee <= 0n) {
+    throw new Error(
+      `rebuildDepositTermsCore: prepeginMaxFee must be > 0, got ${input.prepeginMaxFee}`,
+    );
+  }
+
+  const { depositorClaimValue, peginMaxFee } =
+    await assertFundedHtlcOutputsMatch(input);
 
   return buildDepositTerms({
     vaultCoreVersion: input.vaultCoreVersion,
