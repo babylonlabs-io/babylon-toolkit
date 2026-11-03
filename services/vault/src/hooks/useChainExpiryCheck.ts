@@ -45,16 +45,50 @@ const STALE_TIME_MS = 55 * 1000;
  * A vault the chain treats as expired.
  *
  * - `reported: true`: the registry already records it Expired, whatever the
- *   indexer says. The reason is not on this record, and is not guessed here;
- *   `useVaultDeposits` holds the status the row last had, which can settle it.
+ *   indexer says. Its reason is undefined only while no read has settled it.
  * - `reported: false`: past its deadline, but nobody has called
  *   `reportExpiredPegins`, so the registry still reports it PENDING or VERIFIED.
  */
 export type ChainExpiry =
-  | { reported: true }
+  | { reported: true; reason: ExpirationReason | undefined }
   | { reported: false; reason: ExpirationReason };
 
 const EMPTY_EXPIRIES: ReadonlyMap<string, ChainExpiry> = new Map();
+
+/**
+ * The reasons of vaults the registry records Expired, keyed by lowercased id.
+ * The status does not say which timeout expired them, and neither does an
+ * indexer that lags, but `verifiedAt` does: only a vault that reached Verified
+ * has one, and that vault can expire only on the activation timeout
+ * (vault-contracts-aave-v4@d240ec03: src/protocol/lib/PeginLogic.sol:778,973,989).
+ * Empty if the read fails: the batch fails whole, and the reason decides only a
+ * message and the artifact download, so it must not undo the expiry.
+ */
+async function readReportedReasons(
+  ids: readonly Hex[],
+  block: bigint,
+): Promise<ReadonlyMap<string, ExpirationReason>> {
+  const reasons = new Map<string, ExpirationReason>();
+  if (ids.length === 0) return reasons;
+  try {
+    const infos = await getVaultRegistryReader().getProtocolInfoBatch(
+      ids,
+      block,
+    );
+    infos.forEach((info, index) => {
+      reasons.set(
+        ids[index].toLowerCase(),
+        info.verifiedAt > 0n ? "activation_timeout" : "ack_timeout",
+      );
+    });
+  } catch (error) {
+    logger.warn("Vault expiry reason read failed", {
+      category: "activation",
+      cause: String(error),
+    });
+  }
+  return reasons;
+}
 
 /**
  * Classifies one vault's on-chain record. The status decides which timeout
@@ -73,7 +107,9 @@ export function classifyChainExpiry(params: {
     params;
   // Compare against `OnChainBtcVaultStatus`, never the app-side
   // `ContractStatus`, which reassigns the contract's Expired value.
-  if (status === OnChainBtcVaultStatus.EXPIRED) return { reported: true };
+  if (status === OnChainBtcVaultStatus.EXPIRED) {
+    return { reported: true, reason: undefined };
+  }
   if (
     status === OnChainBtcVaultStatus.PENDING &&
     isAckDeadlinePassedOnChain({
@@ -165,6 +201,7 @@ export function useChainExpiryCheck(
           ),
         ]);
 
+        const reportedIds: Hex[] = [];
         for (const { id, basic } of records) {
           // An empty record is a node that has not answered, not a vault that
           // has not expired: read as status 0 it would look long past its
@@ -185,6 +222,16 @@ export function useChainExpiryCheck(
             pegInActivationTimeout: config.pegInActivationTimeout,
           });
           if (expiry) expiries.set(id.toLowerCase(), expiry);
+          if (expiry?.reported) reportedIds.push(id);
+        }
+
+        const reasons = await readReportedReasons(reportedIds, block);
+        for (const id of reportedIds) {
+          const key = id.toLowerCase();
+          expiries.set(key, {
+            reported: true,
+            reason: reasons.get(key) ?? lastKnownRef.current.get(key)?.reason,
+          });
         }
       } catch (error) {
         logger.warn("Vault expiry head or params read failed", {

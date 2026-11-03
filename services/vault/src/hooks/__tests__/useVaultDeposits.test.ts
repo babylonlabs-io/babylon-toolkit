@@ -234,7 +234,7 @@ describe("useVaultDeposits", () => {
   it("reads an indexer-PENDING vault the registry records Expired as EXPIRED, not unreported", async () => {
     mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.PENDING }]);
     mockUseChainExpiryCheck.mockReturnValue(
-      new Map([["0xabcdef", { reported: true }]]),
+      new Map([["0xabcdef", { reported: true, reason: undefined }]]),
     );
     const { usePeginStorage } = await import("../../storage/usePeginStorage");
 
@@ -247,10 +247,10 @@ describe("useVaultDeposits", () => {
     expect(activity.expiryUnreported).toBeUndefined();
   });
 
-  it("gives an indexer-VERIFIED vault the registry records Expired the activation timeout", async () => {
-    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.VERIFIED }]);
+  it("keeps the activation timeout on an indexer-PENDING vault that was verified and is reported, so its artifact download stays", async () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.PENDING }]);
     mockUseChainExpiryCheck.mockReturnValue(
-      new Map([["0xabcdef", { reported: true }]]),
+      new Map([["0xabcdef", { reported: true, reason: "activation_timeout" }]]),
     );
     const { usePeginStorage } = await import("../../storage/usePeginStorage");
 

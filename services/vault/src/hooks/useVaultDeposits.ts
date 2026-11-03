@@ -126,16 +126,9 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
           transformVaultToActivity({
             ...vault,
             status: ContractStatus.EXPIRED,
-            // The indexer's reason is missing while it lags, and the artifact
-            // download and the row's message need one. A row reading VERIFIED
-            // settles it: the registry expires a Verified vault only on the
-            // activation timeout (vault-contracts-aave-v4@d240ec03:
-            // src/protocol/lib/PeginLogic.sol:985-989).
-            expirationReason:
-              vault.expirationReason ??
-              (status === ContractStatus.VERIFIED
-                ? "activation_timeout"
-                : undefined),
+            // The indexer has no reason while it lags, and the artifact download
+            // and the row's message need one.
+            expirationReason: expiry.reason,
           }),
         ];
       }

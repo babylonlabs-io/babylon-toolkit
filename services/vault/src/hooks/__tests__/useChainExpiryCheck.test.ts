@@ -26,10 +26,12 @@ vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
 }));
 
 const mockGetVaultBasicInfo = vi.hoisted(() => vi.fn());
+const mockGetProtocolInfoBatch = vi.hoisted(() => vi.fn());
 const mockGetPegInConfiguration = vi.hoisted(() => vi.fn());
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
     getVaultBasicInfo: mockGetVaultBasicInfo,
+    getProtocolInfoBatch: mockGetProtocolInfoBatch,
   }),
   getProtocolParamsReader: async () => ({
     getPegInConfiguration: mockGetPegInConfiguration,
@@ -54,6 +56,10 @@ function verifiedRecord() {
     createdAt: CREATED_AT,
     status: OnChainBtcVaultStatus.VERIFIED,
   };
+}
+
+function expiredRecord() {
+  return { ...verifiedRecord(), status: OnChainBtcVaultStatus.EXPIRED };
 }
 
 function renderCheck(candidateIds: readonly Hex[]) {
@@ -178,6 +184,103 @@ describe("useChainExpiryCheck", () => {
     expect(mockGetPegInConfiguration).toHaveBeenCalledWith(
       BLOCK_PAST_DEADLINES,
     );
+  });
+
+  it("gives a reported vault that had been verified the activation timeout", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(expiredRecord());
+    mockGetProtocolInfoBatch.mockResolvedValue([{ verifiedAt: 1_050n }]);
+
+    const { result } = renderCheck([VAULT_A]);
+
+    await waitFor(() =>
+      expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+        reported: true,
+        reason: "activation_timeout",
+      }),
+    );
+  });
+
+  it("gives a reported vault that was never verified the ack timeout", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(expiredRecord());
+    mockGetProtocolInfoBatch.mockResolvedValue([{ verifiedAt: 0n }]);
+
+    const { result } = renderCheck([VAULT_A]);
+
+    await waitFor(() =>
+      expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+        reported: true,
+        reason: "ack_timeout",
+      }),
+    );
+  });
+
+  it("reads a reported vault's reason at the block it read the status", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(expiredRecord());
+    mockGetProtocolInfoBatch.mockResolvedValue([{ verifiedAt: 1_050n }]);
+
+    const { result } = renderCheck([VAULT_A]);
+
+    await waitFor(() => expect(result.current.size).toBe(1));
+    expect(mockGetProtocolInfoBatch).toHaveBeenCalledWith(
+      [VAULT_A],
+      BLOCK_PAST_DEADLINES,
+    );
+  });
+
+  it("gives each reported vault its own reason, and reads none for an unreported one", async () => {
+    mockGetVaultBasicInfo.mockImplementation(async (id: Hex) =>
+      id === VAULT_A ? expiredRecord() : verifiedRecord(),
+    );
+    mockGetProtocolInfoBatch.mockResolvedValue([{ verifiedAt: 0n }]);
+
+    const { result } = renderCheck([VAULT_A, VAULT_B]);
+
+    await waitFor(() => expect(result.current.size).toBe(2));
+    expect(mockGetProtocolInfoBatch).toHaveBeenCalledWith(
+      [VAULT_A],
+      BLOCK_PAST_DEADLINES,
+    );
+    expect(result.current.get(VAULT_A.toLowerCase())?.reason).toBe(
+      "ack_timeout",
+    );
+    expect(result.current.get(VAULT_B.toLowerCase())?.reason).toBe(
+      "activation_timeout",
+    );
+  });
+
+  it("reads no reason when no vault is reported", async () => {
+    const { result } = renderCheck([VAULT_A]);
+
+    await waitFor(() => expect(result.current.size).toBe(1));
+    expect(mockGetProtocolInfoBatch).not.toHaveBeenCalled();
+  });
+
+  it("still reads a reported vault as expired when its reason cannot be read", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(expiredRecord());
+    mockGetProtocolInfoBatch.mockRejectedValue(new Error("rpc down"));
+
+    const { result, client, onQueryError } = renderCheck([VAULT_A]);
+
+    await settled(client);
+    expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+      reported: true,
+      reason: undefined,
+    });
+    expect(onQueryError).not.toHaveBeenCalled();
+  });
+
+  it("keeps the reason it already had when a report lands and the reason read fails", async () => {
+    const { result, client } = renderCheck([VAULT_A]);
+    await waitFor(() => expect(result.current.size).toBe(1));
+
+    mockGetVaultBasicInfo.mockResolvedValue(expiredRecord());
+    mockGetProtocolInfoBatch.mockRejectedValue(new Error("rpc down"));
+    await pollAgain(client);
+
+    expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+      reported: true,
+      reason: "activation_timeout",
+    });
   });
 
   it("does not read the chain with no candidates", () => {
