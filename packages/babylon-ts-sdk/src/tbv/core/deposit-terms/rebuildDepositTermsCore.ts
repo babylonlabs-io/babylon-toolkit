@@ -130,8 +130,7 @@ export async function rebuildDepositTermsCore(
     throw new Error(
       `Funded Pre-PegIn carries no single, unambiguous auth-anchor OP_RETURN ` +
         `commitment — it either predates auth anchoring or is malformed. The ` +
-        `intent resume path requires the anchor to prove sibling completeness. ` +
-        `Resume refused.`,
+        `anchor is required to prove sibling completeness. Resume refused.`,
     );
   }
   if (found.vout !== siblingCount) {

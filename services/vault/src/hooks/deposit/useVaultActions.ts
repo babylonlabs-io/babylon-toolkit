@@ -588,12 +588,10 @@ export function useVaultActions(): UseVaultActionsReturn {
       // before this shipped carry no stamp and skip the check.
       //
       // Deliberately NOT wrapped in the cleanup above: dropping the record on
-      // drift would discard the stamp, and the next attempt would find no
-      // local copy, fall back to the indexer's transaction, pass the
-      // `prePeginTxHash` check — it is the registered transaction — and
-      // broadcast the very Pre-PegIn this just refused. The hash proves the
-      // transaction was not substituted; it does not prove the vault's frozen
-      // epochs still resolve to the keys inside its scripts.
+      // drift would discard the stamp and this more specific refusal, leaving
+      // only the output check below. The hash proves the transaction was not
+      // substituted; it does not prove the vault's frozen epochs still resolve
+      // to the keys inside its scripts.
       if (pendingPegin?.buildParticipantOperationKeys) {
         await verifyResumeParticipantKeys({
           vaultId,
@@ -606,7 +604,15 @@ export function useVaultActions(): UseVaultActionsReturn {
       // frozen keys and stamped parameters. A mismatch would lock BTC the in-app
       // refund cannot spend. Do NOT drop the pending record on this refusal.
       const { expectedUtxos: resolvedUtxos, fundedTxFee } =
-        await resolveFundedTxFeeAndUtxos(unsignedTxHex);
+        await resolveFundedTxFeeAndUtxos(unsignedTxHex).catch(
+          (cause: unknown) => {
+            // The label routes `mapDepositError` to the prepare-stage copy.
+            throw new Error(
+              `${COPY.deposit.errors.prePeginStageFailed.prepare}: ${String(cause)}`,
+              { cause },
+            );
+          },
+        );
       const rebuiltTerms = await rebuildDepositTerms({
         vaultId,
         target: onChainVault,

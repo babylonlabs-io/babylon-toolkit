@@ -130,6 +130,7 @@ import {
   isPositionCapacityExceededError,
   isPositionCapacityUnavailableError,
 } from "./positionCapacityError";
+import { SiblingKeysMismatchError } from "./siblingKeysMismatchError";
 import { isStaleProtocolAddressesError } from "./staleProtocolAddresses";
 import {
   isTypedUserRejectionFrame,
@@ -225,11 +226,13 @@ export function mapDepositErrorAfterRegistration(
 }
 
 /**
- * Error content for a resumed Pre-Pegin broadcast. An output mismatch is mapped
- * here and not in `mapDepositError`: only this path can say nothing was broadcast.
+ * Error content for a resumed Pre-Pegin broadcast. A key or output mismatch is
+ * mapped here and not in `mapDepositError`: only this path can say nothing was
+ * broadcast.
  */
 export function mapResumeBroadcastError(err: unknown): DepositErrorContent {
-  return isHtlcOutputMismatchError(err)
+  return isHtlcOutputMismatchError(err) ||
+    err instanceof SiblingKeysMismatchError
     ? ERRORS.resumeScriptMismatch
     : mapDepositErrorAfterRegistration(err);
 }

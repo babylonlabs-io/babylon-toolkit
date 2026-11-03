@@ -342,7 +342,12 @@ function ResumeBroadcastContentConnected({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
-      onRetry={error ? handleBroadcast : undefined}
+      // A mismatch with the registered vault cannot succeed on Retry.
+      onRetry={
+        error && error !== COPY.deposit.errors.resumeScriptMismatch
+          ? handleBroadcast
+          : undefined
+      }
     />
   );
 }

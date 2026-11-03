@@ -2713,6 +2713,25 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     );
   });
 
+  it("says no Bitcoin was broadcast when the transaction's inputs cannot be read", async () => {
+    vi.mocked(resolveFundedTxFeeAndUtxos).mockRejectedValueOnce(
+      new Error("Failed to fetch UTXO from mempool: 429"),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      }),
+    );
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.preparationFailed,
+    );
+  });
+
   // A dropped record would make the next attempt fall back to the indexer's
   // transaction. It would be refused again, so nothing is gained by losing it.
   it("keeps the pending record when the transaction does not match the registered keys", async () => {

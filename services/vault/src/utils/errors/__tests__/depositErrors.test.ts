@@ -41,6 +41,7 @@ import {
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
 } from "../positionCapacityError";
+import { SiblingKeysMismatchError } from "../siblingKeysMismatchError";
 import { SendOutcomeUnknownError } from "../transactionOutcome";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
@@ -914,6 +915,17 @@ describe("mapResumeBroadcastError", () => {
   it("says the Pre-Pegin was not broadcast when its outputs do not match the registered keys", () => {
     const mismatch = new Error("HTLC output scriptPubKey does not match");
     mismatch.name = "HtlcOutputMismatchError";
+
+    expect(mapResumeBroadcastError(mismatch)).toEqual(
+      COPY.deposit.errors.resumeScriptMismatch,
+    );
+  });
+
+  it("says the Pre-Pegin was not broadcast when a sibling's keys differ", () => {
+    const mismatch = new SiblingKeysMismatchError({
+      vaultId: "0xtarget",
+      siblingId: "0xsibling",
+    });
 
     expect(mapResumeBroadcastError(mismatch)).toEqual(
       COPY.deposit.errors.resumeScriptMismatch,

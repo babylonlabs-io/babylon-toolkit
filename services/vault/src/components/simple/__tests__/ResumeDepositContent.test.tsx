@@ -1803,6 +1803,48 @@ describe("Bitcoin action prompt", () => {
     expect(useBroadcastState).toHaveBeenCalled();
   });
 
+  it("offers no Retry when the transaction does not match its registered vault", () => {
+    btcActionWallet.connected = true;
+    vi.mocked(useBroadcastState).mockReturnValueOnce({
+      broadcasting: false,
+      error: COPY.deposit.errors.resumeScriptMismatch,
+      handleBroadcast: vi.fn(),
+    } as never);
+
+    const view = render(
+      <ResumeBroadcastContent
+        activity={baseActivity}
+        batchVaultIds={[baseActivity.id]}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(view.getByTestId("has-retry").textContent).toBe("false");
+  });
+
+  it("keeps Retry for a broadcast failure that can recover", () => {
+    btcActionWallet.connected = true;
+    vi.mocked(useBroadcastState).mockReturnValueOnce({
+      broadcasting: false,
+      error: COPY.deposit.errors.preparationFailed,
+      handleBroadcast: vi.fn(),
+    } as never);
+
+    const view = render(
+      <ResumeBroadcastContent
+        activity={baseActivity}
+        batchVaultIds={[baseActivity.id]}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(view.getByTestId("has-retry").textContent).toBe("true");
+  });
+
   it("keeps an active broadcast mounted during a temporary disconnect", () => {
     btcActionWallet.connected = true;
     const content = (

@@ -4,6 +4,7 @@ export * from "./depositErrors";
 export * from "./depositorWalletMismatch";
 export * from "./formatting";
 export * from "./positionCapacityError";
+export * from "./siblingKeysMismatchError";
 export * from "./transactionOutcome";
 export * from "./types";
 export * from "./vaultLifecycleStateError";

@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
+  SiblingKeysMismatchError,
   VaultLifecycleStateError,
 } from "@/utils/errors";
 
@@ -594,6 +595,71 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       /disagree on offchainParamsVersion/,
     );
     expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+  });
+
+  describe("sibling frozen keys", () => {
+    const TARGET_EPOCHS = {
+      vpKeyEpoch: 1n,
+      appKeeperKeyEpoch: 1n,
+      ucKeyEpoch: 1n,
+    };
+    const SIBLING_EPOCHS = { ...TARGET_EPOCHS, vpKeyEpoch: 2n };
+    const KEYS = {
+      vaultProvider: { operationBtcPubkey: "dd".repeat(32) },
+      vaultKeeperOperationKeysSorted: ["ee".repeat(32)],
+      universalChallengerOperationKeysSorted: ["ff".repeat(32)],
+    };
+
+    beforeEach(() => {
+      vi.mocked(getVaultKeyEpochsFromChain).mockImplementation(async (id) =>
+        id === TARGET_ID ? TARGET_EPOCHS : SIBLING_EPOCHS,
+      );
+    });
+
+    it("refuses a broadcast when a sibling's epochs resolve to different keys", async () => {
+      vi.mocked(resolveParticipantKeysAtEpochs).mockImplementation(
+        async ({ epochs }) =>
+          (epochs.vpKeyEpoch === SIBLING_EPOCHS.vpKeyEpoch
+            ? {
+                ...KEYS,
+                vaultProvider: { operationBtcPubkey: "11".repeat(32) },
+              }
+            : KEYS) as never,
+      );
+
+      await expect(rebuildDepositTerms(baseParams())).rejects.toBeInstanceOf(
+        SiblingKeysMismatchError,
+      );
+      expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+    });
+
+    // The provider epoch is a registry-wide counter, so another provider's
+    // rotation moves it without changing this vault's keys.
+    it("accepts a sibling whose different epochs resolve to the same keys", async () => {
+      vi.mocked(resolveParticipantKeysAtEpochs).mockResolvedValue(
+        KEYS as never,
+      );
+
+      await expect(rebuildDepositTerms(baseParams())).resolves.toEqual({
+        prepeginTxid: "sentinel",
+      });
+      expect(resolveParticipantKeysAtEpochs).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not resolve keys again for a sibling with the target's epochs", async () => {
+      vi.mocked(getVaultKeyEpochsFromChain).mockResolvedValue(TARGET_EPOCHS);
+
+      await rebuildDepositTerms(baseParams());
+
+      expect(resolveParticipantKeysAtEpochs).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not compare sibling keys when presigning after the broadcast", async () => {
+      await rebuildDepositTerms({ ...baseParams(), lifecycle: "presign" });
+
+      expect(getVaultKeyEpochsFromChain).toHaveBeenCalledTimes(1);
+      expect(rebuildDepositTermsCore).toHaveBeenCalledTimes(1);
+    });
   });
 
   // Threads lifecycle through discovery: broadcast mode would refuse this

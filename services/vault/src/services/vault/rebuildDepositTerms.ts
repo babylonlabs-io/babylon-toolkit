@@ -30,12 +30,16 @@ import {
   type DepositTerms,
   type RebuildSibling,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  OnChainBtcVaultStatus,
+  type KeyEpochs,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
+  SiblingKeysMismatchError,
   VaultLifecycleStateError,
   type VaultLifecycleStage,
 } from "@/utils/errors";
@@ -71,8 +75,9 @@ export interface RebuildDepositTermsParams {
   /** Depositor BTC pubkey — the identity the HTLC scripts + PSBT are signed with. */
   depositorBtcPubkey: string;
   /**
-   * Funded-tx fee (Σ prevouts − Σ outputs), computed by the caller from the same
-   * prevouts the broadcast signs. Becomes the device's `prepegin_max_fee` bound.
+   * Funded-tx fee (Σ prevouts − Σ outputs), computed by the caller. An approval
+   * wallet signs those same prevouts, and this is its device's `prepegin_max_fee`
+   * bound.
    */
   fundedTxFee: bigint;
   /**
@@ -87,6 +92,10 @@ export interface RebuildDepositTermsParams {
    */
   signal?: AbortSignal;
 }
+
+type ResolvedParticipantKeys = Awaited<
+  ReturnType<typeof resolveParticipantKeysAtEpochs>
+>;
 
 interface OrderedSibling extends RebuildSibling {
   htlcVout: number;
@@ -171,7 +180,7 @@ export function assertSiblingBatchHomogeneous(
         throw new Error(
           `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
             `(${String(sib[field])} vs ${String(target[field])}); the batch ` +
-            `cannot be described by one set of deposit terms. Resume refused.`,
+            `cannot be treated as one deposit. Resume refused.`,
         );
       }
     }
@@ -180,7 +189,7 @@ export function assertSiblingBatchHomogeneous(
         throw new Error(
           `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
             `(${sib[field]} vs ${target[field]}); the batch cannot be ` +
-            `described by one set of deposit terms. Resume refused.`,
+            `treated as one deposit. Resume refused.`,
         );
       }
     }
@@ -214,7 +223,11 @@ async function discoverSiblings(
   connectedDepositor: Address,
   target: OnChainVaultData,
   signal: AbortSignal | undefined,
-): Promise<{ siblings: OrderedSibling[]; target: RebuildVaultRecord }> {
+): Promise<{
+  siblings: OrderedSibling[];
+  target: RebuildVaultRecord;
+  siblingVaultIds: Hex[];
+}> {
   if (target.depositor.toLowerCase() !== connectedDepositor.toLowerCase()) {
     throw new DepositorWalletMismatchError({
       vaultId: targetVaultId,
@@ -288,7 +301,11 @@ async function discoverSiblings(
   siblings.sort((a, b) => a.htlcVout - b.htlcVout);
   assertContiguousHtlcVector(siblings);
 
-  return { siblings, target: targetRecord };
+  return {
+    siblings,
+    target: targetRecord,
+    siblingVaultIds: siblingMembers.map(({ vaultId }) => vaultId),
+  };
 }
 
 /**
@@ -377,19 +394,69 @@ async function readStampedVaultContext(vaultId: Hex, target: OnChainVaultData) {
     );
   }
 
-  const participantKeys = await resolveParticipantKeysAtEpochs({
-    operationKeyReader,
-    query: {
-      vaultProviderEthAddress: target.vaultProvider,
-      vaultProviderGenesisBtcPubkey: `0x${registrationVpBtcPubkey}` as Hex,
-      applicationEntryPoint: target.applicationEntryPoint,
-      vaultKeepers,
-      universalChallengers,
-    },
-    epochs,
-  });
+  const resolveKeysAtEpochs = (keyEpochs: KeyEpochs) =>
+    resolveParticipantKeysAtEpochs({
+      operationKeyReader,
+      query: {
+        vaultProviderEthAddress: target.vaultProvider,
+        vaultProviderGenesisBtcPubkey: `0x${registrationVpBtcPubkey}` as Hex,
+        applicationEntryPoint: target.applicationEntryPoint,
+        vaultKeepers,
+        universalChallengers,
+      },
+      epochs: keyEpochs,
+    });
+  const participantKeys = await resolveKeysAtEpochs(epochs);
 
-  return { offchainParams, timelockPegin, participantKeys };
+  return {
+    offchainParams,
+    timelockPegin,
+    participantKeys,
+    epochs,
+    resolveKeysAtEpochs,
+  };
+}
+
+/**
+ * Broadcast only. One Pre-PegIn's outputs can match one key set, and a refund
+ * resolves each vault at its own epochs, so a sibling with different keys would
+ * lose its in-app refund. Compares resolved keys, because `vpKeyEpoch` is
+ * registry-wide and moves when any provider rotates. Sibling homogeneity already
+ * guarantees the same provider, application and rosters.
+ */
+async function assertSiblingsShareKeys(params: {
+  vaultId: Hex;
+  siblingVaultIds: readonly Hex[];
+  epochs: KeyEpochs;
+  participantKeys: ResolvedParticipantKeys;
+  resolveKeysAtEpochs: (epochs: KeyEpochs) => Promise<ResolvedParticipantKeys>;
+}): Promise<void> {
+  const { vaultId, epochs, participantKeys, resolveKeysAtEpochs } = params;
+  const keySetFingerprint = (keys: ResolvedParticipantKeys) =>
+    JSON.stringify([
+      keys.vaultProvider.operationBtcPubkey,
+      keys.vaultKeeperOperationKeysSorted,
+      keys.universalChallengerOperationKeysSorted,
+    ]);
+
+  await Promise.all(
+    params.siblingVaultIds.map(async (siblingId) => {
+      const siblingEpochs = await getVaultKeyEpochsFromChain(siblingId);
+      if (
+        siblingEpochs.vpKeyEpoch === epochs.vpKeyEpoch &&
+        siblingEpochs.appKeeperKeyEpoch === epochs.appKeeperKeyEpoch &&
+        siblingEpochs.ucKeyEpoch === epochs.ucKeyEpoch
+      ) {
+        return;
+      }
+      const siblingKeys = await resolveKeysAtEpochs(siblingEpochs);
+      if (
+        keySetFingerprint(siblingKeys) !== keySetFingerprint(participantKeys)
+      ) {
+        throw new SiblingKeysMismatchError({ vaultId, siblingId });
+      }
+    }),
+  );
 }
 
 /**
@@ -433,7 +500,11 @@ export async function rebuildDepositTerms(
     });
   }
 
-  const { siblings, target: targetRecord } = await discoverSiblings(
+  const {
+    siblings,
+    target: targetRecord,
+    siblingVaultIds,
+  } = await discoverSiblings(
     params.lifecycle,
     params.vaultId,
     params.connectedDepositorAddress,
@@ -445,8 +516,23 @@ export async function rebuildDepositTerms(
   if (params.lifecycle === "presign") {
     await assertAckWindowOpen(params.vaultId, target);
   }
-  const { offchainParams, timelockPegin, participantKeys } =
-    await readStampedVaultContext(params.vaultId, target);
+  const {
+    offchainParams,
+    timelockPegin,
+    participantKeys,
+    epochs,
+    resolveKeysAtEpochs,
+  } = await readStampedVaultContext(params.vaultId, target);
+
+  if (params.lifecycle === "broadcast") {
+    await assertSiblingsShareKeys({
+      vaultId: params.vaultId,
+      siblingVaultIds,
+      epochs,
+      participantKeys,
+      resolveKeysAtEpochs,
+    });
+  }
 
   return rebuildDepositTermsCore({
     vaultCoreVersion: target.vaultCoreVersion,
