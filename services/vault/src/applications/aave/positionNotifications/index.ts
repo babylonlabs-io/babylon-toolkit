@@ -1,6 +1,11 @@
 export { deriveBannerState } from "./bannerSeverity";
 export type { BannerSeverity, BannerState } from "./bannerSeverity";
-export { URGENT_HEALTH_FACTOR, calculate, withDistancesAt } from "./calculate";
+export {
+  URGENT_HEALTH_FACTOR,
+  calculate,
+  isFirstEventGapped,
+  withDistancesAt,
+} from "./calculate";
 export { fmt, fmtSuggestedVaultBtc, fmtUsd } from "./format";
 export type {
   CalculatorParams,

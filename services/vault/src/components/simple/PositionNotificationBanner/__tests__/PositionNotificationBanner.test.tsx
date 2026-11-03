@@ -116,13 +116,13 @@ const reorderVaultsMock = vi.hoisted(() => ({
       stopWaiting: null;
     } | null,
     notice: null as string | null,
+    error: null as string | null,
   },
 }));
 vi.mock("@/applications/aave/hooks/useReorderVaults", () => ({
   useReorderVaults: () => ({
     executeReorder: mockExecuteReorder,
     isProcessing: false,
-    error: null,
     ...reorderVaultsMock.value,
   }),
 }));
@@ -255,7 +255,7 @@ function renderBanner(
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  reorderVaultsMock.value = { pendingWrite: null, notice: null };
+  reorderVaultsMock.value = { pendingWrite: null, notice: null, error: null };
 });
 
 describe("PositionNotificationBanner", () => {
@@ -730,6 +730,31 @@ describe("PositionNotificationBanner", () => {
     );
 
     expect(container.innerHTML).toBe("");
+  });
+
+  // A price poll can land below the trigger while a reorder is in flight, which
+  // is when the contract refuses it.
+  it("keeps a failed reorder's error below a trigger, where Apply Optimal Order is gone", () => {
+    reorderVaultsMock.value.error = "You can't reorder BTCVaults right now";
+
+    renderBanner(belowTrigger(), onDeposit, onRepay);
+
+    expect(screen.queryByText(COPY.banner.applyOptimalOrder)).toBeNull();
+    expect(screen.getByRole("note").textContent).toBe(
+      "You can't reorder BTCVaults right now",
+    );
+  });
+
+  it("keeps a reorder's notice below a trigger, where Apply Optimal Order is gone", () => {
+    reorderVaultsMock.value.notice =
+      COPY.common.unconfirmedTransaction.inProgress;
+
+    renderBanner(belowTrigger(), onDeposit, onRepay);
+
+    expect(screen.queryByText(COPY.banner.applyOptimalOrder)).toBeNull();
+    expect(screen.getByRole("note").textContent).toBe(
+      COPY.common.unconfirmedTransaction.inProgress,
+    );
   });
 });
 

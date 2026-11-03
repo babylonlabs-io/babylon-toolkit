@@ -12,6 +12,7 @@ import { POSITION_STALENESS_THRESHOLD_MS } from "../constants";
 import { useAaveConfig } from "../context";
 import {
   calculate,
+  isFirstEventGapped,
   URGENT_HEALTH_FACTOR,
   type CalculatorParams,
   type CalculatorResult,
@@ -379,10 +380,17 @@ export function usePositionNotifications(
         healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
       isLiveHfFresh,
     });
+    // The cliff on a gapped first event with several vaults comes from the same
+    // below-trigger reading as the calculator's urgent warning, so it goes when
+    // the Spoke overrules that. A single vault's cliff holds at any price.
+    const isGapOverruled =
+      urgentWarning !== calculatorUrgent &&
+      indexedVaults.length > 1 &&
+      isFirstEventGapped(calculatorResult.groups);
     // The live warning goes in as the returned `liveUrgentWarning` object
     // itself, never a copy: the top banner compares by reference.
     const otherWarnings = calculatorResult.warnings.filter(
-      (w) => w !== calculatorUrgent,
+      (w) => w !== calculatorUrgent && !(isGapOverruled && w.type === "cliff"),
     );
     const resultWithLiveHf: CalculatorResult =
       urgentWarning === calculatorUrgent

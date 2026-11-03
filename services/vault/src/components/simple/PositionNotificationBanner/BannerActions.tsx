@@ -32,7 +32,7 @@ interface BuildBannerActionsArgs {
 }
 
 /** Whether the banner card offers "Apply Optimal Order". */
-export function offersApplyOrder(
+function offersApplyOrder(
   result: CalculatorResult,
   bannerState: BannerState,
 ): boolean {
