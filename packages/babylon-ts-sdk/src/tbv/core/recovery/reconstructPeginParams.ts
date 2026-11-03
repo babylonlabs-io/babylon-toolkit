@@ -60,7 +60,10 @@ export interface ReconstructPeginParamsInput {
   hashlocks: readonly string[];
   /** Funded (broadcast) Pre-PegIn transaction hex, `0x` optional. */
   fundedPrePeginTxHex: string;
-  /** Depositor x-only BTC pubkey hex, from the connected wallet. */
+  /**
+   * Depositor BTC pubkey hex from the connected wallet: x-only, compressed or
+   * uncompressed, `0x` optional.
+   */
   depositorBtcPubkey: string;
   /**
    * Funded-transaction fee, `Σin − Σout`. Not derivable from the transaction

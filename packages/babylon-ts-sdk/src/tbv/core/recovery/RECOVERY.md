@@ -86,6 +86,7 @@ If the log is unavailable, step 2 becomes a search: enumerate the version-keyed 
 | `PeginParamsAmbiguousError` | Matches disagree on the projected terms. | Genuinely unknowable from the transaction. Take the version stamps from the log rather than searching. |
 | `PeginParamsIncompleteSpaceError` | Something matched, but the space had holes. | **Do not trust the match.** Resolve the named gaps and re-run. A look-alike sharing the matched `timelockRefund` and participants is indistinguishable from the truth. |
 | `PeginSizingIntegrityError` | WASM returned a value no valid parameter set can produce. | Stop. This indicts the build, not the deposit. |
+| `toRefundInputs: depositorBtcPubkey has 65 bytes but is not an uncompressed public key` | The key is 65 bytes but is not `04` followed by hex X and Y. Nothing has been signed. | Read the key from the connected wallet again and pass it as x-only, compressed or uncompressed. |
 | `RefundBroadcastRejectedError`, `code` -25 | Bitcoin rejected the transaction with a general error. The usual cause is a missing or already spent HTLC output. | Read `getOutspend` again. If it throws `MempoolNotFoundError`, the output is missing. If it is spent, find who spent it and do not sign again. If it is not spent, read `cause.message`. |
 | `RefundBroadcastRejectedError`, `code` -27 | This refund is already in the chain. | Treat the refund as done. Its txid is `calculateBtcTxHash(signedTxHex)`. |
 
