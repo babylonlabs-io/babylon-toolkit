@@ -180,12 +180,12 @@ export function HubSelectionPanel({
 
           <div className="flex flex-col gap-2">
             {rows.map((row) => (
-              // Wrapper, not one big button: a button cannot nest inside a
-              // button, so the card's padding and hover move here.
               <div
                 key={row.key}
                 className={`flex w-full items-center gap-4 rounded-xl bg-background-secondary p-4 transition-colors max-md:flex-wrap ${
-                  row.selectable ? "hover:brightness-125" : "opacity-40"
+                  row.selectable
+                    ? "hover:bg-secondary-strokeLight"
+                    : "opacity-40"
                 }`}
               >
                 <button
