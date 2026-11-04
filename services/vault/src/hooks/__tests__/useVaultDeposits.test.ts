@@ -26,6 +26,10 @@ const mockUseActiveVaultChainCheck = vi.hoisted(() => vi.fn());
 vi.mock("../useActiveVaultChainCheck", () => ({
   useActiveVaultChainCheck: mockUseActiveVaultChainCheck,
 }));
+const mockUseChainExpiryCheck = vi.hoisted(() => vi.fn());
+vi.mock("../useChainExpiryCheck", () => ({
+  useChainExpiryCheck: mockUseChainExpiryCheck,
+}));
 vi.mock("../../storage/usePeginStorage", () => ({
   usePeginStorage: vi.fn(() => ({
     allActivities: [],
@@ -63,6 +67,7 @@ beforeEach(async () => {
     statuses: new Map(),
     pendingIds: new Set(),
   });
+  mockUseChainExpiryCheck.mockReturnValue(new Map());
   setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 });
 
@@ -187,6 +192,148 @@ describe("useVaultDeposits", () => {
       { id: "0xAbCdEf", contractStatus: ContractStatus.VERIFIED },
       { id: "0x123456", contractStatus: ContractStatus.ACTIVE },
     ]);
+  });
+
+  function mockIndexedVaults(
+    vaults: Array<{ id: string; status: ContractStatus }>,
+  ) {
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: vaults.map((vault) => ({
+          ...vault,
+          amount: 0n,
+          isInUse: false,
+        })),
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+  }
+
+  it("reads an indexer-VERIFIED vault past its deadline as EXPIRED, unreported, with the reason", async () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.VERIFIED }]);
+    mockUseChainExpiryCheck.mockReturnValue(
+      new Map([
+        ["0xabcdef", { state: "unreported", reason: "activation_timeout" }],
+      ]),
+    );
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    const [activity] =
+      vi.mocked(usePeginStorage).mock.lastCall![0].confirmedPegins;
+    expect(activity.contractStatus).toBe(ContractStatus.EXPIRED);
+    expect(activity.expirationReason).toBe("activation_timeout");
+    expect(activity.expiryUnreported).toBe(true);
+  });
+
+  it("reads an indexer-PENDING vault the registry records Expired as EXPIRED, not unreported", async () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.PENDING }]);
+    mockUseChainExpiryCheck.mockReturnValue(
+      new Map([["0xabcdef", { state: "reported", reason: undefined }]]),
+    );
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    const [activity] =
+      vi.mocked(usePeginStorage).mock.lastCall![0].confirmedPegins;
+    expect(activity.contractStatus).toBe(ContractStatus.EXPIRED);
+    expect(activity.expirationReason).toBeUndefined();
+    expect(activity.expiryUnreported).toBeUndefined();
+  });
+
+  it("keeps the activation timeout on an indexer-PENDING vault that was verified and is reported, so its artifact download stays", async () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.PENDING }]);
+    mockUseChainExpiryCheck.mockReturnValue(
+      new Map([
+        ["0xabcdef", { state: "reported", reason: "activation_timeout" }],
+      ]),
+    );
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    const [activity] =
+      vi.mocked(usePeginStorage).mock.lastCall![0].confirmedPegins;
+    expect(activity.contractStatus).toBe(ContractStatus.EXPIRED);
+    expect(activity.expirationReason).toBe("activation_timeout");
+    expect(activity.expiryUnreported).toBeUndefined();
+  });
+
+  it("reads an indexer-VERIFIED vault the registry records Redeemed as REDEEMED, keeping its reason for the artifact download", async () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.VERIFIED }]);
+    mockUseChainExpiryCheck.mockReturnValue(
+      new Map([
+        ["0xabcdef", { state: "redeemed", reason: "activation_timeout" }],
+      ]),
+    );
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    const [activity] =
+      vi.mocked(usePeginStorage).mock.lastCall![0].confirmedPegins;
+    expect(activity.contractStatus).toBe(ContractStatus.REDEEMED);
+    expect(activity.expirationReason).toBe("activation_timeout");
+    expect(activity.expiryUnreported).toBeUndefined();
+  });
+
+  it("keeps the indexer's status for a vault the chain has not expired", async () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.VERIFIED }]);
+    const { usePeginStorage } = await import("../../storage/usePeginStorage");
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    const [activity] =
+      vi.mocked(usePeginStorage).mock.lastCall![0].confirmedPegins;
+    expect(activity.contractStatus).toBe(ContractStatus.VERIFIED);
+    expect(activity.expiryUnreported).toBeUndefined();
+  });
+
+  it("checks expiry for PENDING and VERIFIED vaults only", () => {
+    mockIndexedVaults([
+      { id: "0xaaaa", status: ContractStatus.PENDING },
+      { id: "0xbbbb", status: ContractStatus.VERIFIED },
+      { id: "0xcccc", status: ContractStatus.ACTIVE },
+      { id: "0xdddd", status: ContractStatus.EXPIRED },
+    ]);
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(mockUseChainExpiryCheck).toHaveBeenLastCalledWith([
+      "0xaaaa",
+      "0xbbbb",
+    ]);
+  });
+
+  it("checks expiry for an indexer-ACTIVE vault the chain still reports Verified", () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.ACTIVE }]);
+    mockUseActiveVaultChainCheck.mockReturnValue({
+      statuses: new Map([["0xabcdef", ContractStatus.VERIFIED]]),
+      pendingIds: new Set(),
+    });
+
+    renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(mockUseChainExpiryCheck).toHaveBeenLastCalledWith(["0xAbCdEf"]);
+  });
+
+  it("still knows every indexed vault id when a row reads expired", () => {
+    mockIndexedVaults([{ id: "0xAbCdEf", status: ContractStatus.VERIFIED }]);
+    mockUseChainExpiryCheck.mockReturnValue(
+      new Map([
+        ["0xabcdef", { state: "unreported", reason: "activation_timeout" }],
+      ]),
+    );
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toEqual(new Set(["0xabcdef"]));
   });
 
   it("holds back an indexer-ACTIVE vault whose registry read has not settled", async () => {
@@ -315,6 +462,64 @@ describe("useVaultDeposits", () => {
     // materially — surface either as a test signal.
     expect(FAST_POLL_INTERVAL).toBeGreaterThanOrEqual(1_000);
     expect(NORMAL_POLL_INTERVAL).toBeLessThanOrEqual(5 * 60_000);
+  });
+
+  describe("polling after this device refunded", () => {
+    const REFUNDED_ID = "0xabcdef" as Hex;
+
+    async function renderRefundedVault(status: ContractStatus) {
+      const storage = await import("../../storage/peginStorage");
+      vi.mocked(storage.getPendingPegins).mockReturnValue([
+        {
+          id: REFUNDED_ID,
+          timestamp: 0,
+          status: LocalStorageStatus.REFUND_BROADCAST,
+          refundBroadcastAt: Date.now(),
+          peginTxHash: "0xprepegin" as Hex,
+          unsignedTxHex: "",
+        },
+      ]);
+      useVaultsMock.mockReturnValue({
+        data: {
+          vaults: [{ id: REFUNDED_ID, amount: 0n, status, isInUse: false }],
+          droppedCount: 0,
+        },
+        status: "success",
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+      renderHook(() => useVaultDeposits(ADDRESS));
+    }
+
+    afterEach(async () => {
+      const storage = await import("../../storage/peginStorage");
+      vi.mocked(storage.getPendingPegins).mockReturnValue([]);
+    });
+
+    it("polls fast while an expired vault's refund is within its TTL", async () => {
+      await renderRefundedVault(ContractStatus.EXPIRED);
+
+      expect(useVaultsMock).toHaveBeenLastCalledWith(ADDRESS, {
+        poll: true,
+        interval: FAST_POLL_INTERVAL,
+      });
+    });
+
+    it.each([
+      ["VERIFIED", ContractStatus.VERIFIED],
+      ["PENDING", ContractStatus.PENDING],
+    ])(
+      "keeps the normal poll on a refunded vault reading %s, whose Refunding has no TTL",
+      async (_name, status) => {
+        await renderRefundedVault(status);
+
+        expect(useVaultsMock).toHaveBeenLastCalledWith(ADDRESS, {
+          poll: true,
+          interval: NORMAL_POLL_INTERVAL,
+        });
+      },
+    );
   });
 
   it("lowercases the stored record ids so a mixed-case record still matches", async () => {

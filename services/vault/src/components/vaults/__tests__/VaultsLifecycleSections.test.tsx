@@ -340,6 +340,40 @@ describe("VaultsLifecycleSections pending row", () => {
     expect(screen.getByText(estimateText(70))).toBeInTheDocument();
   });
 
+  it("shows the refund message, with no estimate and no details, on a refunded vault reading VERIFIED", () => {
+    renderPendingRow(
+      pollingResult(
+        getPeginState(ContractStatus.VERIFIED, {
+          localStatus: LocalStorageStatus.REFUND_BROADCAST,
+        }),
+      ),
+    );
+
+    expect(
+      screen.getByText(COPY.pegin.messages.refundUnsettled),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: COPY.vaults.actions.viewDetails }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("labels the refund transaction on a refunded vault reading VERIFIED", () => {
+    renderPendingRow(
+      pollingResult(
+        getPeginState(ContractStatus.VERIFIED, {
+          localStatus: LocalStorageStatus.REFUND_BROADCAST,
+          refundSettlement: "confirmed",
+        }),
+        { refundTxId: "ef".repeat(32) },
+      ),
+    );
+
+    expect(
+      screen.getByText(COPY.vaults.refundTransactionLabel),
+    ).toBeInTheDocument();
+  });
+
   it("shows no estimate while the deposit waits on the user", () => {
     renderPendingRow(pollingResult(BROADCAST_STATE));
 

@@ -16,10 +16,9 @@
 // downstream stops real harm, but the user has already been alarmed and asked
 // for a signature they did not need to give.
 //
-// So the stuck state now requires a POSITIVE on-chain confirmation, in the same
-// shape as `useActivationDeadlineGate`: the indexer supplies cheap Tier-1
-// suspects, and only a chain read that still reports VERIFIED promotes one to
-// genuinely stuck.
+// So the stuck state now requires a POSITIVE on-chain confirmation: the indexer
+// supplies cheap Tier-1 suspects, and only a chain read that still reports
+// VERIFIED promotes one to genuinely stuck.
 //
 // The BTC-side probe is also only the mempool API's word. An API that names
 // the vault's public PegIn txid as the HTLC's spender turns a healthy VERIFIED
@@ -47,7 +46,7 @@ import { mapWithConcurrency } from "@/utils/concurrency";
 
 const STUCK_VAULT_CONFIRM_QUERY_KEY = "stuckVaultChainConfirm";
 // The stuck state is terminal-ish and rare; it does not need a fast cadence.
-// Matches the activation-deadline gate so the two chain reads batch together.
+// Matches the other chain gates.
 const POLL_INTERVAL_MS = 60 * 1000;
 // Just under the poll interval so refocus/remount doesn't double-fetch.
 const STALE_TIME_MS = 55 * 1000;

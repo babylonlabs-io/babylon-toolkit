@@ -229,10 +229,16 @@ export function usePeginStorage({
 
     const filteredPegins = filterPendingPegins(
       currentPegins,
-      confirmedPegins.map((p) => ({
-        id: p.id,
-        status: p.contractStatus ?? ContractStatus.PENDING,
-      })),
+      confirmedPegins
+        // Removing a record cannot be undone, and an unreported expiry can: a
+        // raised timeout reopens the vault. Its record also holds the
+        // participant-key stamp that blocks an unsafe later broadcast, so it
+        // stays until the chain records the expiry.
+        .filter((p) => !p.expiryUnreported)
+        .map((p) => ({
+          id: p.id,
+          status: p.contractStatus ?? ContractStatus.PENDING,
+        })),
     );
 
     // Only save if something actually changed

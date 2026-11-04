@@ -46,11 +46,15 @@ const EXPIRED_VAULT = { id: `0x${"11".repeat(32)}` };
 function deposits(overrides: {
   expiredActivities: unknown[];
   claimingActivity: unknown;
+  refundingActivity?: unknown;
 }) {
   return {
     expiredActivities: overrides.expiredActivities,
     ethAddress: "0x1234",
-    refundModal: { handleRefundClick: vi.fn() },
+    refundModal: {
+      handleRefundClick: vi.fn(),
+      refundingActivity: overrides.refundingActivity ?? null,
+    },
     reclaimModal: {},
     emergencyWithdrawModal: {},
     claimExpiredModal: {
@@ -81,6 +85,33 @@ describe("ActivityListWithRefund", () => {
     // The redeem confirmed and the indexer reports the vault Redeemed.
     pendingDepositsMock.mockReturnValue(
       deposits({ expiredActivities: [], claimingActivity: EXPIRED_VAULT }),
+    );
+    rerender(<ActivityListWithRefund activities={[]} isConnected />);
+
+    expect(screen.getByTestId("recovery-modals")).toBeInTheDocument();
+  });
+
+  it("keeps an open refund modal mounted after its vault leaves the expired list", () => {
+    pendingDepositsMock.mockReturnValue(
+      deposits({
+        expiredActivities: [EXPIRED_VAULT],
+        claimingActivity: null,
+        refundingActivity: EXPIRED_VAULT,
+      }),
+    );
+    const { rerender } = render(
+      <ActivityListWithRefund activities={[]} isConnected />,
+    );
+    expect(screen.getByTestId("recovery-modals")).toBeInTheDocument();
+
+    // A raised timeout reopened a vault whose expiry nobody had reported.
+    // Unmounting here would abort the refund in flight.
+    pendingDepositsMock.mockReturnValue(
+      deposits({
+        expiredActivities: [],
+        claimingActivity: null,
+        refundingActivity: EXPIRED_VAULT,
+      }),
     );
     rerender(<ActivityListWithRefund activities={[]} isConnected />);
 
@@ -175,7 +206,29 @@ describe("ActivityListWithRefund feed rows for expired deposits", () => {
     ]);
   });
 
-  it("does not duplicate an expired deposit the feed already shows, and clears its pending spinner", () => {
+  it("does not duplicate an expired deposit with an indexed feed row", () => {
+    const vaultId = `0x${"33".repeat(32)}`;
+    pollWith(vaultId, PeginAction.REFUND_HTLC);
+    pendingDepositsMock.mockReturnValue(
+      deposits({
+        expiredActivities: [expiredVault(vaultId, NEWER)],
+        claimingActivity: null,
+      }),
+    );
+
+    render(
+      <ActivityListWithRefund
+        activities={[{ ...feedRow(vaultId, NEWER), isPending: undefined }]}
+        isConnected
+      />,
+    );
+
+    const rows = renderedRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: `event-${vaultId}` });
+  });
+
+  it("replaces the pending row a retained record projects with the expired row that carries the action", () => {
     const vaultId = `0x${"33".repeat(32)}`;
     pollWith(vaultId, PeginAction.REFUND_HTLC);
     pendingDepositsMock.mockReturnValue(
@@ -194,7 +247,49 @@ describe("ActivityListWithRefund feed rows for expired deposits", () => {
 
     const rows = renderedRows();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: `event-${vaultId}`, isPending: false });
+    expect(rows[0]).toMatchObject({
+      id: `expired-${vaultId}`,
+      transactionHash: PRE_PEGIN_TX,
+    });
+    expect((rows[0] as ActivityLog).isPending).toBeUndefined();
+  });
+
+  it("shows no row for a retained record with nothing to offer, which would read as a settled deposit", () => {
+    const vaultId = `0x${"33".repeat(32)}`;
+    pollWith(vaultId, PeginAction.NONE);
+    pendingDepositsMock.mockReturnValue(
+      deposits({
+        expiredActivities: [expiredVault(vaultId, NEWER)],
+        claimingActivity: null,
+      }),
+    );
+
+    render(
+      <ActivityListWithRefund
+        activities={[feedRow(vaultId, NEWER)]}
+        isConnected
+      />,
+    );
+
+    expect(renderedRows()).toEqual([]);
+  });
+
+  it("keeps the pending row of a deposit that has not expired", () => {
+    const vaultId = `0x${"33".repeat(32)}`;
+    pendingDepositsMock.mockReturnValue(
+      deposits({ expiredActivities: [], claimingActivity: null }),
+    );
+
+    render(
+      <ActivityListWithRefund
+        activities={[feedRow(vaultId, NEWER)]}
+        isConnected
+      />,
+    );
+
+    expect(renderedRows()).toEqual([
+      expect.objectContaining({ id: `event-${vaultId}`, isPending: true }),
+    ]);
   });
 
   it("keeps the feed newest-first when it adds a row", () => {

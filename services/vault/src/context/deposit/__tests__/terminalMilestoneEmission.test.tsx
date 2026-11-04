@@ -33,11 +33,8 @@ vi.mock("../../../hooks/useBtcHtlcRefundStatus", () => ({
   useBtcHtlcRefundStatus: () => ({ refundByDepositId: new Map() }),
 }));
 
-vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
-  useActivationDeadlineGate: () => new Set<string>(),
-}));
-// Same reason as the deadline gate: react-query plus a chain read. Empty set is
-// also the production fail-open default.
+// react-query plus a chain read. Empty set is also the production fail-open
+// default.
 vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
   useStuckVaultChainConfirm: () => new Set<string>(),
 }));
@@ -46,7 +43,7 @@ vi.mock("../../../hooks/useClaimExpiredWindowGate", () => ({
 }));
 
 // Floor gate issues chain reads for VERIFIED vaults; stub it so the provider
-// renders without a QueryClient, exactly as the deadline gate above is stubbed.
+// renders without a QueryClient.
 vi.mock("../../../hooks/useActivationFloorGate", () => ({
   useActivationFloorGate: () => new Map<string, number | null>(),
 }));
@@ -57,7 +54,6 @@ vi.mock("../../../hooks/deposit/usePeginPollingProtocolParams", () => ({
   usePeginPollingProtocolParams: () => ({
     ready: true,
     error: null,
-    pegInActivationTimeout: undefined,
     resolveRequiredPrePeginDepth: () => 6,
     resolveRefundTimelock: () => undefined,
   }),

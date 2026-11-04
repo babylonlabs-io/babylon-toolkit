@@ -24,7 +24,6 @@ const LATEST_MIN_DEPTH = 6;
 const PINNED_MIN_DEPTH = 4;
 
 const CONFIG = {
-  pegInActivationTimeout: 144n,
   offchainParams: { minPrepeginDepth: LATEST_MIN_DEPTH },
 } as unknown as PegInConfiguration;
 
@@ -65,7 +64,6 @@ describe("usePeginPollingProtocolParams", () => {
 
     expect(result.current.ready).toBe(false);
     expect(result.current.error).toBeNull();
-    expect(result.current.pegInActivationTimeout).toBeUndefined();
     expect(result.current.resolveRequiredPrePeginDepth()).toBeUndefined();
     expect(
       result.current.resolveRequiredPrePeginDepth(PINNED_VERSION),

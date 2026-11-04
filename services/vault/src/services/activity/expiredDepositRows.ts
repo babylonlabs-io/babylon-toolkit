@@ -2,11 +2,13 @@
  * Feed rows for expired deposits the activity feed has no row for.
  *
  * The indexer records a `deposit` activity only when a vault activates, and the
- * browser's pending record is dropped once the indexer reports the vault
- * EXPIRED. A deposit that expired before activating therefore has no feed row
- * of its own — and the expired deposit's action (the refund, or the redeem once
- * the PegIn has swept it) attaches to a feed row by vault id. These rows give
- * such a deposit somewhere to carry that action. The caller passes only
+ * browser's pending record is dropped once the expiry is recorded. A deposit
+ * that expired before activating therefore has no feed row of its own — and the
+ * expired deposit's action (the refund, or the redeem once the PegIn has swept
+ * it) attaches to a feed row by vault id. These rows give such a deposit
+ * somewhere to carry that action. One whose expiry nobody has reported keeps its
+ * record, and the caller drops the pending row that record projects, so it reads
+ * the same. The caller passes only
  * deposits whose row would carry one: a row with nothing to offer would read as
  * a successful deposit.
  */

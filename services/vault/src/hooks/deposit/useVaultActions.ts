@@ -928,8 +928,8 @@ export function useVaultActions(): UseVaultActionsReturn {
         }
       }
 
-      // Activation ceiling. The dashboard gate (`useActivationDeadlineGate`)
-      // is explicitly UX-only and polls on a 60s cadence, so a vault can cross
+      // Activation ceiling. The dashboard's check (`useChainExpiryCheck`) is
+      // UX-only and polls on a 60s cadence, so a vault can cross
       // the deadline between the last poll and this click. Checked here on the
       // fresh reads, and again on a fresh head right before the write below.
       //

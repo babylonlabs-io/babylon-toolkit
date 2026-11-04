@@ -92,25 +92,13 @@ describe("activation floor in getPeginState", () => {
     expect(state.activationFloorBlocksRemaining).toBe(42);
   });
 
-  it("lets an expired deadline win over the floor", () => {
-    // Both bounds claiming the vault at once is contradictory; expiry is
-    // terminal, so it must not be masked by a transient waiting state.
-    const state = getPeginState(VERIFIED.contractStatus, {
-      transactionsReady: true,
-      activationDeadlinePassed: true,
-      activationFloorBlocksRemaining: 150,
-    });
-
-    expect(state.displayLabel).toBe(COPY.pegin.labels.EXPIRED);
-    expect(state.availableActions).not.toContain(PeginAction.ACTIVATE_VAULT);
-  });
   it("leaves ACTIVATE_AND_REDEEM available while the floor gates ACTIVATE_VAULT", () => {
     // The asymmetry is deliberate and load-bearing. On-chain,
     // `_requireActivationDelayElapsed` guards `activateVaultWithSecret` only;
     // `activateVaultWithSecretAndRedeem` is exempt because it mints no vaultBTC.
-    // A refactor that "mirrors" the deadline filter (which strips BOTH) would
-    // remove the escape hatch the Activation-incomplete state advertises, for a
-    // call the contract would have accepted.
+    // A refactor that strips both would remove the escape hatch the
+    // Activation-incomplete state advertises, for a call the contract would
+    // have accepted.
     const state = getPeginState(VERIFIED.contractStatus, {
       transactionsReady: true,
       htlcSpentByPeginTx: true,
@@ -135,15 +123,6 @@ describe("activation floor in getPeginState", () => {
     expect(state.activationFloorBlocksRemaining).toBeUndefined();
   });
 
-  it("does not mark a deadline-expired vault as floor-gated", () => {
-    const state = getPeginState(VERIFIED.contractStatus, {
-      transactionsReady: true,
-      activationDeadlinePassed: true,
-      activationFloorBlocksRemaining: 150,
-    });
-
-    expect(state.activationFloorBlocksRemaining).toBeUndefined();
-  });
   it("puts the wait in the always-visible subtext, not only the tooltip", () => {
     // `message` renders behind an info icon; a depositor who never hovers — or
     // is on touch — would see a greyed Activate and no reason for it.

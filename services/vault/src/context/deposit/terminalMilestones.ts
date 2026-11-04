@@ -18,7 +18,10 @@ import {
   TELEMETRY_EVENT,
   type TelemetryEvent,
 } from "../../infrastructure/telemetryEvents";
-import { ContractStatus } from "../../models/peginStateMachine";
+import {
+  ContractStatus,
+  type ExpirationReason,
+} from "../../models/peginStateMachine";
 
 export interface TerminalMilestoneTracking {
   /** Vaults observed at least once (drives first-observation seeding). */
@@ -83,6 +86,13 @@ interface StatusBearingActivity {
    * happened to observe in between.
    */
   expiredAt?: number;
+  /**
+   * Set with `expiredAt`, and ahead of it on a vault a chain read finds redeemed
+   * after an expiry while the indexer lags.
+   */
+  expirationReason?: ExpirationReason;
+  /** Past its deadline with no report, so a raised timeout can still reopen it. */
+  expiryUnreported?: boolean;
 }
 
 /**
@@ -92,7 +102,7 @@ interface StatusBearingActivity {
  * and INVALID are pre-activation aborts and never do. One exception reaches
  * REDEEMED without activating: an expired vault redeemed with
  * `claimExpiredVault`; `collectTerminalMilestones` excludes it by the EXPIRED
- * status or the indexed `expiredAt` the redeemed vault keeps. Mirrors the contract statuses of
+ * status, or the `expiredAt` or `expirationReason` the redeemed vault keeps. Mirrors the contract statuses of
  * `isVaultPastActivation`, minus its local branches (the optimistic CONFIRMED
  * status and the returned-activation mark): an on-chain milestone must be
  * decided from chain truth alone.
@@ -136,8 +146,15 @@ export function collectTerminalMilestones(
     // REDEEMED that follows its redeem neither counts as a completed deposit
     // nor reports a verification that happened before it expired. The indexed
     // `expiredAt` covers a tab that never polled the EXPIRED status itself —
-    // polling pauses while hidden, and the redeem may come from elsewhere.
-    if (status === ContractStatus.EXPIRED || activity.expiredAt !== undefined) {
+    // polling pauses while hidden, and the redeem may come from elsewhere — and
+    // `expirationReason` covers the same while the indexer lags. An expiry nobody
+    // has reported settles nothing, because the vault can still reopen and activate.
+    if (
+      !activity.expiryUnreported &&
+      (status === ContractStatus.EXPIRED ||
+        activity.expiredAt !== undefined ||
+        activity.expirationReason !== undefined)
+    ) {
       tracking.seen.add(activity.id);
       tracking.emittedVerified.add(activity.id);
       tracking.emittedCompleted.add(activity.id);

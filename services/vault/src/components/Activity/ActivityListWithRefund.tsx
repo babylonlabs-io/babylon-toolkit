@@ -97,12 +97,18 @@ export function ActivityListWithRefund({
   const rows = useMemo<ActivityRow[]>(
     () =>
       withExpiredDepositRows(
-        activities.map((row) =>
-          row.kind === "row" &&
-          row.vaultId &&
-          refundableVaultIds.has(row.vaultId)
-            ? { ...row, isPending: false }
-            : row,
+        // A pending row of an expired deposit is projected from a browser record
+        // still held for it: an expiry nobody has reported keeps its record. It
+        // no longer describes anything in flight, so it goes, and the deposit
+        // gets the same row, or none, as one whose expiry was reported.
+        activities.filter(
+          (row) =>
+            !(
+              row.kind === "row" &&
+              row.isPending === true &&
+              row.vaultId &&
+              refundableVaultIds.has(row.vaultId)
+            ),
         ),
         expiredWithAction,
       ),
@@ -137,7 +143,15 @@ export function ActivityListWithRefund({
   // An open redeem modal keeps the subtree mounted: a successful redeem moves
   // the vault out of the expired list before the depositor acknowledges the
   // success screen, and unmounting here would drop that screen.
-  if (refundableVaultIds.size === 0 && !claimExpiredModal.claimingActivity) {
+  //
+  // An open refund modal does too. A vault expired only by a chain read can
+  // leave the list if a raised timeout reopens it, and unmounting the modal
+  // aborts a refund in flight (`useRefundState`).
+  if (
+    refundableVaultIds.size === 0 &&
+    !claimExpiredModal.claimingActivity &&
+    !refundModal.refundingActivity
+  ) {
     return list;
   }
 

@@ -26,6 +26,7 @@ import { logger } from "@/infrastructure";
 import {
   getPeginProgressStep,
   getWarningPeginDisplayStep,
+  isRefundInFlightOrSettled,
   isVaultPastActivation,
 } from "@/models/peginStateMachine";
 
@@ -92,17 +93,20 @@ export function deriveSplitVaultProgress(
     // An in-progress sibling has its own display step (this also covers the
     // optimistic VERIFIED+CONFIRMED → AWAIT_ACTIVATION_CONFIRMATION case).
     if (displayStep !== null) return displayStep;
-    // `getPeginProgressStep` is null both for a fully-activated vault and for a
-    // warning/danger state. Warning/danger siblings freeze at their own last
-    // known local step instead of mirroring the active sibling — checked
-    // before `isVaultPastActivation`, which also matches LIQUIDATED and would
-    // otherwise render a seized vault as COMPLETED. A finished sibling must
-    // render COMPLETED (all groups ✓) — NOT fall back to the active vault's
-    // step, which would otherwise reset an already-activated lane to
-    // whatever the active vault is doing.
+    // `getPeginProgressStep` is null for a fully-activated vault, for a
+    // warning/danger state, and for a refunded deposit. The last two freeze at
+    // the step their local record gives instead of mirroring the active sibling.
+    // For a refund made on this device that is the broadcast floor, because the
+    // refund overwrote the record's status. Checked before
+    // `isVaultPastActivation`, which also matches LIQUIDATED and would otherwise
+    // render a seized vault as COMPLETED. A finished sibling must render
+    // COMPLETED (all groups ✓) — NOT fall back to the active vault's step, which
+    // would otherwise reset an already-activated lane to whatever the active
+    // vault is doing.
     if (
       state.displayVariant === "warning" ||
-      state.displayVariant === "danger"
+      state.displayVariant === "danger" ||
+      isRefundInFlightOrSettled(state)
     ) {
       return getWarningPeginDisplayStep(state.localStatus);
     }

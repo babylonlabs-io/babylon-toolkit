@@ -10,6 +10,8 @@ import { deriveSplitVaultProgress } from "../useSplitVaultProgress";
 // with controllable stubs — the branch this test exercises is the per-lane
 // glue (done sibling → COMPLETED, not the active vault's step), not the real
 // getPeginProgressStep/isVaultPastActivation (covered by their own tests).
+// getWarningPeginDisplayStep stays real: which step a frozen lane lands on is
+// the behavior under test, and a stub could only repeat what the test expects.
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
@@ -30,16 +32,19 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
     COMPLETED: 16,
   },
 }));
-vi.mock("@/models/peginStateMachine", () => ({
-  getPeginProgressStep: (s: { displayStep: DepositFlowStep | null }) =>
-    s.displayStep,
-  getWarningPeginDisplayStep: (localStatus: string | undefined) =>
-    localStatus === "confirming"
-      ? DepositFlowStep.AWAIT_BTC_CONFIRMATION
-      : DepositFlowStep.SUBMIT_WOTS_KEYS,
-  isVaultPastActivation: (s: { pastActivation: boolean } | undefined) =>
-    s?.pastActivation === true,
-}));
+vi.mock("@/models/peginStateMachine", async (importOriginal) => {
+  const { getWarningPeginDisplayStep } =
+    await importOriginal<typeof import("@/models/peginStateMachine")>();
+  return {
+    getPeginProgressStep: (s: { displayStep: DepositFlowStep | null }) =>
+      s.displayStep,
+    getWarningPeginDisplayStep,
+    isRefundInFlightOrSettled: (s: { refunded?: boolean }) =>
+      s.refunded === true,
+    isVaultPastActivation: (s: { pastActivation: boolean } | undefined) =>
+      s?.pastActivation === true,
+  };
+});
 
 /** Fake peginState carrying just what the mocked helpers read. */
 type FakeState = {
@@ -47,6 +52,7 @@ type FakeState = {
   pastActivation: boolean;
   displayVariant?: "pending" | "active" | "inactive" | "warning" | "danger";
   localStatus?: string;
+  refunded?: boolean;
 };
 
 function pollingFor(states: Record<string, FakeState>) {
@@ -57,6 +63,61 @@ function pollingFor(states: Record<string, FakeState>) {
 }
 
 describe("deriveSplitVaultProgress", () => {
+  it("puts a sibling refunded on this device at the broadcast floor instead of mirroring the active vault", () => {
+    // The refund overwrote the record's status, so its last step is not known.
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.RETRIEVE_SECRET,
+        pastActivation: false,
+      },
+      "0xrefunded": {
+        displayStep: null,
+        pastActivation: false,
+        displayVariant: "pending",
+        refunded: true,
+        localStatus: "refund_broadcast",
+      },
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xrefunded"],
+      "0xactive",
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+
+    expect(perVaultSteps).toEqual([
+      DepositFlowStep.RETRIEVE_SECRET,
+      DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    ]);
+  });
+
+  it("freezes a sibling refunded elsewhere at the step its local record still gives", () => {
+    // This device wrote no refund marker: the spend was seen on Bitcoin.
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.RETRIEVE_SECRET,
+        pastActivation: false,
+      },
+      "0xrefunded": {
+        displayStep: null,
+        pastActivation: false,
+        displayVariant: "inactive",
+        refunded: true,
+        localStatus: "payout_signed",
+      },
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xrefunded"],
+      "0xactive",
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(DepositFlowStep.AWAIT_VP_VERIFICATION);
+  });
+
   it("marks a fully-activated sibling COMPLETED instead of mirroring the active vault", () => {
     // Active vault mid-activation (Retrieve secret); the sibling already
     // activated — getPeginDisplayStep is null for it. It must render complete,

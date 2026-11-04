@@ -35,8 +35,6 @@ export interface PeginPollingProtocolParams {
    * when the value is genuinely unknown.
    */
   error: Error | null;
-  /** On-chain activation window. `undefined` until {@link ready}. */
-  pegInActivationTimeout: bigint | undefined;
   /**
    * Required Pre-PegIn confirmation depth (`minPrepeginDepth`), pinned to the
    * deposit's registered offchain-params version. The latest version applies
@@ -113,7 +111,6 @@ export function usePeginPollingProtocolParams(
   return {
     ready,
     error: ready ? null : (configError ?? offchainError),
-    pegInActivationTimeout: config?.pegInActivationTimeout,
     resolveRequiredPrePeginDepth,
     resolveRefundTimelock,
   };
