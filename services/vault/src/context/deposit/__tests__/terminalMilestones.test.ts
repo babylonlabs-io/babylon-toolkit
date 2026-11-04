@@ -363,4 +363,91 @@ describe("collectTerminalMilestones", () => {
       ),
     ).toEqual([]);
   });
+
+  it("emits no completion for a vault a chain read finds redeemed after an expiry while the indexer lags", () => {
+    const tracking = createTerminalMilestoneTracking();
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.VERIFIED)],
+      tracking,
+    );
+
+    expect(
+      collectTerminalMilestones(
+        [
+          {
+            ...activity("0xa", ContractStatus.REDEEMED),
+            expirationReason: "activation_timeout",
+          },
+        ],
+        tracking,
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits both milestones for a vault a raised timeout reopens after an unreported expiry", () => {
+    const tracking = createTerminalMilestoneTracking();
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.PENDING)],
+      tracking,
+    );
+
+    expect(
+      collectTerminalMilestones(
+        [
+          {
+            ...activity("0xa", ContractStatus.EXPIRED),
+            expiryUnreported: true,
+            expirationReason: "ack_timeout",
+          },
+        ],
+        tracking,
+      ),
+    ).toEqual([]);
+    expect(
+      collectTerminalMilestones(
+        [activity("0xa", ContractStatus.VERIFIED)],
+        tracking,
+      ),
+    ).toEqual([
+      { event: "activation.verified", category: "activation", vaultId: "0xa" },
+    ]);
+    expect(
+      collectTerminalMilestones(
+        [activity("0xa", ContractStatus.ACTIVE)],
+        tracking,
+      ),
+    ).toEqual([
+      { event: "deposit.completed", category: "deposit", vaultId: "0xa" },
+    ]);
+  });
+
+  it("emits no completion for a redeem that follows an unreported expiry", () => {
+    const tracking = createTerminalMilestoneTracking();
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.VERIFIED)],
+      tracking,
+    );
+    collectTerminalMilestones(
+      [
+        {
+          ...activity("0xa", ContractStatus.EXPIRED),
+          expiryUnreported: true,
+          expirationReason: "activation_timeout",
+        },
+      ],
+      tracking,
+    );
+
+    expect(
+      collectTerminalMilestones(
+        [
+          {
+            ...activity("0xa", ContractStatus.REDEEMED),
+            expirationReason: "activation_timeout",
+          },
+        ],
+        tracking,
+      ),
+    ).toEqual([]);
+  });
 });

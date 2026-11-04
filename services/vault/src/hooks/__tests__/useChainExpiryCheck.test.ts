@@ -13,7 +13,7 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { type Hex, zeroAddress } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   classifyChainExpiry,
@@ -47,6 +47,8 @@ const VAULT_B = `0x${"Bb".repeat(32)}` as Hex;
 const CREATED_AT = 1_000n;
 const ACK_TIMEOUT = 100n;
 const ACTIVATION_TIMEOUT = 500n;
+// Inside the activation window of a Verified vault, which ends at 1_500.
+const BLOCK_BEFORE_DEADLINES = 1_200n;
 // Past both deadlines: 1_100 for an ACK, 1_500 for an activation.
 const BLOCK_PAST_DEADLINES = 2_000n;
 
@@ -101,6 +103,10 @@ beforeEach(() => {
     pegInActivationTimeout: ACTIVATION_TIMEOUT,
   });
   mockGetVaultBasicInfo.mockResolvedValue(verifiedRecord());
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("classifyChainExpiry", () => {
@@ -444,6 +450,46 @@ describe("useChainExpiryCheck", () => {
       VAULT_B,
       BLOCK_PAST_DEADLINES,
     );
+    expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+      state: "unreported",
+      reason: "activation_timeout",
+    });
+  });
+
+  it("keeps a vault's expiry when the id set returns to one read before the vault expired", async () => {
+    mockResolvePinnedReadBlock.mockResolvedValue(BLOCK_BEFORE_DEADLINES);
+    const { result, rerender, client } = renderCheck([VAULT_A]);
+    await settled(client);
+    expect(result.current.size).toBe(0);
+
+    mockResolvePinnedReadBlock.mockResolvedValue(BLOCK_PAST_DEADLINES);
+    rerender({ ids: [VAULT_A, VAULT_B] });
+    await settled(client);
+    expect(result.current.has(VAULT_A.toLowerCase())).toBe(true);
+
+    rerender({ ids: [VAULT_A] });
+    expect(result.current.has(VAULT_A.toLowerCase())).toBe(true);
+    await settled(client);
+    expect(result.current.has(VAULT_A.toLowerCase())).toBe(true);
+  });
+
+  it("keeps a vault's expiry when the id set returns to one read before the vault expired and its read fails", async () => {
+    mockResolvePinnedReadBlock.mockResolvedValue(BLOCK_BEFORE_DEADLINES);
+    const { result, rerender, client } = renderCheck([VAULT_A]);
+    await settled(client);
+
+    mockResolvePinnedReadBlock.mockResolvedValue(BLOCK_PAST_DEADLINES);
+    rerender({ ids: [VAULT_A, VAULT_B] });
+    await settled(client);
+    expect(result.current.has(VAULT_A.toLowerCase())).toBe(true);
+
+    // Two minutes on, a read of the earlier id set would be refetched.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 2 * 60 * 1000);
+    mockGetVaultBasicInfo.mockRejectedValue(new Error("rpc down"));
+    rerender({ ids: [VAULT_A] });
+    await settled(client);
+
     expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
       state: "unreported",
       reason: "activation_timeout",

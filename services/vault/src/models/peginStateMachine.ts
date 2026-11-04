@@ -1352,6 +1352,11 @@ export function getWarningPeginDisplayStep(
       return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
     case LocalStorageStatus.PENDING:
       return DepositFlowStep.BROADCAST_PRE_PEGIN;
+    // A refund overwrites the status it followed, so how far the deposit got is
+    // no longer known. This is the floor: a vault with an HTLC to refund has
+    // broadcast its Pre-PegIn.
+    case LocalStorageStatus.REFUND_BROADCAST:
+      return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
     default:
       return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
   }

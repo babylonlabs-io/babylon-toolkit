@@ -188,6 +188,11 @@ export function useChainExpiryCheck(
     // A changed id set (a new deposit, a vault leaving PENDING) must not flip
     // the other vaults back to their indexer status while the new read loads.
     placeholderData: keepPreviousData,
+    // Keep no read of an id set nothing is watching. Back on that set it would be
+    // served as current, and it may predate an expiry: the row would lose its
+    // refund, and `lastKnownRef` the conclusion. `keepPreviousData` takes the
+    // observer's last result, so it does not need the cache.
+    gcTime: 0,
     // NEVER REJECTS. This query is mounted app-wide, and a rejection reaches
     // the global QueryCache.onError -> logger.error -> captureException on
     // every poll of an outage.
