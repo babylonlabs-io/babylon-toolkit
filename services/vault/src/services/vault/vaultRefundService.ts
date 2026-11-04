@@ -33,6 +33,7 @@ import { Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import { logger } from "@/infrastructure";
+import { withRequestTimeout } from "@/utils/async";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
@@ -218,15 +219,23 @@ async function fetchPrePeginTxFromBitcoin(
   mempoolApiUrl: string,
 ): Promise<string> {
   const txid = stripHexPrefix(prePeginTxHash);
-  const response = await fetch(`${mempoolApiUrl}/tx/${txid}/hex`, {
-    signal: AbortSignal.timeout(MEMPOOL_READ_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Mempool API answered HTTP ${response.status} for Pre-PegIn ${txid}`,
-    );
-  }
-  return response.text();
+  const url = `${mempoolApiUrl}/tx/${txid}/hex`;
+  return withRequestTimeout(
+    {
+      timeoutMs: MEMPOOL_READ_TIMEOUT_MS,
+      requestLabel: "Pre-PegIn read",
+      url,
+    },
+    async (signal) => {
+      const response = await fetch(url, { signal });
+      if (!response.ok) {
+        throw new Error(
+          `Mempool API answered HTTP ${response.status} for Pre-PegIn ${txid}`,
+        );
+      }
+      return response.text();
+    },
+  );
 }
 
 /**

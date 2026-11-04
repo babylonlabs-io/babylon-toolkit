@@ -877,6 +877,23 @@ describe("vaultRefundService - Pre-PegIn bytes", () => {
     );
   });
 
+  it("reads from Bitcoin on a runtime with no AbortSignal.timeout", async () => {
+    const original = AbortSignal.timeout;
+    // @ts-expect-error - deliberately emulating a browser that predates the API
+    delete AbortSignal.timeout;
+
+    try {
+      serveFromBitcoin(SIGNED_TX_HEX);
+      serveFromLog(null);
+
+      await expect(bytesTheRefundIsBuiltFrom()).resolves.toBe(
+        `0x${PRE_WITNESS_TX_HEX}`,
+      );
+    } finally {
+      AbortSignal.timeout = original;
+    }
+  });
+
   it("ignores a source whose bytes hash to another txid and uses the other source", async () => {
     serveFromBitcoin(ANOTHER_TX_HEX);
     serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
