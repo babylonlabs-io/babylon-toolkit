@@ -31,7 +31,7 @@ const MARKER_LABEL_TOP_PX = 24;
 
 const DEFAULT_RAIL_WIDTH_PX = 460;
 const MARKER_LABEL_WIDTH_PX = 112;
-const GAP_LABEL_WIDTH_PX = 128;
+const GAP_LABEL_WIDTH_PX = 171;
 const GAP_MIN_SEPARATION_PCT = 2;
 
 function formatTickLabel(value: number): string {
@@ -291,10 +291,10 @@ function RiskGapArrow({
         />
       </svg>
       <div
-        className="absolute flex w-32 -translate-x-1/2 flex-col items-center gap-0.5 text-center"
+        className="absolute flex w-[171px] -translate-x-1/2 flex-col items-center gap-0.5 text-center"
         style={{ left: centerPx, top: GAP_LABEL_TOP_PX }}
       >
-        <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
+        <span className="whitespace-nowrap text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
           {COPY.overview.pctToLiquidationLabel}
         </span>
         <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
