@@ -62,6 +62,10 @@ function expiredRecord() {
   return { ...verifiedRecord(), status: OnChainBtcVaultStatus.EXPIRED };
 }
 
+function redeemedRecord() {
+  return { ...verifiedRecord(), status: OnChainBtcVaultStatus.REDEEMED };
+}
+
 function renderCheck(candidateIds: readonly Hex[]) {
   const onQueryError = vi.fn();
   const client = new QueryClient({
@@ -112,13 +116,13 @@ describe("classifyChainExpiry", () => {
 
   it("reports a vault the registry records Expired, at any block", () => {
     expect(classify(OnChainBtcVaultStatus.EXPIRED, CREATED_AT)).toEqual({
-      reported: true,
+      state: "reported",
     });
   });
 
   it("calls a Pending vault past its ack deadline unreported, with the ack reason", () => {
     expect(classify(OnChainBtcVaultStatus.PENDING, 1_101n)).toEqual({
-      reported: false,
+      state: "unreported",
       reason: "ack_timeout",
     });
   });
@@ -129,7 +133,7 @@ describe("classifyChainExpiry", () => {
 
   it("calls a Verified vault past its activation deadline unreported, with the activation reason", () => {
     expect(classify(OnChainBtcVaultStatus.VERIFIED, 1_501n)).toEqual({
-      reported: false,
+      state: "unreported",
       reason: "activation_timeout",
     });
   });
@@ -148,10 +152,11 @@ describe("classifyChainExpiry", () => {
     ).toBeUndefined();
   });
 
-  it("does not expire a Redeemed vault, however old", () => {
-    expect(
-      classify(OnChainBtcVaultStatus.REDEEMED, BLOCK_PAST_DEADLINES),
-    ).toBeUndefined();
+  it("calls a vault the registry records Redeemed redeemed, at any block", () => {
+    expect(classify(OnChainBtcVaultStatus.REDEEMED, CREATED_AT)).toEqual({
+      state: "redeemed",
+      reason: undefined,
+    });
   });
 });
 
@@ -161,7 +166,7 @@ describe("useChainExpiryCheck", () => {
 
     await waitFor(() =>
       expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
-        reported: false,
+        state: "unreported",
         reason: "activation_timeout",
       }),
     );
@@ -194,7 +199,7 @@ describe("useChainExpiryCheck", () => {
 
     await waitFor(() =>
       expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
-        reported: true,
+        state: "reported",
         reason: "activation_timeout",
       }),
     );
@@ -208,7 +213,7 @@ describe("useChainExpiryCheck", () => {
 
     await waitFor(() =>
       expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
-        reported: true,
+        state: "reported",
         reason: "ack_timeout",
       }),
     );
@@ -263,7 +268,7 @@ describe("useChainExpiryCheck", () => {
 
     await settled(client);
     expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
-      reported: true,
+      state: "reported",
       reason: undefined,
     });
     expect(onQueryError).not.toHaveBeenCalled();
@@ -278,8 +283,73 @@ describe("useChainExpiryCheck", () => {
     await pollAgain(client);
 
     expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
-      reported: true,
+      state: "reported",
       reason: "activation_timeout",
+    });
+  });
+
+  it("gives a vault redeemed after an expiry report the activation timeout", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(redeemedRecord());
+    mockGetProtocolInfoBatch.mockResolvedValue([
+      { verifiedAt: 1_050n, claimExpiredUntil: 3_000n },
+    ]);
+
+    const { result } = renderCheck([VAULT_A]);
+
+    await waitFor(() =>
+      expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+        state: "redeemed",
+        reason: "activation_timeout",
+      }),
+    );
+  });
+
+  it("gives a vault redeemed without expiring no reason", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(redeemedRecord());
+    mockGetProtocolInfoBatch.mockResolvedValue([
+      { verifiedAt: 1_050n, claimExpiredUntil: 0n },
+    ]);
+
+    const { result, client } = renderCheck([VAULT_A]);
+
+    await settled(client);
+    expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+      state: "redeemed",
+      reason: undefined,
+    });
+  });
+
+  it("keeps the reason through the redeem when the reason read fails", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue(expiredRecord());
+    mockGetProtocolInfoBatch.mockResolvedValue([
+      { verifiedAt: 1_050n, claimExpiredUntil: 3_000n },
+    ]);
+    const { result, client } = renderCheck([VAULT_A]);
+    await waitFor(() => expect(result.current.size).toBe(1));
+
+    mockGetVaultBasicInfo.mockResolvedValue(redeemedRecord());
+    mockGetProtocolInfoBatch.mockRejectedValue(new Error("rpc down"));
+    await pollAgain(client);
+
+    expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+      state: "redeemed",
+      reason: "activation_timeout",
+    });
+  });
+
+  it("drops a reason it held when a good read says the vault was redeemed without expiring", async () => {
+    const { result, client } = renderCheck([VAULT_A]);
+    await waitFor(() => expect(result.current.size).toBe(1));
+
+    mockGetVaultBasicInfo.mockResolvedValue(redeemedRecord());
+    mockGetProtocolInfoBatch.mockResolvedValue([
+      { verifiedAt: 1_050n, claimExpiredUntil: 0n },
+    ]);
+    await pollAgain(client);
+
+    expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
+      state: "redeemed",
+      reason: undefined,
     });
   });
 
@@ -323,7 +393,7 @@ describe("useChainExpiryCheck", () => {
     await pollAgain(client);
 
     expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
-      reported: false,
+      state: "unreported",
       reason: "activation_timeout",
     });
   });
@@ -375,7 +445,7 @@ describe("useChainExpiryCheck", () => {
       BLOCK_PAST_DEADLINES,
     );
     expect(result.current.get(VAULT_A.toLowerCase())).toEqual({
-      reported: false,
+      state: "unreported",
       reason: "activation_timeout",
     });
   });

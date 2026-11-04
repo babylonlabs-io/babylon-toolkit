@@ -36,6 +36,7 @@ import { blockOffsiteRequests, recordedPageWallets } from "./visual/capture";
 /** `IBTCVaultRegistry.BTCVaultStatus`, spelled out rather than imported as app state. */
 const ON_CHAIN_PENDING = 0;
 const ON_CHAIN_VERIFIED = 1;
+const ON_CHAIN_REDEEMED = 3;
 const ON_CHAIN_EXPIRED = 4;
 
 const VAULT_ID = `0x${"11".repeat(32)}` as Hex;
@@ -81,6 +82,8 @@ const REDEEM_LABEL = "Redeem";
 const VIEW_DETAILS_LABEL = "View Details";
 /** `COPY.pegin.labels.EXPIRED`. */
 const EXPIRED_LABEL = "Expired";
+/** `COPY.pegin.labels.REDEEM_IN_PROGRESS`. */
+const REDEEM_IN_PROGRESS_LABEL = "Redeem in progress";
 /** `COPY.pegin.labels.REFUNDING`. */
 const REFUNDING_LABEL = "Refunding";
 /** The head of `COPY.pegin.messages.refundMaturing`. */
@@ -357,6 +360,22 @@ test.describe("refund offered from chain state", () => {
     await expect(page.getByRole("button", { name: WITHDRAW_LABEL })).toHaveCount(
       0,
     );
+  });
+
+  test("reads a vault the registry records Redeemed as redeemed on a fresh load, whatever the indexer reports", async ({
+    page,
+  }) => {
+    await openVaults(page, {
+      indexerStatus: "verified",
+      onChainStatus: ON_CHAIN_REDEEMED,
+      createdAt: CREATED_LONG_AGO,
+      confirmations: CONFIRMATIONS_PAST_TIMELOCK,
+    });
+
+    await expect(page.getByText(REDEEM_IN_PROGRESS_LABEL)).toBeVisible({
+      timeout: VAULT_ROW_WAIT_MS,
+    });
+    await expect(page.getByTestId(PENDING_ROW_TEST_ID)).toHaveCount(0);
   });
 
   test("keeps a Verified vault inside its window pending, with no refund", async ({

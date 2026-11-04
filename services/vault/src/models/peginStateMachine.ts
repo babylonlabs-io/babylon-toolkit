@@ -432,19 +432,6 @@ export function isRefundInFlightOrSettled(state: PeginState): boolean {
 }
 
 /**
- * True when a deposit has left the flow without activating: its refund is in
- * flight or settled, or its redeem confirmed this session. Its null progress
- * step means that, and not that it activated or failed, and there is nothing
- * further to wait for.
- */
-export function hasLeftDepositFlow(state: PeginState): boolean {
-  return (
-    isRefundInFlightOrSettled(state) ||
-    state.localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED
-  );
-}
-
-/**
  * PegIn actions a depositor can drive inline from the deposit flow.
  *
  * Excludes:
@@ -469,8 +456,8 @@ export const USER_ACTIONABLE_PEGIN_ACTIONS: ReadonlySet<PeginAction> = new Set([
 
 /**
  * Whether a vault is still a candidate for an inline continuation action: it
- * exists, is not past activation, has not left the flow, and is not in a
- * warning/danger display state.
+ * exists, is not past activation, has no refund in flight or settled, and is
+ * not in a warning/danger display state.
  * Shared by the post-deposit continuation view (which sibling to surface) and
  * the signing-required notification observer (which deposits to nudge) so the
  * two never drift on "which deposits are actionable".
@@ -479,7 +466,7 @@ export function isCandidateVault(state: PeginState | undefined): boolean {
   return (
     !!state &&
     !isVaultPastActivation(state) &&
-    !hasLeftDepositFlow(state) &&
+    !isRefundInFlightOrSettled(state) &&
     state.displayVariant !== "warning" &&
     state.displayVariant !== "danger"
   );
@@ -662,13 +649,6 @@ function applyTrackingOverrides(
 ): SdkPeginAction[] {
   if (!localStatus) return sdkActions;
 
-  // The redeem confirmed this session; the indexer flips the vault to REDEEMED
-  // next. Whatever it still reports: once the registry reads Redeemed the expiry
-  // overlay lets go, so a lagging PENDING or VERIFIED shows through here too. No
-  // TTL: the status is in-memory only and set from a confirmed receipt, so it
-  // cannot outlive a reload or describe a revert.
-  if (localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED) return [];
-
   if (contractStatus === ContractStatus.PENDING) {
     // This device refunded the HTLC, and the vault reads PENDING again: a raised
     // timeout reopened it, or the chain read failed on a cold load. Every action
@@ -725,6 +705,10 @@ function applyTrackingOverrides(
       if (isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS))
         return sdkActions.filter((a) => a !== SdkPeginAction.REFUND_HTLC);
     }
+    // The redeem confirmed this session; the vault reads REDEEMED next. No TTL:
+    // the status is in-memory only and set from a confirmed receipt, so it
+    // cannot outlive a reload or describe a revert.
+    if (localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED) return [];
   }
 
   return sdkActions;
@@ -795,20 +779,6 @@ function getDisplay(
   } = options;
 
   const hasNoActions = actions.length === 1 && actions[0] === PeginAction.NONE;
-
-  // The redeem confirmed, and a lagging indexer's status shows through (see
-  // `applyTrackingOverrides`).
-  if (
-    localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED &&
-    (contractStatus === ContractStatus.PENDING ||
-      contractStatus === ContractStatus.VERIFIED)
-  ) {
-    return {
-      displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
-      displayVariant: "pending",
-      message: COPY.pegin.messages.redemptionInProgress,
-    };
-  }
 
   if (contractStatus === ContractStatus.PENDING) {
     if (localStatus === LocalStorageStatus.REFUND_BROADCAST) {
@@ -1271,8 +1241,8 @@ export function getPrimaryActionButton(state: PeginState): {
 /**
  * Derive a pending deposit's position in the deposit flow from its live state,
  * or `null` when there is no meaningful in-progress step (terminal/active/
- * expired states, which the pending sections already filter out, and a deposit
- * that has left the flow: `hasLeftDepositFlow`).
+ * expired states, which the pending sections already filter out, and a refunded
+ * deposit: `isRefundInFlightOrSettled`).
  *
  * The next available action is the most reliable signal of where a deposit
  * sits; when no action is pending we fall back to contract/local status to tell
@@ -1288,14 +1258,8 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
     return null;
 
   if (contractStatus === ContractStatus.PENDING) {
-    // A refunded or redeemed deposit is leaving the flow, not advancing through
-    // it.
-    if (
-      localStatus === LocalStorageStatus.REFUND_BROADCAST ||
-      localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED
-    ) {
-      return null;
-    }
+    // A refunded deposit is leaving the flow, not advancing through it.
+    if (localStatus === LocalStorageStatus.REFUND_BROADCAST) return null;
     if (availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
       return DepositFlowStep.BROADCAST_PRE_PEGIN;
     }
@@ -1332,14 +1296,8 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
     ) {
       return DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
     }
-    // A refunded or redeemed deposit is leaving the flow, not advancing through
-    // it.
-    if (
-      localStatus === LocalStorageStatus.REFUND_BROADCAST ||
-      localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED
-    ) {
-      return null;
-    }
+    // A refunded deposit is leaving the flow, not advancing through it.
+    if (localStatus === LocalStorageStatus.REFUND_BROADCAST) return null;
     return DepositFlowStep.RETRIEVE_SECRET;
   }
 

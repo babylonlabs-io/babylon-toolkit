@@ -111,7 +111,9 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   // EXPIRED from here on, so its refund is offered from chain state, not from
   // the indexer seeing an expiry report that may never come. Everything keyed
   // on EXPIRED follows: the Bitcoin polling, the refund action, the lists. The
-  // few things that need the registry's own Expired read `expiryUnreported`.
+  // few things that need the registry's own Expired read `expiryUnreported`. A
+  // vault the chain has redeemed reads REDEEMED the same way, ahead of the
+  // indexer.
   const confirmedActivities = useMemo(() => {
     if (!data) return [];
 
@@ -121,26 +123,20 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
       if (status === undefined) return [];
       const expiry = chainExpiries.get(id);
       if (!expiry) return [transformVaultToActivity({ ...vault, status })];
-      if (expiry.reported) {
-        return [
-          transformVaultToActivity({
-            ...vault,
-            status: ContractStatus.EXPIRED,
-            // The indexer has no reason while it lags, and the artifact download
-            // and the row's message need one.
-            expirationReason: expiry.reason,
-          }),
-        ];
-      }
+      const activity = transformVaultToActivity({
+        ...vault,
+        status:
+          expiry.state === "redeemed"
+            ? ContractStatus.REDEEMED
+            : ContractStatus.EXPIRED,
+        // The indexer has no reason while it lags, and the artifact download and
+        // the row's message need one.
+        expirationReason: expiry.reason,
+      });
       return [
-        {
-          ...transformVaultToActivity({
-            ...vault,
-            status: ContractStatus.EXPIRED,
-            expirationReason: expiry.reason,
-          }),
-          expiryUnreported: true,
-        },
+        expiry.state === "unreported"
+          ? { ...activity, expiryUnreported: true }
+          : activity,
       ];
     });
   }, [data, resolvedStatuses, chainExpiries]);

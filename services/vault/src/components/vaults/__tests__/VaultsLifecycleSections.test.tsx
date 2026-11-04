@@ -374,24 +374,6 @@ describe("VaultsLifecycleSections pending row", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows no estimate and no details on a redeemed vault reading VERIFIED", () => {
-    renderPendingRow(
-      pollingResult(
-        getPeginState(ContractStatus.VERIFIED, {
-          localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
-        }),
-      ),
-    );
-
-    expect(
-      screen.getByText(COPY.pegin.messages.redemptionInProgress),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: COPY.vaults.actions.viewDetails }),
-    ).not.toBeInTheDocument();
-  });
-
   it("shows no estimate while the deposit waits on the user", () => {
     renderPendingRow(pollingResult(BROADCAST_STATE));
 

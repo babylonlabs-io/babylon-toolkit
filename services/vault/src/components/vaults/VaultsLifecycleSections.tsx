@@ -78,7 +78,6 @@ import {
   ContractStatus,
   getPeginProgressStep,
   hasActionableStep,
-  hasLeftDepositFlow,
   isRefundInFlightOrSettled,
   isVaultActivationReturned,
   LocalStorageStatus,
@@ -227,13 +226,13 @@ function PendingRow({
 
   // No estimate for a returned activation: the vault will never activate, and
   // an estimate would hide the message saying the BTC is being returned. The
-  // same goes for a deposit that has left the flow.
-  const leftDepositFlow =
-    peginState !== undefined && hasLeftDepositFlow(peginState);
+  // same goes for a refund.
+  const refundInFlightOrSettled =
+    peginState !== undefined && isRefundInFlightOrSettled(peginState);
   const estimateMinutes =
     peginState?.displayVariant === "pending" &&
     !isVaultActivationReturned(peginState) &&
-    !leftDepositFlow &&
+    !refundInFlightOrSettled &&
     !hasActionableStep(peginState, result?.depositorBtcPubkey) &&
     result?.requiredPrePeginDepth !== undefined
       ? pendingActivationEstimateMinutes(
@@ -268,10 +267,7 @@ function PendingRow({
   // A refund row shows the refund, as the inactive rows do. Otherwise Pre-PegIn
   // first: while a deposit is in flight the Pre-PegIn tx exists before the
   // peg-in tx does (active rows prefer the opposite).
-  const refundTxId =
-    peginState && isRefundInFlightOrSettled(peginState)
-      ? result?.refundTxId
-      : undefined;
+  const refundTxId = refundInFlightOrSettled ? result?.refundTxId : undefined;
   const hash = refundTxId ?? activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
@@ -411,7 +407,7 @@ function PendingRow({
               {actionStatus.action?.label ?? COPY.vaults.actions.viewDetails}
             </button>
           </Hint>
-        ) : leftDepositFlow ? null : (
+        ) : refundInFlightOrSettled ? null : (
           // No details: the view tracks a deposit's progress toward activation.
           <button
             type="button"

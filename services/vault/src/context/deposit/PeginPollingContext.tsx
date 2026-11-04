@@ -39,7 +39,7 @@ import { useStuckVaultChainConfirm } from "../../hooks/useStuckVaultChainConfirm
 import {
   ContractStatus,
   getPeginProgressStep,
-  hasLeftDepositFlow,
+  isRefundInFlightOrSettled,
   LocalStorageStatus,
 } from "../../models/peginStateMachine";
 import {
@@ -705,12 +705,12 @@ export function PeginPollingProvider({
         activity.contractStatus === ContractStatus.PENDING ||
         activity.contractStatus === ContractStatus.VERIFIED,
     );
-    // A deposit that has left the flow still counts, since its row is in the
-    // pending section, but it has no progress step: averaging it in would blank
-    // the progress of every other deposit.
+    // A refunded deposit still counts, since its row is in the pending section,
+    // but it has no progress step: averaging it in would blank the progress of
+    // every other deposit.
     const inFlow = pending.filter((activity) => {
       const result = getPollingResult(activity.id);
-      return !(result && hasLeftDepositFlow(result.peginState));
+      return !(result && isRefundInFlightOrSettled(result.peginState));
     });
     const fills = inFlow.map((activity) => {
       const result = getPollingResult(activity.id);

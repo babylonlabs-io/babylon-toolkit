@@ -426,49 +426,10 @@ describe("peginStateMachine", () => {
     });
   });
 
-  describe("getPeginState - redeem confirmed while the indexer lags", () => {
-    it.each([
-      ["VERIFIED", ContractStatus.VERIFIED, {}],
-      ["PENDING", ContractStatus.PENDING, { transactionsReady: true }],
-    ])(
-      "offers nothing on a redeemed vault reading %s",
-      (_name, status, options) => {
-        const state = getPeginState(status, {
-          ...options,
-          localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
-        });
-        expect(state.availableActions).toEqual([PeginAction.NONE]);
-      },
-    );
-
-    it.each([
-      ["VERIFIED", ContractStatus.VERIFIED],
-      ["PENDING", ContractStatus.PENDING],
-    ])(
-      "reads as the redemption, with no progress step, on %s",
-      (_name, status) => {
-        const state = getPeginState(status, {
-          localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
-        });
-        expect(state.displayLabel).toBe(
-          PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
-        );
-        expect(getPeginDisplayStep(state)).toBeNull();
-      },
-    );
-  });
-
-  describe("isCandidateVault - a deposit that has left the flow", () => {
+  describe("isCandidateVault - a refunded deposit", () => {
     it("is not a candidate once its refund is in flight", () => {
       const state = getPeginState(ContractStatus.VERIFIED, {
         localStatus: LocalStorageStatus.REFUND_BROADCAST,
-      });
-      expect(isCandidateVault(state)).toBe(false);
-    });
-
-    it("is not a candidate once its redeem has confirmed", () => {
-      const state = getPeginState(ContractStatus.VERIFIED, {
-        localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
       });
       expect(isCandidateVault(state)).toBe(false);
     });

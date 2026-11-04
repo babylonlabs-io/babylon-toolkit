@@ -26,7 +26,7 @@ import { logger } from "@/infrastructure";
 import {
   getPeginProgressStep,
   getWarningPeginDisplayStep,
-  hasLeftDepositFlow,
+  isRefundInFlightOrSettled,
   isVaultPastActivation,
 } from "@/models/peginStateMachine";
 
@@ -94,8 +94,8 @@ export function deriveSplitVaultProgress(
     // optimistic VERIFIED+CONFIRMED → AWAIT_ACTIVATION_CONFIRMATION case).
     if (displayStep !== null) return displayStep;
     // `getPeginProgressStep` is null for a fully-activated vault, for a
-    // warning/danger state, and for a deposit that has left the flow. The last
-    // two freeze at their own last known local step instead of mirroring the
+    // warning/danger state, and for a refunded deposit. The last two freeze at
+    // their own last known local step instead of mirroring the
     // active sibling — checked before `isVaultPastActivation`, which also
     // matches LIQUIDATED and would otherwise render a seized vault as
     // COMPLETED. A finished sibling must render COMPLETED (all groups ✓) — NOT
@@ -104,7 +104,7 @@ export function deriveSplitVaultProgress(
     if (
       state.displayVariant === "warning" ||
       state.displayVariant === "danger" ||
-      hasLeftDepositFlow(state)
+      isRefundInFlightOrSettled(state)
     ) {
       return getWarningPeginDisplayStep(state.localStatus);
     }

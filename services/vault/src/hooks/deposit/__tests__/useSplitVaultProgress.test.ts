@@ -37,7 +37,7 @@ vi.mock("@/models/peginStateMachine", () => ({
     localStatus === "confirming"
       ? DepositFlowStep.AWAIT_BTC_CONFIRMATION
       : DepositFlowStep.SUBMIT_WOTS_KEYS,
-  hasLeftDepositFlow: (s: { leftFlow?: boolean }) => s.leftFlow === true,
+  isRefundInFlightOrSettled: (s: { refunded?: boolean }) => s.refunded === true,
   isVaultPastActivation: (s: { pastActivation: boolean } | undefined) =>
     s?.pastActivation === true,
 }));
@@ -48,7 +48,7 @@ type FakeState = {
   pastActivation: boolean;
   displayVariant?: "pending" | "active" | "inactive" | "warning" | "danger";
   localStatus?: string;
-  leftFlow?: boolean;
+  refunded?: boolean;
 };
 
 function pollingFor(states: Record<string, FakeState>) {
@@ -59,7 +59,7 @@ function pollingFor(states: Record<string, FakeState>) {
 }
 
 describe("deriveSplitVaultProgress", () => {
-  it("freezes a sibling that has left the flow instead of mirroring the active vault", () => {
+  it("freezes a refunded sibling instead of mirroring the active vault", () => {
     const getPollingResult = pollingFor({
       "0xactive": {
         displayStep: DepositFlowStep.RETRIEVE_SECRET,
@@ -69,7 +69,7 @@ describe("deriveSplitVaultProgress", () => {
         displayStep: null,
         pastActivation: false,
         displayVariant: "pending",
-        leftFlow: true,
+        refunded: true,
         localStatus: "confirming",
       },
     });
