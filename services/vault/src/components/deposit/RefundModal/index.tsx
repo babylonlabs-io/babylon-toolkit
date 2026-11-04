@@ -107,7 +107,8 @@ export function RefundModal({
     // flip in either direction (rebroadcast from another tab, mempool
     // eviction) and caching a negative result risks showing "Nothing to
     // refund" after a fresh broadcast — or the inverse — within the cache
-    // window. The fetch is cheap (one contract read + one mempool probe).
+    // window. The fetch is cheap (a contract read, a mempool probe, and the
+    // Pre-PegIn's bytes).
   });
 
   const previewError = previewQuery.error

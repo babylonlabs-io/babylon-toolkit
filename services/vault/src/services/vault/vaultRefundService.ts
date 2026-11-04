@@ -8,19 +8,21 @@
  * Protocol logic (fee math, PSBT build, sign options, finalize, BIP68 and
  * bitcoind -25/-27 error typing) lives in the SDK. This adapter pre-fetches
  * the mempool fee rate and provides the transport-specific callbacks for
- * reads (on-chain + indexer), signing, and broadcast.
+ * reads, signing, and broadcast. Those reads never touch the indexer: it could
+ * otherwise block a depositor from BTC only they can spend, and everything the
+ * refund needs is on Ethereum or Bitcoin.
  */
 
 import type { SignPsbtOptions } from "@babylonlabs-io/ts-sdk/shared";
 import {
-  assertVaultProviderHintAccepted,
   getNetworkFees,
   pushTx,
-  resolveParticipantKeysAtEpochs,
   stripHexPrefix,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { isRegistrationLogsUnavailableError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   buildAndBroadcastRefund,
+  readRefundPrePeginContext,
   RefundBroadcastRejectedError,
   type RefundPrePeginContext,
   type VaultBatchEntry,
@@ -30,6 +32,7 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
+import { logger } from "@/infrastructure";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
@@ -40,8 +43,9 @@ import {
 } from "../../clients/btc/outspend";
 import { getPrePeginSiblingIdsFromChain } from "../../clients/eth-contract/btc-vault-registry/prePeginSiblings";
 import {
+  getRegisteredPrePeginTxFromChainWithGrace,
   getVaultFromChain,
-  getVaultKeyEpochsFromChain,
+  type OnChainVaultData,
 } from "../../clients/eth-contract/btc-vault-registry/query";
 import {
   getOperationKeyReader,
@@ -52,9 +56,6 @@ import {
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import { COPY } from "../../copy";
-
-import { fetchVaultProviderById } from "./fetchVaultProviders";
-import { fetchVaultRefundData } from "./fetchVaults";
 
 export interface BroadcastRefundParams {
   vaultId: Hex;
@@ -75,45 +76,47 @@ export interface BroadcastRefundParams {
   signal?: AbortSignal;
 }
 
-export interface RefundPreview {
+export type RefundPreview =
   /**
-   * The amount actually reclaimed by the refund: the funded HTLC output value
-   * at `htlcVout` in the on-chain Pre-PegIn tx. This is the vault deposit
-   * amount PLUS the protocol reserve (`depositorClaimValue + minPeginFee`,
-   * plus the 240-sat P2A anchor) that peg-in baked
-   * into the HTLC output — the depositor reclaims all of it
-   * (minus the network fee) because activation never spent the reserve. NOT
-   * the bare on-chain `amount` field, which is only the deposit amount. The
-   * broadcast path pins the refund output to exactly this value minus the fee
-   * (see `buildRefundPsbt`), so the preview must show the same figure.
+   * The Pre-PegIn is not on Bitcoin, so the refund has no HTLC output to spend
+   * (it never reached the network) — the caller should surface "nothing to
+   * refund" rather than letting the user sign a doomed transaction. See
+   * {@link isPrePeginOnChain}.
    */
-  amountSats: bigint;
-  /**
-   * The deposit amount (`amount` field) the SDK's fee-fraction safety cap is
-   * computed against (`buildAndBroadcastRefund` caps the refund fee at a
-   * fraction of `vault.amount`). The review UI mirrors that cap to avoid
-   * letting the user confirm a fee the SDK is about to reject — so it must
-   * use this deposit-amount basis, not the larger `amountSats`, otherwise the
-   * mirror drifts (notably for small vaults where the reserve is a large
-   * fraction of the deposit).
-   */
-  feeCapBasisSats: bigint;
-  /**
-   * Mempool's halfHourFee, or null if the fee endpoint failed. Vault data
-   * loads independently — a fee fetch failure must not block the refund.
-   */
-  halfHourFeeSatsVb: number | null;
-  /**
-   * Whether the Pre-PegIn transaction is present on Bitcoin. `false` means
-   * the refund has no HTLC output to spend (the Pre-PegIn never reached the
-   * network) — the caller should surface "nothing to refund" rather than
-   * letting the user sign a doomed transaction. See {@link isPrePeginOnChain}.
-   */
-  prePeginOnChain: boolean;
-}
+  | { prePeginOnChain: false }
+  | {
+      prePeginOnChain: true;
+      /**
+       * The amount actually reclaimed by the refund: the funded HTLC output
+       * value at `htlcVout` in the on-chain Pre-PegIn tx. This is the vault
+       * deposit amount PLUS the protocol reserve (`depositorClaimValue +
+       * minPeginFee`, plus the 240-sat P2A anchor) that peg-in baked into the
+       * HTLC output — the depositor reclaims all of it (minus the network fee)
+       * because activation never spent the reserve. NOT the bare on-chain
+       * `amount` field, which is only the deposit amount. The broadcast path
+       * pins the refund output to exactly this value minus the fee (see
+       * `buildRefundPsbt`), so the preview must show the same figure.
+       */
+      amountSats: bigint;
+      /**
+       * The deposit amount (`amount` field) the SDK's fee-fraction safety cap
+       * is computed against (`buildAndBroadcastRefund` caps the refund fee at a
+       * fraction of `vault.amount`). The review UI mirrors that cap to avoid
+       * letting the user confirm a fee the SDK is about to reject — so it must
+       * use this deposit-amount basis, not the larger `amountSats`, otherwise
+       * the mirror drifts (notably for small vaults where the reserve is a
+       * large fraction of the deposit).
+       */
+      feeCapBasisSats: bigint;
+      /**
+       * Mempool's halfHourFee, or null if the fee endpoint failed. Vault data
+       * loads independently — a fee fetch failure must not block the refund.
+       */
+      halfHourFeeSatsVb: number | null;
+    };
 
-/** Timeout for the Pre-PegIn existence probe — well under the modal's UX budget. */
-const PREPEGIN_PROBE_TIMEOUT_MS = 10_000;
+/** Timeout for this module's mempool reads — well under the modal's UX budget. */
+const MEMPOOL_READ_TIMEOUT_MS = 10_000;
 
 /**
  * Probe whether the Pre-PegIn transaction exists on Bitcoin.
@@ -138,7 +141,7 @@ async function isPrePeginOnChain(
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
-    PREPEGIN_PROBE_TIMEOUT_MS,
+    MEMPOOL_READ_TIMEOUT_MS,
   );
   try {
     // Raw fetch, not the SDK getTxInfo: getTxInfo takes no abort signal, so it
@@ -161,7 +164,7 @@ async function isPrePeginOnChain(
  * plus the protocol reserve peg-in baked into the HTLC; it is the value the
  * broadcast path pins the refund output to (minus the fee). The funded tx hex
  * is authenticated against the on-chain `prePeginTxHash` in
- * {@link readTargetVault} before it reaches here.
+ * {@link readPrePeginTx} before it reaches here.
  */
 function readFundedHtlcValueSats(
   fundedTxHex: string,
@@ -179,84 +182,180 @@ function readFundedHtlcValueSats(
   return BigInt(htlcOutput.value);
 }
 
+/**
+ * Limit on {@link readPrePeginTx}. The log read's schedule bounds its backoff
+ * but not its reads, so a node answering slowly could otherwise hold the race
+ * for minutes, and a broadcast's modal cannot be closed while it waits.
+ */
+const PRE_PEGIN_READ_DEADLINE_MS = 20_000;
+
+/**
+ * Thrown when no source could supply the Pre-PegIn's bytes. `retryable` tells
+ * the query client whether repeating the read is worth it.
+ */
+class RefundPrePeginTxUnavailableError extends Error {
+  constructor(
+    prePeginTxHash: string,
+    public readonly retryable: boolean,
+    options: ErrorOptions,
+  ) {
+    super(
+      COPY.deposit.errors.refundPrePeginTxUnavailable(prePeginTxHash),
+      options,
+    );
+    this.name = "RefundPrePeginTxUnavailableError";
+  }
+}
+
+/**
+ * Fetch the Pre-PegIn from Bitcoin by its on-chain txid. Raw fetch, not the SDK
+ * `getTxHex`, for the reason {@link isPrePeginOnChain} gives: `getTxHex` takes
+ * no abort signal, and its longer timeout would hold the race in
+ * {@link readPrePeginTx} open after the log read has given up.
+ */
+async function fetchPrePeginTxFromBitcoin(
+  prePeginTxHash: string,
+  mempoolApiUrl: string,
+): Promise<string> {
+  const txid = stripHexPrefix(prePeginTxHash);
+  const response = await fetch(`${mempoolApiUrl}/tx/${txid}/hex`, {
+    signal: AbortSignal.timeout(MEMPOOL_READ_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Mempool API answered HTTP ${response.status} for Pre-PegIn ${txid}`,
+    );
+  }
+  return response.text();
+}
+
+/**
+ * Reduce a source's answer to the bytes the refund is built from, or reject it.
+ *
+ * The on-chain hash commits to every input and output but not to a witness, so
+ * a witness is dropped rather than carried along unverified. What remains is
+ * what the hash commits to, so every authenticated answer is the same bytes
+ * whichever source served it.
+ */
+function authenticatePrePeginTx(txHex: string, prePeginTxHash: string): Hex {
+  const tx = Transaction.fromHex(stripHexPrefix(txHex));
+  for (const input of tx.ins) {
+    input.witness = [];
+  }
+  const preWitnessTxHex = `0x${tx.toHex()}` as Hex;
+
+  const computedTxHash = calculateBtcTxHash(preWitnessTxHex);
+  if (computedTxHash.toLowerCase() !== prePeginTxHash.toLowerCase()) {
+    const message =
+      `A Pre-PegIn source served transaction ${computedTxHash}, but the ` +
+      `vault registered ${prePeginTxHash}`;
+    // Warned here because the race in readPrePeginTx hides this answer when
+    // the other source wins, and a wrong transaction is a tamper signal.
+    logger.warn(message);
+    throw new Error(message);
+  }
+  return preWitnessTxHex;
+}
+
+/**
+ * Read the vault's funded Pre-PegIn from Bitcoin and from its registration log,
+ * and return the first answer that authenticates.
+ *
+ * Neither source can be the only one: single-block log reads are unreliable on
+ * public nodes, and a mempool API can be down or geo-fenced while the Pre-PegIn
+ * is on Bitcoin. Taking whichever answers first is not a silent fallback,
+ * because {@link authenticatePrePeginTx} makes the two answers byte-identical.
+ *
+ * @throws {@link RefundPrePeginTxUnavailableError} when neither source answers
+ * with the vault's transaction by {@link PRE_PEGIN_READ_DEADLINE_MS}. Its
+ * `cause` holds each source's reason, or only the deadline if that passed first.
+ */
+async function readPrePeginTx(
+  vaultId: Hex,
+  vault: OnChainVaultData,
+  mempoolApiUrl: string,
+): Promise<Hex> {
+  const { prePeginTxHash, createdAt } = vault;
+  const authenticated = async (answer: Promise<string>) =>
+    authenticatePrePeginTx(await answer, prePeginTxHash);
+
+  const raceSettled = new AbortController();
+  let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    deadlineTimer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `No Pre-PegIn source gave the vault's transaction within ${PRE_PEGIN_READ_DEADLINE_MS}ms`,
+          ),
+        ),
+      PRE_PEGIN_READ_DEADLINE_MS,
+    );
+  });
+  try {
+    return await Promise.race([
+      Promise.any([
+        authenticated(
+          fetchPrePeginTxFromBitcoin(prePeginTxHash, mempoolApiUrl),
+        ),
+        authenticated(
+          getRegisteredPrePeginTxFromChainWithGrace(
+            vaultId,
+            createdAt,
+            raceSettled.signal,
+          ),
+        ),
+      ]),
+      deadline,
+    ]);
+  } catch (err) {
+    // Worth repeating unless the log read has used up its schedule or the
+    // deadline has passed: then a repeat would only hold the modal's spinner for
+    // longer. A failure the log read has no retries for gets the query client's.
+    const retryable =
+      err instanceof AggregateError &&
+      !err.errors.some(isRegistrationLogsUnavailableError);
+    throw new RefundPrePeginTxUnavailableError(prePeginTxHash, retryable, {
+      cause: err,
+    });
+  } finally {
+    clearTimeout(deadlineTimer);
+    // The log read may still be backing off; nothing needs its answer now.
+    raceSettled.abort();
+  }
+}
+
 export async function getRefundPreview(vaultId: Hex): Promise<RefundPreview> {
   const mempoolApiUrl = getMempoolApiUrl();
   // The fee fetch doesn't depend on vault data — start it now so it overlaps
-  // readTargetVault. The Pre-PegIn probe needs the on-chain prePeginTxHash,
-  // so it can only start once readTargetVault resolves.
+  // the reads below.
   const feePromise = getNetworkFees(mempoolApiUrl).catch(() => null);
-  const target = await readTargetVault(vaultId);
-  const [feeRecommendation, prePeginOnChain] = await Promise.all([
+  const vault = await getVaultFromChain(vaultId);
+
+  // Probe before reading the bytes. For a Pre-PegIn that never reached Bitcoin
+  // only the log can supply them, and "nothing to refund" must not depend on
+  // that flaky read.
+  if (!(await isPrePeginOnChain(vault.prePeginTxHash, mempoolApiUrl))) {
+    return { prePeginOnChain: false };
+  }
+
+  const [feeRecommendation, prePeginTx] = await Promise.all([
     feePromise,
-    isPrePeginOnChain(target.onChainVault.prePeginTxHash, mempoolApiUrl),
+    readPrePeginTx(vaultId, vault, mempoolApiUrl),
   ]);
   return {
+    prePeginOnChain: true,
     // Reclaimed amount = the funded HTLC output value, not the bare deposit
     // `amount`. The reserve peg-in baked into the HTLC returns to the
     // depositor since activation never spent it.
-    amountSats: readFundedHtlcValueSats(
-      target.unsignedPrePeginTx,
-      target.onChainVault.htlcVout,
-    ),
+    amountSats: readFundedHtlcValueSats(prePeginTx, vault.htlcVout),
     // The SDK caps the refund fee against the deposit amount; mirror that
     // basis in the UI cap so the two never disagree.
-    feeCapBasisSats: target.onChainVault.amount,
+    feeCapBasisSats: vault.amount,
     halfHourFeeSatsVb:
       feeRecommendation && feeRecommendation.halfHourFee > 0
         ? feeRecommendation.halfHourFee
         : null,
-    prePeginOnChain,
-  };
-}
-
-interface TargetVaultData {
-  onChainVault: Awaited<ReturnType<typeof getVaultFromChain>>;
-  unsignedPrePeginTx: Hex;
-  depositorBtcPubkey: Hex;
-}
-
-/**
- * Read the target vault's on-chain + indexer data without doing sibling
- * discovery. Shared by the refund-preview path (which only needs amount)
- * and the broadcast path (which then derives the full sibling batch).
- */
-async function readTargetVault(vaultId: Hex): Promise<TargetVaultData> {
-  // Signing-critical fields come from the on-chain contract — a compromised
-  // indexer could otherwise substitute a different signer set, amount, or
-  // transaction. From the indexer we pull only the Pre-PegIn tx hex (not
-  // stored on-chain) and the depositor's BTC pubkey (overridden by the
-  // caller's wallet key before signing). The amount comes from the contract.
-  // The Pre-PegIn tx hex is validated against the on-chain prePeginTxHash.
-  const [onChainVault, indexerRefundData] = await Promise.all([
-    getVaultFromChain(vaultId),
-    fetchVaultRefundData(vaultId),
-  ]);
-  if (!indexerRefundData) {
-    throw new Error(`Vault ${vaultId} not found`);
-  }
-
-  // Validate that the indexer-provided Pre-PegIn tx matches the on-chain hash.
-  // The tx hash commits to all inputs and outputs, so a substituted transaction
-  // would produce a different hash. SegWit txid excludes witness data, so
-  // hash(unsignedTx) === hash(signedTx) === prePeginTxHash.
-  const computedTxHash = calculateBtcTxHash(
-    indexerRefundData.unsignedPrePeginTx,
-  );
-  if (
-    computedTxHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
-  ) {
-    throw new Error(
-      COPY.deposit.errors.refundHashMismatch(
-        computedTxHash,
-        onChainVault.prePeginTxHash,
-      ),
-    );
-  }
-
-  return {
-    onChainVault,
-    unsignedPrePeginTx: indexerRefundData.unsignedPrePeginTx,
-    depositorBtcPubkey: indexerRefundData.depositorBtcPubkey,
   };
 }
 
@@ -284,11 +383,11 @@ async function readTargetVault(vaultId: Hex): Promise<TargetVaultData> {
  * wrong wallet's vault list.
  */
 async function discoverBatch(
-  target: TargetVaultData,
+  target: OnChainVaultData,
   targetVaultId: Hex,
   connectedDepositorAddress: Address,
 ): Promise<ReadonlyArray<VaultBatchEntry>> {
-  const onChainDepositor = target.onChainVault.depositor;
+  const onChainDepositor = target.depositor;
   if (
     onChainDepositor.toLowerCase() !== connectedDepositorAddress.toLowerCase()
   ) {
@@ -299,14 +398,14 @@ async function discoverBatch(
     );
   }
 
-  const targetPrePeginTxHash = target.onChainVault.prePeginTxHash.toLowerCase();
+  const targetPrePeginTxHash = target.prePeginTxHash.toLowerCase();
   // Lean sibling filter first. The fully-validated getVaultFromChain read
   // (which fail-closes on a bad stamped vaultCoreVersion) runs only for actual
   // siblings — an unrelated broken vault in the depositor's list must not
   // block this refund.
   const siblingIds = await getPrePeginSiblingIdsFromChain(
     targetVaultId,
-    target.onChainVault,
+    target,
   );
   const siblingOnChain = await Promise.all(
     siblingIds.map((id) => getVaultFromChain(id)),
@@ -314,9 +413,9 @@ async function discoverBatch(
 
   const siblings: VaultBatchEntry[] = [
     {
-      hashlock: target.onChainVault.hashlock,
-      amount: target.onChainVault.amount,
-      htlcVout: target.onChainVault.htlcVout,
+      hashlock: target.hashlock,
+      amount: target.amount,
+      htlcVout: target.htlcVout,
     },
   ];
   for (const sib of siblingOnChain) {
@@ -350,132 +449,66 @@ async function discoverBatch(
 }
 
 async function readVaultForRefund(
-  vaultId: Hex,
-  depositorAddress: Address,
+  vault: OnChainVaultData,
+  params: BroadcastRefundParams,
+  mempoolApiUrl: string,
 ): Promise<VaultRefundData> {
-  const target = await readTargetVault(vaultId);
+  const { vaultId, depositorAddress, depositorBtcPubkey } = params;
   // Fail closed before signing when this build's WASM can't reconstruct the
   // vault's stamped graph version for the refund template.
-  await assertVaultCoreVersionSupported(target.onChainVault.vaultCoreVersion);
-  const batch = await discoverBatch(target, vaultId, depositorAddress);
+  await assertVaultCoreVersionSupported(vault.vaultCoreVersion);
+  const batch = await discoverBatch(vault, vaultId, depositorAddress);
 
   return {
-    vaultCoreVersion: target.onChainVault.vaultCoreVersion,
-    hashlock: target.onChainVault.hashlock,
-    htlcVout: target.onChainVault.htlcVout,
-    offchainParamsVersion: target.onChainVault.offchainParamsVersion,
-    appVaultKeepersVersion: target.onChainVault.appVaultKeepersVersion,
-    universalChallengersVersion:
-      target.onChainVault.universalChallengersVersion,
-    vaultProvider: target.onChainVault.vaultProvider,
-    applicationEntryPoint: target.onChainVault.applicationEntryPoint,
-    amount: target.onChainVault.amount,
-    unsignedPrePeginTxHex: target.unsignedPrePeginTx,
-    depositorBtcPubkey: target.depositorBtcPubkey,
+    vaultCoreVersion: vault.vaultCoreVersion,
+    hashlock: vault.hashlock,
+    htlcVout: vault.htlcVout,
+    offchainParamsVersion: vault.offchainParamsVersion,
+    appVaultKeepersVersion: vault.appVaultKeepersVersion,
+    universalChallengersVersion: vault.universalChallengersVersion,
+    vaultProvider: vault.vaultProvider,
+    applicationEntryPoint: vault.applicationEntryPoint,
+    amount: vault.amount,
+    unsignedPrePeginTxHex: await readPrePeginTx(vaultId, vault, mempoolApiUrl),
+    // The wallet is the authoritative source for the depositor's signing key.
+    depositorBtcPubkey,
     batch,
   };
 }
 
+/**
+ * The refund context from the chain alone: operation keys at the vault's frozen
+ * epochs, and params at its stamped version. The refund's HTLC comparison
+ * refuses a key the funded output does not commit to, before the wallet prompt.
+ */
 async function readPrePeginContext(
   vault: VaultRefundData,
   vaultId: Hex,
 ): Promise<RefundPrePeginContext> {
-  const [protocolReader, keeperReader, challengerReader] = await Promise.all([
+  const [
+    protocolParamsReader,
+    vaultKeeperReader,
+    universalChallengerReader,
+    operationKeyReader,
+  ] = await Promise.all([
     getProtocolParamsReader(),
     getVaultKeeperReader(),
     getUniversalChallengerReader(),
+    getOperationKeyReader(),
   ]);
 
-  const [
-    offchainParams,
-    vaultProvider,
-    vaultProviderOnChainPubkey,
-    vaultKeepers,
-    universalChallengersList,
-  ] = await Promise.all([
-    protocolReader.getOffchainParamsByVersion(vault.offchainParamsVersion),
-    fetchVaultProviderById(vault.vaultProvider),
-    getVaultRegistryReader().getVaultProviderGenesisBtcPubKey(
-      vault.vaultProvider as Address,
-    ),
-    keeperReader.getVaultKeepersByVersion(
-      vault.applicationEntryPoint,
-      vault.appVaultKeepersVersion,
-    ),
-    challengerReader.getUniversalChallengersByVersion(
-      vault.universalChallengersVersion,
-    ),
-  ]);
-
-  if (!vaultProvider) {
-    throw new Error(
-      `Vault provider ${vault.vaultProvider} not found. Cannot build refund transaction.`,
-    );
-  }
-  if (vaultKeepers.length === 0) {
-    throw new Error(
-      `No Vault Keepers found for version ${vault.appVaultKeepersVersion}`,
-    );
-  }
-  if (universalChallengersList.length === 0) {
-    throw new Error(
-      `Universal challengers not found for version ${vault.universalChallengersVersion}`,
-    );
-  }
-
-  // Cross-check the GraphQL-supplied VP pubkey against the chain-registered
-  // value. A stale or compromised indexer could otherwise substitute a
-  // different key and produce a refund signed against a Taproot script tree
-  // that doesn't match the actual vault.
-  //
-  // RFC-006. Accepted against the registration key *or* the provider's current
-  // operation key, the shared policy the deposit and payout paths apply. This
-  // is the recovery path of last resort, with BTC already committed, and the
-  // trigger is an indexer deploy rather than one of ours — comparing against
-  // the registration key alone would strand every depositor of a rotated
-  // provider with no workaround.
-  await assertVaultProviderHintAccepted({
-    vaultProviderEthAddress: vault.vaultProvider as Address,
-    hintBtcPubkey: vaultProvider.btcPubKey,
-    registrationBtcPubkey: vaultProviderOnChainPubkey,
-    readCurrentOperationBtcPubkey: () =>
-      getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(
-        vault.vaultProvider as Address,
-      ),
-    context: "Aborting refund.",
-  });
-
-  // RFC-006. A refund rebuilds this vault's Pre-PegIn script tree, so it must
-  // use the keys bonded at the vault's frozen epochs — not whatever the
-  // operators hold now. The rosters above are already at the vault's frozen
-  // membership versions, which supply the genesis fallback.
-  const participantKeys = await resolveParticipantKeysAtEpochs({
-    operationKeyReader: await getOperationKeyReader(),
-    query: {
-      vaultProviderEthAddress: vault.vaultProvider as Address,
-      vaultProviderGenesisBtcPubkey: `0x${vaultProviderOnChainPubkey}` as Hex,
-      applicationEntryPoint: vault.applicationEntryPoint,
-      vaultKeepers,
-      universalChallengers: universalChallengersList,
+  return readRefundPrePeginContext({
+    vaultId,
+    vault,
+    readers: {
+      registryReader: getVaultRegistryReader(),
+      protocolParamsReader,
+      vaultKeeperReader,
+      universalChallengerReader,
+      operationKeyReader,
     },
-    epochs: await getVaultKeyEpochsFromChain(vaultId),
-  });
-
-  const vaultKeeperPubkeys = participantKeys.vaultKeeperOperationKeysSorted;
-
-  return {
-    vaultProviderPubkey: participantKeys.vaultProvider.operationBtcPubkey,
-    vaultKeeperPubkeys,
-    universalChallengerPubkeys:
-      participantKeys.universalChallengerOperationKeysSorted,
-    timelockRefund: offchainParams.tRefund,
-    feeRate: offchainParams.feeRate,
-    minPeginFeeRate: offchainParams.minPeginFeeRate,
-    numLocalChallengers: vaultKeeperPubkeys.length,
-    councilQuorum: offchainParams.councilQuorum,
-    councilSize: offchainParams.securityCouncilKeys.length,
     network: getBTCNetworkForWASM(),
-  };
+  });
 }
 
 /**
@@ -561,14 +594,7 @@ function throwIfHtlcSpent(
 export async function buildAndBroadcastRefundTransaction(
   params: BroadcastRefundParams,
 ): Promise<string> {
-  const {
-    vaultId,
-    depositorAddress,
-    btcWalletProvider,
-    depositorBtcPubkey,
-    feeRate,
-    signal,
-  } = params;
+  const { vaultId, btcWalletProvider, feeRate, signal } = params;
   const mempoolApiUrl = getMempoolApiUrl();
 
   // Re-probe Pre-PegIn existence before the wallet popup. The modal's
@@ -578,44 +604,38 @@ export async function buildAndBroadcastRefundTransaction(
   // that at broadcast. Fails open on any non-404 outcome — same fail-open
   // semantics as the preview probe — so a flaky mempool never blocks a
   // legitimate refund. See {@link isPrePeginOnChain}.
-  const target = await readTargetVault(vaultId);
+  const vault = await getVaultFromChain(vaultId);
   const stillOnChain = await isPrePeginOnChain(
-    target.onChainVault.prePeginTxHash,
+    vault.prePeginTxHash,
     mempoolApiUrl,
   );
   if (!stillOnChain) {
     throw new Error(COPY.deposit.refundNotBroadcast.broadcastGuardError);
   }
-  const peginTxid = calculateBtcTxHash(
-    target.onChainVault.depositorSignedPeginTx,
-  );
+  const peginTxid = calculateBtcTxHash(vault.depositorSignedPeginTx);
 
   // The Pre-PegIn exists, but its HTLC output may already be spent: by a refund
   // that already landed (e.g. from another device/session) or by the vault's
   // PegIn. Attribute the spender before the wallet prompt — a landed refund is
   // surfaced as success instead of a doomed re-broadcast, a PegIn sweep points
   // to the redeem, and an unnamed spender is refused as retryable. On-chain
-  // `htlcVout` (never the indexer's) keys the probe. Fail-open: a flaky probe
-  // must not block a legitimate refund — the broadcast-time classification
-  // below is the backstop.
+  // `htlcVout` keys the probe. Fail-open: a flaky probe must not block a
+  // legitimate refund — the broadcast-time classification below is the
+  // backstop. Neither guard reads the Pre-PegIn's bytes, so neither depends on
+  // that read; the bytes are read last, inside `readVault`.
   const htlcSpend = await fetchHtlcSpend(
-    target.onChainVault.prePeginTxHash,
-    target.onChainVault.htlcVout,
+    vault.prePeginTxHash,
+    vault.htlcVout,
     mempoolApiUrl,
   ).catch(() => undefined);
   throwIfHtlcSpent(htlcSpend, peginTxid, "beforeSigning");
 
-  // Override indexer-provided depositor pubkey with the caller's wallet key —
-  // the wallet is the authoritative source for the depositor's signing key.
   try {
     const { txId } = await buildAndBroadcastRefund({
       vaultId,
-      readVault: async () => {
-        const data = await readVaultForRefund(vaultId, depositorAddress);
-        return { ...data, depositorBtcPubkey };
-      },
-      readPrePeginContext: (vault) =>
-        readPrePeginContext(vault, vaultId as Hex),
+      readVault: () => readVaultForRefund(vault, params, mempoolApiUrl),
+      readPrePeginContext: (vaultData) =>
+        readPrePeginContext(vaultData, vaultId),
       feeRate,
       signPsbt: (psbtHex, options) =>
         btcWalletProvider.signPsbt(psbtHex, options),
@@ -630,8 +650,8 @@ export async function buildAndBroadcastRefundTransaction(
     // Race: the HTLC was spent between the guard above and this broadcast.
     // Re-probe the outpoint and attribute the spender as the guard does.
     const probed = await fetchHtlcSpend(
-      target.onChainVault.prePeginTxHash,
-      target.onChainVault.htlcVout,
+      vault.prePeginTxHash,
+      vault.htlcVout,
       mempoolApiUrl,
     ).catch(() => undefined);
     // -27 says this signed refund is itself confirmed, so a spend the
