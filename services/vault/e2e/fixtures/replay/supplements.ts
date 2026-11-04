@@ -28,6 +28,7 @@ import {
   type Hex,
 } from "viem";
 
+import { RECORDED_DEPLOYMENT } from "./contracts";
 import { parseJson, type RecordedRun } from "./recording";
 
 /**
@@ -63,6 +64,11 @@ const GET_RESERVES_PRICES_ABI = parseAbi([
 
 /** The reserve priced from the same BTC feed as the vaultBTC reserve. */
 const WBTC_SYMBOL = "WBTC";
+
+/** `BTCVaultRegistry.getDepositorVaultIds`, same reasoning as above. */
+const GET_DEPOSITOR_VAULT_IDS_ABI = parseAbi([
+  "function getDepositorVaultIds(address depositor) view returns (bytes32[] vaultIds)",
+]);
 
 /** `ReserveFlagsMap` bit masks from aave-v4 `spoke/libraries/ReserveFlagsMap.sol`. */
 const RESERVE_PAUSED_MASK = 0x01;
@@ -263,6 +269,51 @@ function vaultBtcPriceSupplement(
   };
 }
 
+interface RecordedVaultList {
+  readonly data?: {
+    readonly vaults?: { readonly items?: readonly unknown[] };
+  };
+}
+
+/**
+ * The stuck-vault poll asks the registry for the depositor's vaults. The recording
+ * ends before any deposit exists: it holds the indexer's empty list for the same
+ * depositor, and the registry's list is the same set.
+ */
+function depositorVaultIdsSupplements(run: RecordedRun): Supplement[] {
+  return (run.byBackend.get("graphql") ?? []).flatMap((entry) => {
+    const request = parseJson<{
+      query?: string;
+      variables?: { depositor?: Hex };
+    }>(entry.reqBody);
+    const depositor = request?.variables?.depositor;
+    if (!depositor || !request?.query?.includes("GetVaultsByDepositor")) {
+      return [];
+    }
+    const items = parseJson<RecordedVaultList>(entry.resBody)?.data?.vaults
+      ?.items;
+    if (items?.length !== 0) return [];
+    return [
+      {
+        target: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+        callData: encodeFunctionData({
+          abi: GET_DEPOSITOR_VAULT_IDS_ABI,
+          functionName: "getDepositorVaultIds",
+          args: [depositor],
+        }),
+        returnData: encodeFunctionResult({
+          abi: GET_DEPOSITOR_VAULT_IDS_ABI,
+          functionName: "getDepositorVaultIds",
+          result: [],
+        }),
+        because:
+          "the recorded GetVaultsByDepositorFirstPage response lists no vaults " +
+          "for this depositor, and the registry's list is the same set",
+      },
+    ];
+  });
+}
+
 /**
  * Derive the supplements a given run needs.
  *
@@ -310,6 +361,8 @@ export function buildSupplements(
 
   const vaultBtcPrice = vaultBtcPriceSupplement(data, recorded);
   if (vaultBtcPrice) supplements.push(vaultBtcPrice);
+
+  supplements.push(...depositorVaultIdsSupplements(run));
 
   return supplements;
 }

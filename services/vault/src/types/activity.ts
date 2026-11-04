@@ -68,6 +68,15 @@ export interface VaultActivity {
    */
   expiryUnreported?: boolean;
 
+  /**
+   * Set when the registry still reports the vault Verified, inside its
+   * activation window, and Bitcoin data proves its PegIn a valid spend of the
+   * HTLC. Every decision-making field of such a row comes from the chain and
+   * Bitcoin, never the indexer, which may have left the vault out altogether.
+   * See `useStuckVaults` and `applyStuckVaults`.
+   */
+  stuckOnChain?: boolean;
+
   /** Application usage status - whether vault is in use by an application */
   isInUse?: boolean;
 
@@ -126,9 +135,10 @@ export interface VaultActivity {
   unsignedPrePeginTx: string;
 
   /**
-   * Index of this vault's HTLC output in the Pre-PegIn tx. Indexer-provided;
-   * used (display-only) to probe whether the HTLC has already been refunded.
-   * The signing/broadcast path re-reads it from chain, never from here.
+   * Index of this vault's HTLC output in the Pre-PegIn tx. Indexer-provided,
+   * except on a `stuckOnChain` row; used to probe whether the HTLC has already
+   * been refunded. The signing/broadcast path re-reads it from chain, never
+   * from here.
    */
   htlcVout?: number;
 

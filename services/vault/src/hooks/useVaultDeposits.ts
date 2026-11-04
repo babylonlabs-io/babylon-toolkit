@@ -21,10 +21,12 @@ import {
   PendingPeginStorageReadError,
 } from "../storage/peginStorage";
 import { usePeginStorage } from "../storage/usePeginStorage";
+import { applyStuckVaults } from "../utils/stuckVaultRows";
 import { transformVaultToActivity } from "../utils/vaultTransformers";
 
 import { useActiveVaultChainCheck } from "./useActiveVaultChainCheck";
 import { useChainExpiryCheck } from "./useChainExpiryCheck";
+import { useStuckVaults } from "./useStuckVaults";
 import { useVaults } from "./useVaults";
 
 /**
@@ -157,9 +159,18 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     [status, data, confirmedActivities],
   );
 
+  // After `indexedVaultIds`, which describes the indexer's answer alone. Not
+  // gated on that answer: a stuck vault's exit must not depend on the indexer
+  // having answered at all.
+  const stuckVaults = useStuckVaults(connectedAddress);
+  const activitiesWithStuck = useMemo(
+    () => applyStuckVaults(confirmedActivities, stuckVaults, chainExpiries),
+    [confirmedActivities, stuckVaults, chainExpiries],
+  );
+
   // Check if any activity has "Processing" status and update fast polling flag
   useEffect(() => {
-    if (!connectedAddress || !confirmedActivities.length) {
+    if (!connectedAddress || !activitiesWithStuck.length) {
       setNeedsFastPolling(false);
       return;
     }
@@ -173,7 +184,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     }
 
     // Check if any activity is in "Processing" state
-    const hasProcessingActivity = confirmedActivities.some((activity) => {
+    const hasProcessingActivity = activitiesWithStuck.some((activity) => {
       const pendingPegin = pendingPeginsFromStorage.find(
         (p) => p.id === activity.id,
       );
@@ -202,7 +213,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     });
 
     setNeedsFastPolling(hasProcessingActivity);
-  }, [connectedAddress, confirmedActivities]);
+  }, [connectedAddress, activitiesWithStuck]);
 
   // Combine with local pending pegins from localStorage
   const {
@@ -213,7 +224,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     removePendingPegins,
   } = usePeginStorage({
     ethAddress: connectedAddress || "",
-    confirmedPegins: confirmedActivities,
+    confirmedPegins: activitiesWithStuck,
   });
 
   /**

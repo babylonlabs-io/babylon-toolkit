@@ -44,6 +44,10 @@ vi.mock("@/hooks/useBtcPublicKey", () => ({
   useBtcPublicKey: () => ({ publicKey: "0xpub" }),
 }));
 
+vi.mock("@/hooks/useStuckVaults", () => ({
+  useStuckVaultsPoll: vi.fn(),
+}));
+
 vi.mock("@/hooks/useVaultDeposits", () => ({
   useVaultDeposits: () => ({
     activities: [{ id: REAL_ID }],

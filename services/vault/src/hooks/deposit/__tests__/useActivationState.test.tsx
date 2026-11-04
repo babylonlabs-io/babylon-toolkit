@@ -139,6 +139,18 @@ describe("useActivationState", () => {
     expect(client.getQueryState(ACTIVITIES_KEY)?.isInvalidated).toBe(true);
   });
 
+  it("invalidates the stuck-vault read, which only an activation can end", async () => {
+    const { client, result } = setup();
+    const stuckVaultsKey = ["stuckVaults", "0xuser"] as const;
+    client.setQueryData(stuckVaultsKey, new Map());
+
+    await act(async () => {
+      await result.current.handleActivation("0xsecret");
+    });
+
+    expect(client.getQueryState(stuckVaultsKey)?.isInvalidated).toBe(true);
+  });
+
   it("still records the optimistic activating row for the indexer gap", async () => {
     const { result } = setup();
 

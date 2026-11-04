@@ -194,6 +194,9 @@ test("a deposit into a full position stops before any signing prompt", async ({
     beforeSign.some((call) => call.startsWith("ethereum.")),
     "The ETH provider wrapper must be live, or the prompt log proves nothing.",
   ).toBe(true);
+  // The app-wide stuck-vault poll reads the same list, so only what follows Sign
+  // is the deposit check's.
+  const asksBeforeSign = backend.chain.statedAsks.length;
   await dialog
     .getByRole("button", { name: SIGN_TRANSACTION_LABEL, exact: true })
     .click();
@@ -228,7 +231,7 @@ test("a deposit into a full position stops before any signing prompt", async ({
 
   // The flow asked the chain itself: the depositor's registered vaults
   // first, then the application, about exactly this deposit.
-  const asks = backend.chain.statedAsks;
+  const asks = backend.chain.statedAsks.slice(asksBeforeSign);
   const vaultListAsk = asks.findIndex(
     (ask) =>
       ask.target === RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY.toLowerCase(),
