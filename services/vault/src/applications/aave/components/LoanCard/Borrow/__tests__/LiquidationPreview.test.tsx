@@ -2,7 +2,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { calculate } from "@/applications/aave/positionNotifications";
-import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
+import type {
+  CalculatorParams,
+  CalculatorResult,
+} from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
 import { formatBtcAmount, formatCompactPrice } from "@/utils/formatting";
 
@@ -15,6 +18,8 @@ import { LiquidationPreview } from "../LiquidationPreview";
  * maths the component re-runs.
  */
 let mockParams: CalculatorParams | null = null;
+/** The hook's result when it is not simply `calculate(mockParams)`. */
+let mockResult: CalculatorResult | null = null;
 
 vi.mock("@/context/wallet", () => ({
   useETHWallet: () => ({ address: "0xdepositor" }),
@@ -24,7 +29,7 @@ vi.mock("@/context/wallet", () => ({
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   usePositionNotifications: () => ({
     params: mockParams,
-    result: mockParams ? calculate(mockParams) : null,
+    result: mockResult ?? (mockParams ? calculate(mockParams) : null),
   }),
 }));
 
@@ -49,6 +54,13 @@ const YEAR_OF_CANDLES = Array.from({ length: 365 }, (_, i) => ({
 }));
 let mockCandles = YEAR_OF_CANDLES;
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 /**
  * A real two-vault position: 0.4 + 0.3 BTC at $88,400 against $22,000 of debt,
  * CF 0.5.
@@ -63,6 +75,7 @@ const PARAMS: CalculatorParams = {
   CF: 0.5,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: null,
 };
@@ -82,6 +95,7 @@ const SINGLE_VAULT_PARAMS: CalculatorParams = {
   CF: 0.5,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: null,
 };
@@ -113,6 +127,7 @@ function firstTrigger(extraDebtUsd: number, params = PARAMS): number {
 describe("LiquidationPreview", () => {
   beforeEach(() => {
     mockCandles = YEAR_OF_CANDLES;
+    mockResult = null;
   });
 
   it("charts the events the entered borrow amount would create, not the current ones", () => {
@@ -145,6 +160,42 @@ describe("LiquidationPreview", () => {
     expect(
       within(container).getByText(
         COPY.liquidations.preview.bandLabel(1, amounts),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // The form refuses such an amount, but the preview still renders it while the
+  // depositor types. $42,000 of debt puts the trigger above the $88,400 price.
+  it("charts a borrow amount that would make the position liquidatable", () => {
+    mockParams = PARAMS;
+    const borrowedUsd = 20_000;
+
+    const { container } = render(
+      <LiquidationPreview additionalDebtUsd={borrowedUsd} />,
+    );
+
+    expect(firstTrigger(borrowedUsd)).toBeGreaterThan(PARAMS.btcPrice);
+    expect(
+      within(container).getByText(
+        COPY.liquidations.preview.bandLabel(1, "0.4"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // A fresh Spoke reading has overruled the calculator, so the live cascade the
+  // axis reads stays at its triggers while the projection is priced at $88,400,
+  // below them. $51,000 of debt walks both vaults there.
+  it("charts a borrow amount beside a live cascade the Spoke has overruled", () => {
+    mockParams = { ...PARAMS, totalDebtUsd: 50_000 };
+    mockResult = calculate(mockParams, "gradual");
+
+    const { container } = render(
+      <LiquidationPreview additionalDebtUsd={1_000} />,
+    );
+
+    expect(
+      within(container).getByText(
+        COPY.liquidations.preview.bandLabel(1, "0.4 + 0.3"),
       ),
     ).toBeInTheDocument();
   });

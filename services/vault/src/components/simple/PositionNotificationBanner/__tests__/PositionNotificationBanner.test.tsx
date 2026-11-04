@@ -4,9 +4,10 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
-import type {
-  CalculatorResult,
-  Warning,
+import {
+  calculate,
+  type CalculatorResult,
+  type Warning,
 } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 
@@ -115,13 +116,13 @@ const reorderVaultsMock = vi.hoisted(() => ({
       stopWaiting: null;
     } | null,
     notice: null as string | null,
+    error: null as string | null,
   },
 }));
 vi.mock("@/applications/aave/hooks/useReorderVaults", () => ({
   useReorderVaults: () => ({
     executeReorder: mockExecuteReorder,
     isProcessing: false,
-    error: null,
     ...reorderVaultsMock.value,
   }),
 }));
@@ -190,6 +191,7 @@ function makeBaseResult(
         vaults: [{ id: "v-1", name: "Vault 1", btc: 0.65 }],
         combinedBtc: 0.65,
         liquidationPrice: 50000,
+        executionPrice: 50000,
         distancePct: 10,
         targetSeizureBtc: 0.28,
         overSeizureBtc: 0.37,
@@ -253,7 +255,7 @@ function renderBanner(
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  reorderVaultsMock.value = { pendingWrite: null, notice: null };
+  reorderVaultsMock.value = { pendingWrite: null, notice: null, error: null };
 });
 
 describe("PositionNotificationBanner", () => {
@@ -681,6 +683,105 @@ describe("PositionNotificationBanner", () => {
     expect(screen.getByText("Repay Debt")).toBeTruthy();
     fireEvent.click(screen.getByText("Add 0.72 BTC"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
+  });
+
+  // Real calculator results below the first trigger: health factor 0.99 on 0.3
+  // and 0.7 BTC. A better order exists, and the contract would refuse it.
+  const belowTriggerParams = {
+    btcPrice: 132_000,
+    totalDebtUsd: 100_000,
+    vaults: [
+      { id: "0xabc", name: "Vault 1", btc: 0.3 },
+      { id: "0xdef", name: "Vault 2", btc: 0.7 },
+    ],
+    CF: 0.75,
+    THF: 1.1,
+    LB: 1.05,
+    bonusCurve: {
+      healthFactorForMaxBonus: 0n,
+      liquidationBonusFactor: 10_000n,
+      maxLiquidationBonus: 10_500n,
+    },
+    expectedHF: 0.95,
+    minPeginBtc: 0.0005,
+  };
+  const belowTrigger = () => calculate(belowTriggerParams);
+  // What the hook returns when a fresh Spoke reading of 1.5 overrules that.
+  const overruledBelowTrigger = () => {
+    const result = calculate(belowTriggerParams, "gradual");
+    return {
+      ...result,
+      warnings: result.warnings.filter((w) => w.type !== "urgent"),
+    };
+  };
+
+  it("offers no reorder below a trigger", () => {
+    const result = belowTrigger();
+    expect(result.optimalVaultOrder).not.toBeNull();
+
+    renderBanner(result, onDeposit, onRepay);
+
+    const banner = screen.getByTestId("position-notification-banner");
+    expect(banner.dataset.severity).toBe("red");
+    expect(screen.queryByText(COPY.banner.applyOptimalOrder)).toBeNull();
+    expect(
+      screen.queryByText(COPY.liquidationWarnings.reorder.title),
+    ).toBeNull();
+  });
+
+  it("offers the better order when a fresh Spoke reading overrules the trigger", () => {
+    renderBanner(overruledBelowTrigger(), onDeposit, onRepay);
+
+    expect(
+      screen.getByTestId("position-notification-banner").dataset.severity,
+    ).toBe("soft");
+    expect(screen.getByText(COPY.banner.applyOptimalOrder)).toBeTruthy();
+  });
+
+  it("keeps a failed reorder's error when a fresh Spoke reading overrules the trigger", () => {
+    reorderVaultsMock.value.error = "You can't reorder BTCVaults right now";
+
+    renderBanner(overruledBelowTrigger(), onDeposit, onRepay);
+
+    expect(screen.getByRole("note").textContent).toBe(
+      "You can't reorder BTCVaults right now",
+    );
+  });
+
+  it("keeps a reorder's notice when a fresh Spoke reading overrules the trigger", () => {
+    reorderVaultsMock.value.notice =
+      COPY.common.unconfirmedTransaction.inProgress;
+
+    renderBanner(overruledBelowTrigger(), onDeposit, onRepay);
+
+    expect(screen.getByRole("note").textContent).toBe(
+      COPY.common.unconfirmedTransaction.inProgress,
+    );
+  });
+
+  // A price poll can land below the trigger while a reorder is in flight, which
+  // is when the contract refuses it.
+  it("keeps a failed reorder's error below a trigger, where Apply Optimal Order is gone", () => {
+    reorderVaultsMock.value.error = "You can't reorder BTCVaults right now";
+
+    renderBanner(belowTrigger(), onDeposit, onRepay);
+
+    expect(screen.queryByText(COPY.banner.applyOptimalOrder)).toBeNull();
+    expect(screen.getByRole("note").textContent).toBe(
+      "You can't reorder BTCVaults right now",
+    );
+  });
+
+  it("keeps a reorder's notice below a trigger, where Apply Optimal Order is gone", () => {
+    reorderVaultsMock.value.notice =
+      COPY.common.unconfirmedTransaction.inProgress;
+
+    renderBanner(belowTrigger(), onDeposit, onRepay);
+
+    expect(screen.queryByText(COPY.banner.applyOptimalOrder)).toBeNull();
+    expect(screen.getByRole("note").textContent).toBe(
+      COPY.common.unconfirmedTransaction.inProgress,
+    );
   });
 });
 

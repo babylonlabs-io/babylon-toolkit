@@ -31,6 +31,13 @@ const CANDLES = Array.from({ length: 30 }, (_, i) => ({
   close: 88_000,
 }));
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 /**
  * A real single-vault position: 0.6 BTC at $88,400 against $22,000 of debt,
  * CF 0.5. `calculate()` puts its one liquidation trigger at $73,333, so the
@@ -45,6 +52,7 @@ const PARAMS: CalculatorParams = {
   CF: 0.5,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: 0.0005,
 };

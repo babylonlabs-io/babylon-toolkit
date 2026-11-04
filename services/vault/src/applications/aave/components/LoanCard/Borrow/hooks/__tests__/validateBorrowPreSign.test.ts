@@ -37,6 +37,13 @@ function makePosition(
   } as unknown as AavePositionWithLiveData;
 }
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 describe("validateBorrowPreSign", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,6 +73,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.7,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     });
@@ -90,6 +98,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     });
@@ -117,6 +126,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     });
@@ -143,6 +153,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     });
@@ -171,6 +182,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     });
@@ -205,6 +217,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     });
@@ -257,6 +270,7 @@ describe("validateBorrowPreSign", () => {
         expectedHF: 0.95,
         CF: 0.75,
         LB: 1.05,
+        bonusCurve: FLAT_BONUS_CURVE,
         lbUnavailableReason: null,
         maxLB: 1.05,
       };
@@ -291,6 +305,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     });

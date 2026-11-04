@@ -7,7 +7,7 @@ import {
   TIMELINE_VISIBLE_CANDLES,
   useBtcPriceCandles,
 } from "@/applications/aave/hooks/useBtcPriceCandles";
-import { calculate } from "@/applications/aave/positionNotifications";
+import { withDistancesAt } from "@/applications/aave/positionNotifications";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
 import {
@@ -22,12 +22,13 @@ import { useLoanActions } from "@/hooks/useLoanActions";
 import { formatPriceUsd } from "@/utils/formatting";
 
 import {
-  axisFloorPrice,
   buildLiquidationChartData,
   buildTimelinePriceAxis,
   buildTimelineSafeZone,
   formatCandleDate,
   formatCandleTimestamp,
+  simulatorFloorPrice,
+  simulatorMinPrice,
   withAmountInBandLabel,
 } from "./liquidationChartData";
 import { LiquidationEventCard } from "./LiquidationEventCard";
@@ -60,9 +61,18 @@ import { useLiquidationsPageState } from "./useLiquidationsPageState";
 /**
  * The simulator only ever looks downward, so a live price that falls past a
  * held simulation re-clamps to it rather than leaving the thumb above market.
+ * The floor moves with the live price once a trigger is passed, so a held price
+ * can also end up under the simulator's lowest price: that re-clamps too, and
+ * reads as live when the floor has reached the live price and nothing is left to
+ * simulate.
  */
-function clampToLive(simulated: number | null, live: number): number {
-  return simulated === null ? live : Math.min(simulated, live);
+function clampToSimulatorRange(
+  simulated: number | null,
+  live: number,
+  floor: number,
+): number {
+  if (simulated === null) return live;
+  return Math.min(Math.max(simulated, simulatorMinPrice(live, floor)), live);
 }
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
@@ -118,37 +128,42 @@ export default function Liquidations() {
   // minute mid-analysis. The simulator only looks downward, so a live price that
   // falls past a held simulation re-clamps instead; the `isSimulating` chip is
   // what stops a simulated price from ever reading as live.
-  const prices = useMemo(
+  const simulation = useMemo(
     () =>
-      livePrice === null
+      livePrice === null || !result
         ? null
         : {
-            projected: clampToLive(simulatedPrice, livePrice),
+            projected: clampToSimulatorRange(
+              simulatedPrice,
+              livePrice,
+              simulatorFloorPrice(result),
+            ),
             live: livePrice,
+            result,
           },
-    [livePrice, simulatedPrice],
+    [livePrice, simulatedPrice, result],
   );
 
-  // `calculate()` runs an O(3^n) bitmask DP over the vault set (~56ms at 16
-  // vaults, ~158ms at 17), and dragging the slider across a $30k range at
-  // $100 steps would otherwise fire it ~300 times synchronously. Deferring
-  // only the price the CASCADE reads keeps the drag responsive: the toolbar
-  // below still tracks the live and simulated prices directly, so the thumb
-  // never lags, and React discards the intermediate cascades it never
-  // finishes rendering. Deferred as a pair: the event cards compare the
-  // projected price with the live one, so a live poll must never reach them
-  // ahead of the projection.
-  const deferredPrices = useDeferredValue(prices);
-  const projectedPrice = deferredPrices?.projected ?? null;
+  // Every drag step rebuilds the bands, the price scale and the candle
+  // geometry, and dragging the slider across a $30k range at $100 steps would
+  // otherwise do that ~300 times synchronously. Deferring what the CHART reads
+  // keeps the drag responsive: the toolbar below still tracks the live and
+  // simulated prices directly, so the thumb never lags, and React discards the
+  // intermediate renders it never finishes. Deferred together: the event cards
+  // compare the projected price with the live one and with triggers priced at
+  // the live one, so a live poll must never reach them out of step.
+  const deferred = useDeferredValue(simulation);
+  const projectedPrice = deferred?.projected ?? null;
 
-  // The what-if path: re-run the pure calculator with the simulated price
-  // instead of touching `result`, the live value `usePositionNotifications`
-  // computed for every other consumer (e.g. the position-notification banners).
-  const cascadeResult = useMemo(() => {
-    if (!params || projectedPrice === null) return null;
-    if (projectedPrice === params.btcPrice) return result;
-    return calculate({ ...params, btcPrice: projectedPrice });
-  }, [params, result, projectedPrice]);
+  // The what-if path: move the price through the cascade priced at the live
+  // price. A simulated fall reads as a gradual one, each event at its own
+  // trigger, and `result` stays untouched for every other consumer (e.g. the
+  // position-notification banners). Only a live price below a trigger reprices.
+  const cascadeResult = useMemo(
+    () =>
+      deferred ? withDistancesAt(deferred.result, deferred.projected) : null,
+    [deferred],
+  );
 
   const collateralFactor = cascadeOverride
     ? cascadeOverride.params.CF
@@ -164,17 +179,17 @@ export default function Liquidations() {
       return null;
     }
     if (collateralFactor === null || livePrice === null) return null;
-    if (projectedPrice === null || deferredPrices === null || !params) {
+    if (projectedPrice === null || deferred === null || !params) {
       return null;
     }
 
-    // Built from `projectedPrice`, the same price `cascadeResult` was
-    // calculated at, so the bands and the price line can never disagree
-    // while the deferred cascade is catching up with the thumb.
+    // Built from `projectedPrice`, the same price `cascadeResult` was read at,
+    // so the bands and the price line can never disagree while the deferred
+    // cascade is catching up with the thumb.
     const data = buildLiquidationChartData(cascadeResult, {
       btcPrice: projectedPrice,
       collateralFactor,
-      livePrice: deferredPrices.live,
+      livePrice: deferred.live,
       vaultsTotal: params.vaults.length,
     });
 
@@ -188,14 +203,14 @@ export default function Liquidations() {
     return {
       ...data,
       bands: withAmountInBandLabel(data.bands),
-      // Axis and safe zone read the LIVE cascade, like `floorPrice` below: the
-      // trigger prices are properties of the position, so the frame stays put
-      // while the simulator drags the rule through it.
-      timelinePriceAxis: buildTimelinePriceAxis(result, topPrice),
-      safeZone: buildTimelineSafeZone(result, projectedPrice),
+      // Axis and safe zone read the LIVE cascade, like `floorPrice` below: a
+      // simulated price never moves a trigger, so the frame stays put while
+      // the simulator drags the rule through it.
+      timelinePriceAxis: buildTimelinePriceAxis(deferred.result, topPrice),
+      safeZone: buildTimelineSafeZone(deferred.result, projectedPrice),
       projectedPrice,
       livePrice,
-      floorPrice: axisFloorPrice(result),
+      floorPrice: simulatorFloorPrice(deferred.result),
     };
   }, [
     result,
@@ -203,7 +218,7 @@ export default function Liquidations() {
     collateralFactor,
     livePrice,
     projectedPrice,
-    deferredPrices,
+    deferred,
     params,
     candles,
   ]);
@@ -333,8 +348,12 @@ export default function Liquidations() {
 
   // The immediate price, not the deferred one: the chip and Reset must respond
   // on the first drag step rather than trailing the cascade.
-  const isSimulating =
-    clampToLive(simulatedPrice, chart.livePrice) !== chart.livePrice;
+  const simulatorPrice = clampToSimulatorRange(
+    simulatedPrice,
+    chart.livePrice,
+    chart.floorPrice,
+  );
+  const isSimulating = simulatorPrice !== chart.livePrice;
 
   return (
     <Container
@@ -394,9 +413,12 @@ export default function Liquidations() {
           <SimulationToolbar
             livePrice={chart.livePrice}
             floorPrice={chart.floorPrice}
-            price={clampToLive(simulatedPrice, chart.livePrice)}
+            price={simulatorPrice}
             onPriceChange={setSimulatedPrice}
           />
+          <p className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+            {COPY.liquidations.simulationAssumption}
+          </p>
           {isLoadingCandles ? (
             <div className={CHART_LOADING_BOX_CLASS}>
               <Loader />

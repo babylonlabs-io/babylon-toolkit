@@ -132,10 +132,18 @@ const VAULT_A =
 const VAULT_B =
   "0xbbbb000000000000000000000000000000000000000000000000000000000002" as Hex;
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 const CTX: ReorderVerificationContext = {
   CF: 0.7,
   THF: 1.1,
   LB: 1.05,
+  bonusCurve: FLAT_BONUS_CURVE,
   expectedHF: 0.95,
   minPeginBtc: 0.0005,
   btcPrice: 60_000,

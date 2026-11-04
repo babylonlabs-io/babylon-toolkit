@@ -1,7 +1,10 @@
 import {
+  computeLiquidationBonusBps,
   computeOptimalOrder,
+  computeSeizedFraction,
   computeSeizedFractionDetailed,
   getGroup1FromOrder,
+  type LiquidationBonusCurve,
   MAX_DP_N,
   MAX_GROUPS,
   MIN_DEBT_THRESHOLD,
@@ -10,6 +13,8 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 import { COPY } from "@/copy";
+
+import { BPS_SCALE } from "../constants";
 
 import { fmtSuggestedVaultBtc, SUGGESTED_VAULT_BTC_DECIMALS } from "./format";
 import type {
@@ -49,6 +54,9 @@ const SUGGESTED_VAULT_BTC_SCALE = 10 ** SUGGESTED_VAULT_BTC_DECIMALS;
  */
 const CEIL_FLOAT_TOLERANCE = 1e-9;
 
+/** Health factor 1.0 in WAD, the unit the bonus curve reads. */
+const HEALTH_FACTOR_ONE_WAD = 1e18;
+
 /** Round a suggested vault size up to {@link SUGGESTED_VAULT_BTC_DECIMALS}. */
 function ceilSuggestedVaultBtc(btc: number): number {
   return (
@@ -69,12 +77,284 @@ function sizeSuggestedVaultBtc(
 }
 
 /**
+ * Whether the next event is already below its trigger, so it is priced at the
+ * market. The contract refuses a reorder then (`reorderVaults` reverts below
+ * health factor 1), and what the event seizes no longer follows from the order
+ * the way the optimizer scores it.
+ */
+export function isFirstEventGapped(groups: LiquidationGroup[]): boolean {
+  const first = groups[0];
+  return first != null && first.executionPrice !== first.liquidationPrice;
+}
+
+/** Signed distance from `price` to a trigger, % of `price`. Positive once the
+ *  price is below the trigger. */
+function distanceToTriggerPct(trigger: number, price: number): number {
+  return ((trigger - price) / price) * 100;
+}
+
+/** What the seizure maths needs to know about the position at one step. */
+interface CascadeStep {
+  index: number;
+  vaults: Vault[];
+  debt: number;
+  btc: number;
+  btcPrice: number;
+  seizedFraction: number;
+  CF: number;
+  THF: number;
+  LB: number;
+  bonusCurve: LiquidationBonusCurve;
+  expectedHF: number;
+}
+
+/**
+ * One group when the price falls to its trigger gradually: the trigger is
+ * where it executes, and the group is the run of vaults that covers the seizure
+ * restoring the split target health factor.
+ */
+function buildPathGroup(step: CascadeStep): LiquidationGroup {
+  const {
+    index,
+    vaults,
+    debt,
+    btc,
+    btcPrice,
+    seizedFraction,
+    CF,
+    THF,
+    LB,
+    expectedHF,
+  } = step;
+  const pLiq = debt / (btc * CF);
+  const curTargetSeizure = btc * seizedFraction;
+
+  let prefixSum = 0;
+  let i = 0;
+  while (
+    i < vaults.length &&
+    prefixSum < curTargetSeizure * (1 - SEIZURE_TOL)
+  ) {
+    prefixSum += vaults[i].btc;
+    i++;
+  }
+
+  const isGroupFull = i >= vaults.length;
+  const seizedBtc = prefixSum;
+  const overSeizureBtc = Math.max(0, seizedBtc - curTargetSeizure);
+  const debtDenominator = THF - LB * CF;
+  const debtToRepay =
+    debtDenominator === 0
+      ? debt
+      : debt * ((THF - expectedHF) / debtDenominator);
+
+  let fairnessDebtRepay = 0;
+  let fairnessPaymentUsd = 0;
+  let debtRepaid: number;
+  let debtRemainingAfter: number;
+
+  if (isGroupFull) {
+    const collateralAtLiqPrice = debt / CF;
+    const fairCollateralUsd = debtToRepay * LB;
+    const remainingCollateralAfterFair =
+      collateralAtLiqPrice - fairCollateralUsd;
+    const remainingDebtAfterFair = debt - debtToRepay;
+    fairnessPaymentUsd = Math.max(
+      0,
+      remainingCollateralAfterFair - remainingDebtAfterFair,
+    );
+    debtRepaid = debt;
+    debtRemainingAfter = 0;
+  } else {
+    const overSeizureVal = (overSeizureBtc * pLiq) / LB;
+    const maxDebtRepayable = Math.max(0, debt - debtToRepay);
+    fairnessDebtRepay = Math.min(overSeizureVal, maxDebtRepayable);
+    const leftoverOverSeizure = overSeizureVal - fairnessDebtRepay;
+    fairnessPaymentUsd = leftoverOverSeizure > 0 ? leftoverOverSeizure * LB : 0;
+    debtRepaid = debtToRepay + fairnessDebtRepay;
+    debtRemainingAfter = Math.max(0, debt - debtRepaid);
+  }
+
+  return {
+    index,
+    vaults: vaults.slice(0, i),
+    combinedBtc: seizedBtc,
+    liquidationPrice: pLiq,
+    executionPrice: pLiq,
+    distancePct: distanceToTriggerPct(pLiq, btcPrice),
+    targetSeizureBtc: curTargetSeizure,
+    overSeizureBtc,
+    isFullLiquidation: isGroupFull,
+    debtToRepay,
+    liquidatorProfitUsd: debtToRepay * (LB - 1),
+    debtRepaid,
+    fairnessDebtRepay,
+    fairnessPaymentUsd,
+    debtRemainingAfter,
+    btcRemainingAfter: Math.max(0, btc - seizedBtc),
+  };
+}
+
+/** Health factor at `price`, on the collateral factor as the Spoke computes it. */
+function healthFactorAt(
+  btc: number,
+  price: number,
+  CF: number,
+  debt: number,
+): number {
+  return (btc * price * CF) / debt;
+}
+
+/** The Spoke's liquidation bonus as a multiplier, at a health factor up to 1. */
+function liquidationBonusAt(
+  curve: LiquidationBonusCurve,
+  healthFactor: number,
+): number {
+  const healthFactorWad = BigInt(
+    Math.floor(Math.max(0, healthFactor) * HEALTH_FACTOR_ONE_WAD),
+  );
+  return Number(computeLiquidationBonusBps(curve, healthFactorWad)) / BPS_SCALE;
+}
+
+/**
+ * The group when BTC is already below its trigger: what the Spoke does at the
+ * market price. Each call seizes one whole head vault and needs health factor
+ * below 1. The vault repays its value less the liquidation bonus, capped at the
+ * debt; any surplus is the fairness payment to the borrower. Debt left when the
+ * last vault goes is written off.
+ *
+ * The bonus is read at the health factor before each call, as the Spoke does,
+ * not taken from `LB`. Even a small difference matters here: it can move the
+ * health factor across 1, which decides whether the next vault is seized too.
+ *
+ * Every vault seized here is one group. Afterwards either no vault is left or
+ * the position is healthy at this price, so the next trigger is at or below it
+ * and triggers stay strictly descending, which the Timeline's price scale
+ * requires.
+ */
+function buildGappedGroup(step: CascadeStep): LiquidationGroup {
+  const {
+    index,
+    vaults,
+    debt,
+    btc,
+    btcPrice,
+    CF,
+    THF,
+    bonusCurve,
+    expectedHF,
+  } = step;
+  const pLiq = debt / (btc * CF);
+
+  let debtLeft = debt;
+  let btcLeft = btc;
+  let seizedBtc = 0;
+  let debtRepaid = 0;
+  let fairnessPaymentUsd = 0;
+  let liquidatorProfitUsd = 0;
+  let i = 0;
+  while (
+    i < vaults.length &&
+    debtLeft > MIN_DEBT_THRESHOLD &&
+    healthFactorAt(btcLeft, btcPrice, CF, debtLeft) < 1
+  ) {
+    const bonus = liquidationBonusAt(
+      bonusCurve,
+      healthFactorAt(btcLeft, btcPrice, CF, debtLeft),
+    );
+    const vaultValueUsd = vaults[i].btc * btcPrice;
+    const coverableDebt = vaultValueUsd / bonus;
+    const repaid = Math.min(debtLeft, coverableDebt);
+    debtRepaid += repaid;
+    fairnessPaymentUsd += coverableDebt - repaid;
+    liquidatorProfitUsd += vaultValueUsd - coverableDebt;
+    debtLeft -= repaid;
+    btcLeft -= vaults[i].btc;
+    seizedBtc += vaults[i].btc;
+    i++;
+  }
+
+  const isGroupFull = i >= vaults.length;
+  // The target is what the position needed. The Spoke has no target of its
+  // own, so this only splits the seizure: never above it, and capped at the
+  // expected health factor so it joins up with the path group at the trigger.
+  const targetHealthFactor = Math.min(
+    healthFactorAt(btc, btcPrice, CF, debt),
+    expectedHF,
+  );
+  const targetSeizureBtc = Math.min(
+    seizedBtc,
+    btc *
+      computeSeizedFraction(
+        CF,
+        liquidationBonusAt(bonusCurve, targetHealthFactor),
+        THF,
+        targetHealthFactor,
+      ),
+  );
+  const overSeizureBtc = seizedBtc - targetSeizureBtc;
+  // The over-seized BTC's share of the repayment. When the debt clears first the
+  // card shows the fairness payment instead of this figure.
+  const fairnessDebtRepay =
+    seizedBtc > 0 ? debtRepaid * (overSeizureBtc / seizedBtc) : 0;
+
+  return {
+    index,
+    vaults: vaults.slice(0, i),
+    combinedBtc: seizedBtc,
+    liquidationPrice: pLiq,
+    executionPrice: btcPrice,
+    distancePct: distanceToTriggerPct(pLiq, btcPrice),
+    targetSeizureBtc,
+    overSeizureBtc,
+    isFullLiquidation: isGroupFull,
+    debtToRepay: debtRepaid - fairnessDebtRepay,
+    liquidatorProfitUsd,
+    debtRepaid,
+    fairnessDebtRepay,
+    fairnessPaymentUsd,
+    debtRemainingAfter: isGroupFull ? 0 : Math.max(0, debtLeft),
+    btcRemainingAfter: Math.max(0, btc - seizedBtc),
+  };
+}
+
+/**
+ * The same cascade read at another price. Only the distances change: every
+ * event stays priced as `calculate()` priced it, so a simulated fall through a
+ * trigger reads as a gradual one, not as a gap to the simulated price.
+ */
+export function withDistancesAt(
+  result: CalculatorResult,
+  price: number,
+): CalculatorResult {
+  return {
+    ...result,
+    groups: result.groups.map((group) => ({
+      ...group,
+      distancePct: distanceToTriggerPct(group.liquidationPrice, price),
+    })),
+  };
+}
+
+/**
  * Compute the partial-liquidation cascade and position warnings.
  *
  * Liquidation follows the current on-chain vault order, so the group breakdown
  * is computed against that order. Separately, the optimizer is run and — when
  * it finds a strictly better order — `optimalVaultOrder` is returned so the
  * banner can offer a manual "Apply Optimal Order" action.
+ *
+ * Groups assume the price reaches each trigger gradually. A trigger already
+ * above `btcPrice` can no longer execute there, so that group is priced at
+ * `btcPrice` instead; the later groups then start from what that leaves. The
+ * optimal order describes the vault order rather than this moment's price, so
+ * it reads the gradual first group at every price. The advice shown beside the
+ * events does not: below a trigger on a position with several vaults there is no
+ * reorder advice, and the cliff warning follows the event that happens next.
+ *
+ * `pricing` is `"gradual"` for a position the Spoke itself reads as healthy, so
+ * that nothing executes at `btcPrice`: every event stays at its own trigger, and
+ * the advice reads as it does above the first trigger.
  *
  * Warnings: `weird-params` (invalid protocol params, soft — suppresses all
  * other advisories), `too-many-vaults` (optimizer fell back past its cap),
@@ -83,7 +363,10 @@ function sizeSuggestedVaultBtc(
  * safer order exists), or `dust` (returned together with any `urgent` warning;
  * suppresses the other advisories).
  */
-export function calculate(params: CalculatorParams): CalculatorResult {
+export function calculate(
+  params: CalculatorParams,
+  pricing: "live" | "gradual" = "live",
+): CalculatorResult {
   const {
     btcPrice,
     totalDebtUsd,
@@ -91,6 +374,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     CF,
     THF,
     LB,
+    bonusCurve,
     expectedHF,
     minPeginBtc,
   } = params;
@@ -138,6 +422,15 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   );
   const targetSeizureBtc = totalBtc * seizedFraction;
   const liqPenalty = LB * CF;
+  const stepParams = {
+    btcPrice,
+    seizedFraction,
+    CF,
+    THF,
+    LB,
+    bonusCurve,
+    expectedHF,
+  };
   // Invalid governance params: the seizure formula produced a fraction outside
   // [0, 1]. We surface this as a soft advisory and suppress every other
   // advisory (the liq math is meaningless here).
@@ -161,86 +454,44 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     remainingDebt > MIN_DEBT_THRESHOLD &&
     groupIndex <= MAX_GROUPS
   ) {
-    const pLiq = remainingDebt / (remainingBtc * CF);
-    const distancePct = ((pLiq - btcPrice) / btcPrice) * 100;
-    const curTargetSeizure = remainingBtc * seizedFraction;
-
-    let prefixSum = 0;
-    let i = 0;
-    while (
-      i < remainingVaults.length &&
-      prefixSum < curTargetSeizure * (1 - SEIZURE_TOL)
-    ) {
-      prefixSum += remainingVaults[i].btc;
-      i++;
-    }
-
-    const isGroupFull = i >= remainingVaults.length;
-    const seizedVaults = remainingVaults.slice(0, i);
-    const seizedBtc = prefixSum;
-    const overSeizureBtc = Math.max(0, seizedBtc - curTargetSeizure);
-    const debtDenominator = THF - liqPenalty;
-    const debtToRepay =
-      debtDenominator === 0
-        ? remainingDebt
-        : remainingDebt * ((THF - expectedHF) / debtDenominator);
-
-    let fairnessDebtRepay = 0;
-    let fairnessPaymentUsd = 0;
-    let debtRepaid: number;
-    let debtRemainingAfter: number;
-    const btcRemainingAfter = Math.max(0, remainingBtc - seizedBtc);
-
-    if (isGroupFull) {
-      const collateralAtLiqPrice = remainingDebt / CF;
-      const fairCollateralUsd = debtToRepay * LB;
-      const remainingCollateralAfterFair =
-        collateralAtLiqPrice - fairCollateralUsd;
-      const remainingDebtAfterFair = remainingDebt - debtToRepay;
-      fairnessPaymentUsd = Math.max(
-        0,
-        remainingCollateralAfterFair - remainingDebtAfterFair,
-      );
-      debtRepaid = remainingDebt;
-      debtRemainingAfter = 0;
-    } else {
-      const overSeizureVal = (overSeizureBtc * pLiq) / LB;
-      const maxDebtRepayable = Math.max(0, remainingDebt - debtToRepay);
-      fairnessDebtRepay = Math.min(overSeizureVal, maxDebtRepayable);
-      const leftoverOverSeizure = overSeizureVal - fairnessDebtRepay;
-      fairnessPaymentUsd =
-        leftoverOverSeizure > 0 ? leftoverOverSeizure * LB : 0;
-      debtRepaid = debtToRepay + fairnessDebtRepay;
-      debtRemainingAfter = Math.max(0, remainingDebt - debtRepaid);
-    }
-
-    groups.push({
+    const step: CascadeStep = {
+      ...stepParams,
       index: groupIndex,
-      vaults: seizedVaults,
-      combinedBtc: seizedBtc,
-      liquidationPrice: pLiq,
-      distancePct,
-      targetSeizureBtc: curTargetSeizure,
-      overSeizureBtc,
-      isFullLiquidation: isGroupFull,
-      debtToRepay,
-      liquidatorProfitUsd: debtToRepay * (LB - 1),
-      debtRepaid,
-      fairnessDebtRepay,
-      fairnessPaymentUsd,
-      debtRemainingAfter,
-      btcRemainingAfter,
-    });
+      vaults: remainingVaults,
+      debt: remainingDebt,
+      btc: remainingBtc,
+    };
+    const group =
+      pricing === "live" &&
+      healthFactorAt(remainingBtc, btcPrice, CF, remainingDebt) < 1
+        ? buildGappedGroup(step)
+        : buildPathGroup(step);
+    groups.push(group);
 
-    remainingVaults = remainingVaults.slice(i);
-    remainingDebt = debtRemainingAfter;
-    remainingBtc = btcRemainingAfter;
+    remainingVaults = remainingVaults.slice(group.vaults.length);
+    remainingDebt = group.debtRemainingAfter;
+    remainingBtc = group.btcRemainingAfter;
     groupIndex++;
   }
 
   const firstGroup = groups[0];
+  // The optimal order ends in a transaction: the reorder guard re-runs this
+  // calculator at signing time and compares it. It reads this group rather than
+  // `firstGroup`, so a price below the trigger can't change it.
+  const firstPathGroup =
+    firstGroup != null
+      ? buildPathGroup({
+          ...stepParams,
+          index: firstGroup.index,
+          vaults,
+          debt: totalDebtUsd,
+          btc: totalBtc,
+        })
+      : undefined;
   const isCliff =
-    firstGroup != null && firstGroup.vaults.length === nVaults && nVaults > 1;
+    firstPathGroup != null &&
+    firstPathGroup.vaults.length === nVaults &&
+    nVaults > 1;
 
   // ── 4. weird-params advisory (exclusive) ───────────────────────
   //
@@ -376,7 +627,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     SEIZURE_TOL,
   );
   const optimalG1Btc = optimalG1Vaults.reduce((s, v) => s + v.btc, 0);
-  const currentGroup1Btc = firstGroup?.combinedBtc ?? Infinity;
+  const currentGroup1Btc = firstPathGroup?.combinedBtc ?? Infinity;
   const group1ReorderWouldHelp =
     reorderWouldHelp && currentGroup1Btc > optimalG1Btc + REORDER_TOL;
 
@@ -386,8 +637,12 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   // worse. Cliff cases are exempt: for a cliff, reordering is always an
   // improvement even if the result over-seizes.
   if (reorderWouldHelp && nVaults >= 2 && !isCliff) {
-    const currentOverSeizure = firstGroup ? firstGroup.overSeizureBtc : 0;
-    const currentProtected = firstGroup ? firstGroup.btcRemainingAfter : 0;
+    const currentOverSeizure = firstPathGroup
+      ? firstPathGroup.overSeizureBtc
+      : 0;
+    const currentProtected = firstPathGroup
+      ? firstPathGroup.btcRemainingAfter
+      : 0;
     const currentHasOverSeizure = currentOverSeizure > currentProtected;
 
     const optTarget = totalBtc * seizedFraction;
@@ -492,6 +747,22 @@ export function calculate(params: CalculatorParams): CalculatorResult {
               )
             : cliff.noSplitSuggestion,
     });
+  }
+
+  // Several vaults with the first event already below its trigger. It is the
+  // walk that happens next, so the warning reads that rather than the path
+  // group, and it must not contradict the event shown beside it. No reorder
+  // advice: the contract would refuse it. `optimalVaultOrder` stays set all the
+  // same, for the guard that re-runs this calculator.
+  else if (isFirstEventGapped(groups)) {
+    if (firstGroup?.vaults.length === nVaults) {
+      warnings.push({
+        type: "cliff",
+        title: cliff.title,
+        detail: cliff.body,
+        suggestion: cliff.gappedSuggestion(nVaults),
+      });
+    }
   }
 
   // CASE 2: Exactly two vaults — shared shell, keep the structural suggestion.

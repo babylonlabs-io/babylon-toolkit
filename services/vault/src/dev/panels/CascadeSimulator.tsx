@@ -42,6 +42,7 @@ import {
   DEBUG_DEFAULT_THF,
   DEBUG_PRESETS,
   applyDebugPreset,
+  flatBonusCurve,
   resetDebugManualParams,
   setDebugManualMode,
   setDebugManualParams,
@@ -395,9 +396,10 @@ function ManualInputPanel({
             max="1.5"
             className={PANEL_INPUT_CLASS}
             value={params.LB}
-            onChange={(e) =>
-              updateField("LB", parseFloat(e.target.value) || DEBUG_DEFAULT_LB)
-            }
+            onChange={(e) => {
+              const LB = parseFloat(e.target.value) || DEBUG_DEFAULT_LB;
+              onParamsChange({ ...params, LB, bonusCurve: flatBonusCurve(LB) });
+            }}
           />
         </div>
         <div>

@@ -32,8 +32,7 @@ const PREVIEW_VISIBLE_CANDLES = 60;
 /** The cascade the chart renders. Absent = nothing to chart yet.
  *
  *  Carries the params `result` was computed from, not values derived from
- *  them: the price simulator has to re-run `calculate()` at the simulated
- *  price, and `params.vaults` is the only source for the "x/y vaults" count
+ *  them: `params.vaults` is the only source for the "x/y vaults" count
  *  (`calculate()` stops emitting groups once the debt clears, so a vault it
  *  never consumed has no group). */
 export interface LiquidationCascade {

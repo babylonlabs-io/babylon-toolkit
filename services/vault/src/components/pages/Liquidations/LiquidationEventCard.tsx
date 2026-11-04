@@ -264,6 +264,14 @@ export function LiquidationEventCard({
                 value={card.collateralLiquidatedLabel}
                 muted={muted}
               />
+              {card.executionPriceLabel !== null ? (
+                <DetailRow
+                  label={COPY.liquidations.events.estimatedAtPrice}
+                  value={card.executionPriceLabel}
+                  tooltip={COPY.liquidations.events.estimatedAtPriceTooltip}
+                  muted={muted}
+                />
+              ) : null}
               <DetailRow
                 label={COPY.liquidations.events.debtRepaid}
                 value={card.debtRepaidLabel}

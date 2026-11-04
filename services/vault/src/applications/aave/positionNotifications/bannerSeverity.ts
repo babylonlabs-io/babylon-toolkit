@@ -1,3 +1,4 @@
+import { isFirstEventGapped } from "./calculate";
 import type { CalculatorResult, Warning, WarningType } from "./types";
 
 /**
@@ -28,7 +29,8 @@ export interface BannerState {
    * The engine found a safer liquidation order than the current on-chain order.
    * Drives the manual "Apply Optimal Order" affordance, independent of the
    * risk warnings — it can accompany an urgent/cliff banner or stand alone on an
-   * otherwise-healthy position.
+   * otherwise-healthy position. False once the next event is below its trigger,
+   * where the contract would revert the reorder.
    */
   suggestReorder: boolean;
 }
@@ -60,7 +62,8 @@ const PRIMARY_ORDER: WarningType[] = [
  */
 export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
-  const suggestReorder = result.optimalVaultOrder != null;
+  const suggestReorder =
+    result.optimalVaultOrder != null && !isFirstEventGapped(groups);
 
   // Small positions hide advice unless a liquidation warning is urgent.
   if (warnings.some((w) => w.type === "dust")) {

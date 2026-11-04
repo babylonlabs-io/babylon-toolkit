@@ -36,7 +36,7 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
 
-import { buildBannerActions, offersApplyOrder } from "./BannerActions";
+import { buildBannerActions } from "./BannerActions";
 import { STALE_PRICE_BANNER_GRACE_MS } from "./constants";
 import { OptimalOrderChips } from "./OptimalOrderChips";
 import { useSustainedFlag } from "./useSustainedFlag";
@@ -342,19 +342,20 @@ export function PositionNotificationBanner({
   });
 
   // The Aave write still being waited on shows on every card: the lock it
-  // holds is the account's. How the last "Apply optimal order" ended shows
-  // only on a card that offers the action.
-  const showsApplyOrder = offersApplyOrder(result, bannerState);
+  // holds is the account's. How the last "Apply optimal order" ended shows only
+  // while a better order exists. It stays through a price move below a trigger,
+  // which takes the action away but is when a reorder is most likely refused.
+  const showsReorderOutcome = result.optimalVaultOrder !== null;
   let reorderStatus: ReactNode = null;
   if (pendingWrite?.phase === "unconfirmed") {
     reorderStatus = <UnconfirmedTransactionCallout write={pendingWrite} />;
-  } else if (showsApplyOrder && reorderError) {
+  } else if (showsReorderOutcome && reorderError) {
     reorderStatus = (
       <Callout variant="error" title={COPY.common.transactionFailedTitle}>
         {reorderError}
       </Callout>
     );
-  } else if (showsApplyOrder && reorderNotice) {
+  } else if (showsReorderOutcome && reorderNotice) {
     reorderStatus = <Callout variant="warning">{reorderNotice}</Callout>;
   }
 

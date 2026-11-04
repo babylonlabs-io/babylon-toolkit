@@ -132,6 +132,11 @@ describe("useVaultSplitParams", () => {
       expectedHF: 0.99,
       CF: 0.75,
       LB: 1.0504,
+      bonusCurve: {
+        healthFactorForMaxBonus: 900_000_000_000_000_000n,
+        liquidationBonusFactor: 9000n,
+        maxLiquidationBonus: 10555n,
+      },
       lbUnavailableReason: null,
       maxLB: 1.0555,
     });
@@ -153,6 +158,7 @@ describe("useVaultSplitParams", () => {
     });
 
     expect(result.current.params?.LB).toBeNull();
+    expect(result.current.params?.bonusCurve).toBeNull();
     expect(result.current.params?.lbUnavailableReason).toBeTruthy();
     // The query itself succeeds: the collateral factor still has to reach the
     // borrow and repay pre-sign checks, which re-read it through this query.
@@ -275,6 +281,11 @@ describe("useVaultSplitParams", () => {
       expectedHF: 0.99,
       CF: 0.75,
       LB: 1.0504,
+      bonusCurve: {
+        healthFactorForMaxBonus: 900_000_000_000_000_000n,
+        liquidationBonusFactor: 9000n,
+        maxLiquidationBonus: 10555n,
+      },
       lbUnavailableReason: null,
       maxLB: 1.0555,
     });

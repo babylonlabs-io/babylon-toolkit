@@ -15,6 +15,7 @@
 
 import { useSyncExternalStore } from "react";
 
+import { BPS_SCALE } from "@/applications/aave/constants";
 import type {
   BannerSeverity,
   CalculatorParams,
@@ -32,6 +33,22 @@ export const DEBUG_DEFAULT_LB = 1.05;
 export const DEBUG_DEFAULT_EXPECTED_HF = 0.95;
 const DEBUG_DEFAULT_MIN_PEGIN_BTC = 0.0005;
 
+/** A `liquidationBonusFactor` of 100%: the bonus is the maximum at every HF. */
+const FLAT_BONUS_FACTOR_BPS = 10_000n;
+
+/**
+ * The bonus curve for a hand-entered `LB`: flat, so the one bonus the panel
+ * lets you set applies at every health factor. An `LB` under 1, reachable while
+ * typing, stays at 1 because the curve refuses anything lower.
+ */
+export function flatBonusCurve(LB: number): CalculatorParams["bonusCurve"] {
+  return {
+    healthFactorForMaxBonus: 0n,
+    liquidationBonusFactor: FLAT_BONUS_FACTOR_BPS,
+    maxLiquidationBonus: BigInt(Math.round(Math.max(1, LB) * BPS_SCALE)),
+  };
+}
+
 /** Default manual-mode inputs the panel starts from (and resets to). */
 export function makeDefaultDebugParams(): CalculatorParams {
   return {
@@ -45,6 +62,7 @@ export function makeDefaultDebugParams(): CalculatorParams {
     CF: DEBUG_DEFAULT_CF,
     THF: DEBUG_DEFAULT_THF,
     LB: DEBUG_DEFAULT_LB,
+    bonusCurve: flatBonusCurve(DEBUG_DEFAULT_LB),
     expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
     minPeginBtc: DEBUG_DEFAULT_MIN_PEGIN_BTC,
   };
@@ -79,6 +97,7 @@ const PRESET_RATIOS = {
   CF: DEBUG_DEFAULT_CF,
   THF: DEBUG_DEFAULT_THF,
   LB: DEBUG_DEFAULT_LB,
+  bonusCurve: flatBonusCurve(DEBUG_DEFAULT_LB),
   expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
   minPeginBtc: DEBUG_DEFAULT_MIN_PEGIN_BTC,
 };
@@ -160,6 +179,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       vaults: vaults(0.6, 0.4, 0.1),
       ...PRESET_RATIOS,
       LB: CASCADE_PRESET_LB,
+      bonusCurve: flatBonusCurve(CASCADE_PRESET_LB),
     },
   },
   {
@@ -197,6 +217,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       vaults: vaults(1),
       ...PRESET_RATIOS,
       LB: CASCADE_PRESET_LB,
+      bonusCurve: flatBonusCurve(CASCADE_PRESET_LB),
     },
   },
 ];

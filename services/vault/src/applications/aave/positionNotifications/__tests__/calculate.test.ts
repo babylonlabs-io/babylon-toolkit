@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { COPY } from "@/copy";
 
 import { deriveBannerState } from "../bannerSeverity";
-import { calculate } from "../calculate";
+import { calculate, withDistancesAt } from "../calculate";
 import type { CalculatorParams, Vault, Warning } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -22,6 +22,20 @@ const DEFAULT_LB = 1.05;
 const DEFAULT_EHF = 0.95;
 
 let vaultCounter = 0;
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
+// The launch curve: 1.0504 at HF 0.99, and its 105.55% maximum at HF 0.90.
+const LAUNCH_BONUS_CURVE = {
+  healthFactorForMaxBonus: 900_000_000_000_000_000n,
+  liquidationBonusFactor: 9_000n,
+  maxLiquidationBonus: 10_555n,
+};
+
 function v(btc: number): Vault {
   vaultCounter++;
   return { id: `v${vaultCounter}`, name: `Vault ${vaultCounter}`, btc };
@@ -38,6 +52,7 @@ function makeParams(
     CF: DEFAULT_CF,
     THF: DEFAULT_THF,
     LB: DEFAULT_LB,
+    bonusCurve: FLAT_BONUS_CURVE,
     expectedHF: DEFAULT_EHF,
     minPeginBtc: 0.0005,
     ...overrides,
@@ -353,6 +368,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.86,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: 0.0005,
     });
@@ -374,6 +390,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.78,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: 0.0546,
     });
@@ -392,6 +409,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.78,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: 0.0546,
     });
@@ -415,6 +433,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.78,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: 0.0546,
     });
@@ -444,6 +463,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.8698,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: 0.0005,
     });
@@ -464,6 +484,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.8698,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: null,
     });
@@ -485,6 +506,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.9,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: 0.0005,
     });
@@ -518,6 +540,7 @@ describe("golden vectors (reference scenario suite)", () => {
       CF: 0.78,
       THF: 1.08,
       LB: 1.0504,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       expectedHF: 0.99,
       minPeginBtc: null,
     });
@@ -590,7 +613,10 @@ describe("golden vectors (reference scenario suite)", () => {
   });
 
   it("G2 — [0.10, 0.10, 0.35] cliff fixable by reorder", () => {
-    const result = calculate(makeParams([v(0.1), v(0.1), v(0.35)]));
+    // Above its $107,364 trigger: a reorder can't run below it.
+    const result = calculate(
+      makeParams([v(0.1), v(0.1), v(0.35)], { btcPrice: 120_000 }),
+    );
     const cliff = getWarning(result.warnings, "cliff");
     expect(cliff?.title).toBe("First liquidation takes everything");
     expect(cliff?.suggestion).toContain("Reordering");
@@ -645,6 +671,7 @@ describe("consistency with the deposit split", () => {
     const params = {
       CF,
       LB: LAUNCH_LB,
+      bonusCurve: LAUNCH_BONUS_CURVE,
       THF: SPLIT_TARGET_HEALTH_FACTOR,
       expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
     };
@@ -679,5 +706,486 @@ describe("consistency with the deposit split", () => {
     expect(reported.groups[0].isFullLiquidation).toBe(false);
     expect(reported.groups[0].debtRemainingAfter).toBe(0);
     expect(reported.groups[0].btcRemainingAfter).toBeCloseTo(0.01, 8);
+  });
+});
+
+// Each trigger is the price where the remaining position reaches HF 1. These
+// positions all start with 2 BTC against $100,000 at CF 0.75, so the first
+// trigger is $66,666.67 and HF at a price is price / trigger.
+describe("price already below the first trigger", () => {
+  const GAP_PARAMS = {
+    totalDebtUsd: 100_000,
+    CF: 0.75,
+    THF: 1.08,
+    LB: 1.05,
+    expectedHF: 0.99,
+  };
+  const FIRST_TRIGGER = 100_000 / (2 * 0.75);
+
+  it("prices the seizure at the market price, not the trigger", () => {
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 62_000 }),
+    );
+
+    expect(groups[0].liquidationPrice).toBeCloseTo(FIRST_TRIGGER, 6);
+    expect(groups[0].executionPrice).toBe(62_000);
+    expect(groups[0].debtRepaid).toBeCloseTo((1 * 62_000) / 1.05, 6);
+    expect(groups[0].debtRemainingAfter).toBeCloseTo(
+      100_000 - (1 * 62_000) / 1.05,
+      6,
+    );
+  });
+
+  it("reports the part of the repayment that over-seizure paid for", () => {
+    const [group] = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 62_000 }),
+    ).groups;
+
+    expect(group.overSeizureBtc).toBeGreaterThan(0);
+    expect(group.fairnessDebtRepay).toBeCloseTo(
+      (group.overSeizureBtc * 62_000) / 1.05,
+      6,
+    );
+    expect(group.debtToRepay + group.fairnessDebtRepay).toBeCloseTo(
+      group.debtRepaid,
+      6,
+    );
+  });
+
+  it("seizes the next vault while the position is still liquidatable at the price", () => {
+    // HF 0.93 before, 0.99 after the first vault, so the Spoke can seize again.
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 62_000 }),
+    );
+
+    expect(groups[0].vaults.map((vault) => vault.btc)).toEqual([0.5, 0.5]);
+    expect(groups[0].btcRemainingAfter).toBeCloseTo(1, 8);
+  });
+
+  it("stops at the vault that leaves the position healthy at the price", () => {
+    // HF 0.96 before, 1.036 after the first vault: the Spoke would revert.
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 64_000 }),
+    );
+
+    expect(groups[0].vaults.map((vault) => vault.btc)).toEqual([0.5]);
+    expect(groups[1].liquidationPrice).toBeLessThan(64_000);
+  });
+
+  it("prices the events after the gap at their own triggers, from the debt the gap left", () => {
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 62_000 }),
+    );
+
+    const debtAfterGap = 100_000 - (1 * 62_000) / 1.05;
+    expect(groups[1].liquidationPrice).toBeCloseTo(
+      debtAfterGap / (1 * 0.75),
+      6,
+    );
+    expect(groups[1].executionPrice).toBe(groups[1].liquidationPrice);
+  });
+
+  it("pays the surplus to the borrower when a seizure clears the debt", () => {
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 58_000 }),
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].vaults).toHaveLength(3);
+    expect(groups[0].debtRepaid).toBeCloseTo(100_000, 6);
+    expect(groups[0].debtRemainingAfter).toBe(0);
+    expect(groups[0].fairnessPaymentUsd).toBeCloseTo(
+      (2 * 58_000) / 1.05 - 100_000,
+      6,
+    );
+    expect(groups[0].liquidatorProfitUsd).toBeCloseTo(
+      2 * 58_000 - (2 * 58_000) / 1.05,
+      6,
+    );
+  });
+
+  it("writes off the debt the seized BTC can't cover", () => {
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 50_000 }),
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].isFullLiquidation).toBe(true);
+    expect(groups[0].debtRepaid).toBeCloseTo((2 * 50_000) / 1.05, 6);
+    expect(groups[0].debtRemainingAfter).toBe(0);
+    expect(groups[0].fairnessPaymentUsd).toBe(0);
+  });
+
+  it("leaves later vaults alone when an early seizure clears the debt", () => {
+    const small = v(0.01);
+    const { groups } = calculate(
+      makeParams([v(0.12016827), small], {
+        ...GAP_PARAMS,
+        CF: 0.78,
+        LB: 1.0504,
+        bonusCurve: LAUNCH_BONUS_CURVE,
+        btcPrice: 1_017,
+        totalDebtUsd: 103.4,
+      }),
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].isFullLiquidation).toBe(false);
+    expect(groups[0].debtRemainingAfter).toBe(0);
+    expect(groups[0].btcRemainingAfter).toBeCloseTo(small.btc, 8);
+    expect(groups[0].fairnessPaymentUsd).toBeCloseTo(
+      (0.12016827 * 1_017) / 1.0499 - 103.4,
+      6,
+    );
+  });
+
+  // A fixed 1.0504 repays enough to reach HF 1.0004 and stop with 1.5 BTC left.
+  // The bonus at HF 0.948 is 1.0528, which only reaches HF 0.9995, so the Spoke
+  // seizes the second vault too. That one reads 1.0499, at HF 0.9995.
+  it("reads the bonus at the health factor before each seizure", () => {
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], {
+        ...GAP_PARAMS,
+        CF: 0.78,
+        LB: 1.0504,
+        bonusCurve: LAUNCH_BONUS_CURVE,
+        btcPrice: 60_770,
+      }),
+    );
+
+    const vaultValueUsd = 0.5 * 60_770;
+    expect(groups[0].vaults).toHaveLength(2);
+    expect(groups[0].btcRemainingAfter).toBeCloseTo(1, 8);
+    expect(groups[0].debtRemainingAfter).toBeCloseTo(
+      100_000 - vaultValueUsd / 1.0528 - vaultValueUsd / 1.0499,
+      6,
+    );
+  });
+
+  it("uses the maximum bonus at or below the health factor it applies from", () => {
+    // HF 0.624, and each seizure lowers it further: every call reads 105.55%.
+    const { groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], {
+        ...GAP_PARAMS,
+        CF: 0.78,
+        LB: 1.0504,
+        bonusCurve: LAUNCH_BONUS_CURVE,
+        btcPrice: 40_000,
+      }),
+    );
+
+    expect(groups[0].debtRepaid).toBeCloseTo((2 * 40_000) / 1.0555, 6);
+  });
+
+  it("leaves a group priced at its trigger to the fixed bonus", () => {
+    const vaults = [v(0.5), v(0.5), v(1)];
+    const atPrice = (bonusCurve: CalculatorParams["bonusCurve"]) =>
+      calculate(
+        makeParams(vaults, { ...GAP_PARAMS, btcPrice: 90_000, bonusCurve }),
+      ).groups;
+
+    expect(atPrice(LAUNCH_BONUS_CURVE)).toEqual(atPrice(FLAT_BONUS_CURVE));
+  });
+
+  it("splits the seizure into a target and an over-seizure that add up to it", () => {
+    for (const btcPrice of [66_000, 64_000, 62_000, 58_000, 50_000]) {
+      const [group] = calculate(
+        makeParams([v(0.3), v(0.7), v(1)], { ...GAP_PARAMS, btcPrice }),
+      ).groups;
+
+      expect(group.targetSeizureBtc).toBeLessThanOrEqual(group.combinedBtc);
+      expect(group.overSeizureBtc).toBeGreaterThanOrEqual(0);
+      expect(group.targetSeizureBtc + group.overSeizureBtc).toBeCloseTo(
+        group.combinedBtc,
+        8,
+      );
+    }
+  });
+
+  // The Timeline's price scale throws on triggers that aren't strictly
+  // descending, which would take the whole page down.
+  it("keeps triggers strictly descending, with only the first event gapped", () => {
+    const orders = [
+      [0.5, 0.5, 1],
+      [1, 0.5, 0.5],
+      [0.1, 0.9, 1],
+      [0.3, 0.3, 0.3, 0.3, 0.8],
+      [0.05, 0.05, 0.05, 1.85],
+    ];
+    for (const btcs of orders) {
+      for (let share = 1; share >= 0.4; share -= 0.01) {
+        const btcPrice = FIRST_TRIGGER * share;
+        const { groups } = calculate(
+          makeParams(btcs.map(v), { ...GAP_PARAMS, btcPrice }),
+        );
+
+        for (const [i, group] of groups.entries()) {
+          if (i > 0) {
+            expect(group.liquidationPrice).toBeLessThan(
+              groups[i - 1].liquidationPrice,
+            );
+            expect(group.executionPrice).toBe(group.liquidationPrice);
+          }
+        }
+      }
+    }
+  });
+
+  it("changes nothing but the distance while the price is at or above the trigger", () => {
+    const vaults = [v(0.5), v(0.5), v(1)];
+    const params = { ...GAP_PARAMS, totalDebtUsd: 75_000 };
+    // 2 BTC against $75,000 at CF 0.75: HF is exactly 1 at $50,000.
+    const atTrigger = calculate(
+      makeParams(vaults, { ...params, btcPrice: 50_000 }),
+    );
+    const aboveTrigger = calculate(
+      makeParams(vaults, { ...params, btcPrice: 90_000 }),
+    );
+
+    expect(atTrigger.groups[0].executionPrice).toBe(50_000);
+    expect(atTrigger.groups).toEqual(
+      aboveTrigger.groups.map((group, i) => ({
+        ...group,
+        distancePct: atTrigger.groups[i].distancePct,
+      })),
+    );
+  });
+
+  // The signing guard re-runs the calculator and compares this order.
+  it("keeps the optimal order below the trigger, without the advice to apply it", () => {
+    const vaults = [v(1), v(0.5), v(0.5)];
+    const above = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 70_000 }),
+    );
+    const below = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 50_000 }),
+    );
+
+    expect(above.optimalVaultOrder).not.toBeNull();
+    expect(below.optimalVaultOrder).toEqual(above.optimalVaultOrder);
+    expect(hasWarning(above.warnings, "reorder")).toBe(true);
+    expect(hasWarning(below.warnings, "reorder")).toBe(false);
+  });
+
+  // `reorderVaults` reverts below HF 1, and at this price 0.3 BTC is what goes
+  // first: the suggested order would seize 0.7.
+  it("drops the reorder warning on two vaults below the trigger", () => {
+    const { warnings, groups } = calculate(
+      makeParams([v(0.3), v(0.7)], {
+        totalDebtUsd: 100_000,
+        btcPrice: 132_000,
+      }),
+    );
+
+    expect(groups[0].vaults).toHaveLength(1);
+    expect(hasWarning(warnings, "reorder")).toBe(false);
+    expect(hasWarning(warnings, "cliff")).toBe(false);
+    expect(hasWarning(warnings, "urgent")).toBe(true);
+  });
+
+  it("stops suggesting a reorder to the banner below the trigger", () => {
+    const vaults = [v(1), v(0.5), v(0.5)];
+    const above = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 70_000 }),
+    );
+    const below = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 50_000 }),
+    );
+
+    expect(deriveBannerState(above).suggestReorder).toBe(true);
+    expect(deriveBannerState(below).suggestReorder).toBe(false);
+  });
+
+  // The reading for a position the Spoke itself reads as healthy.
+  it("keeps every event at its own trigger below the trigger in the gradual reading", () => {
+    const vaults = [v(0.5), v(0.5), v(1)];
+    const params = makeParams(vaults, { ...GAP_PARAMS, btcPrice: 50_000 });
+    const above = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 70_000 }),
+    );
+
+    const gradual = calculate(params, "gradual");
+
+    expect(gradual.groups).toEqual(
+      withDistancesAt(above, params.btcPrice).groups,
+    );
+  });
+
+  it("measures the gradual reading's distances to the live price", () => {
+    const { groups } = calculate(
+      makeParams([v(1)], {
+        ...GAP_PARAMS,
+        btcPrice: 50_000,
+        totalDebtUsd: 75_000,
+      }),
+      "gradual",
+    );
+
+    // A $100,000 trigger, at 0.75 CF, is 100% above $50,000.
+    expect(groups[0].liquidationPrice).toBeCloseTo(100_000);
+    expect(groups[0].distancePct).toBeCloseTo(100);
+  });
+
+  it("gives the reorder advice in the gradual reading, which the live one leaves out", () => {
+    const params = makeParams([v(1), v(0.5), v(0.5)], {
+      ...GAP_PARAMS,
+      btcPrice: 50_000,
+    });
+
+    expect(hasWarning(calculate(params).warnings, "reorder")).toBe(false);
+    expect(hasWarning(calculate(params, "gradual").warnings, "reorder")).toBe(
+      true,
+    );
+  });
+
+  it("leaves out the gapped cliff in the gradual reading", () => {
+    const params = makeParams([v(0.5), v(0.5), v(1)], {
+      ...GAP_PARAMS,
+      btcPrice: 50_000,
+    });
+
+    expect(hasWarning(calculate(params).warnings, "cliff")).toBe(true);
+    expect(hasWarning(calculate(params, "gradual").warnings, "cliff")).toBe(
+      false,
+    );
+  });
+
+  // `assertOptimalOrderMatchesOnChain` compares the order against the live
+  // reading before signing.
+  it("suggests the same order in the gradual and live readings", () => {
+    const params = makeParams([v(1), v(0.5), v(0.5)], {
+      ...GAP_PARAMS,
+      btcPrice: 50_000,
+    });
+    const live = calculate(params);
+
+    expect(live.optimalVaultOrder).not.toBeNull();
+    expect(calculate(params, "gradual").optimalVaultOrder).toEqual(
+      live.optimalVaultOrder,
+    );
+  });
+
+  it("warns of the cliff when a gap takes every vault, even where the path group would not", () => {
+    const vaults = [v(0.5), v(0.5), v(1)];
+    const above = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 70_000 }),
+    );
+    const below = calculate(
+      makeParams(vaults, { ...GAP_PARAMS, btcPrice: 50_000 }),
+    );
+
+    expect(hasWarning(above.warnings, "cliff")).toBe(false);
+    expect(below.groups[0].vaults).toHaveLength(3);
+    expect(getWarning(below.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.gappedSuggestion(3),
+    );
+  });
+
+  // 0.1, 0.1 and 0.8 BTC at the default params: the path's first group takes
+  // every vault. At HF 0.99 the first seizure already lifts the position over 1.
+  it("drops the cliff warning when the first event stops short of every vault", () => {
+    const vaults = [v(0.1), v(0.1), v(0.8)];
+    const above = calculate(
+      makeParams(vaults, { totalDebtUsd: 100_000, btcPrice: 160_000 }),
+    );
+    const below = calculate(
+      makeParams(vaults, { totalDebtUsd: 100_000, btcPrice: 132_000 }),
+    );
+
+    expect(hasWarning(above.warnings, "cliff")).toBe(true);
+    expect(below.groups[0].vaults).toHaveLength(1);
+    expect(hasWarning(below.warnings, "cliff")).toBe(false);
+    expect(hasWarning(below.warnings, "reorder")).toBe(false);
+    expect(hasWarning(below.warnings, "urgent")).toBe(true);
+    expect(below.optimalVaultOrder).toEqual(above.optimalVaultOrder);
+  });
+
+  // Every vault goes in either order here, so "reordering will fix this" and "no
+  // combination covers the target" would both be false.
+  it("warns of the cliff without a reorder when the gapped first event takes every vault", () => {
+    const below = calculate(
+      makeParams([v(0.1), v(0.1), v(0.8)], {
+        totalDebtUsd: 100_000,
+        btcPrice: 90_000,
+      }),
+    );
+
+    expect(below.groups[0].vaults).toHaveLength(3);
+    expect(getWarning(below.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.gappedSuggestion(3),
+    );
+  });
+
+  it("warns of the cliff the same way on two vaults when both go", () => {
+    const below = calculate(
+      makeParams([v(0.3), v(0.7)], { totalDebtUsd: 100_000, btcPrice: 90_000 }),
+    );
+
+    expect(below.groups[0].vaults).toHaveLength(2);
+    expect(getWarning(below.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.gappedSuggestion(2),
+    );
+    expect(hasWarning(below.warnings, "reorder")).toBe(false);
+  });
+
+  it("keeps the add-a-vault advice on a single vault below the trigger", () => {
+    const below = calculate(
+      makeParams([v(1)], { totalDebtUsd: 100_000, btcPrice: 90_000 }),
+    );
+
+    expect(getWarning(below.warnings, "cliff")?.suggestion).not.toBe(
+      COPY.liquidationWarnings.cliff.gappedSuggestion(1),
+    );
+    expect(below.suggestedNewVaultBtc).not.toBeNull();
+  });
+
+  it("still warns that the position is liquidatable at the first trigger", () => {
+    const { warnings, groups } = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice: 50_000 }),
+    );
+
+    expect(groups[0].distancePct).toBeCloseTo(
+      ((FIRST_TRIGGER - 50_000) / 50_000) * 100,
+      6,
+    );
+    expect(getWarning(warnings, "urgent")?.title).toBe(
+      COPY.liquidationWarnings.urgent.liquidatableTitle,
+    );
+  });
+
+  it.each([0, Number.NaN, Number.POSITIVE_INFINITY])(
+    "doesn't throw at a price of %s",
+    (btcPrice) => {
+      const { groups } = calculate(
+        makeParams([v(0.5), v(0.5), v(1)], { ...GAP_PARAMS, btcPrice }),
+      );
+
+      expect(groups.length).toBeGreaterThan(0);
+    },
+  );
+});
+
+describe("withDistancesAt", () => {
+  it("moves only the distances, leaving every event priced as it was", () => {
+    const result = calculate(
+      makeParams([v(0.5), v(0.5), v(1)], {
+        totalDebtUsd: 100_000,
+        CF: 0.75,
+        THF: 1.08,
+        LB: 1.05,
+        expectedHF: 0.99,
+        btcPrice: 90_000,
+      }),
+    );
+
+    const read = withDistancesAt(result, 50_000);
+
+    expect(read.groups).toEqual(
+      result.groups.map((group) => ({
+        ...group,
+        distancePct: ((group.liquidationPrice - 50_000) / 50_000) * 100,
+      })),
+    );
+    expect(read.warnings).toBe(result.warnings);
   });
 });

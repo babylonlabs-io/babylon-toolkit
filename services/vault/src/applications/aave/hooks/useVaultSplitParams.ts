@@ -38,6 +38,7 @@
 import {
   computeSplitLiquidationBonus,
   EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  type LiquidationBonusCurve,
   SPLIT_TARGET_HEALTH_FACTOR,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,6 +74,12 @@ export interface VaultSplitParams {
    * against a bonus the protocol would not apply.
    */
   LB: number | null;
+  /**
+   * The Spoke's bonus curve for this position, for a liquidation at a health
+   * factor other than `expectedHF`. Null exactly when `LB` is: the same check
+   * accepts both.
+   */
+  bonusCurve: LiquidationBonusCurve | null;
   /** Why `LB` is null, or null when it was computed. Covaries with `LB`. */
   lbUnavailableReason: string | null;
   /** Max liquidation bonus (e.g. 1.0555). Display only. */
@@ -127,12 +134,18 @@ async function fetchSplitParams(
   // re-reads before every borrow and repay. Throwing here would let a
   // split-sizing input block a repay, which is how a user reduces risk.
   let LB: number | null = null;
+  let bonusCurve: LiquidationBonusCurve | null = null;
   let lbUnavailableReason: string | null = null;
   try {
     LB = computeSplitLiquidationBonus(
       bonusConfig,
       dynamicConfig.maxLiquidationBonus,
     );
+    bonusCurve = {
+      healthFactorForMaxBonus: bonusConfig.healthFactorForMaxBonus,
+      liquidationBonusFactor: bonusConfig.liquidationBonusFactor,
+      maxLiquidationBonus: BigInt(dynamicConfig.maxLiquidationBonus),
+    };
   } catch (error) {
     lbUnavailableReason =
       error instanceof Error ? error.message : String(error);
@@ -143,6 +156,7 @@ async function fetchSplitParams(
     expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
     CF: dynamicConfig.collateralFactor / BPS_SCALE,
     LB,
+    bonusCurve,
     lbUnavailableReason,
     maxLB: dynamicConfig.maxLiquidationBonus / BPS_SCALE,
   };

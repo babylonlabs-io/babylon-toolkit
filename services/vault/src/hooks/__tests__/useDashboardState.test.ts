@@ -137,6 +137,13 @@ function vaultIds(entries: { vaultId: string }[]): string[] {
   return entries.map((e) => e.vaultId);
 }
 
+// A flat bonus: 105% at every health factor.
+const FLAT_BONUS_CURVE = {
+  healthFactorForMaxBonus: 0n,
+  liquidationBonusFactor: 10_000n,
+  maxLiquidationBonus: 10_500n,
+};
+
 describe("useDashboardState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -472,6 +479,7 @@ describe("useDashboardState", () => {
       expectedHF: 0.95,
       CF: 0.8,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     };
@@ -497,6 +505,7 @@ describe("useDashboardState", () => {
       expectedHF: 0.95,
       CF: 0.8,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     };
@@ -556,6 +565,7 @@ describe("useDashboardState", () => {
       expectedHF: 0.95,
       CF: 0.8,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     };
@@ -579,6 +589,7 @@ describe("useDashboardState", () => {
       expectedHF: 0.95,
       CF: 0.8,
       LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
       lbUnavailableReason: null,
       maxLB: 1.05,
     };

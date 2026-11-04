@@ -26,6 +26,7 @@ const CARD: EventCardData = {
   targetSeizure: { amount: "0.40", unit: "BTC" },
   overSeizure: { amount: "0.02", unit: "BTC" },
   collateralLiquidatedLabel: "0.42 BTC",
+  executionPriceLabel: null,
   debtRepaidLabel: "$1,000",
   liquidatorProfitLabel: "$100",
   fairness: {
@@ -39,6 +40,30 @@ const CARD: EventCardData = {
 };
 
 describe("LiquidationEventCard", () => {
+  it("names the price a gapped event's estimates use, and explains it", () => {
+    render(
+      <LiquidationEventCard
+        card={{ ...CARD, executionPriceLabel: "$45,000" }}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.liquidations.events.estimatedAtPrice),
+    ).toBeInTheDocument();
+    expect(screen.getByText("$45,000")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.liquidations.events.estimatedAtPriceTooltip),
+    ).toBeInTheDocument();
+  });
+
+  it("adds no price row to an event priced at its trigger", () => {
+    render(<LiquidationEventCard card={CARD} />);
+
+    expect(
+      screen.queryByText(COPY.liquidations.events.estimatedAtPrice),
+    ).not.toBeInTheDocument();
+  });
+
   it("explains the target and over seizure rows with the design's tooltips", () => {
     render(<LiquidationEventCard card={CARD} />);
 

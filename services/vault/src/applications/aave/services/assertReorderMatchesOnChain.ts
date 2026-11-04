@@ -28,7 +28,10 @@
  *   registry through `assertCollateralAmountsMatchOnChain` instead.
  */
 
-import { getPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import {
+  getPosition,
+  type LiquidationBonusCurve,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address, Hex } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
@@ -58,6 +61,9 @@ export class PositionChangedError extends Error {
  *
  * - CF, LB: from `useVaultSplitParams` (Spoke reads; LB is the Spoke's bonus
  *   curve at `expectedHF`)
+ * - bonusCurve: from `useVaultSplitParams` (Spoke reads). It only prices a
+ *   seizure below its trigger and never changes the optimal order this guard
+ *   compares.
  * - THF, expectedHF: from `useVaultSplitParams`, which takes them from the
  *   SDK's `SPLIT_TARGET_HEALTH_FACTOR` and
  *   `EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION`
@@ -72,6 +78,7 @@ export interface ReorderVerificationContext {
   CF: number;
   THF: number;
   LB: number;
+  bonusCurve: LiquidationBonusCurve;
   expectedHF: number;
   minPeginBtc: number | null;
   btcPrice: number;
@@ -207,6 +214,7 @@ export async function assertOptimalOrderMatchesOnChain(
     CF: ctx.CF,
     THF: ctx.THF,
     LB: ctx.LB,
+    bonusCurve: ctx.bonusCurve,
     expectedHF: ctx.expectedHF,
     minPeginBtc: ctx.minPeginBtc,
   });

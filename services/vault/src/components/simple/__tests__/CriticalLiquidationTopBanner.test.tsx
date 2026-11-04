@@ -37,6 +37,7 @@ function makeResult({
         vaults: [],
         combinedBtc: 1,
         liquidationPrice: 80621,
+        executionPrice: 80621,
         distancePct,
         targetSeizureBtc: 0,
         overSeizureBtc: 0,

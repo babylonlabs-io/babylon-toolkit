@@ -1,4 +1,7 @@
-import type { CascadeVault } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import type {
+  CascadeVault,
+  LiquidationBonusCurve,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 export interface Vault extends CascadeVault {
   name: string;
@@ -8,20 +11,31 @@ export interface LiquidationGroup {
   index: number;
   vaults: Vault[];
   combinedBtc: number;
+  /** The price at which the group's position reaches health factor 1. */
   liquidationPrice: number;
+  /**
+   * The price the group's seizure and repayment are worked out at:
+   * `liquidationPrice`, or the lower market price when BTC is already below
+   * that trigger.
+   */
+  executionPrice: number;
   distancePct: number;
   targetSeizureBtc: number;
   overSeizureBtc: number;
-  /** Last group: liquidator repays ALL debt */
+  /**
+   * Every remaining vault is seized. On the path the liquidator repays all the
+   * debt. After a gap any debt the seized BTC can't cover is written off, so
+   * `debtRepaid` can be less than the debt and `debtRemainingAfter` still 0.
+   */
   isFullLiquidation: boolean;
   /** Aave close-factor portion (fair amount) */
   debtToRepay: number;
   liquidatorProfitUsd: number;
   /** Total debt cleared this group */
   debtRepaid: number;
-  /** Safe groups only: over-seizure converted to debt reduction */
+  /** The part of `debtRepaid` that over-seizure paid for. 0 on a full path group. */
   fairnessDebtRepay: number;
-  /** Full group only: fairness payment to borrower in USD */
+  /** Fairness payment to the borrower in USD, when the debt clears first */
   fairnessPaymentUsd: number;
   debtRemainingAfter: number;
   btcRemainingAfter: number;
@@ -48,6 +62,10 @@ export interface Warning {
 }
 
 export interface CalculatorParams {
+  /**
+   * The market price now. A group whose trigger is above it is seized at this
+   * price, since that liquidation can no longer execute any higher.
+   */
   btcPrice: number;
   totalDebtUsd: number;
   vaults: Vault[];
@@ -56,6 +74,11 @@ export interface CalculatorParams {
   THF: number;
   /** Liquidation bonus at `expectedHF` (`VaultSplitParams.LB`) */
   LB: number;
+  /**
+   * The Spoke's bonus curve (`VaultSplitParams.bonusCurve`). A seizure below
+   * its trigger reads the bonus here, at the health factor before that seizure.
+   */
+  bonusCurve: LiquidationBonusCurve;
   /** Expected health factor at liquidation (`VaultSplitParams.expectedHF`) */
   expectedHF: number;
   /**
@@ -77,7 +100,9 @@ export interface CalculatorResult {
    * The liquidation-optimal vault order the calculator settled on, or `null`
    * when no reorder strictly helps (or under invalid/dust params). Surfaced in
    * the reorder notification as the optimal-order chips and the "Apply Optimal
-   * Order" action, and re-derived by `assertOptimalOrderMatchesOnChain`.
+   * Order" action, unless the first event is already below its trigger, where
+   * the contract would refuse the reorder. Re-derived by
+   * `assertOptimalOrderMatchesOnChain` at every price.
    * (The reference calculator calls this `suggestedVaultOrder`.)
    */
   optimalVaultOrder: Vault[] | null;

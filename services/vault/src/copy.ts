@@ -2731,6 +2731,8 @@ export const COPY = {
     simulatePriceEntryLabel: "Enter BTC price",
     simulateDescription:
       "Simulate BTC price movement and see how your position responds to liquidation risk.",
+    simulationAssumption:
+      "Upcoming events assume BTC falls gradually and each one executes at its Liq Price. A sudden drop is priced lower and can seize more BTCVaults.",
     exploreAction: "Explore",
     // The callout filling the price band above the first liquidation trigger.
     safeZone: {
@@ -2796,6 +2798,9 @@ export const COPY = {
         "An additional portion of the collateral value that the liquidator may seize due to the nature of indivisible BTCVaults.",
       estimatedLiquidationSection: "Estimated Liquidation",
       collateralLiquidated: "BTCVault",
+      estimatedAtPrice: "Estimated at BTC price",
+      estimatedAtPriceTooltip:
+        "BTC is already below this event's Liq Price, so these estimates use the live price. If no BTCVault is left and debt remains, the rest is written off.",
       debtRepaid: "Debt Repaid",
       liquidatorProfit: "Liquidator profit",
       fairnessDebtRepaid: "Fairness Debt Repaid",
@@ -3217,11 +3222,14 @@ export const COPY = {
       approachingSuggestion:
         "Add collateral or repay part of the debt to reduce your liquidation risk.",
     },
-    // Standalone reorder suggestion (not a risk warning). Surfaced whenever the
-    // engine finds a safer liquidation order than the current on-chain order.
-    // Single reorder notification (matches Figma 6502-111184). Emitted whenever
-    // the calculator finds a strictly safer order than the current one; the
-    // suggested order is rendered as chips from `optimalVaultOrder`, not text.
+    // Standalone reorder suggestion (not a risk warning). Surfaced when the
+    // engine finds a safer liquidation order than the current on-chain order,
+    // unless BTC is already below the first event's Liq Price, where the contract
+    // would refuse the reorder.
+    // Single reorder notification (matches Figma 6502-111184). Emitted when the
+    // calculator finds a strictly safer order than the current one, with the same
+    // exception; the suggested order is rendered as chips from
+    // `optimalVaultOrder`, not text.
     reorder: {
       title: "Reorder BTCVaults to lose less",
       detail:
@@ -3262,6 +3270,11 @@ export const COPY = {
         suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
           `Neither BTCVault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a new BTCVault.`,
       },
+      // Several BTCVaults, with BTC already below the first event's Liq Price. The
+      // contract refuses a reorder there, so the structural suggestions above and
+      // below do not apply.
+      gappedSuggestion: (nVaults: number) =>
+        `All ${nVaults} BTCVaults go in the first liquidation event at this BTC price. Add collateral or repay part of the debt to keep this position safe.`,
       multiVault: {
         suggestion: (
           nVaults: number,

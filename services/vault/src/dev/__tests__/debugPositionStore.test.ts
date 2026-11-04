@@ -1,3 +1,4 @@
+import { computeLiquidationBonusBps } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -12,6 +13,7 @@ import {
   DEBUG_FORCED_MAX_VAULTS,
   DEBUG_HEALTH_FACTORS,
   DEBUG_PRESETS,
+  flatBonusCurve,
   makeDefaultDebugParams,
   resetDebugManualParams,
   setDebugBorrowCapacityStateOverride,
@@ -29,6 +31,26 @@ import {
   useDebugProtocolStatusOverride,
   useDebugSimulateStalePrice,
 } from "../debugPositionStore";
+
+describe("flatBonusCurve", () => {
+  it("gives a hand-entered bonus at every health factor", () => {
+    const curve = flatBonusCurve(1.1);
+
+    expect(computeLiquidationBonusBps(curve, 0n)).toBe(11_000n);
+    expect(computeLiquidationBonusBps(curve, 500_000_000_000_000_000n)).toBe(
+      11_000n,
+    );
+    expect(computeLiquidationBonusBps(curve, 999_000_000_000_000_000n)).toBe(
+      11_000n,
+    );
+  });
+
+  it("holds a bonus under 1 at 1, so typing one can't take the page down", () => {
+    expect(
+      computeLiquidationBonusBps(flatBonusCurve(0.5), 500_000_000_000_000_000n),
+    ).toBe(10_000n);
+  });
+});
 
 describe("debugPositionStore", () => {
   // Reset through the same setters production uses — the store is a module
