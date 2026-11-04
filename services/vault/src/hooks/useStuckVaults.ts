@@ -198,6 +198,40 @@ async function readOpenVerifiedVaults(
 }
 
 /**
+ * One Verified vault's protocol record and PegIn txid, or null if either cannot
+ * be had. Read one vault at a time, at the walk's block: the batch read rejects
+ * whole on any failed or empty record, and a record that keeps failing must cost
+ * its own vault, never the exits of the others.
+ */
+async function readStuckCandidate(
+  vault: VerifiedVault,
+  block: bigint,
+  client: QueryClient,
+): Promise<StuckCandidate | null> {
+  let protocol: VaultProtocolInfo;
+  try {
+    [protocol] = await getVaultRegistryReader().getProtocolInfoBatch(
+      [vault.id],
+      block,
+    );
+  } catch (error) {
+    logger.warn("Stuck-state protocol record read failed", {
+      category: "activation",
+      vaultId: shortId(vault.id),
+      cause: String(error),
+    });
+    return null;
+  }
+  try {
+    const peginTxHash = calculateBtcTxHash(protocol.depositorSignedPeginTx);
+    return { ...vault, protocol, peginTxHash };
+  } catch (error) {
+    reportRefusal(client, vault.id, { error: String(error) });
+    return null;
+  }
+}
+
+/**
  * One read of the depositor's stuck vaults. Never rejects: this query is mounted
  * app-wide, and a rejection reaches the global `QueryCache.onError` ->
  * `logger.error` -> `captureException` on every poll of an outage.
@@ -233,23 +267,12 @@ async function readStuckVaults(
     );
     if (verified.length === 0) return EMPTY_STUCK_VAULTS;
 
-    const protocols = await reader.getProtocolInfoBatch(
-      verified.map((vault) => vault.id),
-      block,
-    );
+    const candidates = (
+      await Promise.all(
+        verified.map((vault) => readStuckCandidate(vault, block, client)),
+      )
+    ).filter((candidate): candidate is StuckCandidate => candidate !== null);
     const apiUrl = getMempoolApiUrl();
-
-    // A malformed record costs its own vault, never the others'.
-    const candidates = verified.flatMap((vault, index): StuckCandidate[] => {
-      const protocol = protocols[index];
-      try {
-        const peginTxHash = calculateBtcTxHash(protocol.depositorSignedPeginTx);
-        return [{ ...vault, protocol, peginTxHash }];
-      } catch (error) {
-        reportRefusal(client, vault.id, { error: String(error) });
-        return [];
-      }
-    });
 
     const carried = new Map<string, StuckVault>();
     const carryForward = (candidate: StuckCandidate, cause: unknown): void => {

@@ -513,6 +513,32 @@ describe("useStuckVaults", () => {
     );
   });
 
+  it("warns about a failed protocol record read and still reports the vault it could read, at the walk's block", async () => {
+    chainHolds(
+      new Map([
+        [VAULT_A, { status: OnChainBtcVaultStatus.VERIFIED }],
+        [VAULT_B, { status: OnChainBtcVaultStatus.VERIFIED }],
+      ]),
+    );
+    mockGetProtocolInfoBatch.mockImplementation(async (ids: Hex[]) => {
+      if (ids.includes(VAULT_B)) throw new Error("record empty");
+      return ids.map(protocolInfoOf);
+    });
+
+    const { result } = renderStuckVaults();
+
+    await waitFor(() => expect(result.current.has(VAULT_A)).toBe(true));
+    expect(result.current.has(VAULT_B)).toBe(false);
+    expect(mockGetProtocolInfoBatch).toHaveBeenCalledWith(
+      [VAULT_A],
+      PINNED_BLOCK,
+    );
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "Stuck-state protocol record read failed",
+      expect.objectContaining({ cause: "Error: record empty" }),
+    );
+  });
+
   it("does not report a proven vault whose latest status read fails, and warns about it", async () => {
     chainHolds(
       new Map([[VAULT_A, { status: OnChainBtcVaultStatus.VERIFIED }]]),
