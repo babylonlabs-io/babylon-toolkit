@@ -23,7 +23,12 @@ import { describe, expect, it } from "vitest";
 
 import { buildRecordedChain } from "../replay/chain";
 import { RECORDED_DEPLOYMENT, RECORDED_DEPOSITOR } from "../replay/contracts";
-import { isDroppedHost, loadRecordedRun } from "../replay/recording";
+import {
+  isDroppedHost,
+  loadRecordedRun,
+  type RecordedRun,
+} from "../replay/recording";
+import { buildSupplements } from "../replay/supplements";
 
 const MULTICALL3_ABI = parseAbi([
   "struct Call3 { address target; bool allowFailure; bytes callData; }",
@@ -122,6 +127,41 @@ describe("loadRecordedRun", () => {
     expect(() => loadRecordedRun(undefined, "no-such-step")).toThrow(
       /no exchange recorded during step "no-such-step"/,
     );
+  });
+});
+
+describe("buildSupplements", () => {
+  function registryListSupplements(queryName: string) {
+    const run = {
+      byBackend: new Map([
+        [
+          "graphql",
+          [
+            {
+              reqBody: JSON.stringify({
+                query: `query ${queryName}($depositor: String!) { vaults }`,
+                variables: { depositor: RECORDED_DEPOSITOR.ETH_ADDRESS },
+              }),
+              resBody: JSON.stringify({ data: { vaults: { items: [] } } }),
+            },
+          ],
+        ],
+      ]),
+    } as unknown as RecordedRun;
+    return buildSupplements(run, () => null).filter(
+      (supplement) =>
+        supplement.target === RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+    );
+  }
+
+  it("answers the registry's list as empty from an empty first page of the indexer's", () => {
+    expect(
+      registryListSupplements("GetVaultsByDepositorFirstPage"),
+    ).toHaveLength(1);
+  });
+
+  it("does not answer the registry's list from an empty next page, which only a depositor with vaults has", () => {
+    expect(registryListSupplements("GetVaultsByDepositorNextPage")).toEqual([]);
   });
 });
 
@@ -280,6 +320,49 @@ describe("buildRecordedChain", () => {
       },
     ]);
     expect(chain.unanswered).toEqual([]);
+  });
+
+  it("records the block parameter each stated ask arrived with, on a direct call and inside a batch", () => {
+    const allowedToDeposit = encodeFunctionData({
+      abi: parseAbi([
+        "function allowedToDeposit(address vaultReceiver, uint256 nVaultsToDeposit, uint256 amountToDeposit) view returns (bool)",
+      ]),
+      args: [RECORDED_DEPOSITOR.ETH_ADDRESS, 1n, 100_000n],
+    });
+    const chain = buildRecordedChain(loadRecordedRun(), [
+      {
+        target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+        selector: allowedToDeposit.slice(0, 10) as Hex,
+        answer: () => "0x",
+      },
+    ]);
+
+    chain.answerCall(
+      RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+      allowedToDeposit,
+      "0x3e8",
+    );
+    chain.answerMulticall(
+      encodeFunctionData({
+        abi: MULTICALL3_ABI,
+        functionName: "aggregate3",
+        args: [
+          [
+            {
+              target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+              allowFailure: true,
+              callData: allowedToDeposit,
+            },
+          ],
+        ],
+      }),
+      "latest",
+    );
+
+    expect(chain.statedAsks.map((ask) => ask.blockTag)).toEqual([
+      "0x3e8",
+      "latest",
+    ]);
   });
 
   it("keeps a stated answer to the view that states it", () => {

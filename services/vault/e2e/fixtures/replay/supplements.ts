@@ -287,7 +287,12 @@ function depositorVaultIdsSupplements(run: RecordedRun): Supplement[] {
       variables?: { depositor?: Hex };
     }>(entry.reqBody);
     const depositor = request?.variables?.depositor;
-    if (!depositor || !request?.query?.includes("GetVaultsByDepositor")) {
+    // The first page only: a next page exists only for a depositor with vaults,
+    // so an empty one says nothing about the depositor's list.
+    if (
+      !depositor ||
+      !request?.query?.includes("GetVaultsByDepositorFirstPage")
+    ) {
       return [];
     }
     const items = parseJson<RecordedVaultList>(entry.resBody)?.data?.vaults
