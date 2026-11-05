@@ -154,10 +154,28 @@ describe("buildSupplements", () => {
     );
   }
 
-  it("answers the registry's list as empty from an empty first page of the indexer's", () => {
+  it("answers the registry's list as empty, for the recorded depositor, from an empty first page of the indexer's", () => {
+    const abi = parseAbi([
+      "function getDepositorVaultIds(address depositor) view returns (bytes32[] vaultIds)",
+    ]);
+    const functionName = "getDepositorVaultIds";
+
+    const supplements = registryListSupplements(
+      "GetVaultsByDepositorFirstPage",
+    );
+
+    expect(supplements).toHaveLength(1);
+    const [{ callData, returnData }] = supplements;
+    expect(callData).toBe(
+      encodeFunctionData({
+        abi,
+        functionName,
+        args: [RECORDED_DEPOSITOR.ETH_ADDRESS],
+      }),
+    );
     expect(
-      registryListSupplements("GetVaultsByDepositorFirstPage"),
-    ).toHaveLength(1);
+      decodeFunctionResult({ abi, functionName, data: returnData }),
+    ).toEqual([]);
   });
 
   it("does not answer the registry's list from an empty next page, which only a depositor with vaults has", () => {

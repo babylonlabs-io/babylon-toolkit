@@ -48,6 +48,7 @@ import {
   provePeginSpendsHtlc,
 } from "@/clients/btc/outspend";
 import { getDepositorVaultIdsFromChain } from "@/clients/eth-contract/btc-vault-registry/depositorVaultIds";
+import { ethClient } from "@/clients/eth-contract/client";
 import { resolvePinnedReadBlock } from "@/clients/eth-contract/pinnedReadBlock";
 import {
   getProtocolParamsReader,
@@ -333,11 +334,31 @@ async function readStuckVaults(
       ...proven.filter((vault): vault is StuckVault => vault !== null),
       ...carried.values(),
     ];
-    const stillVerified = await Promise.all(
+    if (results.length === 0) return EMPTY_STUCK_VAULTS;
+
+    // The walk read the deadline at the pinned block, behind the head and before
+    // the Bitcoin reads, and past it the contract rejects the exit. A row can still
+    // outlive the deadline by one poll.
+    //
+    // The head as reported, with no lag added: a head behind the chain keeps the
+    // row a little longer, which costs a rejected click, where adding lag could
+    // hide an exit that still works. Not `readHeadBlock`, which throws on a slow
+    // device clock, and that would hide the exit too.
+    const head = await ethClient
+      .getPublicClient()
+      .getBlockNumber({ cacheTime: 0 });
+    const stillOpen = await Promise.all(
       results.map(async (vault) => {
         try {
           const latest = await reader.getVaultBasicInfo(vault.id);
-          return latest.status === OnChainBtcVaultStatus.VERIFIED;
+          return (
+            latest.status === OnChainBtcVaultStatus.VERIFIED &&
+            !isActivationDeadlinePassedOnChain({
+              currentBlock: head,
+              createdAtBlock: latest.createdAt,
+              pegInActivationTimeout,
+            })
+          );
         } catch (error) {
           logger.warn("Stuck-state latest status read failed", {
             category: "activation",
@@ -349,7 +370,7 @@ async function readStuckVaults(
       }),
     );
 
-    const stuck = results.filter((_, index) => stillVerified[index]);
+    const stuck = results.filter((_, index) => stillOpen[index]);
     return stuck.length === 0
       ? EMPTY_STUCK_VAULTS
       : new Map(

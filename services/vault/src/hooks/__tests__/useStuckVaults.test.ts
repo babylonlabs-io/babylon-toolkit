@@ -47,6 +47,13 @@ vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
   resolvePinnedReadBlock: mockResolvePinnedReadBlock,
 }));
 
+const mockGetBlockNumber = vi.hoisted(() => vi.fn());
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: () => ({ getBlockNumber: mockGetBlockNumber }),
+  },
+}));
+
 const mockFetchHtlcSpend = vi.hoisted(() => vi.fn());
 const mockProvePeginSpendsHtlc = vi.hoisted(() => vi.fn());
 vi.mock("@/clients/btc/outspend", async (importOriginal) => ({
@@ -222,6 +229,7 @@ async function polled(queryClient: QueryClient) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockResolvePinnedReadBlock.mockResolvedValue(PINNED_BLOCK);
+  mockGetBlockNumber.mockResolvedValue(PINNED_BLOCK + 2n);
   mockGetPegInConfiguration.mockResolvedValue({
     pegInActivationTimeout: ACTIVATION_TIMEOUT,
   });
@@ -387,6 +395,44 @@ describe("useStuckVaults", () => {
 
     expect(result.current.size).toBe(0);
     expect(mockFetchHtlcSpend).not.toHaveBeenCalled();
+  });
+
+  it("does not report a vault whose deadline has passed at the head though not at the pinned block", async () => {
+    chainHolds(
+      new Map([
+        [
+          VAULT_A,
+          {
+            status: OnChainBtcVaultStatus.VERIFIED,
+            createdAt: PINNED_BLOCK - ACTIVATION_TIMEOUT,
+          },
+        ],
+      ]),
+    );
+    mockGetBlockNumber.mockResolvedValue(PINNED_BLOCK + 1n);
+
+    const { result, queryClient } = renderStuckVaults();
+    await settled(queryClient);
+
+    expect(mockProvePeginSpendsHtlc).toHaveBeenCalledTimes(1);
+    expect(result.current.size).toBe(0);
+  });
+
+  it("does not report a proven vault when the head read fails, and warns about it", async () => {
+    chainHolds(
+      new Map([[VAULT_A, { status: OnChainBtcVaultStatus.VERIFIED }]]),
+    );
+    mockGetBlockNumber.mockRejectedValue(new Error("node hiccup"));
+
+    const { result, queryClient } = renderStuckVaults();
+    await settled(queryClient);
+
+    expect(mockProvePeginSpendsHtlc).toHaveBeenCalledTimes(1);
+    expect(result.current.size).toBe(0);
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "Stuck-vault chain read failed",
+      expect.objectContaining({ cause: "Error: node hiccup" }),
+    );
   });
 
   it("stops walking the list at the first vault past its deadline, since every older one is too", async () => {

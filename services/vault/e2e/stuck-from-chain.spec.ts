@@ -58,6 +58,8 @@ const VAULT_PROVIDER = "0x00000000000000000000000000000000000000a1";
 const DEPOSITOR_BTC_PUBKEY =
   `0x${RECORDED_DEPOSITOR.BTC_PUBLIC_KEY.slice(2)}` as Hex;
 const AMOUNT_SATS = 1_000_000n;
+/** `AMOUNT_SATS` as a vault's row shows it, in any of the page's lists. */
+const AMOUNT_LABEL = "0.01 sBTC";
 
 const CHAIN_HEAD = 50_000_000n;
 /** Registered just now, so no recorded timeout has elapsed. */
@@ -381,8 +383,10 @@ test.describe("a stuck vault's exit comes from chain state", () => {
       });
 
       await expectExitOffered(page);
-      // One row: the chain's replaced the indexer's rather than joining it.
-      await expect(page.getByTestId(PENDING_ROW_TEST_ID)).toHaveCount(1);
+      // One row: the chain's replaced the indexer's rather than joining it. Counted
+      // across the page, because a leftover Redeemed row renders under Inactive
+      // Vaults, outside the pending list.
+      await expect(page.getByText(AMOUNT_LABEL)).toHaveCount(1);
     });
   }
 
