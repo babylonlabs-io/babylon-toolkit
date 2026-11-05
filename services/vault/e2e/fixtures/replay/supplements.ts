@@ -279,6 +279,10 @@ interface RecordedVaultList {
  * The stuck-vault poll asks the registry for the depositor's vaults. The recording
  * ends before any deposit exists: it holds the indexer's empty list for the same
  * depositor, and the registry's list is the same set.
+ *
+ * That holds for the recording alone. A spec that replaces the indexer's rows
+ * still gets this empty list, so one that exercises the stuck path must state the
+ * registry's list itself, or the poll finds nothing and the spec tests nothing.
  */
 function depositorVaultIdsSupplements(run: RecordedRun): Supplement[] {
   return (run.byBackend.get("graphql") ?? []).flatMap((entry) => {
@@ -313,7 +317,8 @@ function depositorVaultIdsSupplements(run: RecordedRun): Supplement[] {
         }),
         because:
           "the recorded GetVaultsByDepositorFirstPage response lists no vaults " +
-          "for this depositor, and the registry's list is the same set",
+          "for this depositor, and in the recording the registry's list is the " +
+          "same set",
       },
     ];
   });

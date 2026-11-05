@@ -64,23 +64,52 @@ function makeStuckVault(id: Hex = VAULT_ID): StuckVault {
   };
 }
 
-/** An indexer row wrong in every field that could filter the vault out. */
+/**
+ * An indexer row wrong in every field a stuck row could carry, so a field copied
+ * from it shows up as a difference from the chain-built row.
+ */
 function makeLyingRow(overrides: Partial<VaultActivity> = {}): VaultActivity {
   return {
     id: VAULT_ID,
     collateral: { amount: "99", symbol: "BTC" },
     providers: [{ id: "0x00000000000000000000000000000000000000ff" }],
+    action: { label: "indexer says act", onClick: () => {} },
     contractStatus: ContractStatus.REDEEMED,
+    expiryUnreported: true,
+    stuckOnChain: false,
     displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+    isPending: true,
+    pendingMessage: "indexer says pending",
+    position: {
+      collateral: 1n,
+      borrowShares: 1n,
+      borrowed: 1n,
+      borrowAssets: 1n,
+    },
+    borrowingData: {
+      borrowedAmount: "1 USDC",
+      borrowedSymbol: "USDC",
+      currentLTV: 1,
+      maxLTV: 1,
+    },
+    marketData: { btcPriceUSD: 1, lltvPercent: 1 },
+    positionDate: new Date(INDEXED_TIMESTAMP),
+    marketId: "indexer-market",
+    applicationEntryPoint: "0x00000000000000000000000000000000000000fe",
     depositorBtcPubkey: `0x${"99".repeat(32)}`,
+    depositorSignedPeginTx: "0xbad",
     peginTxHash: `0x${"98".repeat(32)}` as Hex,
     prePeginTxHash: `0x${"97".repeat(32)}` as Hex,
     htlcVout: 9,
+    constructionIndex: 9,
     unsignedPrePeginTx: "0xbad",
+    depositorPayoutBtcAddress: `0x${"96".repeat(32)}` as Hex,
     depositorWotsPkHash: "0xbad",
+    offchainParamsVersion: 99,
     isInUse: true,
     expiredAt: 123,
     expirationReason: "ack_timeout",
+    redeemReason: { kind: "cap_exceeded" },
     timestamp: INDEXED_TIMESTAMP,
     ...overrides,
   };
@@ -111,17 +140,10 @@ describe("buildStuckActivity", () => {
   it("keeps nothing but the timestamp from a row the indexer got wrong", () => {
     const row = buildStuckActivity(makeStuckVault(), makeLyingRow());
 
-    expect(row).toEqual(
-      buildStuckActivity(makeStuckVault(), {
-        ...makeLyingRow(),
-        contractStatus: ContractStatus.PENDING,
-        htlcVout: 5,
-      }),
-    );
-    expect(row.timestamp).toBe(INDEXED_TIMESTAMP);
-    expect(row.expiredAt).toBeUndefined();
-    expect(row.expirationReason).toBeUndefined();
-    expect(row.isInUse).toBe(false);
+    expect(row).toEqual({
+      ...buildStuckActivity(makeStuckVault(), undefined),
+      timestamp: INDEXED_TIMESTAMP,
+    });
   });
 });
 
