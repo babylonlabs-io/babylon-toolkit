@@ -19,17 +19,20 @@ vi.mock("@/config/env", () => ({
 const mockGetVaultBasicInfo = vi.fn();
 const mockGetVaultData = vi.fn();
 const mockGetMaxAcceptableCommissionBpsBatch = vi.fn();
+const mockGetRegistrationRecordsAtBlock = vi.fn();
 vi.mock("../../sdk-readers", () => ({
   getVaultRegistryReader: () => ({
     getVaultBasicInfo: mockGetVaultBasicInfo,
     getVaultData: mockGetVaultData,
     getMaxAcceptableCommissionBpsBatch: mockGetMaxAcceptableCommissionBpsBatch,
+    getRegistrationRecordsAtBlock: mockGetRegistrationRecordsAtBlock,
   }),
 }));
 
 import {
   getBtcVaultBasicInfoFromChain,
   getMaxAcceptableCommissionBpsFromChainWithGrace,
+  getRegisteredPrePeginTxFromChainWithGrace,
   getVaultFromChain,
   getVaultFromChainWithGrace,
 } from "../query";
@@ -320,6 +323,104 @@ describe("getMaxAcceptableCommissionBpsFromChainWithGrace", () => {
     await assertion;
 
     expect(mockGetMaxAcceptableCommissionBpsBatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getRegisteredPrePeginTxFromChainWithGrace", () => {
+  const REGISTRATION_BLOCK = 11_561_176n;
+  const TARGET_TX = "0xaaaa" as Hex;
+  const SAME_BLOCK_STRANGER_TX = "0xbbbb" as Hex;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns the target's transaction from the block's registrations", async () => {
+    mockGetRegistrationRecordsAtBlock.mockResolvedValue([
+      { vaultId: VAULT_B, unsignedPrePeginTx: SAME_BLOCK_STRANGER_TX },
+      { vaultId: VAULT_A, unsignedPrePeginTx: TARGET_TX },
+    ]);
+
+    await expect(
+      getRegisteredPrePeginTxFromChainWithGrace(VAULT_A, REGISTRATION_BLOCK),
+    ).resolves.toBe(TARGET_TX);
+    expect(mockGetRegistrationRecordsAtBlock).toHaveBeenCalledWith(
+      REGISTRATION_BLOCK,
+    );
+  });
+
+  it("retries a node that serves no registration logs for the block", async () => {
+    mockGetRegistrationRecordsAtBlock
+      .mockRejectedValueOnce(
+        new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+      )
+      .mockResolvedValue([{ vaultId: VAULT_A, unsignedPrePeginTx: TARGET_TX }]);
+
+    const promise = getRegisteredPrePeginTxFromChainWithGrace(
+      VAULT_A,
+      REGISTRATION_BLOCK,
+    );
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBe(TARGET_TX);
+    expect(mockGetRegistrationRecordsAtBlock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a node whose answer lacks the target's log", async () => {
+    mockGetRegistrationRecordsAtBlock
+      .mockResolvedValueOnce([
+        { vaultId: VAULT_B, unsignedPrePeginTx: SAME_BLOCK_STRANGER_TX },
+      ])
+      .mockResolvedValue([{ vaultId: VAULT_A, unsignedPrePeginTx: TARGET_TX }]);
+
+    const promise = getRegisteredPrePeginTxFromChainWithGrace(
+      VAULT_A,
+      REGISTRATION_BLOCK,
+    );
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBe(TARGET_TX);
+    expect(mockGetRegistrationRecordsAtBlock).toHaveBeenCalledTimes(2);
+  });
+
+  // Two logs for one vault mean an inconsistent node, which the reader refuses;
+  // retrying that would only delay the refund's other source.
+  it("propagates any other error on the first attempt", async () => {
+    mockGetRegistrationRecordsAtBlock.mockRejectedValue(
+      new Error(
+        "Expected one PegInSubmitted log for vault, found more than one",
+      ),
+    );
+
+    await expect(
+      getRegisteredPrePeginTxFromChainWithGrace(VAULT_A, REGISTRATION_BLOCK),
+    ).rejects.toThrow(/found more than one/);
+    expect(mockGetRegistrationRecordsAtBlock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops retrying and rejects with the abort reason when the caller aborts during the backoff", async () => {
+    mockGetRegistrationRecordsAtBlock.mockRejectedValue(
+      new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+    );
+    const controller = new AbortController();
+
+    const promise = getRegisteredPrePeginTxFromChainWithGrace(
+      VAULT_A,
+      REGISTRATION_BLOCK,
+      controller.signal,
+    );
+    const assertion = expect(promise).rejects.toThrow(/race settled/);
+    // First attempt has failed and the 500ms backoff is pending.
+    await vi.advanceTimersByTimeAsync(100);
+    controller.abort(new Error("race settled"));
+    await assertion;
+
+    expect(mockGetRegistrationRecordsAtBlock).toHaveBeenCalledTimes(1);
   });
 });
 

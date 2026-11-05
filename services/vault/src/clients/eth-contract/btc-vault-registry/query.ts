@@ -8,6 +8,7 @@
 
 import { assertValidVaultCoreVersion } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
+  findRegistrationRecord,
   isRegistrationLogsUnavailableError,
   type KeyEpochs,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -188,8 +189,7 @@ export async function getVaultKeyEpochsFromChain(
 }
 
 /**
- * Backoff schedule (ms) for
- * {@link getMaxAcceptableCommissionBpsFromChainWithGrace}: eight attempts,
+ * Backoff schedule (ms) for {@link withRegistrationLogsGrace}: eight attempts,
  * ~11s. A load-balanced public node answers a single-block `eth_getLogs` with
  * `[]` when the backend it routed to lacks the block — measured 2026-09-10 on
  * the configured Sepolia node at 40-70% of answers across samples, with
@@ -203,10 +203,7 @@ const REGISTRATION_LOGS_RETRY_DELAYS_MS = [
 ];
 
 /**
- * Read the depositor's commission ceilings of the vaults registered in block
- * `createdAt`, from their `PegInSubmitted` logs, in `vaultIds` order. The
- * contract discards the value after bound-checking it, so the log is its only
- * on-chain source.
+ * Run a read of a block's `PegInSubmitted` logs on the schedule above.
  *
  * Retries **only** the SDK's typed registration-logs error, which covers two
  * shapes: no registration logs for the block at all, and an answer without the
@@ -218,17 +215,13 @@ const REGISTRATION_LOGS_RETRY_DELAYS_MS = [
  * message surfaces. Every other error propagates on the first attempt.
  * Aborting `signal` ends a pending backoff with its reason.
  */
-export async function getMaxAcceptableCommissionBpsFromChainWithGrace(
-  vaultIds: readonly Hex[],
-  createdAt: bigint,
+async function withRegistrationLogsGrace<T>(
+  read: () => Promise<T>,
   signal?: AbortSignal,
-): Promise<number[]> {
+): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await getVaultRegistryReader().getMaxAcceptableCommissionBpsBatch(
-        vaultIds,
-        createdAt,
-      );
+      return await read();
     } catch (err) {
       if (
         !isRegistrationLogsUnavailableError(err) ||
@@ -239,6 +232,49 @@ export async function getMaxAcceptableCommissionBpsFromChainWithGrace(
       await waitOrAbort(REGISTRATION_LOGS_RETRY_DELAYS_MS[attempt], signal);
     }
   }
+}
+
+/**
+ * Read the depositor's commission ceilings of the vaults registered in block
+ * `createdAt`, from their `PegInSubmitted` logs, in `vaultIds` order. The
+ * contract discards the value after bound-checking it, so the log is its only
+ * on-chain source. Retries as {@link withRegistrationLogsGrace}.
+ */
+export async function getMaxAcceptableCommissionBpsFromChainWithGrace(
+  vaultIds: readonly Hex[],
+  createdAt: bigint,
+  signal?: AbortSignal,
+): Promise<number[]> {
+  return withRegistrationLogsGrace(
+    () =>
+      getVaultRegistryReader().getMaxAcceptableCommissionBpsBatch(
+        vaultIds,
+        createdAt,
+      ),
+    signal,
+  );
+}
+
+/**
+ * Read the Pre-PegIn transaction a vault registered with, from its
+ * `PegInSubmitted` log in block `createdAt`. The contract stores only the
+ * transaction's hash (vault-contracts-aave-v4@d240ec03:src/protocol/lib/PeginLogic.sol:558),
+ * so this log is its one Ethereum source, and it holds a Pre-PegIn that never
+ * reached Bitcoin too. Returned as the log carries it, so the caller
+ * authenticates it against the vault's `prePeginTxHash` before use. Retries as
+ * {@link withRegistrationLogsGrace}.
+ */
+export async function getRegisteredPrePeginTxFromChainWithGrace(
+  vaultId: Hex,
+  createdAt: bigint,
+  signal?: AbortSignal,
+): Promise<Hex> {
+  return withRegistrationLogsGrace(async () => {
+    const records =
+      await getVaultRegistryReader().getRegistrationRecordsAtBlock(createdAt);
+    return findRegistrationRecord(records, vaultId, createdAt)
+      .unsignedPrePeginTx;
+  }, signal);
 }
 
 /**

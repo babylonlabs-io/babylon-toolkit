@@ -1555,8 +1555,10 @@ export const COPY = {
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
-      refundHashMismatch: (computedHash: string, chainHash: string) =>
-        `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting refund to prevent potential attack.`,
+      // Neither Bitcoin nor the registration log answered with the vault's
+      // Pre-Pegin, so there is nothing to build the refund from.
+      refundPrePeginTxUnavailable: (prePeginTxHash: string) =>
+        `Couldn't get Pre-Pegin transaction ${prePeginTxHash} from Bitcoin or Ethereum, so the refund can't be built. Nothing has been signed. Try again shortly.`,
       // The refund template places each sibling's HTLC by position, so a gap
       // in the vout vector refuses the refund before anything is signed.
       refundSiblingVectorNonContiguous: (
