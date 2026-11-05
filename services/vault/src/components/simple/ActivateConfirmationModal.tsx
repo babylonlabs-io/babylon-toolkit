@@ -189,9 +189,12 @@ export function ActivateConfirmationModal({
       open={open}
       onClose={isDownloading ? undefined : handleClose}
       className="w-[600px] max-w-full"
-      dialogClassName="!rounded-2xl !bg-background-contrast"
+      dialogClassName={twJoin(
+        "!rounded-2xl !bg-background-contrast",
+        isConfirmSkip && "!border-0",
+      )}
     >
-      {(!isMobile || isDownloading) && (
+      {!isConfirmSkip && (!isMobile || isDownloading) && (
         <div
           className={
             isMobile ? "absolute left-4 top-4 z-10" : "flex justify-end"
@@ -212,7 +215,7 @@ export function ActivateConfirmationModal({
       <DialogBody
         className={twJoin(
           "flex flex-col items-stretch gap-8 text-accent-primary",
-          isMobile && "px-6 pb-2 pt-10",
+          isMobile ? "px-6 pb-2 pt-10" : isConfirmSkip && "pt-6",
         )}
       >
         {isDownloading && !dataIncomplete ? (
@@ -245,7 +248,12 @@ export function ActivateConfirmationModal({
                 </svg>
               )
             )}
-            <div className="flex w-full flex-col items-center gap-6">
+            <div
+              className={twJoin(
+                "flex w-full flex-col items-center",
+                !isConfirmSkip && "gap-6",
+              )}
+            >
               <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
                 {dataIncomplete
                   ? COPY.deposit.activateConfirmation.dataIncompleteTitle
@@ -260,7 +268,12 @@ export function ActivateConfirmationModal({
                               .proxyUnreachableTitle
                           : COPY.deposit.activateConfirmation.title}
               </h2>
-              <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
+              <p
+                className={twJoin(
+                  "text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary",
+                  isConfirmSkip && "px-6",
+                )}
+              >
                 {dataIncomplete
                   ? COPY.deposit.activateConfirmation.dataIncompleteBody
                   : downloaded
@@ -333,6 +346,7 @@ export function ActivateConfirmationModal({
               onChange={() => setAcknowledged((v) => !v)}
               variant="default"
               showLabel={false}
+              className="[&>svg>path:first-child]:fill-accent-primary [&>svg>rect]:fill-accent-primary"
             />
             <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
               {COPY.deposit.activateConfirmation.riskAcknowledgement}
@@ -344,7 +358,7 @@ export function ActivateConfirmationModal({
       <DialogFooter
         className={twJoin(
           "flex flex-row gap-4",
-          isDownloading ? "pt-10" : "pt-4",
+          isDownloading ? "pt-10" : isConfirmSkip ? "pt-6" : "pt-4",
           isMobile && "px-6 pb-6",
         )}
       >
@@ -415,7 +429,7 @@ export function ActivateConfirmationModal({
               variant="contained"
               color="secondary"
               size="medium"
-              className="h-10 flex-1 rounded-lg"
+              className="h-10 flex-1 rounded-lg disabled:!opacity-40"
               onClick={onConfirm}
               disabled={!acknowledged || graphMismatch || activationBlocked}
               data-testid="activate-vault-button"
