@@ -322,7 +322,7 @@ async function readStuckVaults(
           carryForward(candidate, proof.cause);
           return null;
         } catch (error) {
-          // A malformed on-chain record proves nothing.
+          // A proof that throws proves nothing, and costs only its own vault.
           reportRefusal(client, candidate.id, { error: String(error) });
           return null;
         }

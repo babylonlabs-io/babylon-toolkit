@@ -488,6 +488,34 @@ describe("useStuckVaults", () => {
     );
   });
 
+  it("gives a proof that throws its own refusal without costing the other vault", async () => {
+    chainHolds(
+      new Map([
+        [VAULT_A, { status: OnChainBtcVaultStatus.VERIFIED }],
+        [VAULT_B, { status: OnChainBtcVaultStatus.VERIFIED }],
+      ]),
+    );
+    mockProvePeginSpendsHtlc.mockImplementation(
+      async (record: { prePeginTxHash: Hex }) => {
+        if (record.prePeginTxHash === VAULT_B) throw new Error("proof threw");
+        return PROVEN;
+      },
+    );
+
+    const { result } = renderStuckVaults();
+
+    await waitFor(() => expect(result.current.has(VAULT_A)).toBe(true));
+    expect(result.current.has(VAULT_B)).toBe(false);
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    expect(mockLoggerEvent).toHaveBeenCalledWith(
+      "activation.stuck_proof.refused",
+      expect.objectContaining({
+        tags: { vaultId: expect.stringContaining("bbbb") },
+        error: "Error: proof threw",
+      }),
+    );
+  });
+
   it("warns about a failed record read and still reports the vaults it could read", async () => {
     chainHolds(
       new Map([
