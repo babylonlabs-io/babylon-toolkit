@@ -100,7 +100,7 @@ jobs:
             {"environment":"vault-devnet","network":"devnet","expected_kind":"test","aws_account":"537927626649"},
             {"environment":"vault-staging-devnet","network":"staging","expected_kind":"test","aws_account":"537927626649"},
             {"environment":"vault-testnet-3","network":"testnet","expected_kind":"test","aws_account":"615368094160","prod":true},
-            {"environment":"vault-real-money-devnet","network":"real-money-devnet","expected_kind":"production","aws_account":"537927626649","role":"gha-s3-frontend-push-real-money-devnet","main_only":true}
+            {"environment":"vault-real-money-devnet","network":"real-money-devnet","expected_kind":"production","aws_account":"537927626649","role":"gha-s3-frontend-push-real-money-devnet","checksum_role":"gha-s3-frontend-push-real-money-devnet","main_only":true}
           ]'
           # "role" names a dedicated AWS role for that environment (default: gha-s3-frontend-push).
           # A "main_only" entry publishes with a role that trusts refs/heads/main alone, so off main
@@ -277,8 +277,6 @@ jobs:
           MATRIX_ENVIRONMENT: ${{ matrix.environment }}
         run: |
           aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}.tar.gz" "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}.tar.gz"
-          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-files-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}-files-checksum.txt"
-          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-global-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}-global-checksum.txt"
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
@@ -289,6 +287,27 @@ jobs:
           MATRIX_ENVIRONMENT: ${{ matrix.environment }}
         run: |
           aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}.tar.gz" "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GIT_TAG}.tar.gz"
+
+      - name: Configure AWS credentials (assume per-account checksum role)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1 https://github.com/aws-actions/configure-aws-credentials/releases/tag/v4.3.1
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/${{ matrix.checksum_role || 'gha-s3-checksum-push' }}
+          role-session-name: gh-babylon-toolkit-vault-checksum-push
+          aws-region: ap-east-1
+
+      - name: Upload checksums to S3 with commit sha
+        env:
+          MATRIX_ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-files-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}-files-checksum.txt"
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-global-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}-global-checksum.txt"
+
+      - name: Upload checksums to S3 with Git Tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GIT_TAG: ${{ github.ref_name }}
+          MATRIX_ENVIRONMENT: ${{ matrix.environment }}
+        run: |
           aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-files-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GIT_TAG}-files-checksum.txt"
           aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-global-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GIT_TAG}-global-checksum.txt"
 
