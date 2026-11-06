@@ -73,6 +73,23 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const HEX_PREFIX = "0x";
+
+/**
+ * Vault ids reach the call sites in more than one form (with or without `0x`,
+ * mixed case). One form keeps a vault's events joinable in PostHog and with
+ * on-chain data.
+ */
+function normalizeVaultId(properties: object): object {
+  const vaultId: unknown = Reflect.get(properties, "vault_id");
+  if (typeof vaultId !== "string") return properties;
+  const lower = vaultId.toLowerCase();
+  return {
+    ...properties,
+    vault_id: lower.startsWith(HEX_PREFIX) ? lower : `${HEX_PREFIX}${lower}`,
+  };
+}
+
 function buildCaptureBody<E extends AnalyticsEventName>(
   config: EnabledAnalyticsConfig,
   event: E,
@@ -89,7 +106,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         timestamp,
         properties: {
           ...getAttribution(),
-          ...properties,
+          ...normalizeVaultId(properties),
           ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),

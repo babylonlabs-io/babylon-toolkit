@@ -127,6 +127,15 @@ describe("trackEvent", () => {
     );
   });
 
+  it("sends every vault id as lowercase 0x-prefixed hex", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "ABCDEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
   it("reports a rejected key as an error once per page load", async () => {
     const send = await freshTrackEvent();
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }));

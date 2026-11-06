@@ -11,6 +11,11 @@
 export const ANALYTICS_EVENT = {
   PAGEVIEW: "$pageview",
   WALLET_CONNECTED: "wallet_connected",
+  DEPOSIT_STARTED: "deposit_started",
+  VAULT_REGISTERED: "vault_registered",
+  DEPOSIT_BROADCAST: "deposit_broadcast",
+  VAULT_ACTIVATED: "vault_activated",
+  DEPOSIT_COMPLETED: "deposit_completed",
 } as const;
 
 export type AnalyticsEventName =
@@ -31,4 +36,13 @@ export interface AnalyticsEventProperties {
     chain: WalletChain;
     restored: boolean;
   };
+  /** Coarse BTC band from `amountBucket`, never the exact amount. */
+  [ANALYTICS_EVENT.DEPOSIT_STARTED]: {
+    amount_bucket: string;
+    vault_count: number;
+  };
+  [ANALYTICS_EVENT.VAULT_REGISTERED]: { vault_id: string };
+  [ANALYTICS_EVENT.DEPOSIT_BROADCAST]: { vault_id: string };
+  [ANALYTICS_EVENT.VAULT_ACTIVATED]: { vault_id: string };
+  [ANALYTICS_EVENT.DEPOSIT_COMPLETED]: { vault_id: string };
 }

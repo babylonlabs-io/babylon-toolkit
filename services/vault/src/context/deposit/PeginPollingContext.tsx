@@ -25,6 +25,7 @@ import type { Hex } from "viem";
 import { getStepFillPercent } from "@/components/simple/DepositProgressView/steps";
 import { useActivationFloorGate } from "@/hooks/useActivationFloorGate";
 import { logger } from "@/infrastructure";
+import { ANALYTICS_EVENT, trackEvent } from "@/infrastructure/analytics";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { useDepositOverride } from "@/overrides/deposits";
 
@@ -516,6 +517,28 @@ export function PeginPollingProvider({
         category: milestone.category,
         tags: { vaultId: shortId(milestone.vaultId) },
       });
+      // The milestone also fires for a vault that was returned at activation
+      // (VERIFIED, then REDEEMED, then DEPOSITOR_WITHDRAWN or
+      // NON_DEPOSITOR_SPEND), which never became collateral. Only ACTIVE and
+      // LIQUIDATED prove the vault activated, so only those are counted.
+      // Status alone cannot tell a returned vault from one that activated and
+      // was then redeemed between two polls (a hidden tab, another device),
+      // so this undercounts those completions; `vault_activated` is the
+      // conversion count.
+      const status = activities.find(
+        (activity) => activity.id === milestone.vaultId,
+      )?.contractStatus;
+      const provenActivated =
+        status === ContractStatus.ACTIVE ||
+        status === ContractStatus.LIQUIDATED;
+      if (
+        milestone.event === TELEMETRY_EVENT.DEPOSIT_COMPLETED &&
+        provenActivated
+      ) {
+        trackEvent(ANALYTICS_EVENT.DEPOSIT_COMPLETED, {
+          vault_id: milestone.vaultId,
+        });
+      }
     }
   }, [activities]);
 

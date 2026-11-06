@@ -157,8 +157,8 @@ that reaches a signature.
   of these is secret — they are public chain data — but their _association with one browser session_
   is a wallet fingerprint. `scrubString` and `redactData` in `services/vault/src/utils/telemetry.ts`
   strip them from Sentry events and breadcrumbs by regex and by field name. Product analytics is the one
-  deliberate exception: it sends the Ethereum address, as an accepted risk (see _Product analytics
-  (PostHog)_ below).
+  deliberate exception: it sends the Ethereum address and the vault id, as an accepted risk (see
+  _Product analytics (PostHog)_ below).
 
 ### Not confidential, but integrity-critical
 
@@ -809,16 +809,17 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry
-it **deliberately sends the connected Ethereum address** (`wallet_address`), as Aave and Uniswap
-send addresses. This is an accepted risk (see the vault model's _Accepted risks_), not an
-oversight.
+can attribute deposits to a traffic source. It is a separate channel from Sentry, and
+unlike Sentry it **deliberately sends the connected Ethereum address** (`wallet_address`) and the
+full vault id (`vault_id`), as Aave and Uniswap send addresses. This is an accepted risk (see the
+vault model's _Accepted risks_), not an oversight.
 
-**What it links, through public chain data.** The address is a public key into the vault registry
-and the indexer, which return the depositor's vaults and, for each, the depositor's BTC public key,
-the exact deposit amount and the peg-in transaction. So anyone with access to the PostHog project
-can tie a browsing session and its traffic source to the depositor's identity on **both** chains,
-not only on Ethereum.
+**What it links, through public chain data.** The address and the vault id are public keys into
+the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
+amount and the peg-in transaction for them. So anyone with access to the PostHog project can tie a
+browsing session and its traffic source to the depositor's identity on **both** chains, not only
+on Ethereum. The full vault id is kept, rather than Sentry's short id, because the revenue join
+with on-chain data needs it, and the address alone already reaches the same records.
 
 **It also links visits to each other.** The visit and session ids are per page load, but
 `wallet_address` is the same on every visit: it joins a connected depositor's visits across
@@ -842,7 +843,8 @@ What bounds it:
   parameters, the referrer's hostname and `via`), and `AnalyticsTracker.tsx` with
   `analyticsSession.ts` (which connected address is recorded as `wallet_address`, and when).
   `$pathname` is a route template, never a concrete path or query; `wallet_connected` carries the
-  chain (`eth` or `btc`) and whether the app restored the session (`restored`). The campaign
+  chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit events
+  carry a coarse amount band, the number of vaults in a deposit and the vault id. The campaign
   values are the one part taken from the landing URL's query (or the website's cookie): only the
   allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to 100
   characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1` or `bbn1` address or a long
@@ -850,7 +852,7 @@ What bounds it:
   non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
   shaped like a legacy address is replaced; scrubbing too much is the accepted direction. The app
   does not itself send the BTC address, transaction hashes, exact amounts or anything
-  secret-bearing; as above, the address leads to the first three on-chain.
+  secret-bearing; as above, the address and vault id lead to the first three on-chain.
 - **Ad click ids link visits.** `gclid` and `twclid` are sent unchanged, on every event of the
   visit, because marketing needs them to match a visit to an ad click. A click id is unique to one
   click, so reloading a URL that still carries it, or a `bbn_src` cookie that still holds it

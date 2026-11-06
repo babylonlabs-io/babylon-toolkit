@@ -340,6 +340,11 @@ vi.mock("@/infrastructure", () => ({
     event: vi.fn(),
   },
 }));
+vi.mock("@/infrastructure/analytics", async () => ({
+  ANALYTICS_EVENT: (await import("@/infrastructure/analytics/analyticsEvents"))
+    .ANALYTICS_EVENT,
+  trackEvent: vi.fn(),
+}));
 
 // The registry address is a fingerprint input, and the encoder rejects the
 // zero address, which is what `ENV` falls back to when the inlined network
@@ -1924,6 +1929,27 @@ describe("useDepositFlow", () => {
             depositorBtcPubkey: MOCK_DEPOSITOR_PUBKEY,
           }),
         );
+      });
+    });
+
+    it("sends deposit_started, then vault_registered and deposit_broadcast for each vault", async () => {
+      const { trackEvent } = vi.mocked(
+        await import("@/infrastructure/analytics"),
+      );
+      trackEvent.mockClear();
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(trackEvent.mock.calls).toEqual([
+          ["deposit_started", { amount_bucket: "<0.01", vault_count: 2 }],
+          ["vault_registered", { vault_id: "0xVault0Id" }],
+          ["vault_registered", { vault_id: "0xVault1Id" }],
+          ["deposit_broadcast", { vault_id: "0xVault0Id" }],
+          ["deposit_broadcast", { vault_id: "0xVault1Id" }],
+        ]);
       });
     });
 

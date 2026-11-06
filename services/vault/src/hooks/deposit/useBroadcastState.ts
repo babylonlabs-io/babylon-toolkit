@@ -15,6 +15,7 @@ import { useCallback, useState } from "react";
 
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { logger } from "@/infrastructure";
+import { ANALYTICS_EVENT, trackEvent } from "@/infrastructure/analytics";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
@@ -119,6 +120,7 @@ export function useBroadcastState({
               tags: { vaultId: shortId(id) },
               vaultCount: confirmedIds.length,
             });
+            trackEvent(ANALYTICS_EVENT.DEPOSIT_BROADCAST, { vault_id: id });
           }
           setLocalBroadcasting(false);
           onSuccess();
