@@ -14,6 +14,7 @@ import {
   getFlagDisabledV3SectionPaths,
   isV3SectionEnabled,
 } from "@/config/v3Navigation";
+import { AnalyticsTracker } from "@/infrastructure/analytics/AnalyticsTracker";
 
 import { AAVE_APP_ID } from "./applications/aave/config";
 import { LOAN_TAB } from "./applications/aave/constants";
@@ -180,76 +181,79 @@ export const Router = () => {
   const guardedSubtreePaths = getFlagDisabledV3SectionPaths();
 
   return (
-    <Routes>
-      <Route element={<RootLayout />}>
-        <Route element={<AaveOverlayLayout />}>
-          <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
-          <Route path={ROUTES.VAULTS} element={<VaultsPage />} />
-          <Route
-            path={ROUTES.LOANS}
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <LoansPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <BorrowingMarketsDataPage />
-              </Suspense>
-            }
-          />
-          {/* Under AaveOverlayLayout (like /loans): the page reads
+    <>
+      <AnalyticsTracker />
+      <Routes>
+        <Route element={<RootLayout />}>
+          <Route element={<AaveOverlayLayout />}>
+            <Route path={ROUTES.OVERVIEW} element={<DashboardPage />} />
+            <Route path={ROUTES.VAULTS} element={<VaultsPage />} />
+            <Route
+              path={ROUTES.LOANS}
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <LoansPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <BorrowingMarketsDataPage />
+                </Suspense>
+              }
+            />
+            {/* Under AaveOverlayLayout (like /loans): the page reads
               `useDashboardState` / `usePositionNotifications`, both of which
               need the Aave config this layout provides. */}
+            <Route
+              path={ROUTES.LIQUIDATIONS}
+              element={
+                isV3SectionEnabled("liquidations") ? (
+                  <Suspense fallback={<RouteFallback />}>
+                    <Liquidations />
+                  </Suspense>
+                ) : (
+                  <Navigate to={ROUTES.OVERVIEW} replace />
+                )
+              }
+            />
+          </Route>
+          {/* Explore is a static page with no Aave providers or reserve overlay,
+            so it sits directly under RootLayout (like /activity), not under
+            AaveOverlayLayout. Gated on its own flag (like /liquidations); the
+            subtree guards below cover /explore/* while that flag is off. */}
           <Route
-            path={ROUTES.LIQUIDATIONS}
+            path={ROUTES.EXPLORE}
             element={
-              isV3SectionEnabled("liquidations") ? (
+              isV3SectionEnabled("explore") ? (
                 <Suspense fallback={<RouteFallback />}>
-                  <Liquidations />
+                  <ExplorePage />
                 </Suspense>
               ) : (
                 <Navigate to={ROUTES.OVERVIEW} replace />
               )
             }
           />
-        </Route>
-        {/* Explore is a static page with no Aave providers or reserve overlay,
-            so it sits directly under RootLayout (like /activity), not under
-            AaveOverlayLayout. Gated on its own flag (like /liquidations); the
-            subtree guards below cover /explore/* while that flag is off. */}
-        <Route
-          path={ROUTES.EXPLORE}
-          element={
-            isV3SectionEnabled("explore") ? (
+          <Route
+            path={ROUTES.ACTIVITY}
+            element={
               <Suspense fallback={<RouteFallback />}>
-                <ExplorePage />
+                <ActivityWithProviders />
               </Suspense>
-            ) : (
-              <Navigate to={ROUTES.OVERVIEW} replace />
-            )
-          }
-        />
-        <Route
-          path={ROUTES.ACTIVITY}
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <ActivityWithProviders />
-            </Suspense>
-          }
-        />
-      </Route>
-      {guardedSubtreePaths.map((path) => (
-        <Route
-          key={path}
-          path={`/${path}/*`}
-          element={<Navigate to={ROUTES.OVERVIEW} replace />}
-        />
-      ))}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+            }
+          />
+        </Route>
+        {guardedSubtreePaths.map((path) => (
+          <Route
+            key={path}
+            path={`/${path}/*`}
+            element={<Navigate to={ROUTES.OVERVIEW} replace />}
+          />
+        ))}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 };

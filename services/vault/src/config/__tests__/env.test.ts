@@ -4,6 +4,7 @@ import {
   ENV,
   envInitError,
   readInlinedProfile,
+  resolveAnalyticsConfig,
   resolveEthRpcUrl,
 } from "@/config/env";
 
@@ -97,6 +98,41 @@ describe("ENV with a mispaired profile", () => {
       "0x0000000000000000000000000000000000000000",
     );
   });
+
+  it("turns analytics off even when its own settings are valid", async () => {
+    vi.resetModules();
+    vi.stubEnv(
+      "TBV_NETWORK_PROFILE",
+      JSON.stringify({ ...PROFILE, kind: "test", btcNetwork: "mainnet" }),
+    );
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_KEY", "phc_abc123");
+    const env = await import("@/config/env");
+    expect(env.envInitError).not.toBeNull();
+    expect(env.ENV.ANALYTICS).toEqual({ enabled: false });
+  });
+});
+
+describe("ENV with a bad analytics setting", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("turns analytics off without blocking the app", async () => {
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_KEY", "");
+    const env = await import("@/config/env");
+    expect(env.envInitError).toBeNull();
+    expect(env.ENV.ANALYTICS).toEqual({ enabled: false });
+    expect(env.analyticsConfigError).toBe(
+      "Product analytics is off: NEXT_PUBLIC_POSTHOG_HOST is set but NEXT_PUBLIC_POSTHOG_PROJECT_KEY is not; set both or neither",
+    );
+    expect(env.ENV.BTC_VAULT_REGISTRY).toBe(
+      "0xb331467c4db13dccc77fa66c2d185b74ed57ab80",
+    );
+  });
 });
 
 describe("resolveEthRpcUrl", () => {
@@ -134,6 +170,168 @@ describe("resolveEthRpcUrl", () => {
     );
     expect(errors).toEqual([
       'NEXT_PUBLIC_ETH_RPC_URL must use http or https scheme, got: "wss:"',
+    ]);
+  });
+});
+
+describe("resolveAnalyticsConfig", () => {
+  const KEY = "phc_abc123";
+
+  it("is off without an error when neither variable is set", () => {
+    const errors: string[] = [];
+    expect(resolveAnalyticsConfig(undefined, "  ", "devnet", errors)).toEqual({
+      enabled: false,
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("is on with a trimmed host, no trailing slash, and the network name", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        " https://us.i.posthog.com/ ",
+        ` ${KEY} `,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({
+      enabled: true,
+      host: "https://us.i.posthog.com",
+      projectKey: KEY,
+      network: "devnet",
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("records an error when only the project key is set", () => {
+    const errors: string[] = [];
+    expect(resolveAnalyticsConfig("", KEY, "devnet", errors)).toEqual({
+      enabled: false,
+    });
+    expect(errors).toEqual([
+      "NEXT_PUBLIC_POSTHOG_PROJECT_KEY is set but NEXT_PUBLIC_POSTHOG_HOST is not; set both or neither",
+    ]);
+  });
+
+  it("records an error when only the host is set", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://us.i.posthog.com",
+        undefined,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual([
+      "NEXT_PUBLIC_POSTHOG_HOST is set but NEXT_PUBLIC_POSTHOG_PROJECT_KEY is not; set both or neither",
+    ]);
+  });
+
+  it("records an error when the host is not a URL", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig("us.i.posthog.com", KEY, "devnet", errors),
+    ).toEqual({
+      enabled: false,
+    });
+    expect(errors).toEqual(["NEXT_PUBLIC_POSTHOG_HOST is not a valid URL"]);
+  });
+
+  it("records an error without echoing an unparseable host that carries credentials", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://user:hunter2@us.i.posthog.com:notaport",
+        KEY,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual(["NEXT_PUBLIC_POSTHOG_HOST is not a valid URL"]);
+  });
+
+  it("records an error when the host is not https", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig("http://us.i.posthog.com", KEY, "devnet", errors),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual([
+      'NEXT_PUBLIC_POSTHOG_HOST must use https, got: "http:"',
+    ]);
+  });
+
+  it("accepts a host with a path, for a same-domain proxy", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://vault.example/ingest/",
+        KEY,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({
+      enabled: true,
+      host: "https://vault.example/ingest",
+      projectKey: KEY,
+      network: "devnet",
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("records an error without echoing the host when it carries credentials", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://user:hunter2@us.i.posthog.com",
+        KEY,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual([
+      "NEXT_PUBLIC_POSTHOG_HOST must be an https origin with an optional path, without credentials, a query or a fragment",
+    ]);
+  });
+
+  it("records an error when the host has a query", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://us.i.posthog.com?x=1",
+        KEY,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toHaveLength(1);
+  });
+
+  it("records an error when the host ends in an empty fragment", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://us.i.posthog.com#",
+        KEY,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toHaveLength(1);
+  });
+
+  it("records an error when the key is not a PostHog project key", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://us.i.posthog.com",
+        "phx_secret",
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual([
+      'NEXT_PUBLIC_POSTHOG_PROJECT_KEY must be a PostHog project key ("phc_" followed by letters and digits)',
     ]);
   });
 });

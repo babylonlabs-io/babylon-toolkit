@@ -782,6 +782,35 @@ it is silent.
 
 The Sentry user id is a random UUID in `localStorage`, not a wallet address. Keep it that way.
 
+### Product analytics (PostHog)
+
+`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
+can measure how visitors use the app. It is a separate channel from Sentry.
+
+What bounds it:
+
+- **Off unless configured.** Without both `NEXT_PUBLIC_POSTHOG_HOST` and
+  `NEXT_PUBLIC_POSTHOG_PROJECT_KEY` nothing is sent. Setting one without the other, a host that is
+  not https or carries credentials, a query or a fragment, or a key that is not a `phc_` project
+  key turns analytics off and is reported with `logger.error`; it does not block the app. An app
+  whose network profile or a profile override is invalid sends nothing; other blocking errors,
+  such as a missing Reown project id, do not stop page views.
+- **Allow-listed payload.** The payload is defined by two files together:
+  `analyticsEvents.ts` (the events and each event's own fields) and `trackEvent.ts` (the network,
+  visit and session ids added to every event). Event fields are route templates (never a concrete
+  path or query).
+- **Client IP.** The browser posts straight to PostHog, which therefore sees the visitor's IP
+  address. **The PostHog project must have _Discard client IP data_ enabled**; PostHog still
+  derives the country before discarding the IP, and the country is kept on purpose.
+- **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`.
+  The visit and session ids live in memory only.
+- **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
+  sent.
+- **No person profiles.** Every event carries `$process_person_profile: false`.
+
+**Adding a field to either of those files is a privacy change.** Review it the same way you would
+review re-enabling Sentry tracing.
+
 ### Wallet integration
 
 `packages/babylon-wallet-connector` abstracts injected BTC and ETH wallets plus WalletConnect/Reown

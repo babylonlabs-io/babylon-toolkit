@@ -70,7 +70,13 @@ export async function ensureDevServer(
   const child = spawn("pnpm", ["run", script], {
     cwd: VAULT_DIR,
     // Pin the profile so the app serves the same deployment the pre-flight read.
-    env: { ...process.env, NEXT_PUBLIC_TBV_NETWORK: NETWORKS[network].profile },
+    // Analytics off: no run may send test wallets to a real PostHog project.
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_TBV_NETWORK: NETWORKS[network].profile,
+      NEXT_PUBLIC_POSTHOG_HOST: "",
+      NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
+    },
     detached: true,
     stdio: "ignore",
   });

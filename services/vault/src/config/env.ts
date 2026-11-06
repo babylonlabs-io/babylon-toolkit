@@ -1,7 +1,9 @@
 /**
  * Validates the network profile inlined at build time plus the per-deployment
- * override variables at application startup. Any problem is tracked and shown
- * via a blocking modal instead of crashing the application.
+ * override variables at application startup. A problem with the profile or an
+ * override is shown via a blocking modal instead of crashing the application.
+ * A problem with the analytics settings only turns analytics off;
+ * `reportAnalyticsConfigError` reports it once Sentry is running.
  */
 
 import type { Address } from "viem";
@@ -26,11 +28,32 @@ interface EnvVars {
   VP_PROXY_URL: string;
   UTILS_API_URL: string | undefined;
   VP_EXPLORER_URL: string | undefined;
+  ANALYTICS: AnalyticsConfig;
 }
+
+/** Product analytics (PostHog). Off unless a deployment sets both the host and the project key. */
+export type AnalyticsConfig =
+  | { enabled: false }
+  | {
+      enabled: true;
+      /** PostHog ingestion origin, e.g. https://us.i.posthog.com. */
+      host: string;
+      /** Public, write-only project key (`phc_…`). */
+      projectKey: string;
+      /** Network profile name, sent on every event so test and production data never mix. */
+      network: string;
+    };
+
+const ANALYTICS_DISABLED: AnalyticsConfig = { enabled: false };
+
+const POSTHOG_PROJECT_KEY_RE = /^phc_[A-Za-z0-9]+$/;
+
+const QUERY_OR_FRAGMENT_RE = /[?#]/;
 
 interface EnvValidationResult {
   env: EnvVars;
   error: string | null;
+  analyticsError: string | null;
 }
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
@@ -78,6 +101,67 @@ export function resolveEthRpcUrl(
     return INVALID_LOCAL_URL;
   }
   return trimmed;
+}
+
+/**
+ * Analytics settings: both unset turns analytics off by choice. One without the
+ * other, a host that is not https or carries credentials, a query or a
+ * fragment, or a key that is not a PostHog project key is a configuration
+ * error, never a silent "not tracking". The caller reports it; it turns
+ * analytics off but does not block the app.
+ */
+export function resolveAnalyticsConfig(
+  rawHost: string | undefined,
+  rawProjectKey: string | undefined,
+  network: string,
+  errors: string[],
+): AnalyticsConfig {
+  const host = (rawHost ?? "").trim().replace(/\/$/, "");
+  const projectKey = (rawProjectKey ?? "").trim();
+  if (!host && !projectKey) return ANALYTICS_DISABLED;
+  if (!host) {
+    errors.push(
+      "NEXT_PUBLIC_POSTHOG_PROJECT_KEY is set but NEXT_PUBLIC_POSTHOG_HOST is not; set both or neither",
+    );
+    return ANALYTICS_DISABLED;
+  }
+  if (!projectKey) {
+    errors.push(
+      "NEXT_PUBLIC_POSTHOG_HOST is set but NEXT_PUBLIC_POSTHOG_PROJECT_KEY is not; set both or neither",
+    );
+    return ANALYTICS_DISABLED;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(host);
+  } catch {
+    // Not echoed: an unparseable value may still hold a password.
+    errors.push("NEXT_PUBLIC_POSTHOG_HOST is not a valid URL");
+    return ANALYTICS_DISABLED;
+  }
+  if (parsed.protocol !== "https:") {
+    errors.push(
+      `NEXT_PUBLIC_POSTHOG_HOST must use https, got: "${parsed.protocol}"`,
+    );
+    return ANALYTICS_DISABLED;
+  }
+  // The capture path is appended to the host, so a query or fragment would
+  // swallow it, and fetch rejects a URL with credentials. A path is allowed
+  // for a same-domain proxy. The raw text is searched because an empty query
+  // or fragment parses to "". The value is not echoed: it may hold a password.
+  if (parsed.username || parsed.password || QUERY_OR_FRAGMENT_RE.test(host)) {
+    errors.push(
+      "NEXT_PUBLIC_POSTHOG_HOST must be an https origin with an optional path, without credentials, a query or a fragment",
+    );
+    return ANALYTICS_DISABLED;
+  }
+  if (!POSTHOG_PROJECT_KEY_RE.test(projectKey)) {
+    errors.push(
+      'NEXT_PUBLIC_POSTHOG_PROJECT_KEY must be a PostHog project key ("phc_" followed by letters and digits)',
+    );
+    return ANALYTICS_DISABLED;
+  }
+  return { enabled: true, host, projectKey, network };
 }
 
 const ALREADY_CONFIGURED_MESSAGE = "already been called";
@@ -166,6 +250,20 @@ function validateEnvVars(): EnvValidationResult {
     profile.ethRpcUrl,
     errors,
   );
+  // Kept out of `errors`: a marketing setting must never lock a depositor out of
+  // repaying or withdrawing. A bad pair turns analytics off and is reported by
+  // reportAnalyticsConfigError, because this module runs before Sentry starts.
+  const analyticsErrors: string[] = [];
+  const analytics = resolveAnalyticsConfig(
+    process.env.NEXT_PUBLIC_POSTHOG_HOST,
+    process.env.NEXT_PUBLIC_POSTHOG_PROJECT_KEY,
+    profile.name,
+    analyticsErrors,
+  );
+  const analyticsError =
+    analyticsErrors.length > 0
+      ? `Product analytics is off: ${analyticsErrors.join("; ")}`
+      : null;
 
   // The runtime MUST end up initialised even when the profile is unusable:
   // modules later in the import graph read it at evaluation time.
@@ -211,12 +309,15 @@ function validateEnvVars(): EnvValidationResult {
     UTILS_API_URL,
     BTC_PRICE_FEED: effective.contracts.btcPriceFeed as Address | undefined,
     VP_EXPLORER_URL,
+    // An invalid profile or override sends nothing: that configuration is not
+    // trusted. Blocking errors raised elsewhere (wagmi) do not reach here.
+    ANALYTICS: errors.length > 0 ? ANALYTICS_DISABLED : analytics,
   };
 
   if (errors.length > 0) {
-    return { env, error: errors.join("; ") };
+    return { env, error: errors.join("; "), analyticsError };
   }
-  return { env, error: null };
+  return { env, error: null, analyticsError };
 }
 
 const validationResult = validateEnvVars();
@@ -231,3 +332,9 @@ export const ENV = validationResult.env;
  * Error message if environment validation failed, null otherwise
  */
 export const envInitError = validationResult.error;
+
+/**
+ * Why analytics is off despite being configured, null otherwise. It does not
+ * block the app; the caller reports it once Sentry is running.
+ */
+export const analyticsConfigError = validationResult.analyticsError;
