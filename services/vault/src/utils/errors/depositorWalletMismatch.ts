@@ -37,10 +37,10 @@ export function isDepositorWalletMismatchError(
 
 /**
  * Typed refusal when the connected Bitcoin wallet's key is not the depositor
- * key the vault registered on-chain. The resume wallet check, the payout
- * signing context, the payout signing adapter and the DepositTerms rebuild
- * throw it. Both mappers branch on the class and ask the user to connect the
- * depositor's Bitcoin wallet.
+ * key the vault registered on-chain. The Pre-PegIn broadcast service, the
+ * resume wallet check, the payout signing context, the payout signing adapter
+ * and the DepositTerms rebuild throw it. Both mappers branch on the class and
+ * ask the user to connect the depositor's Bitcoin wallet.
  */
 export class DepositorBtcKeyMismatchError extends Error {
   readonly vaultId: Hex;
