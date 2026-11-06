@@ -52,6 +52,12 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), event: vi.fn() },
 }));
 
+const mockTrackEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/infrastructure/analytics")>()),
+  trackEvent: mockTrackEvent,
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
@@ -556,5 +562,60 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       });
       vi.useRealTimers();
     }
+  });
+});
+
+describe("useBorrowTransaction — analytics", () => {
+  it("sends borrow_started and borrow_succeeded with the reserve symbol once the borrow is mined", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockTrackEvent.mock.calls).toEqual([
+      ["borrow_started", { reserve: "USDC" }],
+      ["borrow_succeeded", { reserve: "USDC" }],
+    ]);
+  });
+
+  it("sends borrow_started but no borrow_succeeded when the borrow reverts", async () => {
+    mockBorrow.mockRejectedValue(new Error("execution reverted"));
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockTrackEvent.mock.calls).toEqual([
+      ["borrow_started", { reserve: "USDC" }],
+    ]);
+  });
+
+  it("sends nothing for a borrow the pre-sign validation refuses", async () => {
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE, async () => {
+        throw new Error("Health factor too low");
+      });
+    });
+
+    expect(mockBorrow).not.toHaveBeenCalled();
+    expect(mockTrackEvent).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing for a borrow refused while another transaction is in flight", async () => {
+    mockAssertNoTransactionInFlight.mockRejectedValue(
+      new TransactionInFlightError(),
+    );
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockTrackEvent).not.toHaveBeenCalled();
   });
 });

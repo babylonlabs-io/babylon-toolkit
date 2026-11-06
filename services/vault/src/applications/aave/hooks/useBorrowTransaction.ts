@@ -17,6 +17,7 @@ import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
+import { ANALYTICS_EVENT, trackEvent } from "@/infrastructure/analytics";
 import {
   ErrorCode,
   SendOutcomeUnknownError,
@@ -182,6 +183,13 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
           await preSignValidation();
         }
 
+        // Sent once every pre-sign check has passed, so a borrow those checks
+        // refuse is not counted. One the user then declines in the wallet, or
+        // that reverts, is counted as started but never as succeeded.
+        trackEvent(ANALYTICS_EVENT.BORROW_STARTED, {
+          reserve: reserve.token.symbol,
+        });
+
         // Adapter resolves borrower's proxy from msg.sender
         const walletClient = await getWalletClientOnExpectedChain(account);
         await borrow(
@@ -196,6 +204,11 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // the lock's watch found after the first wait gave up never reported
       // its inclusion, and one the user stopped waiting on is not confirming.
       setIsConfirming(outcome === "mined");
+      if (outcome === "mined") {
+        trackEvent(ANALYTICS_EVENT.BORROW_SUCCEEDED, {
+          reserve: reserve.token.symbol,
+        });
+      }
 
       // Invalidate position queries to refresh data, and the hub reads behind
       // the loan forms (liquidity, our spoke's borrow limit and hub state).

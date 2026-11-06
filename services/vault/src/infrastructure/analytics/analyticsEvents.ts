@@ -15,6 +15,8 @@ export const ANALYTICS_EVENT = {
   VAULT_REGISTERED: "vault_registered",
   DEPOSIT_BROADCAST: "deposit_broadcast",
   VAULT_ACTIVATED: "vault_activated",
+  BORROW_STARTED: "borrow_started",
+  BORROW_SUCCEEDED: "borrow_succeeded",
 } as const;
 
 export type AnalyticsEventName =
@@ -43,4 +45,7 @@ export interface AnalyticsEventProperties {
   [ANALYTICS_EVENT.VAULT_REGISTERED]: { vault_id: string };
   [ANALYTICS_EVENT.DEPOSIT_BROADCAST]: { vault_id: string };
   [ANALYTICS_EVENT.VAULT_ACTIVATED]: { vault_id: string };
+  /** Token symbol of the borrowed reserve. */
+  [ANALYTICS_EVENT.BORROW_STARTED]: { reserve: string };
+  [ANALYTICS_EVENT.BORROW_SUCCEEDED]: { reserve: string };
 }
