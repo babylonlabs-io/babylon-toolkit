@@ -2847,6 +2847,7 @@ export const COPY = {
     positionTitle: "Position",
     totalCollateralValueLabel: "Total Collateral Value",
     availableToBorrowLabel: "Available to Borrow",
+    availableToBorrowTooltip: "This amount is in USD.",
     // Aave caps how many reserves one position may borrow, so the position bar
     // names the asset the position is tied to, next to its total debt.
     borrowedAssetLabel: "Borrowed Asset",
