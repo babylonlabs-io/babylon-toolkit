@@ -2257,7 +2257,7 @@ export const COPY = {
       riskTitle: "Liquidation risk is high",
       riskBody: (healthFactor: string) =>
         `Your health factor will drop to ${healthFactor}, close to the liquidation threshold. We recommend repaying your debt or keeping your collateral.`,
-      continueAnyway: "Continue anyway",
+      continueAnyway: "I understand the liquidation risk",
       button: (amount: string) => `Withdraw ${amount}`,
     },
     // Review Withdraw card. Row labels are Title Case to match the sibling
