@@ -50,7 +50,14 @@ const HASHLOCK =
   "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5";
 const PRE_PEGIN_TXID = "ab".repeat(32);
 const PEGIN_HEX = "02000000pegin";
-const PRE_PEGIN_HEX = "02000000prepegin";
+/** A funded Pre-PegIn with no witness, which the proof hands back unchanged. */
+const PRE_PEGIN_HEX = (() => {
+  const tx = new Transaction();
+  tx.version = 2;
+  tx.addInput(Buffer.alloc(32, 3), 0, 0xfffffffd);
+  tx.addOutput(Buffer.from(`5120${"22".repeat(32)}`, "hex"), 2_000_000);
+  return tx.toHex();
+})();
 
 /** The PegIn as the depositor signed it, which the registry stores. */
 const signedPegin = (() => {
@@ -92,7 +99,7 @@ describe("provePeginSpendsHtlc", () => {
     mockVerifyPeginHashlockSpend.mockReturnValue({ valid: true });
 
     await expect(provePeginSpendsHtlc(onChainRecord, API_URL)).resolves.toEqual(
-      { status: "proven" },
+      { status: "proven", prePeginTxHex: `0x${PRE_PEGIN_HEX}` },
     );
     expect(mockGetTxHex).toHaveBeenCalledWith(signedPegin.getId(), API_URL);
     expect(mockGetTxHex).toHaveBeenCalledWith(PRE_PEGIN_TXID, API_URL);
@@ -209,9 +216,23 @@ describe("provePeginSpendsHtlc with the real verifier, on a real signet PegIn", 
       [SIGNET_PRE_PEGIN_TXID]: SIGNET_PRE_PEGIN_TX_HEX,
     });
 
-    await expect(provePeginSpendsHtlc(signetRecord, API_URL)).resolves.toEqual({
-      status: "proven",
+    const proof = await provePeginSpendsHtlc(signetRecord, API_URL);
+
+    expect(proof.status).toBe("proven");
+  });
+
+  it("returns the proven Pre-PegIn without its witness, under the same txid", async () => {
+    mempoolServes({
+      [SIGNET_PEGIN_TXID]: SIGNET_PEGIN_TX_HEX,
+      [SIGNET_PRE_PEGIN_TXID]: SIGNET_PRE_PEGIN_TX_HEX,
     });
+
+    const proof = await provePeginSpendsHtlc(signetRecord, API_URL);
+
+    if (proof.status !== "proven") throw new Error(proof.status);
+    const returned = Transaction.fromHex(proof.prePeginTxHex.slice(2));
+    expect(returned.getId()).toBe(SIGNET_PRE_PEGIN_TXID);
+    expect(returned.hasWitnesses()).toBe(false);
   });
 
   it("does not prove the spend when the API serves back the depositor-signed PegIn", async () => {

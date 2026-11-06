@@ -207,6 +207,7 @@ function answerWatchedCall(
   target: string,
   callData: Hex,
   outcome: CallOutcome,
+  blockTag: unknown,
 ): CallOutcome {
   const allowList = answerAllowListCall(state, seq, target, callData, outcome);
   if (allowList) return allowList;
@@ -219,7 +220,9 @@ function answerWatchedCall(
       abi: GET_DEPOSITOR_VAULT_IDS_ABI,
       data: callData,
     });
-    if (args[0].toLowerCase() === state.depositor)
+    // The deposit check pins this read to a block. One at `latest` is the
+    // app-wide stuck-vault poll, which says nothing about the deposit.
+    if (args[0].toLowerCase() === state.depositor && blockTag !== "latest")
       state.vaultIdsReadSeqs.push(seq);
     return outcome;
   }
@@ -272,16 +275,21 @@ export function answerEthCall(
   seq: number,
   call: unknown,
   result: Hex,
+  blockTag?: unknown,
 ): Hex {
   if (!isRecord(call) || typeof call.to !== "string") return result;
   const data = (call.data ?? call.input) as Hex | undefined;
   if (typeof data !== "string") return result;
 
   if (call.to.toLowerCase() !== state.multicall3) {
-    const answered = answerWatchedCall(state, seq, call.to, data, {
-      success: true,
-      returnData: result,
-    });
+    const answered = answerWatchedCall(
+      state,
+      seq,
+      call.to,
+      data,
+      { success: true, returnData: result },
+      blockTag,
+    );
     return answered.returnData;
   }
 
@@ -309,6 +317,7 @@ export function answerEthCall(
       inner.target,
       inner.callData,
       outcome,
+      blockTag,
     );
     if (next !== outcome) changed = true;
     return next;

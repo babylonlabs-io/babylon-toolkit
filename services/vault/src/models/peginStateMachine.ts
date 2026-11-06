@@ -227,7 +227,7 @@ export interface GetPeginStateOptions {
    * CSV refund, which must keep the normal flow. That match is only the
    * mempool API's word, so the deriver also requires the PegIn, fetched from
    * Bitcoin, to spend the HTLC with a witness Bitcoin would accept
-   * (`useStuckVaultChainConfirm`).
+   * (`useStuckVaults`).
    * Fail-safe default: false (missing, ambiguous or unproven probe data keeps
    * the normal flow).
    */
@@ -238,8 +238,8 @@ export interface GetPeginStateOptions {
    * so "Refund complete" would be a false reassurance and the refund action
    * would fail on broadcast.
    *
-   * Needs no chain-confirmation companion. `stuckStateConfirmedOnChain` exists
-   * to rule out a lagging indexer still reporting VERIFIED for an activated
+   * Needs no chain confirmation of the kind `useStuckVaults` requires, which
+   * rules out a lagging indexer still reporting VERIFIED for an activated
    * vault. An expired vault was not activated, whether the indexer or a chain
    * read says it expired, so the attribution alone settles it.
    */
