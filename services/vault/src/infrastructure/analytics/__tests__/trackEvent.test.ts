@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnalyticsConfig } from "@/config/env";
 
 import { ANALYTICS_EVENT } from "../analyticsEvents";
-import { getSessionId, getVisitId } from "../analyticsSession";
+import {
+  getSessionId,
+  getVisitId,
+  setWalletAddress,
+} from "../analyticsSession";
 import { captureAttribution } from "../attribution";
 import {
   reportAnalyticsConfigError,
@@ -57,6 +61,7 @@ beforeEach(() => {
   mockError.mockClear();
   fetchMock.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
+  setWalletAddress(null);
 });
 
 afterEach(() => {
@@ -107,6 +112,15 @@ describe("trackEvent", () => {
         $process_person_profile: false,
       },
     });
+    expect(body.batch[0].properties.wallet_address).toBeUndefined();
+  });
+
+  it("attaches the connected wallet address, lowercased", () => {
+    setWalletAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80");
+    trackEvent(ANALYTICS_EVENT.WALLET_CONNECTED, { chain: "eth" }, CONFIG);
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0x742d35cc6634c0532925a3b844bc9e7595f2bd80",
+    );
   });
 
   it("reports a rejected key as an error once per page load", async () => {

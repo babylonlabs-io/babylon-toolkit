@@ -156,7 +156,9 @@ that reaches a signature.
 - **Bitcoin and Ethereum addresses, public keys, amounts, UTXO sets, and raw transaction hex.** None
   of these is secret — they are public chain data — but their _association with one browser session_
   is a wallet fingerprint. `scrubString` and `redactData` in `services/vault/src/utils/telemetry.ts`
-  strip them from Sentry events and breadcrumbs by regex and by field name.
+  strip them from Sentry events and breadcrumbs by regex and by field name. Product analytics is the one
+  deliberate exception: it sends the Ethereum address, as an accepted risk (see _Product analytics
+  (PostHog)_ below).
 
 ### Not confidential, but integrity-critical
 
@@ -807,7 +809,16 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can attribute visits to a traffic source. It is a separate channel from Sentry.
+can attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry
+it **deliberately sends the connected Ethereum address** (`wallet_address`), as Aave and Uniswap
+send addresses. This is an accepted risk (see the vault model's _Accepted risks_), not an
+oversight.
+
+**What it links, through public chain data.** The address is a public key into the vault registry
+and the indexer, which return the depositor's vaults and, for each, the depositor's BTC public key,
+the exact deposit amount and the peg-in transaction. So anyone with access to the PostHog project
+can tie a browsing session and its traffic source to the depositor's identity on **both** chains,
+not only on Ethereum.
 
 What bounds it:
 
@@ -819,16 +830,18 @@ What bounds it:
   profile or profile override, or a wallet setup error such as a missing Reown project id. The
   GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
 - **Allow-listed payload.** The payload is defined by three files together:
-  `analyticsEvents.ts` (the events and each event's own fields), `trackEvent.ts` (the network,
-  visit and session ids added to every event) and `attribution.ts` (campaign parameters, the
-  referrer's hostname and `via`). `$pathname` is a route template, never a concrete path or
-  query. The campaign values are the one part taken from the landing URL's query (or the
-  website's cookie): only the allow-listed keys. UTM values have addresses and long hex scrubbed,
-  then are truncated to 100 characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1`
-  or `bbn1` address or a long hex run is caught anywhere, even joined to other text, but a legacy
-  Bitcoin address only between non-alphanumeric characters, so one joined directly to a letter or
-  digit is sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is
-  the accepted direction.
+  `analyticsEvents.ts` (the events and each event's own fields), `trackEvent.ts` (the wallet
+  address, network, visit and session ids added to every event) and `attribution.ts` (campaign
+  parameters, the referrer's hostname and `via`). `$pathname` is a route template, never a
+  concrete path or query, and `chain` is the connected chain (`eth` or `btc`). The campaign
+  values are the one part taken from the landing URL's query (or the website's cookie): only the
+  allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to 100
+  characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1` or `bbn1` address or a long
+  hex run is caught anywhere, even joined to other text, but a legacy Bitcoin address only between
+  non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
+  shaped like a legacy address is replaced; scrubbing too much is the accepted direction. The app
+  does not itself send the BTC address, transaction hashes, exact amounts or anything
+  secret-bearing; as above, the address leads to the first three on-chain.
 - **Ad click ids link visits.** `gclid` and `twclid` are sent unchanged, on every event of the
   visit, because marketing needs them to match a visit to an ad click. A click id is unique to one
   click, so reloading a URL that still carries it, or a `bbn_src` cookie that still holds it
@@ -1107,6 +1120,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
+| Telemetry           | —/G       | Analytics links a session to the depositor's identity on both chains              | Confidentiality (PII): PostHog sees visiting addresses and sources      | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`                          |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions            | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |

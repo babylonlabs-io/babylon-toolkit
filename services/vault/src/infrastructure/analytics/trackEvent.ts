@@ -16,7 +16,7 @@ import type {
   AnalyticsEventName,
   AnalyticsEventProperties,
 } from "./analyticsEvents";
-import { getSessionId, getVisitId } from "./analyticsSession";
+import { getSessionId, getVisitId, getWalletAddress } from "./analyticsSession";
 import { getAttribution } from "./attribution";
 
 const CAPTURE_PATH = "/batch/";
@@ -79,6 +79,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   properties: AnalyticsEventProperties[E],
   timestamp: string,
 ) {
+  const wallet = getWalletAddress();
   return {
     api_key: config.projectKey,
     batch: [
@@ -89,6 +90,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         properties: {
           ...getAttribution(),
           ...properties,
+          ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),
           // Events only: PostHog builds no person profile from them.
