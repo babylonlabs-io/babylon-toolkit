@@ -158,7 +158,7 @@ The Bitcoin peers are optional and use exact versions. Add them before you
 import a root or Bitcoin entry:
 
 ```bash
-pnpm add bitcoinjs-lib@6.1.7 @bitcoin-js/tiny-secp256k1-asmjs@2.2.3
+pnpm add bitcoinjs-lib@6.1.10 @bitcoin-js/tiny-secp256k1-asmjs@2.2.5
 ```
 
 The WASM engine is an optional peer. Add it for Bitcoin construction and

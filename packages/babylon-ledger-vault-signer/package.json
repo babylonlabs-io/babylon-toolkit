@@ -41,11 +41,11 @@
   },
   "description": "Host-side client for the Ledger Babylon Vault app: DMK session lifecycle, raw APDU framing, key reads, and the vault intent ceremony",
   "dependencies": {
-    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.5",
     "@ledgerhq/device-management-kit": "1.7.1",
     "@ledgerhq/device-transport-kit-web-hid": "1.2.4",
     "@scure/bip32": "1.4.0",
-    "bitcoinjs-lib": "6.1.7",
+    "bitcoinjs-lib": "6.1.10",
     "buffer": "6.0.3",
     "rxjs": "7.8.2"
   },
