@@ -69,8 +69,10 @@ function lastDepositValue(provider: VaultProviderListItem): string {
 /** One right-hand metric column of a provider row: value over label. */
 function metricColumn(value: string, label: string) {
   return (
-    <span className="flex min-w-[60px] flex-col justify-center whitespace-nowrap">
-      <span className="text-xs text-accent-primary">{value}</span>
+    <span className="flex min-w-0 flex-col justify-center break-words">
+      <span className="text-xs text-accent-primary md:truncate" title={value}>
+        {value}
+      </span>
       <span className="text-[8px] text-accent-secondary">{label}</span>
     </span>
   );
@@ -170,21 +172,17 @@ export function VaultProviderSelectorV3({
                   {index === firstProblematicIndex && index > 0 && (
                     <div className="h-px w-full bg-secondary-strokeLight" />
                   )}
-                  {/* Row is a flex container holding two SIBLING controls: the
-                      selection button and (when configured) the explorer link,
-                      so the link isn't nested inside another interactive
-                      element. Rows carry no selected styling — picking one
-                      collapses the panel and the collapsed header names the
-                      chosen provider. */}
-                  <div className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 py-2">
+                  {/* Keep the selection button and explorer link separate.
+                      Reserve the link column on every row. */}
+                  <div className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[minmax(0,1fr)_16px] items-center gap-2 rounded-md px-2 py-2">
                     <button
                       type="button"
                       disabled={isDisabled}
                       onClick={handleSelect}
                       aria-pressed={isSelected}
-                      className={`flex flex-1 items-center justify-between gap-4 text-left ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                      className={`flex min-w-0 flex-col justify-between gap-4 text-left md:flex-row md:items-center ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
                         {/* Avatar carries a status badge: a check for a healthy
                           provider, a warning for an unreachable / rejected
                           one. The badge sits on the card background so it
@@ -210,8 +208,8 @@ export function VaultProviderSelectorV3({
                             )}
                           </span>
                         </span>
-                        <span className="flex flex-col justify-center">
-                          <span className="text-sm text-accent-primary">
+                        <span className="flex min-w-0 flex-col justify-center">
+                          <span className="break-words text-sm text-accent-primary">
                             {provider.name}
                           </span>
                           <span
@@ -221,7 +219,7 @@ export function VaultProviderSelectorV3({
                           </span>
                         </span>
                       </span>
-                      <span className="flex items-center gap-4">
+                      <span className="grid w-full grid-cols-[48px_minmax(0,1fr)_64px] items-center gap-4 md:w-[272px] md:shrink-0 md:grid-cols-[60px_minmax(0,1fr)_80px]">
                         {metricColumn(
                           commissionValue(provider),
                           FORM_COPY.providerCommissionLabel,
