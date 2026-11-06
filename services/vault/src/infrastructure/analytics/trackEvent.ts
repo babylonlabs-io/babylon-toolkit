@@ -17,6 +17,7 @@ import type {
   AnalyticsEventProperties,
 } from "./analyticsEvents";
 import { getSessionId, getVisitId } from "./analyticsSession";
+import { getAttribution } from "./attribution";
 
 const CAPTURE_PATH = "/batch/";
 
@@ -86,6 +87,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         distinct_id: getVisitId(),
         timestamp,
         properties: {
+          ...getAttribution(),
           ...properties,
           network: config.network,
           $session_id: getSessionId(),

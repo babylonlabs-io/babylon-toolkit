@@ -807,7 +807,7 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can measure how visitors use the app. It is a separate channel from Sentry.
+can attribute visits to a traffic source. It is a separate channel from Sentry.
 
 What bounds it:
 
@@ -818,10 +818,11 @@ What bounds it:
   wait for the geofence check, so an app that stops before it sends nothing: an invalid network
   profile or profile override, or a wallet setup error such as a missing Reown project id. The
   GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
-- **Allow-listed payload.** The payload is defined by two files together:
-  `analyticsEvents.ts` (the events and each event's own fields) and `trackEvent.ts` (the network,
-  visit and session ids added to every event). Event fields are route templates (never a concrete
-  path or query).
+- **Allow-listed payload.** The payload is defined by three files together:
+  `analyticsEvents.ts` (the events and each event's own fields), `trackEvent.ts` (the network,
+  visit and session ids added to every event) and `attribution.ts` (campaign parameters, the
+  referrer's hostname and `via`). Event fields are route templates (never a concrete path or
+  query).
 - **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`, which in a deployment is always
   the sidecar-api proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`); a deployment never
   posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,
@@ -829,7 +830,8 @@ What bounds it:
   IP data_ enabled**; PostHog still derives the country before discarding the IP, and the country
   is kept on purpose.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
-  and no referrer. The visit and session ids live in memory only.
+  and no referrer. The visit and session ids live in memory only. The app only reads the
+  website's `bbn_src` cookie, and treats its contents as untrusted input.
 - **Nothing before the geofence passes.** Every event is held in memory while the geofence check
   runs (at most 50) and sent once it passes. Held and later events are dropped for a geo-blocked
   visitor, who sees only the geo-block screen, and whenever the region is unknown: the health
@@ -839,8 +841,8 @@ What bounds it:
   sent.
 - **No person profiles.** Every event carries `$process_person_profile: false`.
 
-**Adding a field to either of those files is a privacy change.** Review it the same way you would
-review re-enabling Sentry tracing.
+**Adding a field to any of those three files is a privacy change.** Review it the same way you
+would review re-enabling Sentry tracing.
 
 ### Wallet integration
 

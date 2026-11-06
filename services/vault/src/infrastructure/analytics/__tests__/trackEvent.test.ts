@@ -4,6 +4,7 @@ import type { AnalyticsConfig } from "@/config/env";
 
 import { ANALYTICS_EVENT } from "../analyticsEvents";
 import { getSessionId, getVisitId } from "../analyticsSession";
+import { captureAttribution } from "../attribution";
 import {
   reportAnalyticsConfigError,
   settleGeofence,
@@ -179,6 +180,18 @@ describe("trackEvent", () => {
         { category: "analytics", event: "$pageview" },
       ),
     );
+  });
+
+  it("attaches the attribution captured at startup", () => {
+    window.history.pushState({}, "", "/?utm_source=x&utm_campaign=launch");
+    captureAttribution();
+    window.history.pushState({}, "", "/");
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(sentBody().batch[0].properties).toMatchObject({
+      utm_source: "x",
+      utm_campaign: "launch",
+      via: "direct",
+    });
   });
 });
 
