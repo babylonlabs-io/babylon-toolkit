@@ -346,7 +346,7 @@ export function ActivateConfirmationModal({
               onChange={() => setAcknowledged((v) => !v)}
               variant="default"
               showLabel={false}
-              className="[&>svg>path:first-child]:fill-accent-primary [&>svg>rect]:fill-accent-primary"
+              className="[&>svg>path:first-child]:fill-accent-primary [&>svg>path:nth-of-type(2)]:fill-surface [&>svg>rect]:fill-accent-primary"
             />
             <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
               {COPY.deposit.activateConfirmation.riskAcknowledgement}
