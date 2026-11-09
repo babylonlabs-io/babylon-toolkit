@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HEALTH_FACTOR_COLORS } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
+import { BABYLON_HUB } from "@/test/deploymentAddresses";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Hint: () => null,
@@ -24,7 +25,7 @@ describe("RepayDetailsCard", () => {
       <RepayDetailsCard
         hub={{
           source: "registry",
-          address: "0xb3283508a0E96F80CF79DC2a1135F10dA170138D",
+          address: BABYLON_HUB,
           label: "Babylon Hub",
         }}
         debt="69,409 USDC"
@@ -46,7 +47,7 @@ describe("RepayDetailsCard health factor row", () => {
   const baseProps = {
     hub: {
       source: "registry" as const,
-      address: "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as const,
+      address: BABYLON_HUB,
       label: "Babylon Hub",
     },
     debt: "69,409 USDC",

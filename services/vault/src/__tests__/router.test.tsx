@@ -27,6 +27,8 @@ import type { ReactNode } from "react";
 import { MemoryRouter, Outlet, useOutletContext } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { USDC } from "@/test/deploymentAddresses";
+
 import { Router } from "../router";
 
 const featureFlagsState = vi.hoisted(() => ({
@@ -485,14 +487,12 @@ describe("Router — reserve detail overlays over the routed page", () => {
   });
 
   it("passes a Select hub asset param to the loan overlay, checksummed", async () => {
-    renderAt(
-      "/loans?picker=borrow&asset=0xb588c1bd8a6cd3f114a52a0ad916778b419ecf48",
-    );
+    renderAt(`/loans?picker=borrow&asset=${USDC.toLowerCase()}`);
 
     await waitFor(() => {
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
         "data-asset",
-        "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48",
+        USDC,
       );
     });
   });

@@ -8,6 +8,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { USDC } from "@/test/deploymentAddresses";
+
 import {
   getHubPickerSearch,
   getMarketDataRoute,
@@ -16,8 +18,6 @@ import {
   parseAssetParam,
   parseReserveId,
 } from "../routes";
-
-const DEVNET_USDC = "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48";
 
 describe("getReserveDetailSearch", () => {
   it("writes the reserve id into the search", () => {
@@ -31,8 +31,8 @@ describe("getReserveDetailSearch", () => {
   });
 
   it("carries the chosen asset onto the form search", () => {
-    expect(getReserveDetailSearch(4n, "borrow", DEVNET_USDC)).toBe(
-      `?reserve=4&tab=borrow&asset=${DEVNET_USDC}`,
+    expect(getReserveDetailSearch(4n, "borrow", USDC)).toBe(
+      `?reserve=4&tab=borrow&asset=${USDC}`,
     );
   });
 
@@ -43,9 +43,7 @@ describe("getReserveDetailSearch", () => {
 
 describe("getHubPickerSearch", () => {
   it("opens the borrow picker narrowed to one token", () => {
-    expect(getHubPickerSearch(DEVNET_USDC)).toBe(
-      `?picker=borrow&asset=${DEVNET_USDC}`,
-    );
+    expect(getHubPickerSearch(USDC)).toBe(`?picker=borrow&asset=${USDC}`);
   });
 });
 
@@ -79,7 +77,7 @@ describe("opensLoanFlow", () => {
 
 describe("parseAssetParam", () => {
   it("checksums a lowercase address", () => {
-    expect(parseAssetParam(DEVNET_USDC.toLowerCase())).toBe(DEVNET_USDC);
+    expect(parseAssetParam(USDC.toLowerCase())).toBe(USDC);
   });
 
   it("rejects a token symbol", () => {

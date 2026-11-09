@@ -7,6 +7,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BABYLON_HUB, CORE_HUB, USDC, WBTC } from "@/test/deploymentAddresses";
+
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
 import { AssetSelectionPanel } from "../AssetSelectionPanel";
 
@@ -21,12 +23,6 @@ const config = vi.hoisted(() => ({
 vi.mock("../../../context", () => ({
   useAaveConfig: () => config,
 }));
-
-/** Vault Devnet tokens, present in the address-keyed token registry. */
-const USDC = "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48" as Address;
-const WBTC = "0x504579d0424B7B7cB4b17e16626f6A2f67bCa054" as Address;
-const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as Address;
-const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address;
 
 function reserve(
   reserveId: bigint,
