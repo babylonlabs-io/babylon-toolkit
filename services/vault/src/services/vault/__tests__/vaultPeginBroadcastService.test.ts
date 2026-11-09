@@ -9,10 +9,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  DepositorBtcKeyMismatchError,
-  DepositorWalletMismatchError,
-} from "@/utils/errors/depositorWalletMismatch";
+import { DepositorBtcKeyMismatchError } from "@/utils/errors/depositorWalletMismatch";
 
 // Use vi.hoisted so mocks can reference these before module initialization
 const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
@@ -225,8 +222,10 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     unsignedTxHex: "deadbeef",
     btcWalletProvider: {
       signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
+      getPublicKeyHex: vi.fn().mockResolvedValue(basePubkey),
     },
     depositorBtcPubkey: basePubkey,
+    vaultId: "0xabc" as const,
   };
 
   // The txid derived from mockInput.hash reversed
@@ -296,7 +295,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     await expect(
       broadcastPrePeginTransaction({
         ...baseParams,
-        btcWalletProvider: { signPsbt },
+        btcWalletProvider: { ...baseParams.btcWalletProvider, signPsbt },
         expectedUtxos: undefined,
       }),
     ).rejects.toThrow(/less than.*total output value/);
@@ -325,6 +324,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     vi.mocked(pushTx).mockClear();
 
     const customWallet = {
+      ...baseParams.btcWalletProvider,
       signPsbt: vi.fn().mockResolvedValue("wallet-returned-psbt-hex"),
     };
 
@@ -369,7 +369,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     await expect(
       broadcastPrePeginTransaction({
         ...baseParams,
-        btcWalletProvider: { signPsbt },
+        btcWalletProvider: { ...baseParams.btcWalletProvider, signPsbt },
         expectedUtxos: undefined,
       }),
     ).rejects.toMatchObject({
@@ -378,43 +378,26 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     });
   });
 
-  it("rethrows a depositor Ethereum-wallet mismatch from signing unwrapped, without broadcasting", async () => {
-    const mismatch = new DepositorWalletMismatchError({
-      vaultId: "0xabc",
-      expectedDepositor: "0x1111111111111111111111111111111111111111",
-      connectedDepositor: "0x2222222222222222222222222222222222222222",
-    });
-    const signPsbt = vi.fn().mockRejectedValue(mismatch);
+  it("refuses before the ceremony and signing when the wallet key is not the depositor key", async () => {
+    const signPsbt = vi.fn();
+    const approveDepositTerms = vi.fn();
     vi.mocked(pushTx).mockClear();
 
     await expect(
       broadcastPrePeginTransaction({
         ...baseParams,
-        btcWalletProvider: { signPsbt },
+        btcWalletProvider: {
+          signPsbt,
+          getPublicKeyHex: vi.fn().mockResolvedValue("b".repeat(64)),
+          deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+          approveDepositTerms,
+        },
         expectedUtxos: undefined,
       }),
-    ).rejects.toBe(mismatch);
+    ).rejects.toBeInstanceOf(DepositorBtcKeyMismatchError);
 
-    expect(pushTx).not.toHaveBeenCalled();
-  });
-
-  it("rethrows a depositor Bitcoin-key mismatch from signing unwrapped, without broadcasting", async () => {
-    const mismatch = new DepositorBtcKeyMismatchError({
-      vaultId: "0xabc",
-      expectedDepositorBtcPubkey: "11".repeat(32),
-      connectedBtcPubkey: "22".repeat(32),
-    });
-    const signPsbt = vi.fn().mockRejectedValue(mismatch);
-    vi.mocked(pushTx).mockClear();
-
-    await expect(
-      broadcastPrePeginTransaction({
-        ...baseParams,
-        btcWalletProvider: { signPsbt },
-        expectedUtxos: undefined,
-      }),
-    ).rejects.toBe(mismatch);
-
+    expect(approveDepositTerms).not.toHaveBeenCalled();
+    expect(signPsbt).not.toHaveBeenCalled();
     expect(pushTx).not.toHaveBeenCalled();
   });
 
@@ -422,6 +405,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     vi.mocked(assertReturnedKeyPathSignatures).mockClear();
     vi.mocked(pushTx).mockClear();
     const customWallet = {
+      ...baseParams.btcWalletProvider,
       signPsbt: vi.fn().mockResolvedValue("wallet-returned-psbt-hex"),
     };
 
@@ -485,8 +469,10 @@ describe("broadcastPrePeginTransaction — stage labels and cause preservation",
     unsignedTxHex: "deadbeef",
     btcWalletProvider: {
       signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
+      getPublicKeyHex: vi.fn().mockResolvedValue(basePubkey),
     },
     depositorBtcPubkey: basePubkey,
+    vaultId: "0xabc" as const,
   };
 
   it("labels a prevout-resolution failure as a prepare failure, not a broadcast one", async () => {
@@ -512,6 +498,7 @@ describe("broadcastPrePeginTransaction — stage labels and cause preservation",
     const thrown = await broadcastPrePeginTransaction({
       ...baseParams,
       btcWalletProvider: {
+        ...baseParams.btcWalletProvider,
         signPsbt: vi.fn().mockRejectedValueOnce(inner),
       },
       expectedUtxos: undefined,
@@ -524,6 +511,54 @@ describe("broadcastPrePeginTransaction — stage labels and cause preservation",
       /^Failed to sign Pre-Pegin transaction: wallet is locked/,
     );
     expect(thrown?.cause).toBe(inner);
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("labels a failed wallet key read as a sign failure with the original error as cause", async () => {
+    const inner = new Error("wallet is locked");
+    const signPsbt = vi.fn();
+    vi.mocked(pushTx).mockClear();
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: {
+        signPsbt,
+        getPublicKeyHex: vi.fn().mockRejectedValueOnce(inner),
+      },
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(
+      /^Failed to sign Pre-Pegin transaction: wallet is locked/,
+    );
+    expect(thrown?.cause).toBe(inner);
+    expect(signPsbt).not.toHaveBeenCalled();
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("labels an unparseable wallet key as a sign failure, not a key mismatch", async () => {
+    const signPsbt = vi.fn();
+    vi.mocked(pushTx).mockClear();
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: {
+        signPsbt,
+        getPublicKeyHex: vi.fn().mockResolvedValueOnce("zz"),
+      },
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown).not.toBeInstanceOf(DepositorBtcKeyMismatchError);
+    expect(thrown?.message).toMatch(/^Failed to sign Pre-Pegin transaction/);
+    expect((thrown?.cause as Error | undefined)?.message).toMatch(
+      /Invalid hex characters in public key/,
+    );
+    expect(signPsbt).not.toHaveBeenCalled();
     expect(pushTx).not.toHaveBeenCalled();
   });
 
@@ -550,6 +585,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
   // Matches mockTx.getId() so the terms bind to the tx being broadcast.
   const CEREMONY_TXID = "cc".repeat(32);
   const pubkey = "ab".repeat(32);
+  const getPublicKeyHex = vi.fn(async () => pubkey);
 
   const makeTerms = (): DepositTerms => ({
     vaultCoreVersion: 2,
@@ -580,6 +616,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
         order.push("sign");
         return psbtHex;
       }),
+      getPublicKeyHex,
       deriveContextHash: vi.fn(async () => {
         order.push("derive");
         return "ab".repeat(32);
@@ -595,6 +632,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       btcWalletProvider: wallet,
       depositorBtcPubkey: pubkey,
       depositTerms: makeTerms(),
+      vaultId: "0xabc",
     });
 
     expect(order).toEqual(["derive", "approve", "sign"]);
@@ -607,6 +645,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
     const rejection = new DepositTermsRejectedError("user declined on device");
     const wallet = {
       signPsbt,
+      getPublicKeyHex,
       deriveContextHash: vi.fn(async () => "ab".repeat(32)),
       approveDepositTerms: vi.fn(async () => {
         throw rejection;
@@ -620,6 +659,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
         btcWalletProvider: wallet,
         depositorBtcPubkey: pubkey,
         depositTerms: makeTerms(),
+        vaultId: "0xabc",
       }),
     ).rejects.toBe(rejection);
 
@@ -632,6 +672,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
     const inner = new Error("device disconnected");
     const wallet = {
       signPsbt: vi.fn(),
+      getPublicKeyHex,
       deriveContextHash: vi.fn(async () => "ab".repeat(32)),
       approveDepositTerms: vi.fn(async () => {
         throw inner;
@@ -643,6 +684,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       btcWalletProvider: wallet,
       depositorBtcPubkey: pubkey,
       depositTerms: makeTerms(),
+      vaultId: "0xabc",
     }).then(
       () => null,
       (e: unknown) => e as Error,
@@ -681,6 +723,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
         order.push("derive");
         return "ab".repeat(32);
       }),
+      getPublicKeyHex,
       approveDepositTerms: vi.fn(async () => {
         order.push("approve");
       }),
@@ -691,6 +734,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       btcWalletProvider: wallet,
       depositorBtcPubkey: pubkey,
       depositTerms: makeTerms(),
+      vaultId: "0xabc",
     });
 
     expect(order).toEqual([
@@ -713,6 +757,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
         controller.abort();
         throw lost;
       }),
+      getPublicKeyHex,
       deriveContextHash: vi.fn(async () => "ab".repeat(32)),
       approveDepositTerms: vi.fn(async () => {}),
     };
@@ -722,6 +767,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       btcWalletProvider: wallet,
       depositorBtcPubkey: pubkey,
       depositTerms: makeTerms(),
+      vaultId: "0xabc",
       signal: controller.signal,
     }).then(
       () => null,
@@ -739,6 +785,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       signPsbt: vi.fn(async () => {
         throw lost;
       }),
+      getPublicKeyHex,
       deriveContextHash: vi.fn(async () => "ab".repeat(32)),
       approveDepositTerms: vi.fn(async () => {}),
     };
@@ -749,6 +796,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       btcWalletProvider: wallet,
       depositorBtcPubkey: pubkey,
       depositTerms: makeTerms(),
+      vaultId: "0xabc",
     }).then(
       () => null,
       (e: unknown) => e as Error,
@@ -766,6 +814,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
       signPsbt: vi.fn(async () => {
         throw rejected;
       }),
+      getPublicKeyHex,
       deriveContextHash: vi.fn(async () => "ab".repeat(32)),
       approveDepositTerms: vi.fn(async () => {}),
     };
@@ -776,6 +825,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
         btcWalletProvider: wallet,
         depositorBtcPubkey: pubkey,
         depositTerms: makeTerms(),
+        vaultId: "0xabc",
       }),
     ).rejects.toMatchObject({ cause: rejected });
 

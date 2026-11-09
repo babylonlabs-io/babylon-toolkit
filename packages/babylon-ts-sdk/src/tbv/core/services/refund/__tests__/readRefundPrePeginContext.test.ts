@@ -233,6 +233,27 @@ describe("readRefundPrePeginContext", () => {
     ).toHaveBeenCalledWith(OFFCHAIN_PARAMS_VERSION);
   });
 
+  // feeRate sizes the depositor's claim value and minPeginFeeRate the PegIn fee.
+  // Each changes the HTLC value, so swapping them refuses every refund.
+  it("keeps the vault's two fee rates apart", async () => {
+    const r = readers();
+    r.protocolParamsReader.getOffchainParamsByVersion.mockResolvedValue({
+      ...OFFCHAIN_PARAMS,
+      feeRate: 10n,
+      minPeginFeeRate: 20n,
+    });
+
+    const context = await readRefundPrePeginContext({
+      vaultId: VAULT_ID,
+      vault: vaultRecord("00"),
+      readers: r,
+      network: NETWORK,
+    });
+
+    expect(context.feeRate).toBe(10n);
+    expect(context.minPeginFeeRate).toBe(20n);
+  });
+
   it("builds a refund that spends the funded HTLC of a vault registered after its participants rotated", async () => {
     const vault = vaultRecord(await fundPrePeginUnderOperationKeys());
     const r = readers();

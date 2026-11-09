@@ -7,7 +7,7 @@
 // that status instead of the indexer's. Other registry statuses do not
 // override the indexer.
 //
-// Fails OPEN, like `useStuckVaultChainConfirm`: a failed read keeps the
+// Fails OPEN, like `useStuckVaults`: a failed read keeps the
 // indexer's ACTIVE. Failing closed would offer Activate, and a wallet prompt,
 // on every healthy active vault while the RPC is down. A failed refetch of an
 // unchanged id set keeps the last result, for up to one poll. A read that has
