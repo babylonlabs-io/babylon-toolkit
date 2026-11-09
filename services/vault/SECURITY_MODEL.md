@@ -86,7 +86,8 @@ this component's to define. They warrant a separate `SECURITY_MODEL.md`.
   issues scoped bearer tokens, and serves recovery artifacts. May supply arbitrary values and
   metadata, withhold material the depositor needs, or return well-formed but useless data.
 - **Indexer.** Untrusted. Defines what the interface believes about vault state. Cannot forge a
-  signature, but can induce an irreversible action against a false picture of the world.
+  signature, but can induce an irreversible action against a false picture of the world, or leave a
+  vault out of that picture. A stuck vault's activate-and-redeem is therefore read from chain state.
 - **Chain and data providers** (Ethereum RPC, mempool, sidecar, screening API). Untrusted. Define
   "what the chain said", fee rates, and advisory verdicts.
 - **Attacker in the page's origin** — a hostile browser extension, a successful XSS, or anyone who

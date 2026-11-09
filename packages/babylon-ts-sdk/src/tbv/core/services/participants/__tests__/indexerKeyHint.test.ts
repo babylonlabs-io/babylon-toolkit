@@ -1,9 +1,9 @@
 /**
  * The RFC-006 accept-either policy, tested at the level it is defined.
  *
- * The three call sites (deposit, payout, refund) each have their own tests for
- * how they wire this in; these cases pin the policy itself, so a change to it
- * fails here first rather than as three unrelated downstream surprises.
+ * The two call sites (deposit, payout) each have their own tests for how they
+ * wire this in; these cases pin the policy itself, so a change to it fails here
+ * first rather than as two unrelated downstream surprises.
  */
 
 import { describe, expect, it, vi } from "vitest";

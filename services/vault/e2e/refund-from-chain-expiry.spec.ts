@@ -12,10 +12,14 @@
  * real hooks, polling and pages run on top of them. Nothing here signs.
  */
 
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core/contracts";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import {
+  encodeAbiParameters,
+  encodeEventTopics,
   encodeFunctionResult,
+  getAbiItem,
   toFunctionSelector,
   toHex,
   type Hex,
@@ -46,12 +50,9 @@ const VAULT_PROVIDER = "0x00000000000000000000000000000000000000a1";
 const DEPOSITOR_BTC_PUBKEY = `0x${RECORDED_DEPOSITOR.BTC_PUBLIC_KEY.slice(2)}`;
 const AMOUNT_SATS = 2_000_000n;
 
-/**
- * A well-formed one-input, one-output Bitcoin transaction. The app derives the
- * Pre-PegIn txid from it, which is all the row needs; nothing spends it.
- */
-const PRE_PEGIN_TX_HEX = `0x${[
-  "02000000", // version
+const TX_VERSION = "02000000";
+const TX_LOCKTIME = "00000000";
+const TX_INPUTS_AND_OUTPUTS = [
   "01", // input count
   "11".repeat(32), // previous txid
   "00000000", // previous vout
@@ -60,8 +61,24 @@ const PRE_PEGIN_TX_HEX = `0x${[
   "01", // output count
   "80841e0000000000", // 2_000_000 sats, little-endian
   "00", // empty scriptPubKey
-  "00000000", // locktime
-].join("")}`;
+].join("");
+
+/**
+ * A well-formed one-input, one-output Bitcoin transaction. The app derives the
+ * Pre-PegIn txid from it, which is all the row needs; nothing spends it.
+ */
+const PRE_PEGIN_TX_HEX =
+  `0x${TX_VERSION}${TX_INPUTS_AND_OUTPUTS}${TX_LOCKTIME}` as Hex;
+/** The same transaction as Bitcoin serves it: signed, with no `0x`. */
+const SIGNED_PRE_PEGIN_TX_HEX = [
+  TX_VERSION,
+  "0001", // segwit marker and flag
+  TX_INPUTS_AND_OUTPUTS,
+  "01", // one witness item
+  "40", // of 64 bytes
+  "aa".repeat(64),
+  TX_LOCKTIME,
+].join("");
 
 const CHAIN_HEAD = 50_000_000n;
 /** Registered so long ago that any recorded timeout has elapsed. */
@@ -100,6 +117,28 @@ const PENDING_PEGINS_STORAGE_PREFIX = "vault-pending-pegins";
 
 const VAULT_ROW_WAIT_MS = 20_000;
 
+/** `COPY.deposit.refundReview.heading`. */
+const REFUND_REVIEW_HEADING = "Review Refund";
+/** The HTLC output of {@link PRE_PEGIN_TX_HEX}. */
+const REFUND_AMOUNT = /^0\.02 \w*BTC$/;
+/** `COPY.deposit.refundNotBroadcast.heading`. */
+const NOTHING_TO_REFUND_HEADING = "Nothing to refund";
+
+const TX_NOT_FOUND = { status: 404, body: "Transaction not found" };
+
+const PEGIN_SUBMITTED_EVENT = getAbiItem({
+  abi: BTCVaultRegistryABI,
+  name: "PegInSubmitted",
+});
+
+/** Where a refund can read the Pre-PegIn's bytes from, once it is offered. */
+interface PrePeginSources {
+  /** What Bitcoin serves for the txid; `null` answers not-found. */
+  bitcoinHex: string | null;
+  /** Whether the node answers with the vault's registration log, not `[]`. */
+  logServed: boolean;
+}
+
 interface Premise {
   /** The GraphQL status the indexer keeps reporting. */
   indexerStatus: "pending" | "verified";
@@ -112,6 +151,8 @@ interface Premise {
   htlcSpentBy?: Hex;
   /** The status of the record this browser holds for the vault, if any. */
   localRecord?: "pending" | "refund_broadcast";
+  /** Set by a case that opens the refund; the rest never read the bytes. */
+  prePeginSources?: PrePeginSources;
 }
 
 function vaultRow({ indexerStatus }: Premise) {
@@ -210,12 +251,23 @@ async function stateBitcoin(page: Page, premise: Premise): Promise<void> {
   const tipPath = /\/blocks\/tip\/height$/;
   const outspendPath = /\/tx\/[0-9a-f]{64}\/outspend\/\d+$/;
   const txPath = /\/tx\/[0-9a-f]{64}$/;
+  const txHexPath = /\/tx\/[0-9a-f]{64}\/hex$/;
   await page.route(
     (url) =>
       url.pathname.startsWith("/mempool") &&
-      [tipPath, outspendPath, txPath].some((path) => path.test(url.pathname)),
+      [tipPath, outspendPath, txPath, txHexPath].some((path) =>
+        path.test(url.pathname),
+      ),
     (route: Route) => {
       const { pathname } = new URL(route.request().url());
+      if (txHexPath.test(pathname)) {
+        const bitcoinHex = premise.prePeginSources?.bitcoinHex;
+        return route.fulfill(
+          bitcoinHex
+            ? { contentType: "text/plain", body: bitcoinHex }
+            : TX_NOT_FOUND,
+        );
+      }
       if (tipPath.test(pathname)) {
         return route.fulfill({
           contentType: "text/plain",
@@ -246,6 +298,83 @@ async function stateBitcoin(page: Page, premise: Premise): Promise<void> {
   );
 }
 
+/** The vault's `PegInSubmitted` log, in the shape `eth_getLogs` answers with. */
+function registrationLog(createdAt: bigint) {
+  const nonIndexedValues: Record<string, unknown> = {
+    vaultProvider: VAULT_PROVIDER,
+    amount: AMOUNT_SATS,
+    vaultCoreVersion: 1,
+    universalChallengersVersion: 1,
+    appVaultKeepersVersion: 1,
+    proverCircuitVersion: 1,
+    offchainParamsVersion: 1,
+    referralCode: 0,
+    depositorPayoutBtcAddress: `0x${"33".repeat(34)}`,
+    depositorWotsPkHash: `0x${"33".repeat(32)}`,
+    hashlock: `0x${"33".repeat(32)}`,
+    btcPopSignature: `0x${"33".repeat(64)}`,
+    htlcVout: 0,
+    unsignedPrePeginTx: PRE_PEGIN_TX_HEX,
+    depositorSignedPeginTx: PRE_PEGIN_TX_HEX,
+    vpKeyEpoch: 0n,
+    appKeeperKeyEpoch: 0n,
+    ucKeyEpoch: 0n,
+    maxAcceptableCommissionBps: 0,
+  };
+  const nonIndexedInputs = PEGIN_SUBMITTED_EVENT.inputs.filter(
+    (input) => !input.indexed,
+  );
+  return {
+    address: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+    topics: encodeEventTopics({
+      abi: [PEGIN_SUBMITTED_EVENT],
+      args: {
+        vaultId: VAULT_ID,
+        peginTxHash: PEGIN_TX_HASH,
+        depositor: RECORDED_DEPOSITOR.ETH_ADDRESS,
+      },
+    }),
+    data: encodeAbiParameters(
+      nonIndexedInputs,
+      nonIndexedInputs.map((input) => nonIndexedValues[input.name]) as never,
+    ),
+    blockNumber: toHex(createdAt),
+    blockHash: `0x${"44".repeat(32)}`,
+    transactionHash: `0x${"55".repeat(32)}`,
+    transactionIndex: "0x0",
+    logIndex: "0x0",
+    removed: false,
+  };
+}
+
+/** The registry's protocol record, which the refund reads the txid and vout from. */
+function protocolInfoAnswer() {
+  return {
+    target: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+    selector: toFunctionSelector("function getBtcVaultProtocolInfo(bytes32)"),
+    answer: () =>
+      encodeFunctionResult({
+        abi: BTCVaultRegistryABI,
+        functionName: "getBtcVaultProtocolInfo",
+        result: {
+          depositorSignedPeginTx: PRE_PEGIN_TX_HEX,
+          universalChallengersVersion: 1,
+          appVaultKeepersVersion: 1,
+          offchainParamsVersion: 1,
+          verifiedAt: 0n,
+          depositorWotsPkHash: `0x${"33".repeat(32)}`,
+          hashlock: `0x${"33".repeat(32)}`,
+          htlcVout: 0,
+          depositorPopSignature: `0x${"33".repeat(64)}`,
+          prePeginTxHash: calculateBtcTxHash(PRE_PEGIN_TX_HEX),
+          vaultProviderCommissionBps: 0,
+          claimExpiredUntil: 0n,
+          vaultCoreVersion: 1,
+        },
+      }),
+  };
+}
+
 async function openVaults(
   page: Page,
   premise: Premise,
@@ -253,8 +382,16 @@ async function openVaults(
 ): Promise<ReplayBackend> {
   await blockOffsiteRequests(page);
   const backend = await installRecordedBackend(page, {
-    statedMethods: { eth_blockNumber: toHex(CHAIN_HEAD) },
+    statedMethods: {
+      eth_blockNumber: toHex(CHAIN_HEAD),
+      ...(premise.prePeginSources && {
+        eth_getLogs: premise.prePeginSources.logServed
+          ? [registrationLog(premise.createdAt)]
+          : [],
+      }),
+    },
     statedAnswers: [
+      ...(premise.prePeginSources ? [protocolInfoAnswer()] : []),
       {
         target: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
         selector: toFunctionSelector(
@@ -497,5 +634,76 @@ test.describe("refund offered from chain state", () => {
     await expect(page.getByRole("button", { name: WITHDRAW_LABEL })).toHaveCount(
       0,
     );
+  });
+});
+
+test.describe("refund once offered, with the indexer down", () => {
+  const OFFERED_REFUND = {
+    indexerStatus: "verified",
+    onChainStatus: ON_CHAIN_VERIFIED,
+    createdAt: CREATED_LONG_AGO,
+    confirmations: CONFIRMATIONS_PAST_TIMELOCK,
+  } as const;
+
+  /** Waits for the row, takes the indexer away, and returns the refund action. */
+  async function withdrawWithIndexerDown(page: Page) {
+    const withdraw = page.getByRole("button", { name: WITHDRAW_LABEL });
+    await expect(withdraw).toBeEnabled({ timeout: VAULT_ROW_WAIT_MS });
+    const indexerOrigin = new URL(RECORDED_ENDPOINTS.GRAPHQL_ENDPOINT).origin;
+    await page.route(
+      (url) => url.origin === indexerOrigin,
+      (route) => route.abort(),
+    );
+    return withdraw;
+  }
+
+  test("previews the refund from Bitcoin when the node serves no registration log", async ({
+    page,
+  }) => {
+    await openVaults(page, {
+      ...OFFERED_REFUND,
+      prePeginSources: { bitcoinHex: SIGNED_PRE_PEGIN_TX_HEX, logServed: false },
+    });
+
+    await (await withdrawWithIndexerDown(page)).click();
+
+    await expect(page.getByText(REFUND_REVIEW_HEADING)).toBeVisible();
+    await expect(page.getByText(REFUND_AMOUNT)).toBeVisible();
+  });
+
+  test("previews the refund from the registration log when Bitcoin serves no copy", async ({
+    page,
+  }) => {
+    await openVaults(page, {
+      ...OFFERED_REFUND,
+      prePeginSources: { bitcoinHex: null, logServed: true },
+    });
+
+    await (await withdrawWithIndexerDown(page)).click();
+
+    await expect(page.getByText(REFUND_REVIEW_HEADING)).toBeVisible();
+    await expect(page.getByText(REFUND_AMOUNT)).toBeVisible();
+  });
+
+  test("says there is nothing to refund when the Pre-PegIn left Bitcoin, without needing its bytes", async ({
+    page,
+  }) => {
+    await openVaults(page, {
+      ...OFFERED_REFUND,
+      prePeginSources: { bitcoinHex: null, logServed: false },
+    });
+
+    const withdraw = await withdrawWithIndexerDown(page);
+    await page.route(
+      (url) =>
+        url.pathname.startsWith("/mempool") &&
+        /\/tx\/[0-9a-f]{64}$/.test(url.pathname),
+      (route) => route.fulfill(TX_NOT_FOUND),
+    );
+    await withdraw.click();
+
+    await expect(
+      page.getByRole("heading", { name: NOTHING_TO_REFUND_HEADING }),
+    ).toBeVisible();
   });
 });

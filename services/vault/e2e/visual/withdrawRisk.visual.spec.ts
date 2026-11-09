@@ -42,6 +42,13 @@ for (const viewport of VISUAL_VIEWPORTS) {
       });
       await connectInjectedWallets(page);
       await page.getByTestId("open-withdraw-risk").click();
+      await expect
+        .poll(() =>
+          page.getByRole("img", { name: /^s?BTC$/ }).evaluate(
+            (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
+          ),
+        )
+        .toBe(true);
       const shots: StagedShot[] = [];
       for (const step of ["select", "review"] as const) {
         const acknowledgement = page.getByTestId(
@@ -63,8 +70,10 @@ for (const viewport of VISUAL_VIEWPORTS) {
           await expect(page.locator(".tsqd-parent-container")).toBeHidden();
           await expect(acknowledgement).toBeChecked({ checked });
           await expect(action).toBeEnabled({ enabled: checked });
-          await expect(page.locator("html")).toHaveClass(
-            new RegExp(`\\b${theme}\\b`),
+          await expect(label).toHaveCSS("height", "24px");
+          await expect(label.locator("span").last()).toHaveCSS(
+            "font-size",
+            "16px",
           );
           shots.push(
             await capture(

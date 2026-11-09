@@ -22,6 +22,7 @@ import type { Address } from "viem";
 
 import { useBTCWallet, useConnection, useETHWallet } from "@/context/wallet";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
+import { useStuckVaultsPoll } from "@/hooks/useStuckVaults";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 
 import { PeginPollingProvider } from "./PeginPollingContext";
@@ -35,6 +36,8 @@ export function AppPeginPollingProvider({ children }: PropsWithChildren) {
   // a key, and a connected wallet whose key is still loading waits for it. The
   // Bitcoin network polls keep running without a key.
   const btcWalletAbsent = !btcConnected;
+  // The one mount that runs the poll; `useVaultDeposits` only reads its result.
+  useStuckVaultsPoll(ethAddress as Address | undefined);
   // Shares the address-keyed React Query entry with every other
   // `useVaultDeposits` caller, so mounting app-wide adds no extra fetch.
   const { activities, pendingPegins } = useVaultDeposits(
