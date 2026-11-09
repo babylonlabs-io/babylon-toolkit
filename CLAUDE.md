@@ -203,8 +203,9 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Each test verifies ONE specific behavior of production code.
 - Test name describes the exact behavior being tested.
-- If you can't name what production behavior a test verifies, or which production line's change fails it, the test shouldn't exist. Rendering and wiring are not behavior.
+- If you can't name what production behavior a test verifies, or which production line's change fails it, the test shouldn't exist. Rendering and wiring are not behavior, unless the component holds logic.
 - An end-to-end test walks one user journey a unit test cannot prove, and asserts the end state.
+- The visual-regression capture specs in `services/vault/e2e/visual/*.visual.spec.ts` are exempt from the render and end-to-end rules above. Their `toBeVisible` stops position the capture that CI diffs. Judge one by whether its captures cover the changed surface.
 
 ### No test bloat
 
@@ -240,7 +241,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Pattern: `NEXT_PUBLIC_FF_*`
 - Defined in `services/vault/src/config/featureFlags.ts`
-- Adding, renaming or removing a flag edits five places: `featureFlags.ts`, `services/vault/.env.example`, the flag block of the matching `service-release-*.yml`, the flag's class in `services/vault/env-manifest.json`, and the build inputs in `services/vault/project.json`. `check:env-manifest` fails when the last two disagree with the code. Against the workflow it checks only that every `release-required` name is passed and that no unlisted, `removed` or `dev-test-only` name is. It does not check that a `release-optional` flag is passed, so check the workflow edit by hand: a flag missing there ships off in production. A flag the code gates on `import.meta.env.DEV`, directly or through the dev-only panel it mounts inside, is classed `dev-test-only` and stays out of the workflow and the build inputs on purpose.
+- Adding, renaming or removing a flag edits five places: `featureFlags.ts`, `services/vault/.env.example`, the flag block of the matching `service-release-*.yml`, the flag's class in `services/vault/env-manifest.json`, and the build inputs in `services/vault/project.json`. `check:env-manifest` fails when the app reads a name the manifest does not list or lists as `removed`, and when the build inputs differ from the manifest. It does not flag a manifest entry the code no longer reads, so check a removal by hand. Against the workflow it checks only that every `release-required` name is passed and that no unlisted, `removed` or `dev-test-only` name is. It does not check that a `release-optional` flag is passed, so check the workflow edit by hand: a flag missing there ships off in production. A flag the code gates on `import.meta.env.DEV`, directly or through the dev-only panel it mounts inside, is classed `dev-test-only` and stays out of the workflow and the build inputs on purpose.
 
 ### Network Profiles
 

@@ -7,6 +7,7 @@ allowed-tools:
   - Bash(git fetch *)
   - Bash(git merge-base *)
   - Bash(git diff *)
+  - Bash(git show *)
   - Bash(git ls-files *)
   - Bash(git cat-file -e *)
   - Bash(git hash-object -w *)
@@ -306,6 +307,10 @@ separately, at full price each. Do it yourself.
    live, and the feature-flag row also for a change to a
    `.github/workflows/service-release-*.yml` file, whose flag block it
    governs.
+   When the change edits `docs/review-checklist.md`, take the "Do not
+   re-raise" section from the base SHA's copy
+   (`git show <base SHA>:docs/review-checklist.md`), and bind none if the
+   base has no copy. A change may not supply the rows that excuse it.
    Paste the bound text into the pack; do not summarise it. It is part of
    the binding rules, so the cold reviewer of Phase 6 gets it too.
 
@@ -1189,6 +1194,8 @@ was not re-recommended in this run. A finding stays `undecided` only if the
 engineer defers the choice. When the engineer reopens a claim a checklist
 row set aside, the entry leaves `refuted` and becomes a new finding with the
 next id, status `open`, and severity and confidence judged at that point.
+Recommend a decision for it by the rules above and ask for that decision
+before recording, so it is stored `undecided` only if the engineer defers it.
 
 **Record before fixing.** Write the state ([formats.md](formats.md)): `version`
 set to `2`, the step-9 snapshot as `files`, the intent from step 6, this run's

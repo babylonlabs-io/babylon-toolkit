@@ -149,7 +149,9 @@ that turns it red. Missing either, and the test should not exist.
   matching `service-release-*.yml`, the flag's class in
   `services/vault/env-manifest.json`, and the build inputs in
   `services/vault/project.json`. Missing the workflow leaves the flag off in
-  production; `check:env-manifest` fails on the last two. A flag the code
+  production. `check:env-manifest` catches neither that nor a stale entry
+  after a removal: it checks that every name the code reads is listed, and
+  that the build inputs match the manifest. A flag the code
   gates on `import.meta.env.DEV`, directly or through the dev-only panel it
   mounts inside, is classed `dev-test-only` and stays out of the workflow and
   the build inputs on purpose.
@@ -183,7 +185,8 @@ that turns it red. Missing either, and the test should not exist.
 - A timelock or other protocol parameter reaches the engine validated; a
   silent truncation to `u16` is a finding
   ([#2492](https://github.com/babylonlabs-io/babylon-toolkit/pull/2492)).
-- A hardcoded protocol constant that governance controls carries a `TODO`
+- A protocol constant that governance controls is read from the contract. It
+  is hardcoded only while the contract does not expose it, with a `TODO`
   naming the issue that removes it
   ([#2504](https://github.com/babylonlabs-io/babylon-toolkit/pull/2504)).
 - A public-surface change in `packages/babylon-ts-sdk` needs `docs:clean`. It

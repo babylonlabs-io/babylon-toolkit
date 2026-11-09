@@ -130,7 +130,9 @@ checklist's "Do not re-raise" section is a candidate, not a drop: it is
 verified against the behaviour the row accepts, then recorded as refuted
 with that row, or kept when the change widens what the row accepts. Every
 later run re-checks a claim set aside this way, since fixes may widen the
-change.
+change. When the change edits the checklist, its "Do not re-raise" rows come
+from the base copy, so a change cannot add the rows that excuse it. The PR
+record lists each claim a row set aside.
 
 All reviewers are defined in `.claude/agents/` without the Edit and Write
 tools, and their instructions forbid touching the working tree or the index.

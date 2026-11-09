@@ -321,6 +321,8 @@ When the file does not exist yet, write:
    | 9 | <one-line claim> | normal | declined: <reason> |
    | 12 | <one-line claim> | normal | open |
 
+   Set aside by a checklist row: <one-line claim> (row: <the row>)
+
    </details>
    ```
 
@@ -334,6 +336,10 @@ Each finding's outcome is the first row that applies:
 | `follow-up: …`           | decision `follow-up`                            |
 | `declined: …`            | decision `decline`                              |
 | `open`                   | anything else: fix-now not yet fixed, undecided |
+
+Under the table, list each `refuted` entry with a `row`, one line each, so
+human reviewers see what a "Do not re-raise" row set aside. Omit the lines
+when there is none. These entries are not findings and are not counted.
 
 Severity outranks the decision deliberately. A deferred or declined
 merge-blocker still renders as `open — merge-blocker`, with the decision and
