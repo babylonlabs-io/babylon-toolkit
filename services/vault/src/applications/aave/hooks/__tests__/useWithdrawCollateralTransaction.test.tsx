@@ -76,6 +76,12 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), event: vi.fn() },
 }));
 
+const mockTrackEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/infrastructure/analytics")>()),
+  trackEvent: mockTrackEvent,
+}));
+
 import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { COPY } from "@/copy";
 import {
@@ -225,6 +231,33 @@ describe("useWithdrawCollateralTransaction", () => {
       "withdraw",
     );
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
+  });
+
+  it("sends withdraw_succeeded for each vault once the withdrawal is mined", async () => {
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.executeWithdraw([
+        { vaultId: VAULT_ID, amountSats: 60_000_000n },
+        { vaultId: SECOND_VAULT_ID, amountSats: 20_000_000n },
+      ]);
+    });
+
+    expect(mockTrackEvent.mock.calls).toEqual([
+      ["withdraw_succeeded", { vault_id: VAULT_ID }],
+      ["withdraw_succeeded", { vault_id: SECOND_VAULT_ID }],
+    ]);
+  });
+
+  it("sends no withdraw_succeeded when the transaction reverts", async () => {
+    mockWithdraw.mockRejectedValue(new Error("execution reverted"));
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.executeWithdraw(SELECTION);
+    });
+
+    expect(mockTrackEvent).not.toHaveBeenCalled();
   });
 
   it("leaves the position query untouched when the transaction reverts", async () => {
@@ -390,6 +423,10 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
       );
       expect(mockMarkVaultsAsPending).not.toHaveBeenCalled();
       expect(invalidate).toHaveBeenCalled();
+      expect(mockTrackEvent).not.toHaveBeenCalledWith(
+        "withdraw_succeeded",
+        expect.anything(),
+      );
     } finally {
       vi.useRealTimers();
     }

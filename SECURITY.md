@@ -809,7 +809,7 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can attribute deposits and borrows to a traffic source. It is a separate channel from Sentry, and
+can attribute deposits, borrows and withdrawals to a traffic source. It is a separate channel from Sentry, and
 unlike Sentry it **deliberately sends the connected Ethereum address** (`wallet_address`) and the
 full vault id (`vault_id`), as Aave and Uniswap send addresses. This is an accepted risk (see the
 vault model's _Accepted risks_), not an oversight.
