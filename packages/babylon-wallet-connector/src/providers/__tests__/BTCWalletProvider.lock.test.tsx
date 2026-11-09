@@ -173,44 +173,108 @@ describe("BTCWalletProvider — silent lock engine", () => {
     expect(off.mock.calls.every(([event]) => event === "accountsChanged")).toBe(true);
   });
 
-  it.each(["focus", "visibility", "visibility-error"])(
-    "keeps the wallet unlocked after an old %s check returns",
-    async (source) => {
-      const getAccounts = vi.fn(async () => [] as string[]);
-      const connectWallet = vi.fn(async () => {});
-      connectWith(makeProvider({ getAccounts, connectWallet }));
+  it("keeps the wallet unlocked after an old focus check returns", async () => {
+    const getAccounts = vi.fn(async () => [] as string[]);
+    const connectWallet = vi.fn(async () => {});
+    connectWith(makeProvider({ getAccounts, connectWallet }));
 
-      const { result } = renderHook(() => useBTCWallet(), { wrapper });
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
 
-      await waitFor(() => {
-        focusTab();
-        expect(result.current.locked).toBe(true);
-      });
-
-      let settleProbe!: () => void;
-      getAccounts.mockReturnValueOnce(
-        new Promise((resolve, reject) => {
-          settleProbe = () => (source === "visibility-error" ? reject(new Error("Probe failed")) : resolve([]));
-        }),
-      );
-      act(() => {
-        if (source === "focus") focusTab();
-        else void harness.onVisible?.();
-      });
-
-      await act(async () => {
-        await result.current.reconnect();
-      });
-
-      expect(result.current.locked).toBe(false);
-      await act(async () => settleProbe());
-      expect(result.current.locked).toBe(false);
-      expect(connectWallet).toHaveBeenCalledTimes(1);
-
-      await act(async () => focusTab());
+    await waitFor(() => {
+      focusTab();
       expect(result.current.locked).toBe(true);
-    },
-  );
+    });
+
+    let resolveProbe!: (accounts: string[]) => void;
+    getAccounts.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveProbe = resolve;
+      }),
+    );
+    act(() => focusTab());
+
+    await act(async () => {
+      await result.current.reconnect();
+    });
+
+    expect(result.current.locked).toBe(false);
+    await act(async () => resolveProbe([]));
+    expect(result.current.locked).toBe(false);
+    expect(connectWallet).toHaveBeenCalledTimes(1);
+
+    await act(async () => focusTab());
+    expect(result.current.locked).toBe(true);
+  });
+
+  it("keeps the wallet unlocked after an old visibility check returns", async () => {
+    const getAccounts = vi.fn(async () => [] as string[]);
+    const connectWallet = vi.fn(async () => {});
+    connectWith(makeProvider({ getAccounts, connectWallet }));
+
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
+
+    await waitFor(() => {
+      focusTab();
+      expect(result.current.locked).toBe(true);
+    });
+
+    let resolveProbe!: (accounts: string[]) => void;
+    getAccounts.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveProbe = resolve;
+      }),
+    );
+    act(() => {
+      void harness.onVisible?.();
+    });
+
+    await act(async () => {
+      await result.current.reconnect();
+    });
+
+    expect(result.current.locked).toBe(false);
+    await act(async () => resolveProbe([]));
+    expect(result.current.locked).toBe(false);
+    expect(connectWallet).toHaveBeenCalledTimes(1);
+
+    await act(async () => focusTab());
+    expect(result.current.locked).toBe(true);
+  });
+
+  it("keeps the wallet unlocked after an old visibility check fails", async () => {
+    const getAccounts = vi.fn(async () => [] as string[]);
+    const connectWallet = vi.fn(async () => {});
+    connectWith(makeProvider({ getAccounts, connectWallet }));
+
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
+
+    await waitFor(() => {
+      focusTab();
+      expect(result.current.locked).toBe(true);
+    });
+
+    let rejectProbe!: (error: Error) => void;
+    getAccounts.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectProbe = reject;
+      }),
+    );
+    act(() => {
+      void harness.onVisible?.();
+    });
+
+    await act(async () => {
+      await result.current.reconnect();
+    });
+
+    expect(result.current.locked).toBe(false);
+    await act(async () => rejectProbe(new Error("Probe failed")));
+    expect(result.current.locked).toBe(false);
+    expect(connectWallet).toHaveBeenCalledTimes(1);
+
+    await act(async () => focusTab());
+    expect(result.current.locked).toBe(true);
+  });
 
   it("does not resurrect lock state for a session torn down while a probe was in flight", async () => {
     let resolveProbe: (value: string[]) => void = () => {};
