@@ -33,11 +33,6 @@ vi.mock("../../../hooks/useBtcHtlcRefundStatus", () => ({
   useBtcHtlcRefundStatus: () => ({ refundByDepositId: new Map() }),
 }));
 
-// react-query plus a chain read. Empty set is also the production fail-open
-// default.
-vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
-  useStuckVaultChainConfirm: () => new Set<string>(),
-}));
 vi.mock("../../../hooks/useClaimExpiredWindowGate", () => ({
   useClaimExpiredWindowGate: () => new Map(),
 }));

@@ -19,6 +19,8 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { verifyPeginHashlockSpend } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { Transaction } from "bitcoinjs-lib";
+import type { Hex } from "viem";
 
 import { normalizeChainHeight } from "@/models/reclaimEligibility";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -68,7 +70,7 @@ export async function fetchHtlcSpend(
  * A spend is only a refund if somebody other than the PegIn made it; when the
  * PegIn is the spender the BTC moved INTO the BTCVault. Positive proof only: a
  * missing `spendingTxid` or PegIn txid reads as false. The display, the
- * stuck-state probe and the refunded-HTLC cache all attribute through this,
+ * stuck-vault discovery and the refunded-HTLC cache all attribute through this,
  * and the cache and the refund flow also refuse a spend reported without its
  * transaction (the refund flow names it only after an "already in chain"
  * rejection, which proves the spender is its own refund), so a PegIn sweep is
@@ -93,7 +95,12 @@ export type PeginProofSource = Pick<
 >;
 
 export type PeginSpendProof =
-  | { status: "proven" }
+  /**
+   * `prePeginTxHex` is the vault's registered Pre-PegIn as Bitcoin served it,
+   * with its witness dropped: the verifier has matched its txid to the
+   * registry's, and the txid commits to everything but the witness.
+   */
+  | { status: "proven"; prePeginTxHex: Hex }
   /** The PegIn or its Pre-PegIn could not be fetched from Bitcoin. */
   | { status: "unavailable"; cause: unknown }
   /** What was served is not the vault's PegIn validly spending its HTLC. */
@@ -149,6 +156,15 @@ export async function provePeginSpendsHtlc(
     hashlock: vault.hashlock,
   });
   return verdict.valid
-    ? { status: "proven" }
+    ? { status: "proven", prePeginTxHex: dropWitness(prePegin.value) }
     : { status: "unproven", reason: verdict.reason };
+}
+
+/** A funded transaction in the form the indexer and local storage hold it. */
+function dropWitness(txHex: string): Hex {
+  const tx = Transaction.fromHex(stripHexPrefix(txHex));
+  for (const input of tx.ins) {
+    input.witness = [];
+  }
+  return `0x${tx.toHex()}`;
 }

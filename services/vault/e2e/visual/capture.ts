@@ -32,6 +32,7 @@ import type { RecordedBackend } from "../fixtures/replay/recording";
 
 import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
 import {
+  ACTIVATION_WARNING_STOPS,
   ACTIVE_LOAN_STOP,
   ARTIFACT_DOWNLOAD_STOPS,
   ARTIFACT_QUOTA_STOPS,
@@ -445,6 +446,7 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ACTIVE_LOAN_STOP,
       ...Object.values(RISK_PRICE_RAIL_STOPS),
+      ...Object.values(ACTIVATION_WARNING_STOPS).flat(),
       ...Object.values(VAULT_REFUND_STOPS),
       ...(HAS_ARTIFACT_DOWNLOAD_CONFIRMATION
         ? [
