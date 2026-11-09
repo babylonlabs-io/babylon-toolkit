@@ -173,6 +173,30 @@ export const DEPOSIT_PROGRESS_STOPS = {
  */
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
+const withdrawalCopy = readFileSync(
+  new URL("../../src/copy.ts", import.meta.url),
+  "utf8",
+);
+if (
+  !withdrawalCopy.includes(
+    'continueAnyway: "I understand the liquidation risk"',
+  ) &&
+  !withdrawalCopy.includes('continueAnyway: "Continue anyway"')
+) {
+  throw new Error("The withdrawal risk acknowledgement copy is unknown.");
+}
+export const WITHDRAW_RISK_ACKNOWLEDGEMENT =
+  process.env.CAPTURE_ROOT?.endsWith("/baseline") === true &&
+  withdrawalCopy.includes('continueAnyway: "Continue anyway"')
+    ? "Continue anyway"
+    : "I understand the liquidation risk";
+export const WITHDRAW_RISK_STOPS = ["light", "dark"].flatMap((theme) => [
+  `withdraw-risk-select-${theme}-unchecked`,
+  `withdraw-risk-select-${theme}-checked`,
+  `withdraw-risk-review-${theme}-unchecked`,
+  `withdraw-risk-review-${theme}-checked`,
+]);
+
 export const VAULT_REFUND_STOPS = {
   refunding: "vaults-refunding",
   refunded: "vaults-refunded",

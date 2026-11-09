@@ -53,6 +53,7 @@ import {
   VAULT_REFUND_STOPS,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
+  WITHDRAW_RISK_STOPS,
 } from "./targets";
 
 /**
@@ -443,6 +444,7 @@ export async function ensureOutputDir(): Promise<void> {
     ),
     ...[
       ACTIVE_LOAN_STOP,
+      ...WITHDRAW_RISK_STOPS,
       ...Object.values(VAULT_REFUND_STOPS),
       ...(HAS_ARTIFACT_DOWNLOAD_CONFIRMATION
         ? [
