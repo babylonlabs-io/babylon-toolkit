@@ -796,7 +796,7 @@ export const COPY = {
       continueWithoutButton: "Continue without",
       confirmSkipTitle: "Are you sure?",
       confirmSkipBody:
-        "Continuing without downloading the recovery artifacts may put your funds at risk if your vault provider becomes unavailable.",
+        "Continuing without downloading the recovery artifacts may put your funds at risk if your BTCVault provider becomes unavailable.",
       // Shown under the body while the modal asks the vault provider one
       // status question before offering the skip or activation.
       probingVaultProvider:
