@@ -136,9 +136,7 @@ export interface WalletOption<T extends string> {
 export const BTC_WALLETS: WalletOption<BtcWalletId>[] = [
   { id: "unisat", label: "UniSat", enabled: true },
   { id: "okx", label: "OKX", enabled: true },
-  // OneKey does not currently sign `signPsbts` correctly (batch payout/graph signing). Disabled until
-  // OneKey fixes it upstream; the importer + connector mapping remain so re-enabling is `enabled: true`.
-  { id: "onekey", label: "OneKey", enabled: false },
+  { id: "onekey", label: "OneKey", enabled: true },
 ];
 
 export const ETH_WALLETS: WalletOption<EthWalletId>[] = [

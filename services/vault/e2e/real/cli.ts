@@ -406,7 +406,7 @@ async function resolveConfig(
   // Valid values derived from config so the flag validator can't drift from the interactive menu.
   const TARGETS: readonly Target[] = ["website", "localhost"];
   const NETWORKS_LIST = Object.keys(NETWORKS) as NetworkName[];
-  // Only enabled wallets are selectable (disabled ones — e.g. OneKey — are hidden + rejected).
+  // Only enabled wallets are selectable (disabled ones are hidden + rejected).
   const enabledBtcWallets = BTC_WALLETS.filter((w) => w.enabled);
   const enabledEthWallets = ETH_WALLETS.filter((w) => w.enabled);
   const BTC_IDS = enabledBtcWallets.map((w) => w.id);

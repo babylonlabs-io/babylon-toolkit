@@ -11,9 +11,12 @@
  *  - Onboarding runs in the full-page tab `ui-expand-tab.html`; OneKey renders it in English already,
  *    so there's no in-app language switch (unlike OKX). We still drive by `data-testid` where possible.
  *  - The seed inputs (`phrase-input-index0..`) each show an autocomplete popup and do NOT auto-advance,
- *    so typing word-by-word is fragile. OneKey fans a single paste across all fields and auto-expands the
- *    grid to the phrase length (12 or 24 words), so we write the phrase to the clipboard and paste into
- *    box 0, then clear the clipboard — no word-count selector needed.
+ *    so typing word-by-word is fragile. OneKey spreads a single paste across all the inputs, so we paste
+ *    the whole phrase into input 0 and then clear the clipboard. Every input except the focused one shows
+ *    a mask instead of its word, so each is focused before its value is checked.
+ *  - From 6.6.4 OneKey's pages run under SES lockdown (`evalTaming: "no-eval"`), so `page.evaluate` on
+ *    a OneKey tab throws, while locator actions still work. The clipboard is written and read from a
+ *    helper page instead, served at an `https` address that `page.route` answers locally.
  *  - After the passcode screen OneKey shows "Your wallet is ready" (→ Enter wallet) and then a
  *    referral-code modal (→ Skip) before landing on the wallet home.
  *  - The network selector trigger (the chain-icon cluster, "+16", next to "Account #1") carries no
@@ -81,7 +84,7 @@ async function switchToSignet(tab: Page): Promise<void> {
  *
  * Path in the full-page (ui-expand-tab) layout: the MENU is the dot-grid at the BOTTOM of the left
  * sidebar (`bottom-menu-container`), NOT a header button. It opens a menu with Settings, whose panel
- * has a "Wallet" tab (`…-item-WalletSolid` — distinct from the sidebar's own Wallet4Solid item) that
+ * has a "Wallet" tab (`…-item-WalletOutline` — distinct from the sidebar's own Wallet4Solid item) that
  * reveals the switch.
  */
 async function disableBtcMultipleAddresses(tab: Page): Promise<void> {
@@ -103,7 +106,7 @@ async function disableBtcMultipleAddresses(tab: Page): Promise<void> {
   await sleep(SETTLE.MEDIUM);
 
   // Settings-panel "Wallet" tab; the suffix match covers both its active and inactive testid variants.
-  const walletTab = tab.locator('[data-testid$="-item-WalletSolid"]').first();
+  const walletTab = tab.locator('[data-testid$="-item-WalletOutline"]').first();
   if (!(await walletTab.isVisible().catch(() => false))) fail('the Settings → "Wallet" tab was not found');
   await walletTab.click({ force: true }).catch(() => {});
   await sleep(SETTLE.MEDIUM);
@@ -121,20 +124,94 @@ async function disableBtcMultipleAddresses(tab: Page): Promise<void> {
 }
 
 /**
+ * Address of the clipboard helper page. Requests to it are answered by `page.route` and never leave the
+ * browser; the `https` scheme makes the page a secure context, which the clipboard API requires and an
+ * `about:blank` page is not.
+ */
+const CLIPBOARD_HELPER_URL = "https://clipboard-helper.invalid/";
+
+/**
+ * Open a page that can use the clipboard on OneKey's behalf. OneKey's pages run under SES lockdown
+ * (`evalTaming: "no-eval"`), so `page.evaluate` on them throws.
+ */
+async function openClipboardHelper(context: BrowserContext): Promise<Page> {
+  const helper = await context.newPage();
+  await helper.route(CLIPBOARD_HELPER_URL, (route) =>
+    route.fulfill({ contentType: "text/html", body: "<!doctype html><title>clipboard</title>" }),
+  );
+  await helper.goto(CLIPBOARD_HELPER_URL);
+  return helper;
+}
+
+/** Write `text` to the clipboard from the helper page. The clipboard API needs a focused document. */
+async function writeClipboard(helper: Page, text: string): Promise<void> {
+  await helper.bringToFront();
+  await helper.evaluate((value) => navigator.clipboard.writeText(value), text);
+}
+
+/**
  * Read the active receive address by clicking the header copy button and reading the clipboard.
  * Clearing the clipboard first and polling until a valid taproot appears rejects any stale value.
  */
-async function readAddress(tab: Page): Promise<string | null> {
-  await tab.evaluate("navigator.clipboard.writeText('').catch(() => {})").catch(() => {});
-  await clickByTestId(tab, "account-selector-copy-address-btn");
+async function readAddress(context: BrowserContext, tab: Page): Promise<string | null> {
+  const helper = await openClipboardHelper(context);
+  try {
+    await writeClipboard(helper, "");
+    await tab.bringToFront();
+    await clickByTestId(tab, "account-selector-copy-address-btn");
+    await helper.bringToFront();
 
-  let clip = "";
-  for (let i = 0; i < CLIPBOARD_POLL.ATTEMPTS; i++) {
-    clip = (((await tab.evaluate("navigator.clipboard.readText().catch(() => '')").catch(() => "")) as string) || "").trim();
-    if (FULL_SIGNET_TAPROOT.test(clip)) return clip;
-    await sleep(CLIPBOARD_POLL.INTERVAL_MS);
+    for (let i = 0; i < CLIPBOARD_POLL.ATTEMPTS; i++) {
+      const clip = (await helper.evaluate(() => navigator.clipboard.readText())).trim();
+      if (FULL_SIGNET_TAPROOT.test(clip)) return clip;
+      await sleep(CLIPBOARD_POLL.INTERVAL_MS);
+    }
+    return null;
+  } finally {
+    await helper.close().catch(() => {});
+    await tab.bringToFront().catch(() => {});
   }
-  return null;
+}
+
+/**
+ * Paste the recovery phrase into OneKey's first word input; OneKey spreads it across all of them. The
+ * grid is switched to the phrase's length first when it differs from the default. Each input is then
+ * checked while focused, since OneKey masks the word in every input that does not have focus. Fails
+ * loudly: a missing word otherwise surfaces much later as an unrelated settings failure.
+ */
+async function enterRecoveryPhrase(context: BrowserContext, tab: Page, mnemonic: string): Promise<void> {
+  const phrase = mnemonic.trim();
+  const words = phrase.split(/\s+/);
+  const wordInput = (index: number) => tab.locator(`[data-testid="phrase-input-index${index}"]`).first();
+
+  await wordInput(0).waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS });
+  if (!(await wordInput(words.length - 1).isVisible().catch(() => false))) {
+    await clickByTestId(tab, "phrase-length");
+    await clickByTestId(tab, `select-item-${words.length}`);
+    await sleep(SETTLE.SHORT);
+    if (!(await wordInput(words.length - 1).isVisible().catch(() => false)))
+      throw new Error(`OneKey import: could not switch the recovery-phrase grid to ${words.length} words`);
+  }
+
+  const helper = await openClipboardHelper(context);
+  try {
+    await writeClipboard(helper, phrase);
+    await tab.bringToFront();
+    await wordInput(0).click();
+    await tab.keyboard.press("ControlOrMeta+V");
+    await sleep(SETTLE.SHORT);
+  } finally {
+    await writeClipboard(helper, "").catch(() => {});
+    await helper.close().catch(() => {});
+    await tab.bringToFront().catch(() => {});
+  }
+
+  for (const [index, word] of words.entries()) {
+    await wordInput(index).focus();
+    if ((await wordInput(index).inputValue()).trim() !== word)
+      throw new Error(`OneKey import: recovery-phrase input ${index + 1} of ${words.length} does not hold its word`);
+  }
+  await wordInput(words.length - 1).blur();
 }
 
 /** The app auto-lock value OneKey ships with (its Security screen shows a word, not a duration). */
@@ -198,17 +275,7 @@ export async function setupOneKeyWallet(context: BrowserContext, mnemonic: strin
   await clickByTestId(tab, "onboarding-create-or-import-wallet-option-phraseOrPrivateKey-btn");
   await sleep(SETTLE.MEDIUM);
 
-  // Fill the seed words by pasting into box 0 — OneKey fans the paste across all inputs and auto-expands
-  // the grid to match the phrase length (12 or 24 words), so no word-count switch is needed; then clear
-  // the clipboard.
-  const seedBox = tab.locator('[data-testid="phrase-input-index0"]').first();
-  await seedBox.waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
-  await tab.evaluate((m) => navigator.clipboard.writeText(m).catch(() => {}), mnemonic.trim()).catch(() => {});
-  await seedBox.click().catch(() => {});
-  await tab.keyboard.press("ControlOrMeta+V").catch(() => {});
-  await sleep(SETTLE.SHORT);
-  await tab.evaluate("navigator.clipboard.writeText('').catch(() => {})").catch(() => {});
-  await sleep(SETTLE.SHORT);
+  await enterRecoveryPhrase(context, tab, mnemonic);
   await clickByTestId(tab, "onboarding-import-phrase-confirm-btn");
   await sleep(SETTLE.LONG);
 
@@ -233,7 +300,7 @@ export async function setupOneKeyWallet(context: BrowserContext, mnemonic: strin
   // navigates into Settings and away from the home screen where readAddress works). Reading here is
   // safe: the spec asserts the returned address equals deriveSignetTaproot(mnemonic), so if OneKey ever
   // surfaced a fresh/first-unused address while multi-address is on, that assertion would fail loudly.
-  const address = await readAddress(tab);
+  const address = await readAddress(context, tab);
   // Confirm OneKey's app auto-lock is "Never" so it doesn't re-lock mid-run (expected default).
   await verifyAutoLockNever(tab);
   await disableBtcMultipleAddresses(tab);
