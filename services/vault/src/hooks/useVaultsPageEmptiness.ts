@@ -19,7 +19,7 @@
  * no verdict yet reads as nothing left to do and would empty the page, whereas
  * an account with collateral or pending deposits has a page to render and the
  * settled row simply arrives when its reads land. It is false while
- * disconnected.
+ * disconnected, and while a stuck vault's exit is on the page.
  *
  * `hasError` is true when a connected session has nothing to show AND either
  * query failed — an empty account must never be claimed on the back of a
@@ -68,6 +68,7 @@ interface VaultsPageDeposits {
   error: Error | null;
   storageReadError: PendingPeginStorageReadError | null;
   claimExpiredModal: { claimingActivity: VaultActivity | null };
+  emergencyWithdrawModal: { withdrawing: { activity: VaultActivity } | null };
 }
 
 export function useVaultsPageEmptiness(
@@ -97,27 +98,42 @@ export function useVaultsPageEmptiness(
     error: depositsError,
     storageReadError,
     claimExpiredModal,
+    emergencyWithdrawModal,
   } = deposits;
 
   const { candidates: actionableReclaims, isResolving: isReclaimResolving } =
     useActionableReclaims(reclaimableCandidates, NO_RECLAIMS_IN_FLIGHT);
 
-  // An open redeem modal counts: a confirmed redeem moves its vault out of the
-  // expired list before the depositor acknowledges the success screen, and an
-  // empty page would unmount that screen with the section that hosts it.
+  const isWithdrawModalOpen = emergencyWithdrawModal.withdrawing !== null;
+
+  // An open redeem modal counts: a confirmed redeem moves its vault out of its
+  // list before the depositor acknowledges the success screen, and an empty page
+  // would unmount that screen with the section that hosts it.
   const hasAnythingToShow =
     hasDisplayCollateral ||
     pendingActivities.length > 0 ||
     expiredActivities.length > 0 ||
     returnedRedeemedActivities.length > 0 ||
     actionableReclaims.length > 0 ||
-    claimExpiredModal.claimingActivity !== null;
+    claimExpiredModal.claimingActivity !== null ||
+    isWithdrawModalOpen;
+
+  // With nothing cached, a read that keeps failing reads as loading again on
+  // every poll, with its error cleared. A stuck vault's exit is read from the
+  // chain and needs neither the vault list nor the position, so they must not
+  // take its row, or its open modal, off the page. What they would have shown is
+  // still missing, so it counts as a failed source for as long as it is.
+  const isExitOnPage =
+    isWithdrawModalOpen ||
+    pendingActivities.some((activity) => activity.stuckOnChain);
+  const isSourceLoading = isPositionLoading || isDepositsLoading;
+  const isSourceMissing = isExitOnPage && isSourceLoading;
   const isLoading =
     isConnected &&
-    (isPositionLoading ||
-      isDepositsLoading ||
+    ((isSourceLoading && !isExitOnPage) ||
       (isReclaimResolving && !hasAnythingToShow));
-  const remoteFailed = Boolean(positionError || indexerError || depositsError);
+  const remoteFailed =
+    isSourceMissing || Boolean(positionError || indexerError || depositsError);
   const anySourceFailed = remoteFailed || Boolean(storageReadError);
   const hasError =
     isConnected && !isLoading && !hasAnythingToShow && anySourceFailed;
@@ -136,7 +152,8 @@ export function useVaultsPageEmptiness(
     hasPartialError,
     hasNonIndexerError:
       isConnected &&
-      Boolean(positionError || depositsError || storageReadError),
+      (isSourceMissing ||
+        Boolean(positionError || depositsError || storageReadError)),
     storageOnlyError: hasError && Boolean(storageReadError) && !remoteFailed,
   };
 }

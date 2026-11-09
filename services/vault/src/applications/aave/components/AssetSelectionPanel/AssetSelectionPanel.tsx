@@ -81,7 +81,7 @@ export function AssetSelectionPanel({
               type="button"
               disabled={!card.selectable}
               onClick={() => onSelectAsset(card.underlying)}
-              className="flex min-w-0 items-center gap-4 rounded-xl bg-background-secondary p-4 text-left transition-colors enabled:cursor-pointer enabled:hover:bg-secondary-strokeLight disabled:opacity-40"
+              className="flex min-w-0 items-center gap-4 rounded-xl bg-background-secondary p-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary enabled:cursor-pointer enabled:hover:bg-neutral-200 disabled:opacity-40"
               // E2E: e2e/real/actions/borrow.ts (selectAsset) clicks the card
               // by underlying address. Keyed by address, not symbol: two hubs
               // can list different tokens that share a symbol.

@@ -17,18 +17,18 @@
  * For an operator that never rotated the two candidates are identical, so this
  * is exactly the old strict check until someone rotates.
  *
- * This module exists because the policy had already been written three times —
- * deposit, payout, and (missing) refund — and drifted each time. Callers differ
- * in shape and cannot share one entry point:
+ * This module exists because the policy had already been written more than once
+ * and drifted each time. Callers differ in shape and cannot share one entry
+ * point:
  *
  * - the deposit path compares three roles as whole sets and resolves operation
  *   keys **eagerly**, because it builds the Bitcoin lock with them;
- * - payout and refund compare one scalar key and must read the operation key
- *   **lazily**, because on the happy path it is a second RPC for nothing.
+ * - payout compares one scalar key and must read the operation key **lazily**,
+ *   because on the happy path it is a second RPC for nothing.
  *
  * So what is shared is the predicate — {@link isHintAccepted} and the two
- * matchers — plus {@link assertVaultProviderHintAccepted} for the two scalar
- * callers. Anything that needs a different acceptance rule does not belong
+ * matchers — plus {@link assertVaultProviderHintAccepted} for the scalar
+ * caller. Anything that needs a different acceptance rule does not belong
  * here; see `vpAuthPinnedPubkey`, which is deliberately operation-key-only
  * because accepting either would hollow out the pin.
  *

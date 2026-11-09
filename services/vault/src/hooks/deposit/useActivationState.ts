@@ -19,6 +19,8 @@ import type { VaultActivity } from "@/types/activity";
 import { parseBtcToSatoshis } from "@/utils/btcConversion";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
+import { STUCK_VAULTS_QUERY_KEY } from "../useStuckVaults";
+
 import { useVaultActions } from "./useVaultActions";
 
 /** Stable empty array to avoid re-render cascades in usePeginStorage. */
@@ -133,6 +135,11 @@ export function useActivationState({
             void invalidateVaultQueries(queryClient);
             void queryClient.invalidateQueries({
               queryKey: [ACTIVITIES_QUERY_KEY],
+            });
+            // Only an activation can end the stuck state, so only it refreshes
+            // this read, whose Bitcoin requests no other write should wait on.
+            void queryClient.invalidateQueries({
+              queryKey: [STUCK_VAULTS_QUERY_KEY],
             });
           },
           onShowSuccessModal: ({ collateralAdded, redeemed, reason }) => {

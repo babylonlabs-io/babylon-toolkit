@@ -8,8 +8,6 @@
  *   BTCVaultRegistry contract and composes the `SigningContext` that the
  *   SDK orchestrator requires. Not in the SDK because contract readers are
  *   wired to vault's viem public client.
- * - `getSorted*Pubkeys` — canonical lexicographic sort that matches the
- *   Rust backend. Reused by `vaultRefundService`.
  * - `resolveVaultProviderBtcPubkey` — reads the VP BTC key from chain and
  *   treats a caller hint as an untrusted cross-check.
  * - `PayoutSigningProgress` type — UI progress shape used across deposit
@@ -162,7 +160,7 @@ export interface PayoutSigningProgress {
  *
  * Under RFC-006 the hint is accepted against *either* the registration key or
  * the provider's current operation key — the policy owned by
- * `assertVaultProviderHintAccepted`, which the deposit and refund paths share.
+ * `assertVaultProviderHintAccepted`.
  * Comparing only against the registration key would hard-fail payout signing
  * for every depositor of a rotated provider the day the indexer starts serving
  * operation keys.

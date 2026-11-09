@@ -142,8 +142,8 @@ for (const theme of ["light", "dark"] as const) {
             hovered && (!IS_BASELINE || LOAN_PICKER_USES_COLOR_HOVER[panel]);
           const background = usesColor
             ? theme === "light"
-              ? "rgb(221, 221, 221)"
-              : "rgb(47, 47, 47)"
+              ? "rgb(242, 242, 242)"
+              : "rgb(44, 44, 44)"
             : theme === "light"
               ? "rgb(249, 249, 249)"
               : "rgb(32, 32, 32)";
@@ -151,8 +151,7 @@ for (const theme of ["light", "dark"] as const) {
           await page.mouse.move(0, 0);
           if (hovered) await control.hover();
           if (panel === "hub") {
-            await expect(control).toContainText("4.52%");
-            await expect(control).toContainText("$35.5M");
+            await expect(control).toContainText(/4\.52%.*\$35\.5M/s);
           }
           await expect(control).toBeEnabled();
           await expect(row).toBeInViewport({ ratio: 0.999 });
@@ -178,8 +177,7 @@ for (const theme of ["light", "dark"] as const) {
           await expect(row).toHaveCSS("background-color", background);
           await expect(row).toHaveCSS("filter", filter);
           if (panel === "hub") {
-            await expect(control).toContainText("4.52%");
-            await expect(control).toContainText("$35.5M");
+            await expect(control).toContainText(/4\.52%.*\$35\.5M/s);
           }
           expect(
             await row.evaluate((element) => element.matches(":hover")),
@@ -194,14 +192,17 @@ for (const theme of ["light", "dark"] as const) {
           .first();
         const disabledRow =
           panel === "asset" ? disabled : disabled.locator("..");
+        const disabledContent =
+          panel === "hub" && IS_BASELINE && !LOAN_PICKER_USES_COLOR_HOVER.hub
+            ? disabledRow
+            : disabled;
         await disabledRow.scrollIntoViewIfNeeded();
         await disabled.hover();
         await expect(disabled).toBeDisabled();
         if (panel === "hub") {
-          await expect(disabled).toContainText("4.52%");
-          await expect(disabled).toContainText("$35.5M");
+          await expect(disabled).toContainText(/4\.52%.*\$35\.5M/s);
         }
-        await expect(disabledRow).toHaveCSS("opacity", "0.4");
+        await expect(disabledContent).toHaveCSS("opacity", "0.4");
         await expect(disabledRow).toHaveCSS(
           "background-color",
           theme === "light" ? "rgb(249, 249, 249)" : "rgb(32, 32, 32)",
@@ -223,10 +224,9 @@ for (const theme of ["light", "dark"] as const) {
         );
         await expect(disabled).toBeDisabled();
         if (panel === "hub") {
-          await expect(disabled).toContainText("4.52%");
-          await expect(disabled).toContainText("$35.5M");
+          await expect(disabled).toContainText(/4\.52%.*\$35\.5M/s);
         }
-        await expect(disabledRow).toHaveCSS("opacity", "0.4");
+        await expect(disabledContent).toHaveCSS("opacity", "0.4");
         await expect(disabledRow).toHaveCSS(
           "background-color",
           theme === "light" ? "rgb(249, 249, 249)" : "rgb(32, 32, 32)",

@@ -197,14 +197,14 @@ export const LOAN_PICKER_USES_COLOR_HOVER = {
       import.meta.url,
     ),
     "utf8",
-  ).includes("enabled:hover:bg-secondary-strokeLight"),
+  ).includes("enabled:hover:bg-neutral-200"),
   hub: readFileSync(
     new URL(
       "../../src/applications/aave/components/HubSelectionPanel/HubSelectionPanel.tsx",
       import.meta.url,
     ),
     "utf8",
-  ).includes("hover:bg-secondary-strokeLight"),
+  ).includes("hover:bg-neutral-200"),
 };
 
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
@@ -222,6 +222,19 @@ export const ARTIFACT_DOWNLOAD_STOPS = {
   activation: "artifact-download-activation-confirm",
   vault: "artifact-download-vault-confirm",
 } as const;
+export const ACTIVATION_WARNING_STOPS = {
+  light: [
+    "activation-warning-light-unchecked",
+    "activation-warning-light-checked",
+    "activation-warning-light-checked-control",
+  ],
+  dark: [
+    "activation-warning-dark-unchecked",
+    "activation-warning-dark-checked",
+    "activation-warning-dark-checked-control",
+  ],
+} as const;
+
 export const ARTIFACT_QUOTA_STOPS = {
   activation: "artifact-download-activation-quota",
   vault: "artifact-download-vault-quota",

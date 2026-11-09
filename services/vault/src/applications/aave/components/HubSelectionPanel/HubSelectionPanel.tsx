@@ -182,17 +182,13 @@ export function HubSelectionPanel({
             {rows.map((row) => (
               <div
                 key={row.key}
-                className={`flex w-full items-center gap-4 rounded-xl bg-background-secondary p-4 transition-colors max-md:flex-wrap ${
-                  row.selectable
-                    ? "hover:bg-secondary-strokeLight"
-                    : "opacity-40"
-                }`}
+                className={`flex w-full items-center gap-4 rounded-xl bg-background-secondary p-4 transition-colors max-md:flex-wrap ${row.selectable ? "hover:bg-neutral-200" : ""}`}
               >
                 <button
                   type="button"
                   disabled={!row.selectable}
                   onClick={() => onSelectReserve(row.reserveId)}
-                  className="flex min-w-0 flex-1 items-center text-left enabled:cursor-pointer max-md:basis-full max-md:flex-wrap"
+                  className="flex min-w-0 flex-1 items-center rounded-lg text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary enabled:cursor-pointer disabled:opacity-40 max-md:basis-full max-md:flex-wrap"
                   // E2E: e2e/real/actions/borrow.ts (selectHub) clicks the row
                   // by reserve id. Every row shares the token symbol, so the
                   // id is the only thing that tells them apart.
@@ -210,7 +206,7 @@ export function HubSelectionPanel({
                       <HubLabel
                         hub={row.hub}
                         insideButton
-                        className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary"
+                        className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary [&_.text-warning-main]:text-warning-dark"
                       />
                       <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
                         {row.token.symbol}
@@ -239,7 +235,7 @@ export function HubSelectionPanel({
                     row.token.symbol,
                     row.hub.label,
                   )}
-                  className={`${NEUTRAL_ROW_BUTTON_CLASS} max-md:w-full`}
+                  className={`${NEUTRAL_ROW_BUTTON_CLASS} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary max-md:w-full`}
                   data-testid={`hub-market-info-${row.key}`}
                 >
                   {COPY.loans.hub.marketInfo}

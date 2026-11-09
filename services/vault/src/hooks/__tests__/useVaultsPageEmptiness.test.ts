@@ -85,6 +85,9 @@ const depositsState = {
   error: null as Error | null,
   storageReadError: null as PendingPeginStorageReadError | null,
   claimExpiredModal: { claimingActivity: null as VaultActivity | null },
+  emergencyWithdrawModal: {
+    withdrawing: null as { activity: VaultActivity } | null,
+  },
 };
 
 // The page selects these outside `usePendingDeposits` (utils/returnedVaults)
@@ -126,6 +129,7 @@ describe("useVaultsPageEmptiness", () => {
     reclaimStatuses.clear();
     depositsState.storageReadError = null;
     depositsState.claimExpiredModal.claimingActivity = null;
+    depositsState.emergencyWithdrawModal.withdrawing = null;
     useDashboardStateMock.mockClear();
   });
 
@@ -260,6 +264,111 @@ describe("useVaultsPageEmptiness", () => {
     );
 
     expect(result.current.isLoading).toBe(true);
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("keeps the loader for a list still loading with only rows the list decides", () => {
+    depositsState.isLoading = true;
+    depositsState.pendingActivities = [stubActivity("pending")];
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("keeps the loader for a position still loading with only rows the list decides", () => {
+    dashboardState.isLoading = true;
+    depositsState.pendingActivities = [stubActivity("pending")];
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("shows a stuck vault's row while the vault list reads as loading, which it does on every poll while it fails, and warns the list is missing", () => {
+    depositsState.isLoading = true;
+    depositsState.pendingActivities = [
+      { ...stubActivity("stuck"), stuckOnChain: true },
+    ];
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isEmpty).toBe(false);
+    expect(result.current.hasPartialError).toBe(true);
+    expect(result.current.hasNonIndexerError).toBe(true);
+  });
+
+  it("shows a stuck vault's row while the position reads as loading, and warns the totals are missing", () => {
+    dashboardState.isLoading = true;
+    depositsState.pendingActivities = [
+      { ...stubActivity("stuck"), stuckOnChain: true },
+    ];
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasPartialError).toBe(true);
+    expect(result.current.hasNonIndexerError).toBe(true);
+  });
+
+  it("raises no warning for a stuck row once both sources have answered", () => {
+    depositsState.pendingActivities = [
+      { ...stubActivity("stuck"), stuckOnChain: true },
+    ];
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current.hasPartialError).toBe(false);
+  });
+
+  it("keeps an open Withdraw modal on the page while the vault list reads as loading", () => {
+    depositsState.isLoading = true;
+    depositsState.emergencyWithdrawModal.withdrawing = {
+      activity: stubActivity("stuck"),
+    };
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("keeps an open Withdraw modal on the page while the position reads as loading", () => {
+    dashboardState.isLoading = true;
+    depositsState.emergencyWithdrawModal.withdrawing = {
+      activity: stubActivity("stuck"),
+    };
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("stays populated while a Withdraw modal is open after its stuck row left the page", () => {
+    // The redeem landed, so the chain no longer reports the vault stuck and no
+    // row is left, but the success screen is still awaiting acknowledgement.
+    depositsState.emergencyWithdrawModal.withdrawing = {
+      activity: stubActivity("redeemed"),
+    };
+
+    const { result } = renderHook(() =>
+      useVaultsPageEmptiness(depositsState, returnedRedeemedActivities),
+    );
+
     expect(result.current.isEmpty).toBe(false);
   });
 

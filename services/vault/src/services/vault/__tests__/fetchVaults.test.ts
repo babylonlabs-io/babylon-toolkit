@@ -9,7 +9,6 @@ import { VaultStatus } from "../../../types/vault";
 import {
   fetchVaultById,
   fetchVaultPayoutScriptPubKey,
-  fetchVaultRefundData,
   fetchVaultsByDepositor,
 } from "../fetchVaults";
 
@@ -492,89 +491,6 @@ describe("fetchVaults", () => {
       await expect(
         fetchVaultPayoutScriptPubKey(VALID_VAULT_ID as `0x${string}`),
       ).rejects.toThrow(/Malformed hex/);
-    });
-  });
-
-  describe("fetchVaultRefundData", () => {
-    afterEach(() => {
-      vi.clearAllMocks();
-    });
-
-    it("returns the minimal refund-needed fields, mapping to typed output", async () => {
-      const btcPub = "0x" + "aa".repeat(32);
-      const preTx = "0x" + "bb".repeat(16);
-      mockedRequest.mockResolvedValueOnce({
-        vault: {
-          id: VALID_VAULT_ID,
-          depositorBtcPubKey: btcPub,
-          unsignedPrePeginTx: preTx,
-        },
-      });
-
-      const uppercaseId = VALID_VAULT_ID.toUpperCase().replace(
-        "0X",
-        "0x",
-      ) as `0x${string}`;
-      const result = await fetchVaultRefundData(uppercaseId);
-
-      expect(result).toEqual({
-        depositorBtcPubkey: btcPub,
-        unsignedPrePeginTx: preTx,
-      });
-      expect(mockedRequest).toHaveBeenCalledOnce();
-      expect(mockedRequest).toHaveBeenCalledWith(expect.anything(), {
-        id: VALID_VAULT_ID,
-      });
-    });
-
-    it("returns null when the vault does not exist", async () => {
-      mockedRequest.mockResolvedValueOnce({ vault: null });
-
-      const result = await fetchVaultRefundData("0xnotfound" as `0x${string}`);
-
-      expect(result).toBeNull();
-    });
-
-    it("throws when unsignedPrePeginTx is missing — refund cannot be built without it", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vault: {
-          id: VALID_VAULT_ID,
-          depositorBtcPubKey: VALID_HEX_64,
-          amount: "150000",
-          unsignedPrePeginTx: null,
-        },
-      });
-
-      await expect(
-        fetchVaultRefundData(VALID_VAULT_ID as `0x${string}`),
-      ).rejects.toThrow(
-        new RegExp(
-          `Vault ${VALID_VAULT_ID} is missing unsignedPrePeginTx; cannot build refund`,
-        ),
-      );
-    });
-
-    it("throws when depositorBtcPubKey has invalid hex format", async () => {
-      mockedRequest.mockResolvedValueOnce({
-        vault: {
-          id: VALID_VAULT_ID,
-          depositorBtcPubKey: "not-valid-hex",
-          amount: "150000",
-          unsignedPrePeginTx: VALID_HEX_SHORT,
-        },
-      });
-
-      await expect(
-        fetchVaultRefundData(VALID_VAULT_ID as `0x${string}`),
-      ).rejects.toThrow(/Invalid BTC public key.*depositorBtcPubKey/);
-    });
-
-    it("propagates GraphQL request errors unchanged", async () => {
-      mockedRequest.mockRejectedValueOnce(new Error("indexer unavailable"));
-
-      await expect(
-        fetchVaultRefundData(VALID_VAULT_ID as `0x${string}`),
-      ).rejects.toThrow("indexer unavailable");
     });
   });
 });

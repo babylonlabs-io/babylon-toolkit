@@ -796,7 +796,7 @@ export const COPY = {
       continueWithoutButton: "Continue without",
       confirmSkipTitle: "Are you sure?",
       confirmSkipBody:
-        "Continuing without downloading the recovery artifacts may put your funds at risk if your vault provider becomes unavailable.",
+        "Continuing without downloading the recovery artifacts may put your funds at risk if your BTCVault provider becomes unavailable.",
       // Shown under the body while the modal asks the vault provider one
       // status question before offering the skip or activation.
       probingVaultProvider:
@@ -1555,8 +1555,10 @@ export const COPY = {
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
-      refundHashMismatch: (computedHash: string, chainHash: string) =>
-        `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting refund to prevent potential attack.`,
+      // Neither Bitcoin nor the registration log answered with the vault's
+      // Pre-Pegin, so there is nothing to build the refund from.
+      refundPrePeginTxUnavailable: (prePeginTxHash: string) =>
+        `Couldn't get Pre-Pegin transaction ${prePeginTxHash} from Bitcoin or Ethereum, so the refund can't be built. Nothing has been signed. Try again shortly.`,
       // The refund template places each sibling's HTLC by position, so a gap
       // in the vout vector refuses the refund before anything is signed.
       refundSiblingVectorNonContiguous: (
@@ -1679,9 +1681,9 @@ export const COPY = {
         title: "Wrong wallet connected",
         body: "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to resume.",
       },
-      // Typed DepositorBtcKeyMismatchError. The resume, payout signing and
-      // terms rebuild checks throw it when the connected Bitcoin wallet's key
-      // is not the one the BTCVault registered.
+      // Typed DepositorBtcKeyMismatchError. The Pre-PegIn broadcast service,
+      // the resume, payout signing and terms rebuild checks throw it when the
+      // connected Bitcoin wallet's key is not the one the BTCVault registered.
       wrongDepositorBtcWallet: {
         title: "Wrong Bitcoin wallet connected",
         body: "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to resume.",
