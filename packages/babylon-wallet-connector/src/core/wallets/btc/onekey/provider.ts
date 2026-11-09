@@ -10,6 +10,7 @@ import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
 import { type LiveBtcIdentity, assertDeriveAccountUnchanged } from "@/core/wallets/btc/assertDeriveAccountUnchanged";
+import { type BitcoinChainResponse, mapChainToNetwork, mapNetworkToChain } from "@/core/wallets/btc/bitcoinChain";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
@@ -107,6 +108,10 @@ export class OneKeyProvider implements IBTCProvider {
     // prompt in the connect UI rather than failing later mid-deposit.
     await this.ensureSupportedVersion();
 
+    // OneKey connects a dApp on Bitcoin mainnet whatever network its own UI
+    // shows, so a signet deployment would otherwise read a mainnet account.
+    await this.ensureExpectedChain();
+
     this.trackIdentityChanges();
     const identityVersion = this.identityVersion;
     const { address, publicKeyHex } = await this.readLiveIdentity();
@@ -121,6 +126,69 @@ export class OneKeyProvider implements IBTCProvider {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
         message: "Could not connect to OneKey Wallet",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+  };
+
+  // Switches the dApp connection to the configured network when it is on
+  // another one, then reads the chain back: a switch that resolves without
+  // taking effect must not let a wrong-network account through.
+  private ensureExpectedChain = async (): Promise<void> => {
+    if (mapChainToNetwork((await this.readChain()).enum) === this.config.network) return;
+
+    const targetLabel = this.config.networkName || this.config.network;
+    if (typeof this.provider.switchChain !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message: `OneKey Wallet cannot switch to ${targetLabel}. Choose ${targetLabel} in the OneKey connection request and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    try {
+      await withTimeout(
+        this.provider.switchChain(mapNetworkToChain(this.config.network)),
+        ONEKEY_PROMPT_TIMEOUT_MS,
+        () => this.timeoutError(`switching to ${targetLabel}`),
+      );
+    } catch (error) {
+      if (error instanceof WalletError) throw error;
+      const errorMessage = (error as Error)?.message || "";
+      if (isUserRejectionMessage(errorMessage)) {
+        throw new WalletError({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: `Switching OneKey Wallet to ${targetLabel} was rejected`,
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message: errorMessage || `Failed to switch OneKey Wallet to ${targetLabel}`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    const switchedChain = await this.readChain();
+    if (mapChainToNetwork(switchedChain.enum) !== this.config.network) {
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message: `OneKey Wallet is still on ${switchedChain.name} after switching to ${targetLabel}. Choose ${targetLabel} in the OneKey connection request and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+  };
+
+  private readChain = async (): Promise<BitcoinChainResponse> => {
+    try {
+      return await withTimeout<BitcoinChainResponse>(this.provider.getChain(), ONEKEY_RPC_TIMEOUT_MS, () =>
+        this.timeoutError("reading its network"),
+      );
+    } catch (error) {
+      if (error instanceof WalletError) throw error;
+      throw new WalletError({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        message: (error as Error)?.message || "Failed to read OneKey Wallet network",
         wallet: WALLET_PROVIDER_NAME,
       });
     }
