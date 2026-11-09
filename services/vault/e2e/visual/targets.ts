@@ -171,6 +171,13 @@ export const DEPOSIT_PROGRESS_STOPS = {
  * photographs /loans disconnected and the recorded depositor holds no position,
  * so no wallet reaches a row. See `activeLoan.visual.spec.ts`.
  */
+export const BORROW_HINT_STOPS = {
+  "overview-light": "borrow-hint-overview-light",
+  "overview-dark": "borrow-hint-overview-dark",
+  "loans-light": "borrow-hint-loans-light",
+  "loans-dark": "borrow-hint-loans-dark",
+} as const;
+
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
 export const VAULT_REFUND_STOPS = {
