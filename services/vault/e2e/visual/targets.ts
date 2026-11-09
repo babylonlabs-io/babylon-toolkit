@@ -171,6 +171,11 @@ export const DEPOSIT_PROGRESS_STOPS = {
  * photographs /loans disconnected and the recorded depositor holds no position,
  * so no wallet reaches a row. See `activeLoan.visual.spec.ts`.
  */
+export const RISK_PRICE_RAIL_STOPS = {
+  light: "risk-price-drop-light",
+  dark: "risk-price-drop-dark",
+} as const;
+
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
 export const VAULT_REFUND_STOPS = {
