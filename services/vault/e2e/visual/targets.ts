@@ -171,6 +171,42 @@ export const DEPOSIT_PROGRESS_STOPS = {
  * photographs /loans disconnected and the recorded depositor holds no position,
  * so no wallet reaches a row. See `activeLoan.visual.spec.ts`.
  */
+export const LOAN_PICKER_STOPS = {
+  light: {
+    assetRest: "loan-asset-rest-light",
+    assetHover: "loan-asset-hover-light",
+    assetDisabled: "loan-asset-disabled-light",
+    hubRest: "loan-hub-rest-light",
+    hubHover: "loan-hub-hover-light",
+    hubDisabled: "loan-hub-disabled-light",
+  },
+  dark: {
+    assetRest: "loan-asset-rest-dark",
+    assetHover: "loan-asset-hover-dark",
+    assetDisabled: "loan-asset-disabled-dark",
+    hubRest: "loan-hub-rest-dark",
+    hubHover: "loan-hub-hover-dark",
+    hubDisabled: "loan-hub-disabled-dark",
+  },
+} as const;
+
+export const LOAN_PICKER_USES_COLOR_HOVER = {
+  asset: readFileSync(
+    new URL(
+      "../../src/applications/aave/components/AssetSelectionPanel/AssetSelectionPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  ).includes("enabled:hover:bg-secondary-strokeLight"),
+  hub: readFileSync(
+    new URL(
+      "../../src/applications/aave/components/HubSelectionPanel/HubSelectionPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  ).includes("hover:bg-secondary-strokeLight"),
+};
+
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
 export const VAULT_REFUND_STOPS = {
