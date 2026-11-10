@@ -40,14 +40,9 @@ import { escapeHtml, parseArgs, STATUS } from "./visual-diff.mjs";
  * How many groups get pictures, and how many screens are pictured within
  * each.
  *
- * Both caps exist for the same reason: eight Button stories changing is ONE
- * fact about the Button component, and showing all eight would crowd out the
- * single vault route that also moved. Two per group is enough to see whether
- * a group's screens all changed the same way, and a repaint of a shared
- * component routinely changes 40+ screens here (12 vault screens, 329
- * stories), so the alternative is a comment nobody scrolls to the end of.
- * Their product is the ceiling, not the count - a group holding one screen
- * spends one slot.
+ * Keep groups from crowding each other out. Show desktop and the
+ * most-changed phone capture when both are available.
+ * Their product is the ceiling; a group with one screen uses one slot.
  *
  * These two bound the count and only the count. What a comment can actually
  * carry is bytes, and that ceiling is PUBLISHED_TOTAL_BYTE_BUDGET rather
@@ -386,6 +381,11 @@ function selectEmbeddedScreens(ranked) {
   return selectEmbeddedGroups(ranked).flatMap((group) =>
     group.screens
       .filter((screen) => PUBLISHABLE_SCREEN_NAME.test(screen.name))
+      .sort(
+        (a, b) =>
+          Number(b.variant === 'desktop') - Number(a.variant === 'desktop') ||
+          byChangeThenName(a, b),
+      )
       .slice(0, MAX_EMBEDDED_SCREENS_PER_GROUP)
       .map((screen) => ({ surface: group.surface, screen })),
   );
@@ -1459,6 +1459,7 @@ export {
   reduceToWidth,
   screenCaption,
   selectEmbeddedGroups,
+  selectEmbeddedScreens,
 };
 
 // Only run as a CLI, so importing this from a test does not compose a
