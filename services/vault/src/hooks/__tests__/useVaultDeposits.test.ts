@@ -30,13 +30,13 @@ const mockUseChainExpiryCheck = vi.hoisted(() => vi.fn());
 vi.mock("../useChainExpiryCheck", () => ({
   useChainExpiryCheck: mockUseChainExpiryCheck,
 }));
+const mockUseStuckVaults = vi.hoisted(() => vi.fn());
+vi.mock("../useStuckVaults", () => ({
+  useStuckVaults: mockUseStuckVaults,
+}));
+const mockUsePeginStorage = vi.hoisted(() => vi.fn());
 vi.mock("../../storage/usePeginStorage", () => ({
-  usePeginStorage: vi.fn(() => ({
-    allActivities: [],
-    pendingPegins: [],
-    addPendingPegin: vi.fn(),
-    removePendingPegins: vi.fn(),
-  })),
+  usePeginStorage: mockUsePeginStorage,
 }));
 vi.mock("../../storage/peginStorage", async () => {
   const actual = await vi.importActual<
@@ -68,6 +68,13 @@ beforeEach(async () => {
     pendingIds: new Set(),
   });
   mockUseChainExpiryCheck.mockReturnValue(new Map());
+  mockUseStuckVaults.mockReturnValue(new Map());
+  mockUsePeginStorage.mockReturnValue({
+    allActivities: [],
+    pendingPegins: [],
+    addPendingPegin: vi.fn(),
+    removePendingPegins: vi.fn(),
+  });
   setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 });
 
@@ -462,6 +469,139 @@ describe("useVaultDeposits", () => {
     // materially — surface either as a test signal.
     expect(FAST_POLL_INTERVAL).toBeGreaterThanOrEqual(1_000);
     expect(NORMAL_POLL_INTERVAL).toBeLessThanOrEqual(5 * 60_000);
+  });
+
+  describe("stuck vaults", () => {
+    const STUCK_ID = `0x${"aa".repeat(32)}` as Hex;
+    const stuckVault = {
+      id: STUCK_ID,
+      basic: {
+        depositorBtcPubKey: `0x${"ab".repeat(32)}`,
+        amount: 100_000_000n,
+        vaultProvider: "0x0000000000000000000000000000000000000001",
+        applicationEntryPoint: "0x0000000000000000000000000000000000000002",
+      },
+      protocol: {
+        prePeginTxHash: `0x${"cd".repeat(32)}`,
+        depositorSignedPeginTx: "0xdeadbeef",
+        depositorWotsPkHash: `0x${"11".repeat(32)}`,
+        htlcVout: 0,
+        offchainParamsVersion: 1,
+      },
+      peginTxHash: `0x${"ef".repeat(32)}`,
+      prePeginTxHex: "0x0200",
+    };
+
+    function storedRows() {
+      return mockUsePeginStorage.mock.calls.at(-1)?.[0].confirmedPegins;
+    }
+
+    function indexerReturns(status: ContractStatus) {
+      useVaultsMock.mockReturnValue({
+        data: {
+          vaults: [{ id: STUCK_ID, amount: 0n, status, isInUse: false }],
+          droppedCount: 0,
+        },
+        status: "success",
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+    }
+
+    it("reads the stuck vaults of the connected depositor", () => {
+      renderHook(() => useVaultDeposits(ADDRESS));
+
+      expect(mockUseStuckVaults).toHaveBeenCalledWith(ADDRESS);
+    });
+
+    it("adds a stuck vault's row when the indexer has not answered", () => {
+      mockUseStuckVaults.mockReturnValue(new Map([[STUCK_ID, stuckVault]]));
+
+      renderHook(() => useVaultDeposits(ADDRESS));
+
+      expect(storedRows()).toEqual([
+        expect.objectContaining({ id: STUCK_ID, stuckOnChain: true }),
+      ]);
+    });
+
+    it("replaces the row of a vault the indexer reports as redeemed", () => {
+      indexerReturns(ContractStatus.REDEEMED);
+      mockUseStuckVaults.mockReturnValue(new Map([[STUCK_ID, stuckVault]]));
+
+      renderHook(() => useVaultDeposits(ADDRESS));
+
+      expect(storedRows()).toEqual([
+        expect.objectContaining({
+          id: STUCK_ID,
+          contractStatus: ContractStatus.VERIFIED,
+        }),
+      ]);
+    });
+
+    it("leaves a vault to the expiry path once the expiry check reads its deadline passed", () => {
+      indexerReturns(ContractStatus.VERIFIED);
+      mockUseStuckVaults.mockReturnValue(new Map([[STUCK_ID, stuckVault]]));
+      mockUseChainExpiryCheck.mockReturnValue(
+        new Map([
+          [STUCK_ID, { state: "unreported", reason: "activation_timeout" }],
+        ]),
+      );
+
+      renderHook(() => useVaultDeposits(ADDRESS));
+
+      expect(storedRows()).toEqual([
+        expect.objectContaining({
+          id: STUCK_ID,
+          contractStatus: ContractStatus.EXPIRED,
+        }),
+      ]);
+    });
+
+    it("keeps the indexed ids to what the indexer returned, so a chain-built row does not read as indexed", () => {
+      useVaultsMock.mockReturnValue({
+        data: { vaults: [], droppedCount: 0 },
+        status: "success",
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+      mockUseStuckVaults.mockReturnValue(new Map([[STUCK_ID, stuckVault]]));
+
+      const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+      expect(result.current.indexedVaultIds).toEqual(new Set());
+    });
+
+    it("judges fast polling from the stuck row, not the false PENDING it replaced", async () => {
+      const storage = await import("../../storage/peginStorage");
+      vi.mocked(storage.getPendingPegins).mockReturnValue([
+        {
+          id: STUCK_ID,
+          timestamp: 0,
+          status: LocalStorageStatus.PAYOUT_SIGNED,
+          peginTxHash: "0xprepegin" as Hex,
+          unsignedTxHex: "",
+        },
+      ]);
+      indexerReturns(ContractStatus.PENDING);
+
+      const indexerOnly = renderHook(() => useVaultDeposits(ADDRESS));
+      expect(useVaultsMock).toHaveBeenLastCalledWith(ADDRESS, {
+        poll: true,
+        interval: FAST_POLL_INTERVAL,
+      });
+      indexerOnly.unmount();
+
+      mockUseStuckVaults.mockReturnValue(new Map([[STUCK_ID, stuckVault]]));
+      renderHook(() => useVaultDeposits(ADDRESS));
+      expect(useVaultsMock).toHaveBeenLastCalledWith(ADDRESS, {
+        poll: true,
+        interval: NORMAL_POLL_INTERVAL,
+      });
+
+      vi.mocked(storage.getPendingPegins).mockReturnValue([]);
+    });
   });
 
   describe("polling after this device refunded", () => {

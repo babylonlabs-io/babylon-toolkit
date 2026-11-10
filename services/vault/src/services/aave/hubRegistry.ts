@@ -3,8 +3,10 @@
  *
  * One spoke lists reserves from several hubs, so the same token (e.g. USDC)
  * can be two reserves with their own rate, liquidity and debt. The hub label
- * is what tells those rows apart, so it comes from this compile-time table and
- * never from the indexer. A hub contract has no `name()` to fall back on.
+ * is what tells those rows apart, so it comes from the hubs the network
+ * profile lists (`contracts.aaveHub`, `contracts.aaveHubStables`, generated
+ * from tbv-networks by `pnpm sync-env`) and never from the indexer. A hub
+ * contract has no `name()` to fall back on.
  *
  * Display only: nothing routes or resolves by hub label, every flow keys on
  * the reserve id. The hub address a label is looked up for is itself proven
@@ -13,66 +15,32 @@
 
 import { getAddress, type Address } from "viem";
 
+import { ENV } from "@/config/env";
+import { HUB_ROLES } from "@/config/network/profile";
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 import { truncateAddress } from "@/utils/addressUtils";
 
-/** Hub address -> display label, for one deployment. */
-type DeploymentHubs = Record<string, string>;
-
 /**
- * Hubs per deployment. Labels repeat across deployments (every network has a
- * "Babylon Hub"), so uniqueness is enforced within one; addresses never repeat.
+ * Checksummed hub address -> its role's label, for the hubs this build's
+ * profile lists. The profile refuses one address in both roles, so no two
+ * entries collide.
  */
-export const HUBS_BY_DEPLOYMENT: Record<string, DeploymentHubs> = {
-  // Vault Devnet (2026-09 multi-hub deploy)
-  "vault-devnet": {
-    "0xb3283508a0E96F80CF79DC2a1135F10dA170138D": "Babylon Hub",
-    "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca": "Core Hub",
-  },
-  // Testnet (testnet-3): aaveHub lists the vaultBTC reserve, aaveHubStables the stablecoins
-  testnet: {
-    "0xc551Cc801aCB95F9131A26081E495AEf960a2f37": "Babylon Hub",
-    "0xf5960351a45633821CD6Fc4A1da2d0f066Dd06Fc": "Core Hub",
-  },
-};
+const HUB_REGISTRY: ReadonlyMap<Address, string> = new Map(
+  HUB_ROLES.flatMap((role) => {
+    const hub = ENV.AAVE_HUBS[role];
+    return hub === undefined
+      ? []
+      : [[getAddress(hub), COPY.loans.hub.roleLabels[role]] as const];
+  }),
+);
 
 /**
- * Flatten the per-deployment table into one checksummed-address lookup.
- *
- * Throws when two hubs in one deployment share a label, since both rows would
- * then read the same while carrying different rates and debt, and when one
- * address appears twice, since its label would depend on table order.
- */
-export function buildHubRegistry(
-  deployments: Record<string, DeploymentHubs>,
-): ReadonlyMap<Address, string> {
-  const registry = new Map<Address, string>();
-  for (const [deployment, hubs] of Object.entries(deployments)) {
-    const labels = new Set<string>();
-    for (const [rawAddress, label] of Object.entries(hubs)) {
-      if (labels.has(label)) {
-        throw new Error(
-          `Hub label "${label}" is used twice in deployment ${deployment}`,
-        );
-      }
-      labels.add(label);
-      const address = getAddress(rawAddress);
-      if (registry.has(address)) {
-        throw new Error(`Hub ${address} is registered more than once`);
-      }
-      registry.set(address, label);
-    }
-  }
-  return registry;
-}
-
-const HUB_REGISTRY = buildHubRegistry(HUBS_BY_DEPLOYMENT);
-
-/**
- * How a reserve's hub is named on screen. A `registry` label is curated above;
- * `address` means this build doesn't know the hub, so it is shown by its short
- * address and callers flag it as unrecognised. Never gate an action on
- * `address`: existing debt on an unknown hub must stay repayable.
+ * How a reserve's hub is named on screen. A `registry` label is the role label
+ * of a hub the profile lists; `address` means this build doesn't know the hub,
+ * so it is shown by its short address and callers flag it as unrecognised.
+ * Never gate an action on `address`: existing debt on an unknown hub must stay
+ * repayable.
  */
 export type HubIdentity =
   | { source: "registry"; address: Address; label: string }

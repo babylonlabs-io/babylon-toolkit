@@ -78,7 +78,7 @@ export interface DepositPollingInputs {
   matureRefundTxids: Set<string>;
   /**
    * Live HTLC spend status keyed by lowercased vault id, from the `outspend`
-   * poll of expired and Verified vaults and of a Pending vault this device
+   * poll of expired vaults and of a Pending or Verified vault this device
    * refunded. Which transaction spent the HTLC decides what the spend means.
    */
   htlcRefundByDepositId: Map<string, HtlcSpend>;
@@ -113,21 +113,6 @@ export interface DepositPollingInputs {
    * value resolves.
    */
   refundTimelock: number | undefined;
-  /**
-   * VERIFIED only: the chain CONFIRMS this vault is still unactivated, and its
-   * PegIn, fetched from Bitcoin, validly spends the HTLC — the secret and every
-   * participant's signature in its witness — so the escape hatch reveals no
-   * secret that is not already out. Defaults false (fail-safe) when the
-   * reads have not returned or failed, when the chain already reports the vault
-   * ACTIVE — the indexer-lag case, where the deposit is healthy and must render
-   * normally — or when the PegIn does not prove the spend, as with a mempool
-   * API that names the public PegIn txid for a healthy vault. One exception: a
-   * vault an earlier poll of the same suspect set proved stays true through a
-   * poll where the PegIn or the Pre-PegIn cannot be fetched, while the chain
-   * still reports it Verified, since a valid witness cannot stop being valid.
-   * See `useStuckVaultChainConfirm`.
-   */
-  stuckStateConfirmedOnChain: boolean;
   /**
    * Blocks left before the on-chain activation floor opens for THIS deposit.
    * `undefined` = not gated, `null` = gated with an unknown remainder
@@ -199,7 +184,6 @@ export function computeDepositPollingResult(
     requiredDepth,
     protocolParamsError,
     refundTimelock,
-    stuckStateConfirmedOnChain,
     activationFloorBlocksRemaining,
     activationBlockedBySibling,
     claimExpiredWindow,
@@ -232,13 +216,18 @@ export function computeDepositPollingResult(
     pendingPegins,
   );
 
+  // `useStuckVaults` proved this vault stuck from the chain and Bitcoin. Its row
+  // holds only their values, so everything below can read them.
+  const stuckOnChain = activity.stuckOnChain === true;
+
   // Only a PENDING vault is polled, so an expired one's entry is left over from
   // its last PENDING tick, and it stays for good. A row that first read PENDING
   // gets one on every load, before the chain read says it expired. It must not
   // reach `error`, which hides the action: the vault provider has no part in a
-  // Bitcoin refund or an on-chain redeem.
+  // Bitcoin refund or an on-chain redeem. A stuck row's entry is left over the
+  // same way, and its redeem needs no vault provider either.
   const depositError =
-    contractStatus === ContractStatus.EXPIRED
+    contractStatus === ContractStatus.EXPIRED || stuckOnChain
       ? undefined
       : errors?.get(depositId);
   const vpTerminalError =
@@ -338,10 +327,8 @@ export function computeDepositPollingResult(
   // a spent-but-unconfirmed one is a pending refund. Either way the refund is
   // no longer available — re-broadcasting would hit Bitcoin's -27/-25.
   const liveRefund = htlcRefundByDepositId.get(depositIdKey);
-  const htlcSpendIsPeginTx = isHtlcSpentByPegin(
-    liveRefund,
-    activity.peginTxHash,
-  );
+  const htlcSpendIsPeginTx =
+    stuckOnChain || isHtlcSpentByPegin(liveRefund, activity.peginTxHash);
   // An expired vault whose HTLC the PegIn spent, confirmed or not. Reachable
   // when the PegIn was broadcast with the secret after a late activation, or
   // when the vault was swept while VERIFIED and then expired. Either way the
@@ -392,33 +379,6 @@ export function computeDepositPollingResult(
     claimExpiredWindow?.state !== "closed" &&
     claimExpiredWindow?.state !== "redeemed";
 
-  // Stuck-state signal (VERIFIED only): the HTLC outpoint was spent BY THE
-  // PEGIN TX — the VP swept the deposit while the vault has not activated,
-  // meaning the secret was revealed and the collateral moved without the
-  // depositor receiving anything. The spender must be proven, not inferred:
-  // a spent HTLC can equally be the depositor's own CSV refund (the ETH-side
-  // VERIFIED status says nothing about BTC-side timing), and offering the
-  // secret-revealing escape hatch against a refund would burn the secret for
-  // a vault whose funds already came back. A missing `spendingTxid` fails
-  // safe for the same reason: no hatch on ambiguous evidence.
-  // Live probe only: confirmed spends of VERIFIED vaults are deliberately
-  // never added to the refunded cache (see PeginPollingContext).
-  //
-  // `stuckStateConfirmedOnChain` is required, not merely corroborating. The
-  // `contractStatus` above is the INDEXER's, and a successful activation that
-  // the indexer has not yet picked up still reads VERIFIED — with BTC evidence
-  // indistinguishable from the stuck case, because the VP's sweep is what
-  // activation looks like on the BTC side. Trusting the indexer alone raised a
-  // false "Activation incomplete" (and a signing prompt) on any device that had
-  // not written the local reveal marker. It also carries the Bitcoin proof:
-  // the `spendingTxid` match above is only the mempool API's word, and the
-  // PegIn's txid is public, so the confirmation also requires the PegIn itself
-  // to spend the HTLC with a witness Bitcoin would accept.
-  const htlcSpentByPeginTx =
-    contractStatus === ContractStatus.VERIFIED &&
-    stuckStateConfirmedOnChain &&
-    htlcSpendIsPeginTx;
-
   const peginState = getPeginState(contractStatus, {
     localStatus,
     transactionsReady,
@@ -431,7 +391,10 @@ export function computeDepositPollingResult(
     expirationReason: activity.expirationReason,
     expiredAt: activity.expiredAt,
     expiryUnreported: activity.expiryUnreported,
-    htlcSpentByPeginTx,
+    // The stuck state, read only from `useStuckVaults`: the indexer's status and
+    // the mempool API's spender are not enough. A healthy activation the indexer
+    // has not picked up reads the same on both, and the PegIn's txid is public.
+    htlcSpentByPeginTx: stuckOnChain,
     activationFloorBlocksRemaining,
     activationBlockedBySibling,
     canRefund,

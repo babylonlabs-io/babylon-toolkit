@@ -61,7 +61,6 @@ import {
 } from "@/utils/activationFloor";
 import {
   ActivationNotPossibleError,
-  DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
@@ -105,7 +104,10 @@ import {
   activationAddedCollateral,
   activationRedeemedForDepositor,
 } from "../../services/vault/vaultActivationService";
-import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
+import {
+  assertConnectedDepositorBtcKey,
+  utxosToExpectedRecord,
+} from "../../services/vault/vaultPeginBroadcastService";
 import {
   verifyResumeParticipantKeys,
   verifyResumePayoutScripts,
@@ -488,11 +490,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (!depositorBtcPubkey) {
         throw new Error(COPY.deposit.errors.depositorBtcKeyMissing);
       }
-      const expectedDepositorBtcPubkey =
-        canonicalizeBtcPubkey(depositorBtcPubkey);
-      const assertDepositorWallet = async () => {
-        signal.throwIfAborted();
-        const walletPubkey = await btcWalletProvider.getPublicKeyHex();
+      const assertDepositorEthWallet = () => {
         signal.throwIfAborted();
         const connectedDepositor = getAccount(getSharedWagmiConfig()).address;
         if (!connectedDepositor) {
@@ -509,14 +507,17 @@ export function useVaultActions(): UseVaultActionsReturn {
             connectedDepositor,
           });
         }
-        const connectedBtcPubkey = canonicalizeBtcPubkey(walletPubkey);
-        if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
-          throw new DepositorBtcKeyMismatchError({
-            vaultId,
-            expectedDepositorBtcPubkey,
-            connectedBtcPubkey,
-          });
-        }
+      };
+      const assertDepositorBtcWallet = () =>
+        assertConnectedDepositorBtcKey({
+          btcWalletProvider,
+          depositorBtcPubkey,
+          vaultId,
+        });
+      const assertDepositorWallet = async () => {
+        signal.throwIfAborted();
+        await assertDepositorBtcWallet();
+        assertDepositorEthWallet();
       };
 
       // The wallet may have locked since the action started. Probe it with a
@@ -646,15 +647,16 @@ export function useVaultActions(): UseVaultActionsReturn {
         btcWalletProvider: {
           ...forwardDeriveContextHash(btcWalletProvider),
           ...forwardDepositApproval(btcWalletProvider),
+          getPublicKeyHex: () => btcWalletProvider.getPublicKeyHex(),
           signPsbt: async (psbtHex: string) => {
-            // Input resolution can wait on the network. Check again at signing.
-            await assertDepositorWallet();
+            signal.throwIfAborted();
             return btcWalletProvider.signPsbt(psbtHex);
           },
         },
         depositorBtcPubkey,
         expectedUtxos,
         ...(depositTerms && { depositTerms }),
+        vaultId,
       });
 
       const nextStatus = getNextLocalStatus(

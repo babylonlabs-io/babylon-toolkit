@@ -63,7 +63,6 @@ function makeInputs(
     requiredDepth: 6,
     protocolParamsError: null,
     refundTimelock: 10,
-    stuckStateConfirmedOnChain: false,
     claimExpiredWindow: undefined,
     isLoading: false,
     optimisticStatuses: new Map(),
@@ -309,6 +308,15 @@ describe("computeDepositPollingResult — missing Pre-PegIn", () => {
 });
 
 describe("computeDepositPollingResult — VERIFIED activation", () => {
+  function makeStuckActivity(): VaultActivity {
+    return {
+      ...makeExpiredActivity(),
+      contractStatus: ContractStatus.VERIFIED,
+      peginTxHash: PEGIN_TX,
+      stuckOnChain: true,
+    };
+  }
+
   function makeVerifiedActivity(): VaultActivity {
     return {
       ...makeExpiredActivity(),
@@ -330,25 +338,50 @@ describe("computeDepositPollingResult — VERIFIED activation", () => {
     );
   });
 
-  it("flags the stuck state when the HTLC is spent by the PegIn tx while still VERIFIED", () => {
-    // The spender arrives in esplora's bare-hex form while the activity's
-    // PegIn txid is 0x-prefixed indexer hex — the comparison must hold
-    // ACROSS forms, so the fixture deliberately mismatches them. Same-form
-    // fixtures would keep passing even if canonicalization broke, which
-    // would silently disable the hatch for genuinely swept vaults.
+  it("offers only activate-and-redeem on a row the chain and Bitcoin prove stuck, with no spend probed for it", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({ activity: makeStuckActivity() }),
+    );
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.ACTIVATE_AND_REDEEM,
+    ]);
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+  });
+
+  it("does not let a vault provider error left over from a PENDING tick hide a stuck row's exit", () => {
     const result = computeDepositPollingResult(
       makeInputs({
-        activity: makeVerifiedActivity(),
-        stuckStateConfirmedOnChain: true,
-        htlcRefundByDepositId: new Map([
-          [
-            VAULT_ID.toLowerCase(),
-            {
-              spent: true,
-              confirmed: false,
-              spendingTxid: PEGIN_TX.slice("0x".length),
-            },
-          ],
+        activity: makeStuckActivity(),
+        errors: new Map([[VAULT_ID, new Error("Vault not found")]]),
+      }),
+    );
+    expect(result.error).toBeNull();
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.ACTIVATE_AND_REDEEM,
+    ]);
+  });
+
+  it("does not let a cached refund turn a stuck row into a completed refund", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeStuckActivity(),
+        refundedHtlcs: new Map([[VAULT_ID.toLowerCase(), REFUND_TX]]),
+      }),
+    );
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.ACTIVATE_AND_REDEEM,
+    ]);
+    expect(result.refundTxId).toBeUndefined();
+  });
+
+  it("keeps a stuck row's exit when this device's refund lost the race to the PegIn", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeStuckActivity(),
+        optimisticStatuses: new Map([
+          [VAULT_ID, LocalStorageStatus.REFUND_BROADCAST],
         ]),
       }),
     );
@@ -360,18 +393,42 @@ describe("computeDepositPollingResult — VERIFIED activation", () => {
     );
   });
 
-  it("does not flag the stuck state when the chain has not confirmed it", () => {
-    // The indexer-lag case, and the reason the on-chain confirm exists. The
-    // BTC evidence here is IDENTICAL to the test above — the VP's sweep is what
-    // activation looks like on the BTC side — so the only thing separating a
-    // healthy activated deposit from a genuinely stuck one is whether the chain
-    // still reports VERIFIED. Without this gate a second device (or a cleared
-    // profile, having no local reveal marker) rendered "Activation incomplete"
-    // and fired a signing prompt on a perfectly healthy deposit.
+  it("offers no exit on a stuck row once this device has submitted the reveal", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeStuckActivity(),
+        optimisticStatuses: new Map([[VAULT_ID, LocalStorageStatus.CONFIRMED]]),
+      }),
+    );
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.PROCESSING,
+    );
+  });
+
+  it("reads a stuck row as a redeem in progress once its activation returned the vault", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeStuckActivity(),
+        activationReturnedIds: new Set([VAULT_ID]),
+      }),
+    );
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+    );
+  });
+
+  it("does not flag the stuck state from Bitcoin evidence alone", () => {
+    // The indexer-lag case. The VP's sweep is what activation looks like on the
+    // BTC side, so this evidence is also what a healthy activated deposit shows.
+    // Only `useStuckVaults` can call a vault stuck, because it asks the chain.
+    // Without that a second device (or a cleared profile, having no local reveal
+    // marker) rendered "Activation incomplete" and fired a signing prompt on a
+    // perfectly healthy deposit.
     const result = computeDepositPollingResult(
       makeInputs({
         activity: makeVerifiedActivity(),
-        stuckStateConfirmedOnChain: false,
         htlcRefundByDepositId: new Map([
           [
             VAULT_ID.toLowerCase(),
@@ -399,7 +456,6 @@ describe("computeDepositPollingResult — VERIFIED activation", () => {
     const result = computeDepositPollingResult(
       makeInputs({
         activity: makeVerifiedActivity(),
-        stuckStateConfirmedOnChain: false,
         optimisticStatuses: new Map([
           [VAULT_ID, LocalStorageStatus.REFUND_BROADCAST],
         ]),
@@ -825,7 +881,6 @@ describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
           contractStatus: ContractStatus.VERIFIED,
           peginTxHash: PEGIN_TX,
         },
-        stuckStateConfirmedOnChain: false,
       }),
     );
     expect(result.peginState.displayLabel).not.toBe(

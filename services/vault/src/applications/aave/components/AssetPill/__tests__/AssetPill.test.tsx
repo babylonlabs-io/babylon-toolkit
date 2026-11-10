@@ -12,6 +12,8 @@ import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BABYLON_HUB, CORE_HUB } from "@/test/deploymentAddresses";
+
 import { LOAN_TAB } from "../../../constants";
 import type { AaveReserveConfig } from "../../../services/fetchConfig";
 import { AssetPill } from "../AssetPill";
@@ -35,9 +37,6 @@ vi.mock("@/services/token/tokenService", () => ({
   getRegisteredTokenByAddress: () => null,
   getCurrencyIconWithFallback: () => "icon.png",
 }));
-
-const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as Address;
-const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address;
 
 function reserve(
   reserveId: bigint,

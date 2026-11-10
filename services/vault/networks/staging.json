@@ -1,7 +1,7 @@
 {
   "name": "staging",
   "kind": "test",
-  "registryCommit": "060455fd3d426c02e5783101b7d949174a75f16d",
+  "registryCommit": "47ed4fb4e4bdb24e57c08b18f5a40986b2e22017",
   "btcNetwork": "signet",
   "ethChainId": 11155111,
   "ethRpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
@@ -11,6 +11,8 @@
     "btcVaultRegistry": "0x13d1fFc36272342e9791F1f8713c3b570288727F",
     "aaveAdapter": "0x1643bDCEeaBD422518dA87d0CA3d90ec6F760191",
     "aaveAdapterConfig": "0x5C2301409efF84D4bb0800Db815f9AF412003264",
-    "btcPriceFeed": "0xF9C48C4C694cb1101081c4402F95Cf5Dd33fb316"
+    "btcPriceFeed": "0xF9C48C4C694cb1101081c4402F95Cf5Dd33fb316",
+    "aaveHub": "0x8aA6Da494a475386EE67f526203056aAB175d88f",
+    "aaveHubStables": "0xa737F567e6E7b958c7CAad9ce1BdD4eab9603A87"
   }
 }

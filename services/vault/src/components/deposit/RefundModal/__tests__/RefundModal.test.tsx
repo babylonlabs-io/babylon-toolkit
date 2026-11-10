@@ -410,9 +410,6 @@ describe("RefundModal", () => {
     // Expired vault whose Pre-PegIn never reached Bitcoin — no HTLC output
     // exists to spend, so the modal must not offer the refund form.
     vi.mocked(getRefundPreview).mockResolvedValueOnce({
-      amountSats: 1_000_000n,
-      feeCapBasisSats: 1_000_000n,
-      halfHourFeeSatsVb: 5,
       prePeginOnChain: false,
     });
     const onClose = vi.fn();
@@ -438,6 +435,20 @@ describe("RefundModal", () => {
     // modal. (getByText avoids the dialog's own aria-label="Close" X.)
     fireEvent.click(screen.getByText("Close"));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the preview error with Confirm disabled when the Pre-PegIn is unavailable", async () => {
+    const unavailable =
+      COPY.deposit.errors.refundPrePeginTxUnavailable("0xprepegin");
+    vi.mocked(getRefundPreview).mockRejectedValueOnce(new Error(unavailable));
+    renderRefundModal();
+
+    expect(await screen.findByText(unavailable)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: COPY.deposit.refundReview.confirmButton,
+      }),
+    ).toBeDisabled();
   });
 
   it("caps the fee against the deposit basis, not the larger refund amount, for a small vault", async () => {

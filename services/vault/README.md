@@ -4,42 +4,67 @@ The Babylon Vault is a web application for managing Bitcoin-collateralized lendi
 
 ## Prerequisites
 
-- Node.js (v18 or higher)
-- pnpm (v8 or higher)
+- Node.js at the version in the repository's `.nvmrc` (run `nvm use` at the repository root)
+- pnpm through Corepack (`corepack enable`); the version is pinned in the root `package.json`
 
 ## Local Development
 
-### 1. Install Dependencies
+### 1. Install and build
 
 From the repository root:
 
 ```bash
 pnpm install
+pnpm run build
 ```
 
-### 2. Environment Setup
+The app imports the workspace packages (core-ui, ts-sdk, wallet-connector and the rest) from their built `dist/`, so build them before the first run and again after pulling changes to them.
 
-Create a `.env` file in the `services/vault` directory:
+### 2. Environment files
+
+Create `.env` in the `services/vault` directory:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` for your overrides (Reown project id at minimum; see [Configuration](#configuration) below). The network profile defaults to `devnet`.
+`.env` holds the values that are the same on every network. Set the Reown project id there at minimum.
 
-### 3. Run Development Server
+Put a network's own values in `.env.<network>.local`, for example `.env.testnet.local` or `.env.real-money-devnet.local`. Git ignores these files. `pnpm dev` passes the network name to Vite as its mode, so Vite reads these files, each overriding the one before:
 
-From the repository root:
+1. `.env`
+2. `.env.local`
+3. `.env.<network>`
+4. `.env.<network>.local`
 
-```bash
-pnpm --filter @services/vault dev
-```
+A variable set in the shell overrides all of them. `pnpm dev:testnet` sets `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS=onekey` that way, so a wallet list in `.env.testnet.local` has no effect under it; run `NEXT_PUBLIC_TBV_NETWORK=testnet pnpm dev` to use your own.
 
-Or from the `services/vault` directory:
+The network files apply to the dev server only. `pnpm build` runs Vite in production mode, which reads `.env`, `.env.local`, `.env.production` and `.env.production.local`, and `pnpm preview` serves what that build produced.
 
-```bash
-pnpm dev
-```
+`.env` and `.env.local` apply to every network. A value that differs between networks, such as the Ethereum RPC, the utils API, the vault provider explorer or a feature flag, belongs in the network's file. To clear a value that `.env` sets, set it to empty in the network's file, for example `NEXT_PUBLIC_TBV_SIDECAR_API_URL=`.
+
+This order holds when you start the server with pnpm, as in the table below. Nx (`pnpm exec nx dev @services/vault`, `nx dev:watchDeps`) loads `.env` and `.env.local` into the process environment before Vite starts, so through Nx they override the network's file the way a shell variable does. Keep network-specific values out of `.env` and `.env.local` and both ways of starting the server agree.
+
+`pnpm dev` no longer reads `.env.development` or `.env.development.local`, because Vite's mode is now the network name. Move anything you kept there into `.env.<network>.local`.
+
+Do not set `NEXT_PUBLIC_TBV_NETWORK` in any of these files. The dev server and the build refuse it there (see [Configuration](#configuration)).
+
+### 3. Run the development server
+
+From `services/vault`:
+
+| Network           | Command                                              | Profile                           | Network env file               |
+| ----------------- | ---------------------------------------------------- | --------------------------------- | ------------------------------ |
+| devnet            | `pnpm dev`                                           | `networks/devnet.json`            | `.env.devnet.local`            |
+| testnet           | `pnpm dev:testnet`                                   | `networks/testnet.json`           | `.env.testnet.local`           |
+| real-money-devnet | `NEXT_PUBLIC_TBV_NETWORK=real-money-devnet pnpm dev` | `networks/real-money-devnet.json` | `.env.real-money-devnet.local` |
+| any other profile | `NEXT_PUBLIC_TBV_NETWORK=<name> pnpm dev`            | `networks/<name>.json`            | `.env.<name>.local`            |
+
+real-money-devnet runs on Bitcoin mainnet and Ethereum mainnet and moves real funds. `pnpm dev:testnet` also hides the OneKey wallet, as the testnet deployment does. From the repository root, `pnpm --filter @services/vault dev` is the same as `pnpm dev`.
+
+Do not pass `--mode` yourself. Vite uses the last `--mode` it is given, so yours would replace the network name, and the dev server would read another network's env file.
+
+Before starting Vite, `pnpm dev` compares the committed profile with tbv-networks. When they differ it prints `Run: pnpm sync-env <name>`; see [Configuration](#configuration).
 
 The application will be available at `http://localhost:5173` (default Vite port).
 
@@ -52,6 +77,9 @@ deployment: Bitcoin network, Ethereum chain, contract addresses, indexer and vau
 proxy endpoints, and a `kind` (`production`, `test` or `internal`) that decides which
 Bitcoin and Ethereum networks may be paired. Profiles are generated from the private
 `babylonlabs-io/tbv-networks` registry and committed, so every change is a reviewed diff.
+The contract addresses include the Aave hubs (`aaveHub`, `aaveHubStables`): the app names
+those hubs "Babylon Hub" and "Core Hub", and shows any other hub by its address, so a
+redeploy needs only `pnpm sync-env <name>`.
 
 ```bash
 pnpm sync-env devnet                  # refresh one profile from the registry
@@ -84,10 +112,9 @@ must serve `eth_simulateV1` with a gas allowance of at least 16,777,216: the act
 its gas limit with it before sending (`src/services/vault/activationGasLimit.ts`).
 `https://ethereum-sepolia-rpc.publicnode.com` does; `https://rpc.sepolia.ethpandaops.io` does not.
 
-Local development: `pnpm dev` runs devnet; `pnpm dev:testnet` runs the `testnet`
-profile. Run `NEXT_PUBLIC_TBV_NETWORK=<name> pnpm dev` to pick another. The selector must
-not be set in a dotenv file: Nx loads `.env` into the build but keys its cache on the process
-environment, so a selector found there is refused by the build and the dev server.
+The selector must not be set in a dotenv file: Nx loads `.env` into the build but keys its
+cache on the process environment, so a selector found there is refused by the build and the
+dev server. To pick the network locally, see [Run the development server](#3-run-the-development-server).
 
 ## Available Scripts
 

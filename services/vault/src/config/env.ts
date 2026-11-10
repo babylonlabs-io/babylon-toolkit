@@ -10,7 +10,9 @@ import type { Address } from "viem";
 
 import { configureBabylonConfig } from "@/config/network";
 import {
+  HUB_ROLES,
   parseNetworkProfile,
+  type HubRole,
   type NetworkProfile,
 } from "@/config/network/profile";
 import { logger } from "@/infrastructure";
@@ -25,6 +27,8 @@ interface EnvVars {
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string | undefined;
   BTC_PRICE_FEED: Address | undefined;
+  /** The Aave hubs the profile lists, by role; the hub labels come from these. */
+  AAVE_HUBS: Partial<Record<HubRole, Address>>;
   VP_PROXY_URL: string;
   UTILS_API_URL: string | undefined;
   VP_EXPLORER_URL: string | undefined;
@@ -299,6 +303,11 @@ function validateEnvVars(): EnvValidationResult {
   }
 
   const effective = errors.length > 0 ? INERT_FALLBACK_PROFILE : profile;
+  const aaveHubs: Partial<Record<HubRole, Address>> = {};
+  for (const role of HUB_ROLES) {
+    const hub = effective.contracts[role];
+    if (hub !== undefined) aaveHubs[role] = hub as Address;
+  }
   const env: EnvVars = {
     BTC_VAULT_REGISTRY: effective.contracts.btcVaultRegistry as Address,
     AAVE_ADAPTER: effective.contracts.aaveAdapter as Address,
@@ -308,6 +317,7 @@ function validateEnvVars(): EnvValidationResult {
     VP_PROXY_URL: effective.vpProxyUrl,
     UTILS_API_URL,
     BTC_PRICE_FEED: effective.contracts.btcPriceFeed as Address | undefined,
+    AAVE_HUBS: aaveHubs,
     VP_EXPLORER_URL,
     // An invalid profile or override sends nothing: that configuration is not
     // trusted. Blocking errors raised elsewhere (wagmi) do not reach here.

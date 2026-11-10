@@ -87,21 +87,6 @@ vi.mock("../../../hooks/useBtcHtlcRefundStatus", () => ({
     mockUseBtcHtlcRefundStatus(outpoints),
 }));
 
-// Stuck-state chain confirm: react-query plus a chain read. Default is the empty
-// set, i.e. nothing confirmed stuck, which
-// is also the production fail-open default.
-const { mockUseStuckVaultChainConfirm } = vi.hoisted(() => ({
-  mockUseStuckVaultChainConfirm: vi.fn<
-    (suspectIds: readonly string[]) => ReadonlySet<string>
-  >(() => new Set<string>()),
-}));
-// Forwards the suspect ids so a test can assert on Tier 1's output — the set
-// this hook is asked to confirm is the only place `stuckSuspectIds` is visible.
-vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
-  useStuckVaultChainConfirm: (suspectIds: readonly string[]) =>
-    mockUseStuckVaultChainConfirm(suspectIds),
-}));
-
 // The expired-redeem window gate reads chain for swept EXPIRED vaults. Unknown
 // (empty) is its production fail-open default.
 vi.mock("../../../hooks/useClaimExpiredWindowGate", () => ({
@@ -1524,46 +1509,60 @@ describe("PeginPollingContext", () => {
   });
 
   // ==========================================================================
-  // VERIFIED — Tier-1 stuck suspects
+  // VERIFIED — when its HTLC is probed
   // ==========================================================================
 
-  it("VERIFIED: forms a stuck suspect when the activity id carries uppercase hex", () => {
-    // `useBtcHtlcRefundStatus` keys its map lowercase; activity ids arrive
-    // from the indexer unnormalized. A raw lookup misses and reads as "not
-    // swept", so no suspect forms, Tier 2 never runs, and the stuck card and
-    // Withdraw CTA silently never appear for a genuinely stuck deposit.
-    const MIXED_CASE_ID = "0xPEGIN" as Hex;
-    const PEGIN_TXID = `0x${"ef".repeat(32)}` as Hex;
-    mockUseBtcHtlcRefundStatus.mockReturnValue({
-      refundByDepositId: new Map([
-        [
-          MIXED_CASE_ID.toLowerCase(),
-          { spent: true, confirmed: true, spendingTxid: PEGIN_TXID },
-        ],
-      ]),
-    });
+  const VERIFIED_ACTIVITY: VaultActivity = {
+    ...ACTIVITY,
+    contractStatus: ContractStatus.VERIFIED,
+    prePeginTxHash: `0x${"ab".repeat(32)}` as Hex,
+    htlcVout: 0,
+  };
 
+  function lastProbedDepositIds(): string[] {
+    return (mockUseBtcHtlcRefundStatus.mock.calls.at(-1)?.[0] ?? []).map(
+      (outpoint) => outpoint.depositId,
+    );
+  }
+
+  function renderWithLocalRefund(activity: VaultActivity) {
     const wrapper = ({ children }: PropsWithChildren) => (
       <PeginPollingProvider
-        activities={[
+        activities={[activity]}
+        pendingPegins={[
           {
-            ...ACTIVITY,
-            id: MIXED_CASE_ID,
-            contractStatus: ContractStatus.VERIFIED,
-            peginTxHash: PEGIN_TXID,
+            id: ACTIVITY_ID,
+            timestamp: 0,
+            status: LocalStorageStatus.REFUND_BROADCAST,
+            peginTxHash: `0x${"ab".repeat(32)}` as Hex,
+            unsignedTxHex: "",
           },
         ]}
-        pendingPegins={[]}
         btcPublicKey={BTC_PUBKEY}
+        isConnected
       >
         {children}
       </PeginPollingProvider>
     );
-    renderHook(() => usePeginPolling(), { wrapper });
+    return renderHook(() => usePeginPolling(), { wrapper });
+  }
 
-    expect(mockUseStuckVaultChainConfirm).toHaveBeenLastCalledWith([
-      MIXED_CASE_ID,
-    ]);
+  it("VERIFIED: does not probe the HTLC of a vault this device has not refunded", () => {
+    renderProvider(true, [VERIFIED_ACTIVITY]);
+
+    expect(lastProbedDepositIds()).toEqual([]);
+  });
+
+  it("VERIFIED: probes the HTLC of a vault this device refunded", () => {
+    renderWithLocalRefund(VERIFIED_ACTIVITY);
+
+    expect(lastProbedDepositIds()).toEqual([ACTIVITY_ID]);
+  });
+
+  it("VERIFIED: never probes a stuck row, whose spend `useStuckVaults` already read", () => {
+    renderWithLocalRefund({ ...VERIFIED_ACTIVITY, stuckOnChain: true });
+
+    expect(lastProbedDepositIds()).toEqual([]);
   });
 
   it("reports the deposit as loading while the protocol params are unresolved", () => {

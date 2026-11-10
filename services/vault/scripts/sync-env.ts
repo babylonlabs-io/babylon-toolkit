@@ -19,6 +19,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  HUB_ROLES,
   OVERRIDABLE_ENDPOINTS,
   parseNetworkProfile,
   PROFILE_KINDS,
@@ -39,6 +40,20 @@ const ENV_PATH = join(NETWORKS_DIR, "..", ".env");
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Contract keys a profile carries only when the registry entry lists them, in serialized order. */
+const OPTIONAL_CONTRACT_KEYS = ["btcPriceFeed", ...HUB_ROLES] as const;
+
+/** The optional contracts `source` lists, in {@link OPTIONAL_CONTRACT_KEYS} order. */
+function optionalContracts(
+  source: Partial<Record<(typeof OPTIONAL_CONTRACT_KEYS)[number], unknown>>,
+): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  for (const key of OPTIONAL_CONTRACT_KEYS) {
+    if (source[key] !== undefined) picked[key] = source[key];
+  }
+  return picked;
 }
 
 interface BuildProfileInput {
@@ -86,9 +101,7 @@ export function buildProfile(input: BuildProfileInput): NetworkProfile {
       btcVaultRegistry: contracts.btcVaultRegistry,
       aaveAdapter: contracts.aaveAdapter,
       aaveAdapterConfig: contracts.aaveAdapterConfig,
-      ...(contracts.btcPriceFeed === undefined
-        ? {}
-        : { btcPriceFeed: contracts.btcPriceFeed }),
+      ...optionalContracts(contracts),
     },
   };
   if (existing?.overrides !== undefined) {
@@ -120,9 +133,7 @@ export function serializeProfile(profile: NetworkProfile): string {
       btcVaultRegistry: profile.contracts.btcVaultRegistry,
       aaveAdapter: profile.contracts.aaveAdapter,
       aaveAdapterConfig: profile.contracts.aaveAdapterConfig,
-      ...(profile.contracts.btcPriceFeed === undefined
-        ? {}
-        : { btcPriceFeed: profile.contracts.btcPriceFeed }),
+      ...optionalContracts(profile.contracts),
     },
   };
   if (profile.overrides !== undefined) {

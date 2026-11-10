@@ -81,6 +81,7 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
     isLoading: false,
     error: null,
     claimExpiredModal: { claimingActivity: null },
+    emergencyWithdrawModal: { withdrawing: null },
   }),
 }));
 
