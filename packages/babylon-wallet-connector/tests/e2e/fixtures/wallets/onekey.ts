@@ -201,9 +201,13 @@ async function enterRecoveryPhrase(context: BrowserContext, tab: Page, mnemonic:
     await tab.keyboard.press("ControlOrMeta+V");
     await sleep(SETTLE.SHORT);
   } finally {
-    await writeClipboard(helper, "").catch(() => {});
-    await helper.close().catch(() => {});
-    await tab.bringToFront().catch(() => {});
+    try {
+      // Not swallowed: a failed clear would leave the phrase on the system clipboard.
+      await writeClipboard(helper, "");
+    } finally {
+      await helper.close().catch(() => {});
+      await tab.bringToFront().catch(() => {});
+    }
   }
 
   for (const [index, word] of words.entries()) {

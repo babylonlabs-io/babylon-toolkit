@@ -179,9 +179,20 @@ export class OneKeyProvider implements IBTCProvider {
     }
   };
 
+  // Reads the dApp connection's chain and checks its shape before use: OneKey
+  // resolves `undefined` for a connection on a network that is not Bitcoin.
   private readChain = async (): Promise<BitcoinChainResponse> => {
+    if (typeof this.provider.getChain !== "function") {
+      throw new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: "Your OneKey Wallet cannot report its Bitcoin network. Please update OneKey and try again.",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    let chain: unknown;
     try {
-      return await withTimeout<BitcoinChainResponse>(this.provider.getChain(), ONEKEY_RPC_TIMEOUT_MS, () =>
+      chain = await withTimeout<unknown>(this.provider.getChain(), ONEKEY_RPC_TIMEOUT_MS, () =>
         this.timeoutError("reading its network"),
       );
     } catch (error) {
@@ -192,6 +203,17 @@ export class OneKeyProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+
+    const candidate = chain as Partial<BitcoinChainResponse> | null | undefined;
+    if (typeof candidate?.enum !== "string" || typeof candidate.name !== "string") {
+      const targetLabel = this.config.networkName || this.config.network;
+      throw new WalletError({
+        code: ERROR_CODES.UNSUPPORTED_NETWORK,
+        message: `OneKey Wallet did not report a Bitcoin network for this site. Choose ${targetLabel} in the OneKey connection request and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    return candidate as BitcoinChainResponse;
   };
 
   // Reads the extension's selected account without prompting and without

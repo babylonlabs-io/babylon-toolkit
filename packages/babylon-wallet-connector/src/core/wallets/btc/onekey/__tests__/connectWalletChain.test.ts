@@ -110,4 +110,175 @@ describe("OneKeyProvider.connectWallet network alignment", () => {
       wallet: "OneKey",
     });
   });
+
+  it("rejects with UNSUPPORTED_NETWORK when the switch fails for a reason other than a rejection", async () => {
+    const provider = new OneKeyProvider(
+      {
+        $walletInfo: { version: MIN_ONEKEY_VERSION },
+        btcwallet: {
+          connectWallet: vi.fn(async () => {}),
+          getChain: vi.fn(async () => MAINNET_CHAIN),
+          switchChain: vi.fn(async () => {
+            throw new Error("Switch network failed");
+          }),
+          getAddress: vi.fn(async () => "bc1pmainnet"),
+          getPublicKeyHex: vi.fn(async () => PUBLIC_KEY),
+        },
+      },
+      signetConfig,
+    );
+
+    await expect(provider.connectWallet()).rejects.toMatchObject({
+      code: ERROR_CODES.UNSUPPORTED_NETWORK,
+      message: "Switch network failed",
+      wallet: "OneKey",
+    });
+  });
+
+  it("asks the user to choose the network by hand when OneKey has no switchChain", async () => {
+    const provider = new OneKeyProvider(
+      {
+        $walletInfo: { version: MIN_ONEKEY_VERSION },
+        btcwallet: {
+          connectWallet: vi.fn(async () => {}),
+          getChain: vi.fn(async () => MAINNET_CHAIN),
+          getAddress: vi.fn(async () => "bc1pmainnet"),
+          getPublicKeyHex: vi.fn(async () => PUBLIC_KEY),
+        },
+      },
+      signetConfig,
+    );
+
+    await expect(provider.connectWallet()).rejects.toMatchObject({
+      code: ERROR_CODES.UNSUPPORTED_NETWORK,
+      message:
+        "OneKey Wallet cannot switch to BTC signet. Choose BTC signet in the OneKey connection request and try again.",
+      wallet: "OneKey",
+    });
+  });
+
+  it("keeps a timed-out switch as a retryable CONNECTION_FAILED", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider = new OneKeyProvider(
+        {
+          $walletInfo: { version: MIN_ONEKEY_VERSION },
+          btcwallet: {
+            connectWallet: vi.fn(async () => {}),
+            getChain: vi.fn(async () => MAINNET_CHAIN),
+            switchChain: vi.fn(() => new Promise(() => {})),
+            getAddress: vi.fn(async () => "bc1pmainnet"),
+            getPublicKeyHex: vi.fn(async () => PUBLIC_KEY),
+          },
+        },
+        signetConfig,
+      );
+
+      const rejection = expect(provider.connectWallet()).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        wallet: "OneKey",
+      });
+      await vi.advanceTimersByTimeAsync(60_000);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects with CONNECTION_FAILED when reading the chain fails", async () => {
+    const provider = new OneKeyProvider(
+      {
+        $walletInfo: { version: MIN_ONEKEY_VERSION },
+        btcwallet: {
+          connectWallet: vi.fn(async () => {}),
+          getChain: vi.fn(async () => {
+            throw new Error("Internal error");
+          }),
+          switchChain: vi.fn(),
+          getAddress: vi.fn(async () => "tb1psignet"),
+          getPublicKeyHex: vi.fn(async () => PUBLIC_KEY),
+        },
+      },
+      signetConfig,
+    );
+
+    await expect(provider.connectWallet()).rejects.toMatchObject({
+      code: ERROR_CODES.CONNECTION_FAILED,
+      message: "Internal error",
+      wallet: "OneKey",
+    });
+  });
+
+  it("rejects with CONNECTION_FAILED when reading the chain times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider = new OneKeyProvider(
+        {
+          $walletInfo: { version: MIN_ONEKEY_VERSION },
+          btcwallet: {
+            connectWallet: vi.fn(async () => {}),
+            getChain: vi.fn(() => new Promise(() => {})),
+            switchChain: vi.fn(),
+            getAddress: vi.fn(async () => "tb1psignet"),
+            getPublicKeyHex: vi.fn(async () => PUBLIC_KEY),
+          },
+        },
+        signetConfig,
+      );
+
+      const rejection = expect(provider.connectWallet()).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_FAILED,
+        wallet: "OneKey",
+      });
+      await vi.advanceTimersByTimeAsync(10_000);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("asks for an update when OneKey has no getChain", async () => {
+    const getAddress = vi.fn(async () => "bc1pmainnet");
+    const provider = new OneKeyProvider(
+      {
+        $walletInfo: { version: MIN_ONEKEY_VERSION },
+        btcwallet: {
+          connectWallet: vi.fn(async () => {}),
+          switchChain: vi.fn(),
+          getAddress,
+          getPublicKeyHex: vi.fn(async () => PUBLIC_KEY),
+        },
+      },
+      signetConfig,
+    );
+
+    await expect(provider.connectWallet()).rejects.toMatchObject({
+      code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+      wallet: "OneKey",
+    });
+    expect(getAddress).not.toHaveBeenCalled();
+  });
+
+  it("rejects with UNSUPPORTED_NETWORK when getChain reports no Bitcoin chain", async () => {
+    const switchChain = vi.fn();
+    const provider = new OneKeyProvider(
+      {
+        $walletInfo: { version: MIN_ONEKEY_VERSION },
+        btcwallet: {
+          connectWallet: vi.fn(async () => {}),
+          getChain: vi.fn(async () => undefined),
+          switchChain,
+          getAddress: vi.fn(async () => "bc1pmainnet"),
+          getPublicKeyHex: vi.fn(async () => PUBLIC_KEY),
+        },
+      },
+      signetConfig,
+    );
+
+    await expect(provider.connectWallet()).rejects.toMatchObject({
+      code: ERROR_CODES.UNSUPPORTED_NETWORK,
+      wallet: "OneKey",
+    });
+    expect(switchChain).not.toHaveBeenCalled();
+  });
 });
