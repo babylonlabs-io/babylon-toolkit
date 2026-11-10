@@ -117,7 +117,11 @@ describe("trackEvent", () => {
 
   it("attaches the connected wallet address, lowercased", () => {
     setWalletAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80");
-    trackEvent(ANALYTICS_EVENT.WALLET_CONNECTED, { chain: "eth" }, CONFIG);
+    trackEvent(
+      ANALYTICS_EVENT.WALLET_CONNECTED,
+      { chain: "eth", restored: false },
+      CONFIG,
+    );
     expect(sentBody().batch[0].properties.wallet_address).toBe(
       "0x742d35cc6634c0532925a3b844bc9e7595f2bd80",
     );

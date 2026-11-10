@@ -20,9 +20,13 @@ export interface AnalyticsEventProperties {
   /** Route template (`/markets/:reserveId`), never the concrete path or query. */
   [ANALYTICS_EVENT.PAGEVIEW]: { $pathname: string };
   /**
-   * A connection the user makes in the connect dialog, once per wallet per
-   * page load; never a restored session. Ethereum counts when the session is
-   * confirmed.
+   * A wallet connection, once per connection. `restored` is false when the
+   * user connected in the connect dialog and true when the app restored a
+   * saved session. Ethereum counts when the app's session is confirmed. See
+   * `walletConnections.ts`.
    */
-  [ANALYTICS_EVENT.WALLET_CONNECTED]: { chain: WalletChain };
+  [ANALYTICS_EVENT.WALLET_CONNECTED]: {
+    chain: WalletChain;
+    restored: boolean;
+  };
 }

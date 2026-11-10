@@ -5,7 +5,7 @@ import { WalletConnectionProvider } from "../VaultWalletConnectionProvider";
 
 // Drive the wallet events and check which connector cleanup Vault requests.
 type BtcCallbacks = {
-  onConnect: () => void;
+  onConnect: (address: string) => void;
   onDisconnect: () => void;
   onAddressChange: () => Promise<void>;
 };
@@ -80,6 +80,15 @@ vi.mock("@/infrastructure", () => ({
   logger: { info: vi.fn(), error: vi.fn() },
 }));
 
+const analytics = vi.hoisted(() => ({
+  forgetBtcConnection: vi.fn(),
+  markUserConfirmation: vi.fn(),
+  reportBtcConnected: vi.fn(),
+}));
+vi.mock("@/infrastructure/analytics", () => analytics);
+
+const BTC_ADDRESS = "tb1qexampleaddress0000000000000000000000";
+
 // Must stay in sync with BTC_DISCONNECT_DEBOUNCE_MS in the provider; advancing
 // past it is what runs the local Bitcoin cleanup if the guards let it through.
 const PAST_DEBOUNCE_MS = 5000;
@@ -98,6 +107,8 @@ describe("WalletConnectionProvider wallet resets", () => {
     h.captured.btc = undefined;
     h.captured.eth = undefined;
     h.captured.requiredChains = [];
+    analytics.forgetBtcConnection.mockClear();
+    analytics.reportBtcConnected.mockClear();
   });
 
   afterEach(() => {
@@ -110,7 +121,9 @@ describe("WalletConnectionProvider wallet resets", () => {
     expect(h.captured.requiredChains).toEqual(["ETH"]);
     expect(h.captured.chains).toEqual(["ETH", "BTC"]);
     expect(h.captured.persistent).toBe(true);
-    expect(h.captured.lifecycleHooks).toBeUndefined();
+    expect(h.captured.lifecycleHooks).toEqual({
+      onConfirm: analytics.markUserConfirmation,
+    });
   });
 
   it("keeps the saved wallet session for 7 days instead of the 1 h default", () => {
@@ -174,7 +187,7 @@ describe("WalletConnectionProvider wallet resets", () => {
   it("clears only Bitcoin after a disconnect outlasts the reconnect delay", async () => {
     renderProvider();
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
     expect(h.btcConnector.disconnect).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
@@ -186,9 +199,9 @@ describe("WalletConnectionProvider wallet resets", () => {
   it("cancels the reset when a reconnect arrives within the debounce window", async () => {
     renderProvider();
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
-    act(() => btc().onConnect()); // reconnect blip resolved
+    act(() => btc().onConnect(BTC_ADDRESS)); // reconnect blip resolved
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
     expect(h.disconnectAll).not.toHaveBeenCalled();
@@ -199,7 +212,7 @@ describe("WalletConnectionProvider wallet resets", () => {
     h.visible = true;
     renderProvider();
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
     act(() => h.captured.eth!.onDisconnect());
     expect(h.disconnectAll).not.toHaveBeenCalled();
@@ -215,7 +228,7 @@ describe("WalletConnectionProvider wallet resets", () => {
       btc().onDisconnect();
     });
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS * 2);
 
@@ -227,7 +240,7 @@ describe("WalletConnectionProvider wallet resets", () => {
     h.disconnectAll.mockImplementationOnce(() => new Promise(() => {}));
     renderProvider();
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
     act(() => h.captured.eth!.onDisconnect());
     expect(h.disconnectAll).toHaveBeenCalledTimes(1);
@@ -239,12 +252,12 @@ describe("WalletConnectionProvider wallet resets", () => {
   it("clears Bitcoin again after a reconnect that follows a local cleanup", async () => {
     renderProvider();
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
     expect(h.btcConnector.disconnect).toHaveBeenCalledExactlyOnceWith("local");
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
@@ -255,12 +268,54 @@ describe("WalletConnectionProvider wallet resets", () => {
   it("cancels a pending BTC reset when the provider unmounts", async () => {
     const { unmount } = renderProvider();
 
-    act(() => btc().onConnect());
+    act(() => btc().onConnect(BTC_ADDRESS));
     act(() => btc().onDisconnect());
     unmount();
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
     expect(h.disconnectAll).not.toHaveBeenCalled();
     expect(h.btcConnector.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("reports a Bitcoin connection made while the dialog is open as the user's", () => {
+    h.visible = true;
+    renderProvider();
+
+    act(() => btc().onConnect(BTC_ADDRESS));
+
+    expect(analytics.reportBtcConnected).toHaveBeenCalledExactlyOnceWith(
+      BTC_ADDRESS,
+      false,
+    );
+  });
+
+  it("reports a Bitcoin connection made with the dialog closed as restored", () => {
+    renderProvider();
+
+    act(() => btc().onConnect(BTC_ADDRESS));
+
+    expect(analytics.reportBtcConnected).toHaveBeenCalledExactlyOnceWith(
+      BTC_ADDRESS,
+      true,
+    );
+  });
+
+  it("forgets the reported Bitcoin connection when the cleanup clears the session", async () => {
+    renderProvider();
+
+    act(() => btc().onConnect(BTC_ADDRESS));
+    act(() => btc().onDisconnect());
+    expect(analytics.forgetBtcConnection).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+
+    expect(analytics.forgetBtcConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets the reported Bitcoin connection on a full reset", () => {
+    renderProvider();
+
+    act(() => h.captured.eth!.onDisconnect());
+
+    expect(analytics.forgetBtcConnection).toHaveBeenCalledTimes(1);
   });
 });

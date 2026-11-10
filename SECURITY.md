@@ -820,6 +820,13 @@ the exact deposit amount and the peg-in transaction. So anyone with access to th
 can tie a browsing session and its traffic source to the depositor's identity on **both** chains,
 not only on Ethereum.
 
+**It also links visits to each other.** The visit and session ids are per page load, but
+`wallet_address` is the same on every visit: it joins a connected depositor's visits across
+reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
+in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
+only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
+no confirmed Ethereum session carry no address, and stay unlinked apart from the ad click ids.
+
 What bounds it:
 
 - **Off unless configured.** Without both `NEXT_PUBLIC_POSTHOG_HOST` and
@@ -833,7 +840,8 @@ What bounds it:
   `analyticsEvents.ts` (the events and each event's own fields), `trackEvent.ts` (the wallet
   address, network, visit and session ids added to every event) and `attribution.ts` (campaign
   parameters, the referrer's hostname and `via`). `$pathname` is a route template, never a
-  concrete path or query, and `chain` is the connected chain (`eth` or `btc`). The campaign
+  concrete path or query; `wallet_connected` carries the chain (`eth` or `btc`) and whether the
+  app restored the session (`restored`). The campaign
   values are the one part taken from the landing URL's query (or the website's cookie): only the
   allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to 100
   characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1` or `bbn1` address or a long
@@ -867,7 +875,8 @@ What bounds it:
   stopped the app before the check ran. The app itself still opens in those cases.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
-- **No person profiles.** Every event carries `$process_person_profile: false`.
+- **No person profiles.** Every event carries `$process_person_profile: false`. This does not
+  stop events being grouped by `wallet_address` (see above).
 
 **Adding a field to any of those three files is a privacy change.** Review it the same way you
 would review re-enabling Sentry tracing.
@@ -1120,7 +1129,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
-| Telemetry           | —/G       | Analytics links a session to the depositor's identity on both chains              | Confidentiality (PII): PostHog sees visiting addresses and sources      | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`                          |
+| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): PostHog sees visiting addresses and sources      | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`                          |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions            | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |

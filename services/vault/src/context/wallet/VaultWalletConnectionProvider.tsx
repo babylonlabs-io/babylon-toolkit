@@ -26,6 +26,11 @@ import { COPY } from "@/copy";
 import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
 import { hasUsableBtcSigner } from "@/hooks/useBtcSignerUnavailable";
 import { logger } from "@/infrastructure";
+import {
+  forgetBtcConnection,
+  markUserConfirmation,
+  reportBtcConnected,
+} from "@/infrastructure/analytics";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
 import { LEDGER_VAULT_WALLET_ID } from "./ledgerVaultConnector";
@@ -94,6 +99,10 @@ const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
 // A phone user who reopens the tab within this window skips the confirm step.
 const WALLET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Analytics tells a session the user confirms in the dialog from one the app
+// restores (see infrastructure/analytics/walletConnections.ts).
+const LIFECYCLE_HOOKS = { onConfirm: markUserConfirmation };
+
 /**
  * Component that provides wallet-specific providers with cross-disconnect logic
  */
@@ -121,6 +130,7 @@ function WalletProviders({ children }: PropsWithChildren) {
   const runWalletReset = useCallback(async () => {
     if (isDisconnectingRef.current) return;
     isDisconnectingRef.current = true;
+    forgetBtcConnection();
     try {
       await disconnectAll?.();
     } finally {
@@ -141,6 +151,7 @@ function WalletProviders({ children }: PropsWithChildren) {
       // Prevent the cleanup event from starting another timer. The local scope
       // clears Bitcoin selection and storage without disconnecting Ethereum.
       hasBtcConnectedRef.current = false;
+      forgetBtcConnection();
       // An extension-initiated disconnect tears down BTCWalletProvider without
       // calling connector.disconnect(), so connectedWallet stays stale-set.
       // That is why this call still clears the persisted session, and why it
@@ -176,16 +187,26 @@ function WalletProviders({ children }: PropsWithChildren) {
     [],
   );
 
+  // A connection with the dialog closed is one the provider restored without
+  // the user.
+  const handleBtcConnect = useCallback(
+    (address: string) => {
+      cancelBtcReset();
+      reportBtcConnected(address, !connectModalVisibleRef.current);
+    },
+    [cancelBtcReset],
+  );
+
   // BTC: debounce disconnect (blip-tolerant), cancel on reconnect, but reset
   // immediately on a real account switch (onAddressChange only fires for a
   // genuinely different address).
   const btcCallbacks = useMemo(
     () => ({
-      onConnect: cancelBtcReset,
+      onConnect: handleBtcConnect,
       onDisconnect: scheduleBtcReset,
       onAddressChange: runWalletReset,
     }),
-    [cancelBtcReset, scheduleBtcReset, runWalletReset],
+    [handleBtcConnect, scheduleBtcReset, runWalletReset],
   );
 
   // ETH disconnect. When the connect modal is open the user is intentionally
@@ -254,6 +275,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     <WalletProvider
       persistent
       ttl={WALLET_SESSION_TTL_MS}
+      lifecycleHooks={LIFECYCLE_HOOKS}
       theme={theme}
       config={config}
       context={context}
