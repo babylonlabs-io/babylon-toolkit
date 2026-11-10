@@ -9,12 +9,30 @@ const featureFlagsMock = vi.hoisted(() => ({ isExploreEnabled: true }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
+const geoFencing = vi.hoisted(() => ({
+  state: { isGeoBlocked: false, isLoading: false },
+}));
+
+vi.mock("@/context/geofencing", () => ({
+  useGeoFencing: () => geoFencing.state,
+}));
+
 vi.mock("../trackEvent", () => ({ trackEvent: vi.fn() }));
 
 beforeEach(() => {
   vi.mocked(trackEvent).mockClear();
   featureFlagsMock.isExploreEnabled = true;
+  geoFencing.state = { isGeoBlocked: false, isLoading: false };
 });
+
+// A new element each time: React skips re-rendering an identical one.
+function trackerAt(path: string) {
+  return (
+    <MemoryRouter initialEntries={[path]}>
+      <AnalyticsTracker />
+    </MemoryRouter>
+  );
+}
 
 describe("AnalyticsTracker", () => {
   it("sends a page view with the route template", () => {
@@ -36,6 +54,29 @@ describe("AnalyticsTracker", () => {
         <AnalyticsTracker />
       </MemoryRouter>,
     );
+
+    expect(trackEvent).not.toHaveBeenCalled();
+  });
+
+  it("waits for the geofence check and then sends the page view once", () => {
+    geoFencing.state = { isGeoBlocked: false, isLoading: true };
+    const view = render(trackerAt("/markets/42"));
+    expect(trackEvent).not.toHaveBeenCalled();
+
+    geoFencing.state = { isGeoBlocked: false, isLoading: false };
+    view.rerender(trackerAt("/markets/42"));
+
+    expect(vi.mocked(trackEvent).mock.calls).toEqual([
+      ["$pageview", { $pathname: "/markets/:reserveId" }],
+    ]);
+  });
+
+  it("sends no page view for a geo-blocked visitor", () => {
+    geoFencing.state = { isGeoBlocked: false, isLoading: true };
+    const view = render(trackerAt("/markets/42"));
+
+    geoFencing.state = { isGeoBlocked: true, isLoading: false };
+    view.rerender(trackerAt("/markets/42"));
 
     expect(trackEvent).not.toHaveBeenCalled();
   });
