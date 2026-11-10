@@ -7,8 +7,11 @@
  * the website or has no referrer: a visit from another site is that site's.
  * The app only reads that cookie and writes no cookie or storage of its own.
  * Another site sets it, so it is untrusted input: only known keys with string
- * values are kept, truncated.
+ * values are kept. Every campaign value, from the URL or the cookie, has
+ * addresses and long hex scrubbed and is then truncated.
  */
+
+import { scrubString } from "@/utils/telemetry";
 
 import logger from "../logger";
 
@@ -41,7 +44,11 @@ const APP_HOST = /^btc-vaults(\.[a-z0-9-]+)*\.babylonlabs\.io$/;
 /** PostHog's value for a visit with no referrer. */
 const DIRECT_REFERRER = "$direct";
 
-type Via = "website" | "direct";
+/**
+ * `other` is any visit not from the website: another site, or no referrer.
+ * `$referring_domain` tells those apart.
+ */
+type Via = "website" | "other";
 
 type Attribution = CampaignFields & {
   /** Referrer hostname only, never its path or query. */
@@ -61,12 +68,20 @@ function truncate(value: string): string {
   return value.slice(0, MAX_ATTRIBUTION_VALUE_LENGTH);
 }
 
+/**
+ * A campaign value as sent. Scrubbed before truncating: an address cut
+ * mid-way no longer matches the scrubbing patterns.
+ */
+function cleanCampaignValue(value: string): string {
+  return truncate(scrubString(value));
+}
+
 function fromQuery(search: string): CampaignFields {
   const query = new URLSearchParams(search);
   const out: CampaignFields = {};
   for (const key of ATTRIBUTION_KEYS) {
     const value = query.get(key);
-    if (value) out[key] = truncate(value);
+    if (value) out[key] = cleanCampaignValue(value);
   }
   return out;
 }
@@ -99,7 +114,9 @@ function fromCookie(cookieHeader: string): CampaignFields {
   const out: CampaignFields = {};
   for (const key of ATTRIBUTION_KEYS) {
     const value: unknown = Reflect.get(parsed, key);
-    if (typeof value === "string" && value) out[key] = truncate(value);
+    if (typeof value === "string" && value) {
+      out[key] = cleanCampaignValue(value);
+    }
   }
   return out;
 }
@@ -126,7 +143,7 @@ export function deriveAttribution({
   const via: Via =
     externalHost !== null && WEBSITE_HOST.test(externalHost)
       ? "website"
-      : "direct";
+      : "other";
   const campaign = fromQuery(search);
   // The cookie remembers an earlier website visit; it must not claim a visit
   // that arrived from somewhere else.

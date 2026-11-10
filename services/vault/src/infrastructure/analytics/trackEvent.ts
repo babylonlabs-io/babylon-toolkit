@@ -147,8 +147,9 @@ function post(
       // Delivered even when the event fires just before a navigation.
       keepalive: true,
       credentials: "omit",
-      // The event carries the route template only; a same-origin proxy would
-      // otherwise receive the full page URL, query included, as the Referer.
+      // `$pathname` is a route template and the campaign values are an
+      // allow-list read once at startup; a Referer would otherwise send the
+      // full current page URL, query included.
       referrerPolicy: "no-referrer",
     }).then(
       (response) => {

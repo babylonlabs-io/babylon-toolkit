@@ -26,7 +26,7 @@ describe("deriveAttribution", () => {
       utm_medium: "social",
       twclid: "abc",
       $referring_domain: "$direct",
-      via: "direct",
+      via: "other",
     });
   });
 
@@ -38,7 +38,7 @@ describe("deriveAttribution", () => {
         cookie: cookieOf({ utm_source: "newsletter" }),
         ownHost: APP_HOST,
       }),
-    ).toEqual({ gclid: "g1", $referring_domain: "$direct", via: "direct" });
+    ).toEqual({ gclid: "g1", $referring_domain: "$direct", via: "other" });
   });
 
   it("falls back to the website cookie when the URL has no campaign parameters", () => {
@@ -69,7 +69,7 @@ describe("deriveAttribution", () => {
         }),
         ownHost: APP_HOST,
       }),
-    ).toEqual({ utm_source: "x", $referring_domain: "$direct", via: "direct" });
+    ).toEqual({ utm_source: "x", $referring_domain: "$direct", via: "other" });
   });
 
   it("treats a malformed cookie as no source", () => {
@@ -80,17 +80,70 @@ describe("deriveAttribution", () => {
         cookie: "bbn_src=%7Bnot-json",
         ownHost: APP_HOST,
       }),
-    ).toEqual({ $referring_domain: "$direct", via: "direct" });
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
   });
 
-  it("truncates values to 100 characters", () => {
+  it("treats a cookie that is valid JSON but not an object as no source", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "",
+        cookie: "bbn_src=5",
+        ownHost: APP_HOST,
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
+  });
+
+  it("truncates cookie values to 100 characters", () => {
     const result = deriveAttribution({
-      search: `?utm_campaign=${"a".repeat(150)}`,
+      search: "",
+      referrer: "",
+      cookie: cookieOf({ utm_campaign: "y".repeat(150) }),
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_campaign).toBe("y".repeat(100));
+  });
+
+  it("scrubs an address out of a campaign value in the URL", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=wallet-0x${"ab".repeat(20)}`,
       referrer: "",
       cookie: "",
       ownHost: APP_HOST,
     });
-    expect(result.utm_campaign).toBe("a".repeat(100));
+    expect(result.utm_term).toBe("wallet-[ETH_ADDR]");
+  });
+
+  it("scrubs an address out of a campaign value in the cookie", () => {
+    const result = deriveAttribution({
+      search: "",
+      referrer: "",
+      cookie: cookieOf({
+        utm_content: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      }),
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_content).toBe("[BTC_ADDR]");
+  });
+
+  it("scrubs an address before truncating, so a cut address is not sent", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=${"x".repeat(80)}-0x${"cd".repeat(20)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe(`${"x".repeat(80)}-[ETH_ADDR]`);
+  });
+
+  it("truncates URL values to 100 characters", () => {
+    const result = deriveAttribution({
+      search: `?utm_campaign=${"x".repeat(150)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_campaign).toBe("x".repeat(100));
   });
 
   it("reports an external referrer by hostname only", () => {
@@ -101,10 +154,10 @@ describe("deriveAttribution", () => {
         cookie: "",
         ownHost: APP_HOST,
       }),
-    ).toEqual({ $referring_domain: "www.google.com", via: "direct" });
+    ).toEqual({ $referring_domain: "www.google.com", via: "other" });
   });
 
-  it("does not count the app's own hosts as a referrer", () => {
+  it("does not count any btc-vaults host as a referrer", () => {
     for (const referrer of [
       `https://${APP_HOST}/vaults`,
       "https://btc-vaults.babylonlabs.io/",
@@ -116,8 +169,19 @@ describe("deriveAttribution", () => {
           cookie: "",
           ownHost: APP_HOST,
         }),
-      ).toEqual({ $referring_domain: "$direct", via: "direct" });
+      ).toEqual({ $referring_domain: "$direct", via: "other" });
     }
+  });
+
+  it("does not count the current host as a referrer when it is not a btc-vaults host", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "http://localhost:5173/vaults",
+        cookie: "",
+        ownHost: "localhost",
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
   });
 
   it("marks a visit from www.babylonlabs.io as from the website", () => {
@@ -139,7 +203,7 @@ describe("deriveAttribution", () => {
         cookie: "",
         ownHost: APP_HOST,
       }).via,
-    ).toBe("direct");
+    ).toBe("other");
   });
 
   it("ignores the website cookie when the visit came from another site", () => {
@@ -150,7 +214,7 @@ describe("deriveAttribution", () => {
         cookie: cookieOf({ utm_source: "x", utm_medium: "social" }),
         ownHost: APP_HOST,
       }),
-    ).toEqual({ $referring_domain: "www.google.com", via: "direct" });
+    ).toEqual({ $referring_domain: "www.google.com", via: "other" });
   });
 });
 

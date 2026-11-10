@@ -190,7 +190,7 @@ describe("trackEvent", () => {
     expect(sentBody().batch[0].properties).toMatchObject({
       utm_source: "x",
       utm_campaign: "launch",
-      via: "direct",
+      via: "other",
     });
   });
 });
