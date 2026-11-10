@@ -233,7 +233,7 @@ describe("useWithdrawCollateralTransaction", () => {
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
   });
 
-  it("sends withdraw_succeeded for each vault once the withdrawal is mined", async () => {
+  it("sends withdraw_succeeded for each vault, with the withdrawing account, once the withdrawal is mined", async () => {
     const { result } = setup();
 
     await act(async () => {
@@ -244,8 +244,11 @@ describe("useWithdrawCollateralTransaction", () => {
     });
 
     expect(mockTrackEvent.mock.calls).toEqual([
-      ["withdraw_succeeded", { vault_id: VAULT_ID }],
-      ["withdraw_succeeded", { vault_id: SECOND_VAULT_ID }],
+      ["withdraw_succeeded", { vault_id: VAULT_ID, wallet_address: "0xuser" }],
+      [
+        "withdraw_succeeded",
+        { vault_id: SECOND_VAULT_ID, wallet_address: "0xuser" },
+      ],
     ]);
   });
 

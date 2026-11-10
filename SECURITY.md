@@ -809,10 +809,10 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can attribute deposits, borrows and withdrawals to a traffic source. It is a separate channel from Sentry, and
-unlike Sentry it **deliberately sends the connected Ethereum address** (`wallet_address`) and the
-full vault id (`vault_id`), as Aave and Uniswap send addresses. This is an accepted risk (see the
-vault model's _Accepted risks_), not an oversight.
+can attribute deposits, borrows and withdrawals to a traffic source. It is a separate channel from
+Sentry, and unlike Sentry it **deliberately sends the connected Ethereum address**
+(`wallet_address`) and the full vault id (`vault_id`), as Aave and Uniswap send addresses. This is
+an accepted risk (see the vault model's _Accepted risks_), not an oversight.
 
 **What it links, through public chain data.** The address and the vault id are public keys into
 the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
@@ -845,16 +845,16 @@ What bounds it:
   `$pathname` is a route template, never a concrete path or query; `wallet_connected` carries the
   chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit events carry
   a coarse amount band, the number of vaults in a deposit and the vault id; borrow events carry the
-  borrowed reserve's symbol and, as `wallet_address`, the account that sent the borrow rather than
-  whichever wallet is connected when it is mined. The campaign values are the one part taken from
-  the landing URL's query (or the website's cookie): only the allow-listed keys. UTM values have
-  addresses and long hex scrubbed, then are truncated to 100 characters. As in MetaMask's Sentry
-  scrubbing, a `0x`, `bc1`, `tb1` or `bbn1` address or a long hex run is caught anywhere, even
-  joined to other text, but a legacy Bitcoin address only between non-alphanumeric characters, so
-  one joined directly to a letter or digit is sent. A campaign word shaped like a legacy address is
-  replaced; scrubbing too much is the accepted direction. The app does not itself send the BTC
-  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address and
-  vault id lead to the first three on-chain.
+  borrowed reserve's symbol. Borrow and withdrawal events send, as `wallet_address`, the account
+  that sent the transaction rather than whichever wallet is connected when it is mined. The campaign
+  values are the one part taken from the landing URL's query (or the website's cookie): only the
+  allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to 100
+  characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1` or `bbn1` address or a long
+  hex run is caught anywhere, even joined to other text, but a legacy Bitcoin address only between
+  non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
+  shaped like a legacy address is replaced; scrubbing too much is the accepted direction. The app
+  does not itself send the BTC address, transaction hashes, exact amounts or anything
+  secret-bearing; as above, the address and vault id lead to the first three on-chain.
 - **Ad click ids link visits.** `gclid` and `twclid` are sent unchanged, on every event of the
   visit, because marketing needs them to match a visit to an ad click. A click id is unique to one
   click, so reloading a URL that still carries it, or a `bbn_src` cookie that still holds it

@@ -169,11 +169,14 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         if (outcome === "mined" && vaultIds.length > 0) {
           markVaultsAsPending(vaultIds, "withdraw");
         }
-        // One event per vault, so each joins its deposit by vault id.
+        // One event per vault, so each joins its deposit by vault id. Each
+        // names the account that sent the withdrawal: the connected wallet can
+        // change before it is mined.
         if (outcome === "mined") {
           for (const vaultId of vaultIds) {
             trackEvent(ANALYTICS_EVENT.WITHDRAW_SUCCEEDED, {
               vault_id: vaultId,
+              wallet_address: account,
             });
           }
         }
