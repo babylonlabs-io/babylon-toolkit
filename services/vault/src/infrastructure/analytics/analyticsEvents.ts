@@ -15,7 +15,6 @@ export const ANALYTICS_EVENT = {
   VAULT_REGISTERED: "vault_registered",
   DEPOSIT_BROADCAST: "deposit_broadcast",
   VAULT_ACTIVATED: "vault_activated",
-  DEPOSIT_COMPLETED: "deposit_completed",
 } as const;
 
 export type AnalyticsEventName =
@@ -44,5 +43,4 @@ export interface AnalyticsEventProperties {
   [ANALYTICS_EVENT.VAULT_REGISTERED]: { vault_id: string };
   [ANALYTICS_EVENT.DEPOSIT_BROADCAST]: { vault_id: string };
   [ANALYTICS_EVENT.VAULT_ACTIVATED]: { vault_id: string };
-  [ANALYTICS_EVENT.DEPOSIT_COMPLETED]: { vault_id: string };
 }

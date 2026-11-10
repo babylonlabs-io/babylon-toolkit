@@ -59,13 +59,6 @@ vi.mock("@/infrastructure", () => ({
   logger: { event: mockEvent, error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-const { mockTrackEvent } = vi.hoisted(() => ({ mockTrackEvent: vi.fn() }));
-vi.mock("@/infrastructure/analytics", async () => ({
-  ANALYTICS_EVENT: (await import("@/infrastructure/analytics/analyticsEvents"))
-    .ANALYTICS_EVENT,
-  trackEvent: mockTrackEvent,
-}));
-
 const ACTIVITY_ID = "0xpegin" as Hex;
 const BTC_PUBKEY = "ab".repeat(32);
 
@@ -92,7 +85,6 @@ function emittedEventNames(): string[] {
 describe("terminal milestone emission across co-mounted providers", () => {
   beforeEach(() => {
     mockEvent.mockClear();
-    mockTrackEvent.mockClear();
     // The tracking store is app-scoped and outlives any provider, so it also
     // outlives a test case. Without this reset a later case starts with the
     // vault already seen and silently observes nothing.
@@ -139,79 +131,5 @@ describe("terminal milestone emission across co-mounted providers", () => {
     );
 
     expect(emittedEventNames()).toEqual([]);
-  });
-
-  it("sends deposit_completed for an activated vault", () => {
-    const Tree = ({ status }: { status: ContractStatus }) => (
-      <PeginPollingProvider
-        activities={[activityAt(status)]}
-        pendingPegins={[]}
-        btcPublicKey={BTC_PUBKEY}
-      >
-        <div />
-      </PeginPollingProvider>
-    );
-
-    const view = render(<Tree status={ContractStatus.VERIFIED} />);
-    view.rerender(<Tree status={ContractStatus.ACTIVE} />);
-
-    expect(mockTrackEvent).toHaveBeenCalledWith("deposit_completed", {
-      vault_id: ACTIVITY_ID,
-    });
-  });
-
-  it("sends no deposit_completed for a vault returned at activation", () => {
-    const Tree = ({ status }: { status: ContractStatus }) => (
-      <PeginPollingProvider
-        activities={[activityAt(status)]}
-        pendingPegins={[]}
-        btcPublicKey={BTC_PUBKEY}
-      >
-        <div />
-      </PeginPollingProvider>
-    );
-
-    const view = render(<Tree status={ContractStatus.VERIFIED} />);
-    view.rerender(<Tree status={ContractStatus.REDEEMED} />);
-
-    expect(emittedEventNames()).toContain("deposit.completed");
-    expect(mockTrackEvent).not.toHaveBeenCalled();
-  });
-
-  it("sends no deposit_completed for a returned vault first seen after its payout landed", () => {
-    const Tree = ({ status }: { status: ContractStatus }) => (
-      <PeginPollingProvider
-        activities={[activityAt(status)]}
-        pendingPegins={[]}
-        btcPublicKey={BTC_PUBKEY}
-      >
-        <div />
-      </PeginPollingProvider>
-    );
-
-    const view = render(<Tree status={ContractStatus.VERIFIED} />);
-    view.rerender(<Tree status={ContractStatus.DEPOSITOR_WITHDRAWN} />);
-
-    expect(emittedEventNames()).toContain("deposit.completed");
-    expect(mockTrackEvent).not.toHaveBeenCalled();
-  });
-
-  it("sends deposit_completed for a vault first seen liquidated", () => {
-    const Tree = ({ status }: { status: ContractStatus }) => (
-      <PeginPollingProvider
-        activities={[activityAt(status)]}
-        pendingPegins={[]}
-        btcPublicKey={BTC_PUBKEY}
-      >
-        <div />
-      </PeginPollingProvider>
-    );
-
-    const view = render(<Tree status={ContractStatus.VERIFIED} />);
-    view.rerender(<Tree status={ContractStatus.LIQUIDATED} />);
-
-    expect(mockTrackEvent).toHaveBeenCalledWith("deposit_completed", {
-      vault_id: ACTIVITY_ID,
-    });
   });
 });

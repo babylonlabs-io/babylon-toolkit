@@ -8,6 +8,8 @@
  * held; they are sent if the visitor passed, and dropped if the visitor is
  * blocked or the check never ran.
  */
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
 
 import logger from "../logger";
@@ -73,8 +75,6 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const HEX_PREFIX = "0x";
-
 /**
  * Vault ids reach the call sites in more than one form (with or without `0x`,
  * mixed case). One form keeps a vault's events joinable in PostHog and with
@@ -83,11 +83,7 @@ const HEX_PREFIX = "0x";
 function normalizeVaultId(properties: object): object {
   const vaultId: unknown = Reflect.get(properties, "vault_id");
   if (typeof vaultId !== "string") return properties;
-  const lower = vaultId.toLowerCase();
-  return {
-    ...properties,
-    vault_id: lower.startsWith(HEX_PREFIX) ? lower : `${HEX_PREFIX}${lower}`,
-  };
+  return { ...properties, vault_id: ensureHexPrefix(vaultId.toLowerCase()) };
 }
 
 function buildCaptureBody<E extends AnalyticsEventName>(
