@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import { CORE_HUB } from "@/test/deploymentAddresses";
 
 import { HubLabel } from "../HubLabel";
 
@@ -17,7 +18,7 @@ describe("HubLabel", () => {
       <HubLabel
         hub={{
           source: "registry",
-          address: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+          address: CORE_HUB,
           label: "Core Hub",
         }}
       />,
@@ -49,7 +50,7 @@ describe("HubLabel", () => {
       <HubLabel
         hub={{
           source: "registry",
-          address: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+          address: CORE_HUB,
           label: "Core Hub",
         }}
       >

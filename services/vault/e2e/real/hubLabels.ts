@@ -1,20 +1,35 @@
 /**
  * Display labels for Aave v4 hubs, for the CLI's reserve menus and `--borrow-hub` / `--repay-hub`.
  *
- * KEEP IN SYNC with src/services/aave/hubRegistry.ts (`HUBS_BY_DEPLOYMENT`). Copied rather than imported
- * because the e2e layer does not import from `src/` (see borrowParams.ts). The labels only help a human
- * name a hub: every run resolves to a reserve id, and a hub missing here still matches by address.
+ * The hub addresses come from the committed profiles of the CLI's networks (`contracts.aaveHub`,
+ * `contracts.aaveHubStables`), as the app's do, so `pnpm sync-env` keeps both current. The labels only
+ * help a human name a hub: every run resolves to a reserve id, and a hub missing here still matches by
+ * address.
  */
 
-/** Lowercased hub address -> label. */
-const HUB_LABELS: Record<string, string> = {
-  // Vault Devnet (2026-09 multi-hub deploy)
-  "0xb3283508a0e96f80cf79dc2a1135f10da170138d": "Babylon Hub",
-  "0xf5e52d571ed9b4779399a815815abeff7d7ec4ca": "Core Hub",
-  // Testnet (testnet-3)
-  "0xc551cc801acb95f9131a26081e495aef960a2f37": "Babylon Hub",
-  "0xf5960351a45633821cd6fc4a1da2d0f066dd06fc": "Core Hub",
-};
+import { readResolvedNetworkProfile } from "../../scripts/lib/networkProfiles";
+
+import { NETWORKS } from "./config";
+
+/**
+ * Label per profile hub role. KEEP IN SYNC with `COPY.loans.hub.roleLabels` in src/copy.ts — mirrored
+ * rather than imported because the e2e layer does not import from `src/` (see borrowParams.ts).
+ */
+const LABEL_BY_ROLE = {
+  aaveHub: "Babylon Hub",
+  aaveHubStables: "Core Hub",
+} as const;
+
+/** Lowercased hub address -> label, over every CLI network's profile. */
+const HUB_LABELS: Record<string, string> = Object.fromEntries(
+  Object.values(NETWORKS).flatMap(({ profile }) => {
+    const { contracts } = readResolvedNetworkProfile(profile);
+    return Object.entries(LABEL_BY_ROLE).flatMap(([role, label]) => {
+      const hub = contracts[role as keyof typeof LABEL_BY_ROLE];
+      return hub === undefined ? [] : [[hub.toLowerCase(), label]];
+    });
+  }),
+);
 
 /** Suffix every label ends with, so `--borrow-hub=core` matches "Core Hub". */
 const HUB_LABEL_SUFFIX = " hub";

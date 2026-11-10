@@ -12,17 +12,13 @@ import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import { USDC, USDG } from "@/test/deploymentAddresses";
 
 import { LOAN_TAB } from "../../../constants";
 import type { BorrowReserveCap } from "../../../utils/borrowReserveLimit";
 import { LoanFlowOverlay } from "../index";
 
 const SHELL_TESTID = "modal-shell";
-
-/** Vault Devnet USDC, listed on both hubs (reserves 0 and 4). */
-const USDC = "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48" as Address;
-/** Vault Devnet USDG, listed on the Core Hub only (reserve 7). */
-const USDG = "0x18d2048734d66cDB6468A93A3311feC9af037Cc4" as Address;
 
 const useAaveBorrowedAssetsMock = vi.fn(() => ({
   borrowedAssets: [] as {
@@ -176,9 +172,9 @@ vi.mock("../../../context", () => {
     reserve: { underlying },
   });
   const borrowableReserves = [
-    reserve(0n, "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48"),
-    reserve(4n, "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48"),
-    reserve(7n, "0x18d2048734d66cDB6468A93A3311feC9af037Cc4"),
+    reserve(0n, USDC),
+    reserve(4n, USDC),
+    reserve(7n, USDG),
   ];
   return {
     useAaveConfig: () => ({

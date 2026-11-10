@@ -1,6 +1,8 @@
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CORE_HUB } from "@/test/deploymentAddresses";
+
 import {
   __resetReportedHubSpokeReadFailuresForTests,
   getAssetLiquiditiesSafe,
@@ -25,9 +27,6 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/integrations/aave", () => ({
 const warn = vi.hoisted(() => vi.fn());
 const event = vi.hoisted(() => vi.fn());
 vi.mock("@/infrastructure", () => ({ logger: { warn, event } }));
-
-/** Vault Devnet Core Hub, in the hub registry. */
-const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address;
 
 const HUB = "0x0000000000000000000000000000000000000003" as Address;
 const IRM = "0x0000000000000000000000000000000000000004" as Address;

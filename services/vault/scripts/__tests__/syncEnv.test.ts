@@ -155,6 +155,39 @@ describe("buildProfile", () => {
     expect("btcPriceFeed" in profile.contracts).toBe(false);
   });
 
+  it("copies the registry's Aave hubs and writes them after btcPriceFeed", () => {
+    const profile = buildProfile({
+      name: "devnet",
+      registry: {
+        ...REGISTRY_DEVNET,
+        contracts: {
+          ...REGISTRY_DEVNET.contracts,
+          aaveHubStables: "0x2222222222222222222222222222222222222222",
+          aaveHub: "0x1111111111111111111111111111111111111111",
+        },
+      },
+      commit: COMMIT,
+      existing: null,
+      kind: "test",
+    });
+    expect(profile.contracts.aaveHub).toBe(
+      "0x1111111111111111111111111111111111111111",
+    );
+    expect(profile.contracts.aaveHubStables).toBe(
+      "0x2222222222222222222222222222222222222222",
+    );
+    expect(
+      Object.keys(JSON.parse(serializeProfile(profile)).contracts),
+    ).toEqual([
+      "btcVaultRegistry",
+      "aaveAdapter",
+      "aaveAdapterConfig",
+      "btcPriceFeed",
+      "aaveHub",
+      "aaveHubStables",
+    ]);
+  });
+
   it("fails on a registry entry the validator rejects, naming the field", () => {
     expect(() =>
       buildProfile({

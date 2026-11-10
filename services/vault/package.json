@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm exec tsx scripts/sync-env.ts \"${NEXT_PUBLIC_TBV_NETWORK:-devnet}\" --check --soft; NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite",
+    "dev": "pnpm exec tsx scripts/sync-env.ts \"${NEXT_PUBLIC_TBV_NETWORK:-devnet}\" --check --soft; NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite --mode \"${NEXT_PUBLIC_TBV_NETWORK:-devnet}\"",
     "dev:testnet": "NEXT_PUBLIC_TBV_NETWORK=testnet NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS=onekey pnpm run dev",
     "sync-env": "pnpm exec tsx scripts/sync-env.ts",
     "sync-env:check": "pnpm exec tsx scripts/sync-env.ts --all --check",

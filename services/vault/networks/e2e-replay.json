@@ -11,6 +11,8 @@
     "btcVaultRegistry": "0xb331467c4db13dccc77fa66c2d185b74ed57ab80",
     "aaveAdapter": "0x31bc43cab2d91b3016bee8e9fc1194d46d7b0590",
     "aaveAdapterConfig": "0x93071eef9dd7f692f377a0085dbac120324f719e",
-    "btcPriceFeed": "0xA5c0105B71D9D2CaDC151A1875a5B71C85AbF8DB"
+    "btcPriceFeed": "0xA5c0105B71D9D2CaDC151A1875a5B71C85AbF8DB",
+    "aaveHub": "0xb54f1d4a6bea627a0910652ab047b30a32f3eaf0",
+    "aaveHubStables": "0x000000000000000000000000000000000000c0de"
   }
 }
