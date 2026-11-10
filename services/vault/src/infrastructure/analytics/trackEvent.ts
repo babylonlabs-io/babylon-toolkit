@@ -92,7 +92,13 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   properties: AnalyticsEventProperties[E],
   timestamp: string,
 ) {
-  const wallet = getWalletAddress();
+  // An event about a transaction names the account that sent it; the
+  // session's address can change before the transaction is mined.
+  const eventWallet: unknown = Reflect.get(properties, "wallet_address");
+  const wallet =
+    typeof eventWallet === "string"
+      ? eventWallet.toLowerCase()
+      : getWalletAddress();
   return {
     api_key: config.projectKey,
     batch: [

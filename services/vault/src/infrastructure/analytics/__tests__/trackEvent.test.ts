@@ -139,6 +139,36 @@ describe("trackEvent", () => {
     }
   });
 
+  it("sends an event's own account, lowercased, in place of the session's address", () => {
+    setWalletAddress("0x1111111111111111111111111111111111111111");
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      {
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0xabcdef0000000000000000000000000000000002",
+    );
+  });
+
+  it("sends an event's own account even after the session's address is cleared", () => {
+    setWalletAddress(null);
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      {
+        reserve: "USDC",
+        wallet_address: "0xabcdef0000000000000000000000000000000002",
+      },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0xabcdef0000000000000000000000000000000002",
+    );
+  });
+
   it("reports a rejected key as an error once per page load", async () => {
     const send = await freshTrackEvent();
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }));

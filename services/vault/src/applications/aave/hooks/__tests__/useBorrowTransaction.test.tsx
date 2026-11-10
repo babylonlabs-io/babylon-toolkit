@@ -97,10 +97,14 @@ import { BorrowReserveCapUnavailableError } from "../../utils/borrowReserveLimit
 import { useBorrowTransaction } from "../useBorrowTransaction";
 
 const RESERVE = {} as never;
+// The underlying is the registry's mainnet USDC.
+const USDC_UNDERLYING = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
 const LIVE_RESERVE = {
   reserveId: "r1",
+  reserve: { underlying: USDC_UNDERLYING },
   token: { address: "0xtoken", decimals: 6, symbol: "USDC" },
 } as never;
+const BORROW_FIELDS = { reserve: "USDC", wallet_address: "0xuser" };
 
 const HASH =
   "0x5555555555555555555555555555555555555555555555555555555555555555";
@@ -352,6 +356,10 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
     expect(result.current.pendingWrite).toBeNull();
     expect(mockInvalidateQueries).toHaveBeenCalled();
+    expect(mockTrackEvent.mock.calls).toEqual([
+      ["borrow_started", BORROW_FIELDS],
+      ["borrow_succeeded", BORROW_FIELDS],
+    ]);
   });
 
   it("refuses a borrow from a remounted form while the first one is still unconfirmed", async () => {
@@ -512,6 +520,10 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       expect(result.current.error).toBeNull();
       expect(result.current.pendingWrite).toBeNull();
       expect(mockInvalidateQueries).toHaveBeenCalled();
+      // A borrow with no receipt is never reported as succeeded.
+      expect(mockTrackEvent.mock.calls).toEqual([
+        ["borrow_started", BORROW_FIELDS],
+      ]);
     } finally {
       vi.useRealTimers();
     }
@@ -566,7 +578,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
 });
 
 describe("useBorrowTransaction — analytics", () => {
-  it("sends borrow_started and borrow_succeeded with the reserve symbol once the borrow is mined", async () => {
+  it("sends borrow_started and borrow_succeeded with the reserve symbol and the borrowing account once the borrow is mined", async () => {
     mockBorrow.mockResolvedValue({ transactionHash: HASH });
     const { result } = renderHook(() => useBorrowTransaction());
 
@@ -575,9 +587,45 @@ describe("useBorrowTransaction — analytics", () => {
     });
 
     expect(mockTrackEvent.mock.calls).toEqual([
-      ["borrow_started", { reserve: "USDC" }],
-      ["borrow_succeeded", { reserve: "USDC" }],
+      ["borrow_started", BORROW_FIELDS],
+      ["borrow_succeeded", BORROW_FIELDS],
     ]);
+  });
+
+  it("sends the registry's symbol for a registered token, not the indexer's", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, {
+        reserveId: "r1",
+        reserve: { underlying: USDC_UNDERLYING },
+        token: { address: "0xtoken", decimals: 6, symbol: "FAKE" },
+      } as never);
+    });
+
+    expect(mockTrackEvent).toHaveBeenCalledWith("borrow_started", {
+      reserve: "USDC",
+      wallet_address: "0xuser",
+    });
+  });
+
+  it("bounds an unregistered token's indexer label to 32 characters", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, {
+        reserveId: "r1",
+        reserve: { underlying: "0x0000000000000000000000000000000000000001" },
+        token: { address: "0xtoken", decimals: 6, symbol: "T".repeat(50) },
+      } as never);
+    });
+
+    expect(mockTrackEvent).toHaveBeenCalledWith("borrow_started", {
+      reserve: "T".repeat(32),
+      wallet_address: "0xuser",
+    });
   });
 
   it("sends borrow_started but no borrow_succeeded when the borrow reverts", async () => {
@@ -589,7 +637,7 @@ describe("useBorrowTransaction — analytics", () => {
     });
 
     expect(mockTrackEvent.mock.calls).toEqual([
-      ["borrow_started", { reserve: "USDC" }],
+      ["borrow_started", BORROW_FIELDS],
     ]);
   });
 

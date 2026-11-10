@@ -45,7 +45,14 @@ export interface AnalyticsEventProperties {
   [ANALYTICS_EVENT.VAULT_REGISTERED]: { vault_id: string };
   [ANALYTICS_EVENT.DEPOSIT_BROADCAST]: { vault_id: string };
   [ANALYTICS_EVENT.VAULT_ACTIVATED]: { vault_id: string };
-  /** Token symbol of the borrowed reserve. */
-  [ANALYTICS_EVENT.BORROW_STARTED]: { reserve: string };
-  [ANALYTICS_EVENT.BORROW_SUCCEEDED]: { reserve: string };
+  /**
+   * Token symbol of the borrowed reserve, and the account that submitted the
+   * borrow (in place of the session's address, which can change before it is
+   * mined).
+   */
+  [ANALYTICS_EVENT.BORROW_STARTED]: { reserve: string; wallet_address: string };
+  [ANALYTICS_EVENT.BORROW_SUCCEEDED]: {
+    reserve: string;
+    wallet_address: string;
+  };
 }

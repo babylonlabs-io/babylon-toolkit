@@ -46,8 +46,27 @@ import {
 } from "../services/pendingAaveWrite";
 import { BorrowReserveCapUnavailableError } from "../utils/borrowReserveLimit";
 import { describeAaveRevert } from "../utils/describeAaveRevert";
+import { getReserveTokenLabel } from "../utils/reserveTokenLabel";
 
 import { usePendingAaveWrite } from "./usePendingAaveWrite";
+
+/** Longest reserve label sent to analytics; an unregistered token's label comes from the indexer. */
+const MAX_ANALYTICS_RESERVE_LENGTH = 32;
+
+/**
+ * The borrow's analytics fields: the registry-first token label, bounded, and
+ * the account that submitted the borrow, which a disconnect while it is
+ * pending would otherwise clear or replace on the event.
+ */
+function borrowAnalyticsFields(reserve: AaveReserveConfig, account: Address) {
+  return {
+    reserve: getReserveTokenLabel(reserve).symbol.slice(
+      0,
+      MAX_ANALYTICS_RESERVE_LENGTH,
+    ),
+    wallet_address: account,
+  };
+}
 
 export interface UseBorrowTransactionResult {
   /**
@@ -186,9 +205,10 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         // Sent once every pre-sign check has passed, so a borrow those checks
         // refuse is not counted. One the user then declines in the wallet, or
         // that reverts, is counted as started but never as succeeded.
-        trackEvent(ANALYTICS_EVENT.BORROW_STARTED, {
-          reserve: reserve.token.symbol,
-        });
+        trackEvent(
+          ANALYTICS_EVENT.BORROW_STARTED,
+          borrowAnalyticsFields(reserve, account),
+        );
 
         // Adapter resolves borrower's proxy from msg.sender
         const walletClient = await getWalletClientOnExpectedChain(account);
@@ -205,9 +225,10 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // its inclusion, and one the user stopped waiting on is not confirming.
       setIsConfirming(outcome === "mined");
       if (outcome === "mined") {
-        trackEvent(ANALYTICS_EVENT.BORROW_SUCCEEDED, {
-          reserve: reserve.token.symbol,
-        });
+        trackEvent(
+          ANALYTICS_EVENT.BORROW_SUCCEEDED,
+          borrowAnalyticsFields(reserve, account),
+        );
       }
 
       // Invalidate position queries to refresh data, and the hub reads behind
