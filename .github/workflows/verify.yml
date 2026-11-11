@@ -37,6 +37,9 @@ jobs:
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
+      - name: Check the package release delay
+        run: test "$(pnpm config get minimum-release-age)" = "1440"
+
       - name: Build packages
         run: pnpm exec nx run-many --target=build --projects=tag:type:package
 

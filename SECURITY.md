@@ -845,9 +845,9 @@ executes in the same origin as the signing flow, with the user's wallet connecte
 
 - `prefer-frozen-lockfile` locally, `--frozen-lockfile` in every workflow
 - `verify-store-integrity = true`
-- `minimumReleaseAge = 1440` — no package younger than one day is installed. This is the single most
-  effective control against the common "compromised maintainer publishes, gets yanked within hours"
-  pattern. **Do not lower it.**
+- `minimum-release-age = 1440` - dependency resolution excludes package versions younger than one
+  day. Frozen installs use locked versions without this age check. The delay reduces the risk from
+  a new malicious release that is removed within hours. **Do not lower it.**
 - `onlyBuiltDependencies` — an explicit allowlist of packages permitted to run install scripts.
   Everything else installs without executing arbitrary code. Adding an entry here grants arbitrary
   code execution on every developer machine and CI runner; it is a security review, not a build fix.
@@ -1052,7 +1052,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
-| Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions            | `.npmrc`, syncpack in CI                                          |
+| Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimum-release-age=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions          | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |
 | E2E                 | F         | `E2E_WALLET_MNEMONIC` leaks into a log or the repo                                | Loss of testnet funds; credential hygiene signal                        | Gitignored `.env.local`; no repository-configured secret-scanning control                                       | review                                                            |
