@@ -30,6 +30,8 @@ import {
 import {
   ACTIVE_LOAN_STOP,
   flowScreenshotFileName,
+  LOAN_PICKER_STOPS,
+  LOAN_PICKER_USES_COLOR_HOVER,
   VISUAL_VIEWPORTS,
 } from "./targets";
 
@@ -73,6 +75,7 @@ async function seedActiveLoan(page: Page): Promise<void> {
 }
 
 test.beforeAll(ensureOutputDir);
+const IS_BASELINE = process.env.CAPTURE_ROOT?.endsWith("/baseline") === true;
 
 for (const viewport of VISUAL_VIEWPORTS) {
   test(`capture an active loan at ${viewport.name}`, async ({ page }) => {
@@ -102,4 +105,152 @@ for (const viewport of VISUAL_VIEWPORTS) {
     ]);
     await writeCaptures([shot]);
   });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const viewport of VISUAL_VIEWPORTS) {
+    test(`capture the loan picker hover in ${theme} at ${viewport.name}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const backend = await preparePage(page);
+      await page.addInitScript(
+        (value) => localStorage.setItem("theme", value),
+        theme,
+      );
+      await injectPageWallets(page, recordedPageWallets());
+      await page.goto("/e2e/fixtures/loanPickerHover.html", {
+        waitUntil: "domcontentloaded",
+      });
+      await connectInjectedWallets(page);
+      await page.addStyleTag({
+        content: ".tsqd-parent-container { display: none !important; }",
+      });
+      await expect(page.locator("html")).toHaveClass(new RegExp(theme));
+      const open = page.getByTestId("open-loan-hover");
+      await open.click();
+      const shots = [];
+      for (const panel of ["asset", "hub"] as const) {
+        const prefix = panel === "asset" ? "asset-select-row-" : "hub-option-";
+        const control = page
+          .locator(`[data-testid^="${prefix}"]:not([disabled])`)
+          .first();
+        const row = panel === "asset" ? control : control.locator("..");
+        await row.scrollIntoViewIfNeeded();
+        for (const hovered of [false, true]) {
+          const usesColor =
+            hovered && (!IS_BASELINE || LOAN_PICKER_USES_COLOR_HOVER[panel]);
+          const background = usesColor
+            ? theme === "light"
+              ? "rgb(242, 242, 242)"
+              : "rgb(44, 44, 44)"
+            : theme === "light"
+              ? "rgb(249, 249, 249)"
+              : "rgb(32, 32, 32)";
+          const filter = hovered && !usesColor ? "brightness(1.25)" : "none";
+          await page.mouse.move(0, 0);
+          if (hovered) await control.hover();
+          if (panel === "hub") {
+            await expect(control).toContainText(/4\.52%.*\$35\.5M/s);
+          }
+          await expect(control).toBeEnabled();
+          await expect(row).toBeInViewport({ ratio: 0.999 });
+          await expect(row).toHaveCSS("background-color", background);
+          await expect(row).toHaveCSS("filter", filter);
+          expect(
+            await row.evaluate((element) => element.matches(":hover")),
+          ).toBe(hovered);
+          shots.push(
+            await capture(
+              page,
+              flowScreenshotFileName(
+                LOAN_PICKER_STOPS[theme][
+                  `${panel}${hovered ? "Hover" : "Rest"}`
+                ],
+                viewport,
+              ),
+              { fullPage: false },
+            ),
+          );
+          await expect(control).toBeEnabled();
+          await expect(row).toBeInViewport({ ratio: 0.999 });
+          await expect(row).toHaveCSS("background-color", background);
+          await expect(row).toHaveCSS("filter", filter);
+          if (panel === "hub") {
+            await expect(control).toContainText(/4\.52%.*\$35\.5M/s);
+          }
+          expect(
+            await row.evaluate((element) => element.matches(":hover")),
+          ).toBe(hovered);
+          await expect(page.locator("html")).toHaveClass(new RegExp(theme));
+        }
+        await page.keyboard.press("Escape");
+        await page.getByLabel("At borrow limit").check();
+        await open.click();
+        const disabled = page
+          .locator(`[data-testid^="${prefix}"][disabled]`)
+          .first();
+        const disabledRow =
+          panel === "asset" ? disabled : disabled.locator("..");
+        const disabledContent =
+          panel === "hub" && IS_BASELINE && !LOAN_PICKER_USES_COLOR_HOVER.hub
+            ? disabledRow
+            : disabled;
+        await disabledRow.scrollIntoViewIfNeeded();
+        await disabled.hover();
+        await expect(disabled).toBeDisabled();
+        if (panel === "hub") {
+          await expect(disabled).toContainText(/4\.52%.*\$35\.5M/s);
+        }
+        await expect(disabledContent).toHaveCSS("opacity", "0.4");
+        await expect(disabledRow).toHaveCSS(
+          "background-color",
+          theme === "light" ? "rgb(249, 249, 249)" : "rgb(32, 32, 32)",
+        );
+        await expect(disabledRow).toHaveCSS("filter", "none");
+        await expect(disabledRow).toBeInViewport({ ratio: 0.999 });
+        expect(
+          await disabledRow.evaluate((element) => element.matches(":hover")),
+        ).toBe(true);
+        shots.push(
+          await capture(
+            page,
+            flowScreenshotFileName(
+              LOAN_PICKER_STOPS[theme][`${panel}Disabled`],
+              viewport,
+            ),
+            { fullPage: false },
+          ),
+        );
+        await expect(disabled).toBeDisabled();
+        if (panel === "hub") {
+          await expect(disabled).toContainText(/4\.52%.*\$35\.5M/s);
+        }
+        await expect(disabledContent).toHaveCSS("opacity", "0.4");
+        await expect(disabledRow).toHaveCSS(
+          "background-color",
+          theme === "light" ? "rgb(249, 249, 249)" : "rgb(32, 32, 32)",
+        );
+        await expect(disabledRow).toHaveCSS("filter", "none");
+        await expect(disabledRow).toBeInViewport({ ratio: 0.999 });
+        expect(
+          await disabledRow.evaluate((element) => element.matches(":hover")),
+        ).toBe(true);
+        await expect(page.locator("html")).toHaveClass(new RegExp(theme));
+        await expect(page.locator(".tsqd-parent-container")).toBeHidden();
+        if (panel === "asset") {
+          await page.keyboard.press("Escape");
+          await page.getByLabel("At borrow limit").uncheck();
+          await open.click();
+          await control.click();
+        }
+      }
+      assertRecordingCovered(
+        backend,
+        `loan picker hover ${theme} ${viewport.name}`,
+        ["eth-rpc", "graphql", "vp-health", "mempool"],
+      );
+      await writeCaptures(shots);
+    });
+  }
 }

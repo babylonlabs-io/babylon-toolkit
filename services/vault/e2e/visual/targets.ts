@@ -192,6 +192,42 @@ export const VAULT_REFUND_STOPS = {
   refunded: "vaults-refunded",
 } as const;
 
+export const LOAN_PICKER_STOPS = {
+  light: {
+    assetRest: "loan-asset-rest-light",
+    assetHover: "loan-asset-hover-light",
+    assetDisabled: "loan-asset-disabled-light",
+    hubRest: "loan-hub-rest-light",
+    hubHover: "loan-hub-hover-light",
+    hubDisabled: "loan-hub-disabled-light",
+  },
+  dark: {
+    assetRest: "loan-asset-rest-dark",
+    assetHover: "loan-asset-hover-dark",
+    assetDisabled: "loan-asset-disabled-dark",
+    hubRest: "loan-hub-rest-dark",
+    hubHover: "loan-hub-hover-dark",
+    hubDisabled: "loan-hub-disabled-dark",
+  },
+} as const;
+
+export const LOAN_PICKER_USES_COLOR_HOVER = {
+  asset: readFileSync(
+    new URL(
+      "../../src/applications/aave/components/AssetSelectionPanel/AssetSelectionPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  ).includes("enabled:hover:bg-neutral-200"),
+  hub: readFileSync(
+    new URL(
+      "../../src/applications/aave/components/HubSelectionPanel/HubSelectionPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  ).includes("hover:bg-neutral-200"),
+};
+
 export const HAS_ARTIFACT_DOWNLOAD_CONFIRMATION = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),
   "utf8",
