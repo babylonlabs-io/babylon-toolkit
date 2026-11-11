@@ -231,6 +231,11 @@ export const HAS_CONFIRMED_REFUND = vaultsLifecycleSource.includes(
   "isRefundInFlightOrSettled",
 );
 
+export const RISK_PRICE_RAIL_STOPS = {
+  light: "risk-price-drop-light",
+  dark: "risk-price-drop-dark",
+} as const;
+
 /**
  * The liquidations chart, charted from the god-mode cascade simulator over
  * the recorded price candles. The route capture above photographs

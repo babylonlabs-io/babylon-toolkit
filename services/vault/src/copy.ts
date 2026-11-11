@@ -2885,7 +2885,7 @@ export const COPY = {
     borrowAction: "Borrow",
     repayAction: "Repay",
     liquidationPriceLabel: "Liquidation price",
-    pctToLiquidationLabel: PCT_TO_LIQUIDATION_LABEL,
+    pctToLiquidationLabel: "BTC Price Drop to Liquidation",
     disconnected: {
       // Only the dot of the first "i" in Bitcoin is orange. `dotless` (U+0131)
       // is the same glyph minus its tittle — the app paints it over `dotted` in

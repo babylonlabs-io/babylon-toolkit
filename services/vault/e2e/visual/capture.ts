@@ -51,6 +51,7 @@ import {
   LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
   LIQUIDATION_TOUR_STOPS,
   PROVIDER_COLUMNS_STOP,
+  RISK_PRICE_RAIL_STOPS,
   screenshotFileName,
   VAULT_REFUND_STOPS,
   VISUAL_TARGETS,
@@ -446,6 +447,7 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ACTIVE_LOAN_STOP,
       PROVIDER_COLUMNS_STOP,
+      ...Object.values(RISK_PRICE_RAIL_STOPS),
       ...Object.values(ACTIVATION_WARNING_STOPS).flat(),
       ...Object.values(VAULT_REFUND_STOPS),
       ...(HAS_ARTIFACT_DOWNLOAD_CONFIRMATION
