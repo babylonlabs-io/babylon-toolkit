@@ -15,7 +15,7 @@ export default defineConfig({
       include: ["src"],
       exclude: ["src/**/*.stories.tsx", "src/**/*.test.ts", "src/**/*.test.tsx", "src/__fixtures__/**"],
     }),
-    nodePolyfills({ include: ["crypto"] }),
+    nodePolyfills({ include: ["crypto", "stream"] }),
   ],
   build: {
     outDir: "dist",

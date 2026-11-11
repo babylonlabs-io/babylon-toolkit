@@ -163,3 +163,36 @@ export function checkPackage(manifest, runtime, declarations) {
   }
   return { optionalPeers: [...optionalPeers].sort(), buildOnlyDependencies: buildOnlyDependencies.sort() };
 }
+
+// Vite replaces a Node builtin that nodePolyfills does not include with an empty
+// `__viteBrowserExternal` namespace. Most reads of it are guarded, but
+// cipher-base (Keystone's bs58check → create-hash chain) runs
+// `require("stream").Transform.call(this)`, so a stubbed `stream` throws at runtime.
+// The stub is reached through the namespace itself and through the binding an interop
+// wrapper assigns from it (`x = /* @__PURE__ */ getAugmentedNamespace(__viteBrowserExternal$1)`),
+// whatever the helper's name or pure-comment form, so both are checked. Plain copies of
+// that binding (`v = x`) are not followed: minified names are reused across scopes, and
+// matching them file-wide flags unrelated variables.
+export function assertNoStubbedStreamTransform(files) {
+  const identifier = String.raw`[A-Za-z_$][\w$]*`;
+  // One block comment, ending at its own `*/`: a lazy `[\s\S]*?` would extend across
+  // later comments and backtrack over the whole multi-megabyte bundle.
+  const comment = String.raw`\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\/`;
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const namespaces = [...new Set(source.match(/__viteBrowserExternal[\w$]*/g))];
+    if (namespaces.length === 0) continue;
+    const namespace = namespaces.map(RegExp.escape).join("|");
+    const binding = new RegExp(
+      String.raw`(?<![\w$.])(${identifier})\s*=\s*(?:${comment}\s*)*${identifier}\(\s*(?:${namespace})\s*\)`,
+      "g",
+    );
+    const names = new Set([...namespaces, ...[...source.matchAll(binding)].map(([, name]) => name)]);
+    const read = new RegExp(
+      String.raw`(?<![\w$.])(${[...names].map(RegExp.escape).join("|")})\.Transform(?![\w$])`,
+    ).exec(source);
+    if (read) {
+      throw new Error(`${file} reads stream.Transform from an empty browser stub through ${read[1]}; add "stream" to nodePolyfills`);
+    }
+  }
+}
