@@ -263,11 +263,16 @@ export const MAX_VP_COMMISSION_BPS_EXCLUSIVE = 10_000;
  * Lowest VP commission (bps) the registry accepts, and the floor of the
  * versioned `maxVpCommissionBps` cap: vault-contracts-aave-v4
  * `MIN_VP_COMMISSION_BPS` (`src/protocol/lib/types/Constants.sol:15` @
- * a20b5e0d), enforced in `VPKeyRegistryLogic.sol:90-91,449-450` and
- * `ProtocolParams.sol:548`. A library constant with no getter, so it cannot be
- * read on-chain.
+ * d240ec03, lowered from 10 by #663), enforced in
+ * `VPKeyRegistryLogic.sol:90-91,449-450` and `ProtocolParams.sol:567`. A
+ * library constant with no getter, so it cannot be read on-chain. The
+ * contract keeps the floor nonzero for the provider's Payout builder, which
+ * refuses a zero or sub-dust commission output (btc-vault
+ * `TxGraphConfig::validate`, `build_payout_outputs`); this package's
+ * `buildPayoutPsbt` guards only `[0, 10000)` and leaves the floor to the
+ * trust boundary.
  */
-export const MIN_VP_COMMISSION_BPS = 10;
+export const MIN_VP_COMMISSION_BPS = 1;
 
 /**
  * Basis-points denominator for commission math:
