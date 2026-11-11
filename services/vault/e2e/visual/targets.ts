@@ -130,6 +130,7 @@ export const DEPOSIT_FLOW_STOPS = {
    * next click asks them to sign, and they never do.
    */
   signEntry: "deposit-sign-entry",
+  providerOptions: "deposit-provider-options",
   /** The reported low-ETH error, rendered by the real progress view. */
   insufficientEth: "deposit-insufficient-eth",
 } as const;
@@ -142,6 +143,19 @@ export const DEPOSIT_FLOW_STOPS = {
  * wallet held. See `depositFlow.visual.spec.ts`.
  */
 export const DEPOSIT_SPLIT_MINIMUM_STOP = "deposit-split-minimum";
+
+export const PROVIDER_COLUMNS_STOP = "deposit-provider-columns";
+
+export const HAS_PROVIDER_COLUMN_GRID = readFileSync(
+  new URL(
+    "../../src/components/simple/VaultProviderSelectorV3.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+).includes("grid-cols-[minmax(0,1fr)_16px]");
+
+export const REQUIRE_PROVIDER_COLUMN_GRID =
+  !process.env.CAPTURE_ROOT?.endsWith("/baseline") || HAS_PROVIDER_COLUMN_GRID;
 
 /**
  * The deposit progress view's captured stops.
@@ -171,6 +185,13 @@ export const DEPOSIT_PROGRESS_STOPS = {
  * photographs /loans disconnected and the recorded depositor holds no position,
  * so no wallet reaches a row. See `activeLoan.visual.spec.ts`.
  */
+export const ACTIVE_LOAN_STOP = "loans-active-loan";
+
+export const VAULT_REFUND_STOPS = {
+  refunding: "vaults-refunding",
+  refunded: "vaults-refunded",
+} as const;
+
 export const LOAN_PICKER_STOPS = {
   light: {
     assetRest: "loan-asset-rest-light",
@@ -206,13 +227,6 @@ export const LOAN_PICKER_USES_COLOR_HOVER = {
     "utf8",
   ).includes("hover:bg-neutral-200"),
 };
-
-export const ACTIVE_LOAN_STOP = "loans-active-loan";
-
-export const VAULT_REFUND_STOPS = {
-  refunding: "vaults-refunding",
-  refunded: "vaults-refunded",
-} as const;
 
 export const HAS_ARTIFACT_DOWNLOAD_CONFIRMATION = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),

@@ -3,8 +3,9 @@
  *
  * Contracts and endpoints come from the same committed profile the app inlines
  * (services/vault/networks/<name>.json), so a `pnpm sync-env` rotation is picked up
- * automatically. Only NEXT_PUBLIC_ETH_RPC_URL may be overridden, from the vault .env,
- * exactly as the app allows.
+ * automatically. Only NEXT_PUBLIC_ETH_RPC_URL may be overridden, exactly as the app allows,
+ * from the dotenv files `pnpm dev` loads for that profile: Vite's mode is the profile name, so
+ * `.env`, `.env.local`, `.env.<profile>` and `.env.<profile>.local`.
  */
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { gql, GraphQLClient } from "graphql-request";
@@ -26,7 +27,7 @@ import { NETWORKS, type NetworkName } from "./config";
 /** The immutable Core Spoke getter on the AaveIntegrationAdapter (read on-chain, never trusted from GraphQL). */
 const CORE_SPOKE_FN = "BTC_VAULT_CORE_SPOKE";
 
-/** The vault service root (holds .env), relative to this file. */
+/** The vault service root (holds the dotenv files), relative to this file. */
 const VAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** Networks whose resolved env we've already surfaced, so we log it once per process (not per call). */
@@ -49,9 +50,11 @@ export interface NetworkContracts {
 export function resolveNetworkContracts(
   network: NetworkName,
 ): NetworkContracts {
-  const profile = readResolvedNetworkProfile(NETWORKS[network].profile);
+  const profileName = NETWORKS[network].profile;
+  const profile = readResolvedNetworkProfile(profileName);
+  // The dev server runs with `--mode <profile>`, so read the same mode's files.
   const { NEXT_PUBLIC_ETH_RPC_URL } = loadEnv(
-    "development",
+    profileName,
     VAULT_ROOT,
     "NEXT_PUBLIC_",
   );

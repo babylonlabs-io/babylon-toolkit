@@ -9,6 +9,7 @@ import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import { CORE_HUB } from "@/test/deploymentAddresses";
 
 import { LOAN_TAB } from "../../../constants";
 import { ReserveDetailPanel } from "../ReserveDetailPanel";
@@ -90,7 +91,7 @@ const RESERVE = {
   reserve: {
     collateralFactor: 0,
     underlying: "0xUSDC" as Address,
-    hub: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address,
+    hub: CORE_HUB,
   },
   token: {
     symbol: "USDC",

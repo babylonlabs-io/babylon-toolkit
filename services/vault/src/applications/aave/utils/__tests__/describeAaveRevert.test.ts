@@ -1,13 +1,10 @@
-import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 
+import { CORE_HUB } from "@/test/deploymentAddresses";
 import { ContractError, ErrorCode } from "@/utils/errors";
 
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import { describeAaveRevert } from "../describeAaveRevert";
-
-/** Vault Devnet Core Hub, in the hub registry. */
-const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address;
 
 const usdcCore = {
   reserveId: 4n,

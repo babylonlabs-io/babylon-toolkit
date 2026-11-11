@@ -11,11 +11,9 @@ vi.mock("@/applications/aave/hooks", () => ({
 import { useAaveConfig } from "@/applications/aave/context";
 import { useAaveBorrowAprs } from "@/applications/aave/hooks";
 import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
+import { BABYLON_HUB, CORE_HUB } from "@/test/deploymentAddresses";
 
 import { useLandingBorrowAprs } from "../useLandingBorrowAprs";
-
-const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as const;
-const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as const;
 
 function makeReserve(
   reserveId: bigint,

@@ -93,6 +93,32 @@ describe("parseNetworkProfile", () => {
     );
   });
 
+  it("accepts an Aave hub without the other", () => {
+    const profile = {
+      ...VALID_PROFILE,
+      contracts: {
+        ...VALID_PROFILE.contracts,
+        aaveHub: "0x1111111111111111111111111111111111111111",
+      },
+    };
+    expect(parseNetworkProfile(profile)).toEqual(profile);
+  });
+
+  it("rejects one address listed as both Aave hubs, whatever its case", () => {
+    expect(() =>
+      parseNetworkProfile({
+        ...VALID_PROFILE,
+        contracts: {
+          ...VALID_PROFILE.contracts,
+          aaveHub: "0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD",
+          aaveHubStables: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        },
+      }),
+    ).toThrow(
+      "contracts.aaveHub and contracts.aaveHubStables must be different hubs",
+    );
+  });
+
   it("rejects the zero address for a contract", () => {
     expect(() =>
       parseNetworkProfile({

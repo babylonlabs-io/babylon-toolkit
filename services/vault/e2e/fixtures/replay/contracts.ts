@@ -22,6 +22,10 @@
  *    `getPositionSizeParams()` on.
  *  - `BTC_PRICE_FEED` is the Chainlink feed the recorded batches read
  *    `latestRoundData()` / `decimals()` from.
+ *  - The profile's `aaveHub` is the `hub` of every reserve in the recorded
+ *    `GetAaveAppConfig` response. Its `aaveHubStables` is a placeholder, not
+ *    from the recording, which predates the second hub: it gives the unit
+ *    tests (`src/test/deploymentAddresses.ts`) a second hub the app labels.
  *  - `ETH_CHAIN_ID` is Sepolia, the chain every recorded `eth_chainId`
  *    answered with.
  */
