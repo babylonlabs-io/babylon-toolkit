@@ -809,10 +809,8 @@ describe("useArtifactDownload — prime then fetch", () => {
     vi.useFakeTimers();
     try {
       seedHotCache();
-      // Flow #1: VP still pre-signatures — enters the 10s retry sleep.
-      fetchMock.mockRejectedValueOnce(
-        new Error("Invalid state: PendingBabeSetup"),
-      );
+      // Flow #1: VP artifacts not ready — enters the 10s retry sleep.
+      fetchMock.mockRejectedValueOnce(new ArtifactsNotReadyError(false));
       // Flow #2 (started after cancelling #1): succeeds.
       fetchMock.mockResolvedValueOnce(OUTCOME);
 
@@ -1213,7 +1211,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
     vi.useFakeTimers();
     try {
       seedHotCache();
-      fetchMock.mockRejectedValue(new Error("Invalid state PendingIngestion"));
+      fetchMock.mockRejectedValue(new ArtifactsNotReadyError(false));
 
       const { result } = renderHook(() =>
         useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -1262,19 +1260,11 @@ describe("useArtifactDownload — funnel telemetry", () => {
   });
 
   it.each([
-    {
-      invalidState: true,
-      stops: true,
-      waiting: COPY.deposit.recoveryArtifacts.waitingForProvider,
-    },
-    {
-      invalidState: false,
-      stops: false,
-      waiting: COPY.deposit.recoveryArtifacts.waitingForSignatures,
-    },
+    { invalidState: true, stops: true },
+    { invalidState: false, stops: false },
   ])(
     "waits on ArtifactsNotReadyError(invalidState=$invalidState); stops after 2h: $stops",
-    async ({ invalidState, stops, waiting }) => {
+    async ({ invalidState, stops }) => {
       vi.useFakeTimers();
       try {
         seedHotCache();
@@ -1295,7 +1285,9 @@ describe("useArtifactDownload — funnel telemetry", () => {
         await act(async () => {
           await vi.advanceTimersByTimeAsync(0);
         });
-        expect(result.current.progress).toBe(waiting);
+        expect(result.current.progress).toBe(
+          COPY.deposit.recoveryArtifacts.waitingForProvider,
+        );
         expect(result.current.error).toBeNull();
 
         await act(async () => {

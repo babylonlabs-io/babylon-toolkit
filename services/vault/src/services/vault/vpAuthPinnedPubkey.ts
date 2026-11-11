@@ -11,37 +11,26 @@ import type { OnChainBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type Address, type Hex, isAddressEqual } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 
 export interface ResolvedVpAuthPins {
-  /**
-   * JSON-RPC bootstrap issuer: the provider's live operation key, or the
-   * vault's frozen key when HTTP artifact downloads are on.
-   */
+  /** JSON-RPC bootstrap issuer: the operation key frozen into this vault. */
   pinnedServerPubkey: OnChainBtcPubkey;
-  /** gRPC bootstrap issuer: the operation key frozen into this vault. */
+  /** gRPC bootstrap issuer: the same frozen key. */
   grpcPinnedServerPubkey: OnChainBtcPubkey;
-  /** Epoch that selected `grpcPinnedServerPubkey`. */
+  /** Epoch that selected both pins. */
   grpcKeyEpoch: bigint;
-  /**
-   * Re-reads the live JSON-RPC issuer after an identity mismatch. Absent
-   * when the JSON-RPC issuer is the frozen key, which must never move.
-   */
-  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
 }
 
 /**
- * Resolve both token-subject pins for an existing vault.
+ * Resolve the token-subject pins for an existing vault.
  *
  * Throws when `vpAddress` is not the on-chain provider of `vaultId`. Call it
  * before the auth anchor can leave the browser.
  *
- * `auth_createDepositorTokenGrpc` is issued under the vault's frozen VP epoch.
- * A VP with HTTP artifact downloads also issues `auth_createDepositorToken`
- * under that frozen key; an older VP issues it under its current key. The
- * keys are equal before the first rotation and diverge for a pre-rotation
- * vault afterwards.
+ * The provider issues every depositor token under the VP identity frozen
+ * into the peg-in (btc-vault #2984), so both subjects pin the operation key
+ * at the vault's VP epoch and never follow a later rotation.
  */
 export async function resolveVpAuthPins(
   vpAddress: Address,
@@ -59,21 +48,13 @@ export async function resolveVpAuthPins(
     );
   }
   const epochs = await reader.getVaultKeyEpochs(vaultId);
-  const grpcPinnedServerPubkey =
-    await reader.getVaultProviderOperationBtcKeyAtEpoch(
-      vpAddress,
-      epochs.vpKeyEpoch,
-    );
-  const pins = { grpcPinnedServerPubkey, grpcKeyEpoch: epochs.vpKeyEpoch };
-
-  if (featureFlags.isHttpArtifactDownloadsEnabled) {
-    return { ...pins, pinnedServerPubkey: grpcPinnedServerPubkey };
-  }
-  const readLiveKey = () =>
-    reader.getCurrentVaultProviderOperationBtcKey(vpAddress);
+  const frozenKey = await reader.getVaultProviderOperationBtcKeyAtEpoch(
+    vpAddress,
+    epochs.vpKeyEpoch,
+  );
   return {
-    ...pins,
-    pinnedServerPubkey: await readLiveKey(),
-    refreshJsonRpcPinnedServerPubkey: readLiveKey,
+    pinnedServerPubkey: frozenKey,
+    grpcPinnedServerPubkey: frozenKey,
+    grpcKeyEpoch: epochs.vpKeyEpoch,
   };
 }

@@ -225,6 +225,18 @@ describe("fetchHttpArtifactsResponse", () => {
     expect(String(err)).toContain("HTTP 409 SOMETHING_ELSE");
   });
 
+  it("fails once, without retrying, when the VP serves no artifact routes", async () => {
+    const fetchMock = mockFetch(new Response(null, { status: 404 }));
+
+    const err = await fetchHttpArtifactsResponse(BASE, TXID, getToken).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(ArtifactsNotReadyError);
+    expect(isAuthRejectedError(err)).toBe(false);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("sends no Authorization header when no token is cached", async () => {
     const fetchMock = mockFetch(jsonResponse({}, 401));
 
@@ -540,5 +552,66 @@ describe("fetchHttpArtifactsResponse", () => {
     await pending.catch(() => undefined);
 
     expect(sessionSignal!.aborted).toBe(true);
+  });
+
+  it("aborts an in-progress session download when the caller's signal aborts", async () => {
+    let sessionSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(manifest({ [KEY_A]: SESSION_A })),
+    );
+    fetchMock.mockImplementationOnce(
+      (_url: string, init: { signal: AbortSignal }) => {
+        sessionSignal = init.signal;
+        return new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () =>
+            reject(init.signal.reason),
+          );
+        });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    const response = await fetchHttpArtifactsResponse(
+      BASE,
+      TXID,
+      getToken,
+      controller.signal,
+    );
+    const reader = response.body!.getReader();
+    await reader.read(); // the head
+    const pending = reader.read(); // starts the session download
+    await vi.waitFor(() => expect(sessionSignal).toBeDefined());
+    controller.abort();
+
+    await expect(pending).rejects.toBe(controller.signal.reason);
+    expect(sessionSignal!.aborted).toBe(true);
+  });
+
+  it("downloads with a caller signal on a browser without AbortSignal.any", async () => {
+    const original = AbortSignal.any;
+    // @ts-expect-error - deliberately emulating a browser that predates the API
+    delete AbortSignal.any;
+    try {
+      mockFetch(
+        jsonResponse(manifest({ [KEY_A]: SESSION_A })),
+        sessionResponse(SESSION_A),
+      );
+
+      const response = await fetchHttpArtifactsResponse(
+        BASE,
+        TXID,
+        getToken,
+        new AbortController().signal,
+      );
+      const result = JSON.parse(await response.text()).result;
+
+      expect(result.babe_sessions[KEY_A].decryptor_artifacts_hex).toBe(
+        bytesToHex(SESSION_A),
+      );
+    } finally {
+      AbortSignal.any = original;
+    }
   });
 });

@@ -250,60 +250,39 @@ describe("VpTokenRegistry", () => {
     expect(setClientSpy).toHaveBeenCalledExactlyOnceWith(secondClient);
   });
 
-  it("refreshes a stale live issuer once and preserves the frozen gRPC binding", async () => {
+  it("rejects a server-identity mismatch after one issue request and keeps the pin", async () => {
     const expiresAt = Math.floor(Date.now() / 1000) + 600;
-    const response = new Response(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        result: {
-          token: "token",
-          expires_at: expiresAt,
-          server_identity: {
-            server_pubkey: ALT_PINNED_PUBKEY,
-            ephemeral_pubkey: "02" + "1".repeat(64),
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            token: "token",
             expires_at: expiresAt,
-            signature: "2".repeat(128),
+            server_identity: {
+              server_pubkey: ALT_PINNED_PUBKEY,
+              ephemeral_pubkey: "unused-by-mock",
+              expires_at: expiresAt,
+              signature: "unused-by-mock",
+            },
           },
-        },
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
     );
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(response)
-      .mockResolvedValueOnce(response.clone());
     vi.stubGlobal("fetch", fetchMock);
-    vi.mocked(verifyServerIdentity).mockImplementation(
-      ({ pinnedServerPubkey }) => {
-        if (pinnedServerPubkey === PINNED_PUBKEY) {
-          throw new ServerIdentityError("rotated", "pinned_pubkey_mismatch");
-        }
-      },
-    );
-    const refresh = vi.fn().mockResolvedValue(ALT_PINNED_PUBKEY);
-    const input = buildInput({
-      providerAddress: PROVIDER_ADDRESS,
-      grpcPinnedServerPubkey: FROZEN_PINNED_PUBKEY,
-      grpcKeyEpoch: 7n,
-      refreshJsonRpcPinnedServerPubkey: refresh,
+    vi.mocked(verifyServerIdentity).mockImplementation(() => {
+      throw new ServerIdentityError("mismatch", "pinned_pubkey_mismatch");
     });
-    const provider = registry.getOrCreate(input);
+    const provider = registry.getOrCreate(buildInput());
 
     await expect(
       provider.getToken("vaultProvider_submitDepositorWotsKey"),
-    ).resolves.toBe("token");
+    ).rejects.toThrow("mismatch");
 
-    expect(refresh).toHaveBeenCalledOnce();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(provider.getPinnedServerPubkey("jsonrpc")).toBe(ALT_PINNED_PUBKEY);
-    expect(provider.getPinnedServerPubkey("grpc")).toBe(FROZEN_PINNED_PUBKEY);
-
-    const rebound = registry.getOrCreate({
-      ...input,
-      pinnedServerPubkey: ALT_PINNED_PUBKEY,
-    });
-    expect(rebound).toBe(provider);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(provider.getPinnedServerPubkey("jsonrpc")).toBe(PINNED_PUBKEY);
   });
 
   it("verifies the two token subjects against their distinct post-rotation issuers", async () => {
@@ -367,46 +346,6 @@ describe("VpTokenRegistry", () => {
         }),
       ],
     ]);
-  });
-
-  it("bounds live-key recovery to one refresh and one retry", async () => {
-    const expiresAt = Math.floor(Date.now() / 1000) + 600;
-    const responseBody = JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      result: {
-        token: "token",
-        expires_at: expiresAt,
-        server_identity: {
-          server_pubkey: ALT_PINNED_PUBKEY,
-          ephemeral_pubkey: "unused-by-mock",
-          expires_at: expiresAt,
-          signature: "unused-by-mock",
-        },
-      },
-    });
-    const fetchMock = vi.fn().mockImplementation(
-      async () =>
-        new Response(responseBody, {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    vi.mocked(verifyServerIdentity).mockImplementation(() => {
-      throw new ServerIdentityError("mismatch", "pinned_pubkey_mismatch");
-    });
-    const refresh = vi.fn().mockResolvedValue(ALT_PINNED_PUBKEY);
-    const provider = registry.getOrCreate(
-      buildInput({ refreshJsonRpcPinnedServerPubkey: refresh }),
-    );
-
-    await expect(
-      provider.getToken("vaultProvider_submitDepositorWotsKey"),
-    ).rejects.toThrow("mismatch");
-
-    expect(refresh).toHaveBeenCalledOnce();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("scopes entries by peginTxid — distinct pegins get distinct providers", () => {

@@ -18,13 +18,12 @@ export interface VpTokenRegistryInput {
   authAnchorHex: string;
   /** Stable provider identity used to prevent cross-provider cache reuse. */
   providerAddress: string;
+  /** Frozen-epoch issuer for the JSON-RPC token subject: the operation key at the vault's VP epoch. */
   pinnedServerPubkey: OnChainBtcPubkey;
   /** Frozen-epoch issuer used only by the gRPC token subject. */
   grpcPinnedServerPubkey: OnChainBtcPubkey;
   /** Frozen VP epoch that selected `grpcPinnedServerPubkey`. */
   grpcKeyEpoch: bigint;
-  /** Authoritative live-key resolver for bounded JSON-RPC pin recovery. */
-  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /** Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`. */
   expectedAudienceXOnlyPubkey: string;
 }
@@ -51,8 +50,7 @@ export class VpTokenRegistry {
    * with matching anchor, provider, audience, and subject-specific issuer
    * bindings, otherwise construct and cache a fresh provider. A mismatch
    * throws — silent overwrite would mask derivation drift or cross-provider
-   * cache reuse. A legitimate live JSON-RPC key rotation is handled inside
-   * `VpTokenProvider` through its chain-backed refresh callback.
+   * cache reuse.
    */
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider {
     const existing = this.entries.get(input.peginTxid);
@@ -114,7 +112,6 @@ export class VpTokenRegistry {
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
       grpcPinnedServerPubkey: input.grpcPinnedServerPubkey,
-      refreshJsonRpcPinnedServerPubkey: input.refreshJsonRpcPinnedServerPubkey,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: GRPC_AUTH_GATED_METHODS,

@@ -381,15 +381,13 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
   }
 }
 
-/**
- * Validate a requestDepositorClaimerArtifacts response.
- */
+/** Validate a recovery-artifact payload (graph, verifying key, BaBe sessions). */
 export function validateRequestDepositorClaimerArtifactsResponse(
   response: unknown,
 ): asserts response is RequestDepositorClaimerArtifactsResponse {
   if (response === null || typeof response !== "object") {
     throw new VpResponseValidationError(
-      `VP response validation failed: requestDepositorClaimerArtifacts response is not an object`,
+      `VP response validation failed: recovery-artifact payload is not an object`,
     );
   }
 

@@ -15,6 +15,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 
 import { COPY } from "@/copy";
+import { combineAbortSignals } from "@/utils/async";
 
 /** Largest original session the VP serves. */
 const MAX_SESSION_BYTES = 256 * 1024 * 1024;
@@ -97,11 +98,12 @@ export async function fetchHttpArtifactsResponse(
     txid,
   );
   // Cancelling the body also stops a session download that is in progress,
-  // so it does not keep a VP download slot.
+  // so it does not keep a VP download slot. Composed with the app's helper:
+  // `AbortSignal.any` is missing on Safari < 17.4 and Chrome < 116.
   const cancelled = new AbortController();
-  const downloadSignal = signal
-    ? AbortSignal.any([signal, cancelled.signal])
-    : cancelled.signal;
+  const download = combineAbortSignals(
+    signal ? [signal, cancelled.signal] : [cancelled.signal],
+  );
 
   const encoder = new TextEncoder();
   const head = encoder.encode(
@@ -129,7 +131,7 @@ export async function fetchHttpArtifactsResponse(
     yield head;
     let index = 0;
     for (const [key, session] of manifest.sessions) {
-      const chunks = await downloadSession(session, getToken, downloadSignal);
+      const chunks = await downloadSession(session, getToken, download.signal);
       yield sessionOpen(key, index++);
       for (const chunk of chunks) {
         for (let i = 0; i < chunk.byteLength; i += HEX_SLICE_BYTES) {
@@ -146,13 +148,24 @@ export async function fetchHttpArtifactsResponse(
   const iterator = body();
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const next = await iterator.next();
-      if (next.done) controller.close();
-      else controller.enqueue(next.value);
+      let next: IteratorResult<Uint8Array>;
+      try {
+        next = await iterator.next();
+      } catch (err) {
+        download.cleanup();
+        throw err;
+      }
+      if (next.done) {
+        download.cleanup();
+        controller.close();
+      } else {
+        controller.enqueue(next.value);
+      }
     },
     async cancel() {
       cancelled.abort();
       await iterator.return(undefined);
+      download.cleanup();
     },
   });
   return new Response(stream, {

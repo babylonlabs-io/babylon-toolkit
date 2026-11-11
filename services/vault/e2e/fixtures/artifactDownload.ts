@@ -8,8 +8,6 @@ export type ArtifactSurface = "activation" | "vault";
 export const CANCEL_DOWNLOAD_TITLE = "Cancel artifact download?";
 export const ARTIFACT_QUOTA_MESSAGE =
   "Too many artifact download requests. Wait and try again later.";
-export const ARTIFACT_LEGACY_QUOTA_MESSAGE =
-  "The vault provider limits downloads for this BTCVault. Wait before you try again. Contact the vault provider if the problem continues.";
 
 /** Use the existing demo stream and the selected browser save path. */
 export async function openArtifactDownload(
@@ -63,9 +61,7 @@ export async function openArtifactDownload(
     .click();
   if (scenario === "quota") {
     await expect(
-      page
-        .getByText(ARTIFACT_QUOTA_MESSAGE, { exact: true })
-        .or(page.getByText(ARTIFACT_LEGACY_QUOTA_MESSAGE, { exact: true })),
+      page.getByText(ARTIFACT_QUOTA_MESSAGE, { exact: true }),
     ).toBeVisible();
     return;
   }

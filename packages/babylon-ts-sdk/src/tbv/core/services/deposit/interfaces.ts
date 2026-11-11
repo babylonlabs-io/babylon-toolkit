@@ -9,8 +9,6 @@
 
 import type {
   GetPeginStatusResponse,
-  RequestDepositorClaimerArtifactsParams,
-  RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsParams,
   RequestDepositorPresignTransactionsResponse,
   SubmitDepositorPresignaturesParams,
@@ -43,12 +41,4 @@ export interface PresignClient {
     params: SubmitDepositorPresignaturesParams,
     signal?: AbortSignal,
   ): Promise<void>;
-}
-
-/** VP operations for depositor-as-claimer artifacts (separate from payout signing). */
-export interface ClaimerArtifactsReader {
-  requestDepositorClaimerArtifacts(
-    params: RequestDepositorClaimerArtifactsParams,
-    signal?: AbortSignal,
-  ): Promise<RequestDepositorClaimerArtifactsResponse>;
 }

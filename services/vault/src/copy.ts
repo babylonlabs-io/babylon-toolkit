@@ -1041,16 +1041,13 @@ export const COPY = {
       vaultProviderUnreachable:
         "Cannot reach the vault provider for this deposit. Please refresh and try again.",
       // Progress/status lines surfaced in the card while the download hook
-      // works through its fetch / re-auth / wait-for-signatures states.
+      // works through its fetch / re-auth / wait-for-provider states.
       // The signature status shows while the cold-cache auth prime waits on
       // the BTC wallet's signature prompt.
       signTransaction: SIGN_TRANSACTION_LABEL,
       fetchingArtifacts: "Fetching artifacts from vault provider...",
       reauthenticating: "Re-authenticating with vault provider...",
-      waitingForSignatures:
-        "Waiting for vault provider to process signatures...",
-      // The provider does not say why it refuses (INVALID_STATE), so this
-      // names no cause.
+      // Covers ARTIFACTS_NOT_READY and INVALID_STATE; the provider names no cause.
       waitingForProvider:
         "Waiting for the vault provider to make the artifacts available...",
       notAvailable:
