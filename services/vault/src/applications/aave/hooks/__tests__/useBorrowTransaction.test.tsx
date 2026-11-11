@@ -654,6 +654,20 @@ describe("useBorrowTransaction — analytics", () => {
     expect(mockTrackEvent).not.toHaveBeenCalled();
   });
 
+  it("sends nothing for a borrow whose chain switch the user declines", async () => {
+    vi.mocked(getWalletClientOnExpectedChain).mockRejectedValueOnce(
+      new Error("User rejected the chain switch"),
+    );
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockBorrow).not.toHaveBeenCalled();
+    expect(mockTrackEvent).not.toHaveBeenCalled();
+  });
+
   it("sends nothing for a borrow refused while another transaction is in flight", async () => {
     mockAssertNoTransactionInFlight.mockRejectedValue(
       new TransactionInFlightError(),

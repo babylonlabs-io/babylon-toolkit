@@ -202,16 +202,18 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
           await preSignValidation();
         }
 
-        // Sent once every pre-sign check has passed, so a borrow those checks
-        // refuse is not counted. One the user then declines in the wallet, or
-        // that reverts, is counted as started but never as succeeded.
+        // Adapter resolves borrower's proxy from msg.sender
+        const walletClient = await getWalletClientOnExpectedChain(account);
+
+        // Sent once the pre-sign checks have passed and the wallet is on the
+        // expected chain, so a borrow those checks refuse, or a chain switch
+        // the user declines, is not counted. A borrow whose pre-flight
+        // simulation then rejects, that the user declines in the wallet, or
+        // that reverts is counted as started but never as succeeded.
         trackEvent(
           ANALYTICS_EVENT.BORROW_STARTED,
           borrowAnalyticsFields(reserve, account),
         );
-
-        // Adapter resolves borrower's proxy from msg.sender
-        const walletClient = await getWalletClientOnExpectedChain(account);
         await borrow(
           walletClient,
           chain,
