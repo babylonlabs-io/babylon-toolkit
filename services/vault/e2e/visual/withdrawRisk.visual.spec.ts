@@ -44,9 +44,12 @@ for (const viewport of VISUAL_VIEWPORTS) {
       await page.getByTestId("open-withdraw-risk").click();
       await expect
         .poll(() =>
-          page.getByRole("img", { name: /^s?BTC$/ }).evaluate(
-            (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
-          ),
+          page
+            .getByRole("img", { name: /^s?BTC$/ })
+            .evaluate(
+              (image: HTMLImageElement) =>
+                image.complete && image.naturalWidth > 0,
+            ),
         )
         .toBe(true);
       const shots: StagedShot[] = [];

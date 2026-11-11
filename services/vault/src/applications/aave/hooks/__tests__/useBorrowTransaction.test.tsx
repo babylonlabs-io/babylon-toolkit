@@ -76,6 +76,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 
 import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { COPY } from "@/copy";
+import { CORE_HUB } from "@/test/deploymentAddresses";
 import {
   ContractError,
   ErrorCode,
@@ -252,9 +253,8 @@ describe("useBorrowTransaction — hub reverts", () => {
     await act(async () => {
       await result.current.executeBorrow(100, {
         reserveId: 4n,
-        // Vault Devnet Core Hub, in the hub registry.
         reserve: {
-          hub: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+          hub: CORE_HUB,
           decimals: 6,
         },
         token: { address: "0xtoken", decimals: 6, symbol: "USDC" },

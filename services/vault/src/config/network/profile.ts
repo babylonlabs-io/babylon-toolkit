@@ -28,11 +28,21 @@ export const OVERRIDABLE_ENDPOINTS = [
 ] as const;
 export type OverridableEndpoint = (typeof OVERRIDABLE_ENDPOINTS)[number];
 
+/**
+ * The Aave hubs a profile may list, by their tbv-networks key. The app labels
+ * each one by its role (`COPY.loans.hub.roleLabels`); a hub the profile does
+ * not list is shown by its address.
+ */
+export const HUB_ROLES = ["aaveHub", "aaveHubStables"] as const;
+export type HubRole = (typeof HUB_ROLES)[number];
+
 export interface NetworkProfileContracts {
   btcVaultRegistry: string;
   aaveAdapter: string;
   aaveAdapterConfig: string;
   btcPriceFeed?: string;
+  aaveHub?: string;
+  aaveHubStables?: string;
 }
 
 export type NetworkProfileOverrides = Partial<
@@ -71,6 +81,7 @@ const CONTRACT_KEYS = [
   "aaveAdapter",
   "aaveAdapterConfig",
   "btcPriceFeed",
+  ...HUB_ROLES,
 ] as const;
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -158,14 +169,24 @@ function checkContracts(
     "contracts.aaveAdapterConfig",
     problems,
   );
-  const btcPriceFeed =
-    value.btcPriceFeed === undefined
-      ? undefined
-      : checkAddress(value.btcPriceFeed, "contracts.btcPriceFeed", problems);
+  const optional: Pick<NetworkProfileContracts, "btcPriceFeed" | HubRole> = {};
+  for (const key of ["btcPriceFeed", ...HUB_ROLES] as const) {
+    if (value[key] === undefined) continue;
+    const address = checkAddress(value[key], `contracts.${key}`, problems);
+    if (address !== undefined) optional[key] = address;
+  }
+  // One hub in both roles would get two labels and its rows would be ambiguous.
+  if (
+    optional.aaveHub !== undefined &&
+    optional.aaveHubStables !== undefined &&
+    optional.aaveHub.toLowerCase() === optional.aaveHubStables.toLowerCase()
+  ) {
+    problems.push(
+      "contracts.aaveHub and contracts.aaveHubStables must be different hubs",
+    );
+  }
   if (!btcVaultRegistry || !aaveAdapter || !aaveAdapterConfig) return undefined;
-  return btcPriceFeed === undefined
-    ? { btcVaultRegistry, aaveAdapter, aaveAdapterConfig }
-    : { btcVaultRegistry, aaveAdapter, aaveAdapterConfig, btcPriceFeed };
+  return { btcVaultRegistry, aaveAdapter, aaveAdapterConfig, ...optional };
 }
 
 function checkOverrides(

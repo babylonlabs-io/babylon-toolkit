@@ -1,11 +1,11 @@
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 
+import { CORE_HUB, USDC } from "@/test/deploymentAddresses";
+
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import { getReserveTokenLabel } from "../reserveTokenLabel";
 
-/** Vault Devnet USDC, present in the address-keyed token registry. */
-const REGISTERED_USDC = "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48" as Address;
 const UNREGISTERED_TOKEN =
   "0x1111111111111111111111111111111111111111" as Address;
 
@@ -17,7 +17,7 @@ function reserveWithToken(
     reserveId: 4n,
     reserve: {
       underlying,
-      hub: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+      hub: CORE_HUB,
       assetId: 0,
       decimals: 6,
       dynamicConfigKey: 0,
@@ -34,7 +34,7 @@ function reserveWithToken(
 describe("getReserveTokenLabel", () => {
   it("labels a registered underlying from the token registry, not the indexer", () => {
     const label = getReserveTokenLabel(
-      reserveWithToken(REGISTERED_USDC, { symbol: "FAKE", name: "Fake Coin" }),
+      reserveWithToken(USDC, { symbol: "FAKE", name: "Fake Coin" }),
     );
 
     expect(label).toEqual({

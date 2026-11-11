@@ -110,7 +110,7 @@
             "command": "./scripts/watch-deps.sh {projectName}"
           },
           {
-            "command": "pnpm exec vite"
+            "command": "pnpm exec vite --mode \"${NEXT_PUBLIC_TBV_NETWORK:-devnet}\""
           }
         ]
       }

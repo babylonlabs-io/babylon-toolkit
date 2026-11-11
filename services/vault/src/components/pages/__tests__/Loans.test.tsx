@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import { BABYLON_HUB } from "@/test/deploymentAddresses";
 
 const walletMock = vi.hoisted(() => ({
   btcConnected: true,
@@ -172,7 +173,7 @@ const DEMO_LOAN_ROW = {
   name: "USDC",
   hub: {
     source: "registry" as const,
-    address: "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as const,
+    address: BABYLON_HUB,
     label: "Babylon Hub",
   },
   amount: "1500",

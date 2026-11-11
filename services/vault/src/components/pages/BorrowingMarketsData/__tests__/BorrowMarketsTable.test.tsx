@@ -9,6 +9,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import { CORE_HUB } from "@/test/deploymentAddresses";
 
 // Component tests mock core-ui (its dist isn't built in the test run).
 vi.mock("@babylonlabs-io/core-ui", () => ({
@@ -28,7 +29,7 @@ const baseRow: BorrowMarketRow = {
   icon: "usdc.png",
   hub: {
     source: "registry",
-    address: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+    address: CORE_HUB,
     label: "Core Hub",
   },
   aprLabel: "3.70%",

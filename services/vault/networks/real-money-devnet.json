@@ -1,7 +1,7 @@
 {
   "name": "real-money-devnet",
   "kind": "production",
-  "registryCommit": "a5914a5e06a3d77af1c4c27e35af1fc699ac2ac2",
+  "registryCommit": "aca343427d5ad102be296d24012b00ae83aacf01",
   "btcNetwork": "mainnet",
   "ethChainId": 1,
   "ethRpcUrl": "https://ethereum-rpc.publicnode.com",
@@ -11,6 +11,8 @@
     "btcVaultRegistry": "0x37a436253454c718d33d271bD829D15D7D372300",
     "aaveAdapter": "0xF93892D520630d3eB0ed9A2157746E0a63a9E6f2",
     "aaveAdapterConfig": "0xFC9b3C7A75be36d3D47b72B98e4F879631d276Ba",
-    "btcPriceFeed": "0xbd8c6A609e0D239C0a04cA4D4D526A61fE661bDC"
+    "btcPriceFeed": "0xbd8c6A609e0D239C0a04cA4D4D526A61fE661bDC",
+    "aaveHub": "0xD873d9Ff3Be300Ee70ECA729b660e374A22Cd7B1",
+    "aaveHubStables": "0xb56A21BeA4Dc4368a95f271bCA1B587d8D81a91D"
   }
 }

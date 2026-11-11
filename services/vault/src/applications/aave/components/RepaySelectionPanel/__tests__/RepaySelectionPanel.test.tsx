@@ -6,6 +6,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { BABYLON_HUB, CORE_HUB } from "@/test/deploymentAddresses";
+
 import type { BorrowedAsset } from "../../../hooks/useAaveBorrowedAssets";
 import { RepaySelectionPanel } from "../RepaySelectionPanel";
 
@@ -20,7 +22,7 @@ const babylonUsdcDebt: BorrowedAsset = {
   name: "USD Coin",
   hub: {
     source: "registry",
-    address: "0xb3283508a0E96F80CF79DC2a1135F10dA170138D",
+    address: BABYLON_HUB,
     label: "Babylon Hub",
   },
   amount: "5,000",
@@ -32,7 +34,7 @@ const coreUsdcDebt: BorrowedAsset = {
   reserveId: "4",
   hub: {
     source: "registry",
-    address: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+    address: CORE_HUB,
     label: "Core Hub",
   },
   amount: "1,250",
