@@ -253,6 +253,7 @@ export class UnisatProvider implements IBTCProvider {
         this.timeoutError(`switching to ${targetLabel}`),
       );
     } catch (error) {
+      if (error instanceof WalletError) throw error;
       const errorMessage = (error as Error)?.message || "";
       if (isUserRejectionMessage(errorMessage)) {
         throw new WalletError({
