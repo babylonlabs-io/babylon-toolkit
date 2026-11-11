@@ -1,5 +1,5 @@
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation } from "react-router";
 
 import { useGeoFencing } from "@/context/geofencing";
@@ -24,6 +24,10 @@ import { reportEthSessionConfirmed } from "./walletConnections";
  * Every event carries the address of the app's confirmed Ethereum session.
  * The session is confirmed after load, so the landing page view goes out
  * without it; `wallet_connected` is sent when it is confirmed, and carries it.
+ * Only a session that starts from no address counts: if the address changes
+ * while the session stays confirmed, the session was not confirmed for the
+ * new address, so nothing is sent and no address is recorded until the
+ * session ends and is confirmed again.
  * Bitcoin connections are sent from the wallet provider's callbacks.
  */
 export function AnalyticsTracker() {
@@ -40,9 +44,23 @@ export function AnalyticsTracker() {
     settleGeofence(isGeoChecked && !isGeoBlocked ? "passed" : "failed");
   }, [isLoading, isGeoChecked, isGeoBlocked]);
 
+  const previousSessionAddress = useRef<string | null>(null);
+
   useEffect(() => {
-    setWalletAddress(sessionAddress);
-    if (sessionAddress !== null) reportEthSessionConfirmed();
+    const previous = previousSessionAddress.current;
+    previousSessionAddress.current = sessionAddress;
+    if (sessionAddress === null) {
+      setWalletAddress(null);
+      return;
+    }
+    if (previous === null) {
+      setWalletAddress(sessionAddress);
+      reportEthSessionConfirmed();
+      return;
+    }
+    // An address change under a confirmed session, e.g. an account switch
+    // found on tab return while the reset is still running.
+    if (previous !== sessionAddress) setWalletAddress(null);
   }, [sessionAddress]);
 
   useEffect(() => {

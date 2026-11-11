@@ -109,11 +109,8 @@ export function trackEvent<E extends AnalyticsEventName>(
   try {
     if (!config.enabled || hasOptedOut()) return;
     // Built now, so a held event keeps the time and fields it was sent with.
-    const body = buildCaptureBody(
-      config,
-      event,
-      properties,
-      new Date().toISOString(),
+    const body = JSON.stringify(
+      buildCaptureBody(config, event, properties, new Date().toISOString()),
     );
     const send = () => post(config, event, body);
     if (geofenceOutcome === "passed") {
@@ -139,13 +136,13 @@ export function trackEvent<E extends AnalyticsEventName>(
 function post(
   config: EnabledAnalyticsConfig,
   event: AnalyticsEventName,
-  body: ReturnType<typeof buildCaptureBody>,
+  body: string,
 ): void {
   try {
     fetch(`${config.host}${CAPTURE_PATH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body,
       // Delivered even when the event fires just before a navigation.
       keepalive: true,
       credentials: "omit",

@@ -20,6 +20,7 @@ vi.mock("@/context/geofencing", () => ({
 }));
 
 const ETH_ADDRESS = "0xAbC0000000000000000000000000000000000001";
+const OTHER_ETH_ADDRESS = "0xAbC0000000000000000000000000000000000002";
 
 const wallets = vi.hoisted(() => ({
   eth: { address: undefined as string | undefined },
@@ -185,6 +186,37 @@ describe("AnalyticsTracker", () => {
     expect(connectedEvents().map(({ properties }) => properties)).toEqual([
       { chain: "eth", restored: false },
     ]);
+  });
+
+  it("sends nothing and clears the address when the account changes while the session stays confirmed", () => {
+    wallets.eth = { address: ETH_ADDRESS };
+    wallets.session = { connected: true };
+    const view = render(tracker());
+    expect(getWalletAddress()).toBe(ETH_ADDRESS.toLowerCase());
+
+    wallets.eth = { address: OTHER_ETH_ADDRESS };
+    view.rerender(tracker());
+
+    expect(connectedEvents()).toHaveLength(1);
+    expect(getWalletAddress()).toBeNull();
+  });
+
+  it("sends wallet_connected for the new account once its session is confirmed after the reset", () => {
+    wallets.eth = { address: ETH_ADDRESS };
+    wallets.session = { connected: true };
+    const view = render(tracker());
+    wallets.eth = { address: OTHER_ETH_ADDRESS };
+    view.rerender(tracker());
+
+    wallets.session = { connected: false };
+    view.rerender(tracker());
+    wallets.session = { connected: true };
+    view.rerender(tracker());
+
+    expect(connectedEvents().map(({ walletAddress }) => walletAddress)).toEqual(
+      [ETH_ADDRESS.toLowerCase(), OTHER_ETH_ADDRESS.toLowerCase()],
+    );
+    expect(getWalletAddress()).toBe(OTHER_ETH_ADDRESS.toLowerCase());
   });
 
   it("sends nothing and records no address for an address without a confirmed session", () => {
