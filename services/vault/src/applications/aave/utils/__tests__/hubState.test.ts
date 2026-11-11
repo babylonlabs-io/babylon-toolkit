@@ -1,6 +1,8 @@
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 
+import { BABYLON_HUB, CORE_HUB } from "@/test/deploymentAddresses";
+
 import { UNLIMITED_SPOKE_CAP } from "../../clients/aaveHub";
 import type { AaveReserveConfig } from "../../services/fetchConfig";
 import {
@@ -11,10 +13,6 @@ import {
   getReserveHubBlock,
   getWithdrawHubBlock,
 } from "../hubState";
-
-/** Vault Devnet hubs, both in the hub registry. */
-const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as Address;
-const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address;
 
 function reserve(
   reserveId: bigint,

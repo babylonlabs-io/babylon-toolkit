@@ -2435,9 +2435,14 @@ export const COPY = {
       emptyRepay: "No assets available",
     },
     // Multi-hub: the Select hub step, and the hub named on every per-reserve
-    // surface. The label itself comes from `services/aave/hubRegistry.ts`.
+    // surface. `services/aave/hubRegistry.ts` gives each hub the network
+    // profile lists the label of its role below.
     hub: {
       label: "Hub",
+      roleLabels: {
+        aaveHub: "Babylon Hub",
+        aaveHubStables: "Core Hub",
+      },
       selectTitle: "Select hub",
       // Title Case, matching the picker's other column headers.
       columnAvailable: AVAILABLE_LIQUIDITY_COLUMN,

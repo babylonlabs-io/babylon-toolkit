@@ -36,6 +36,7 @@ import {
   DEPOSIT_FLOW_STOPS,
   DEPOSIT_SPLIT_MINIMUM_STOP,
   flowScreenshotFileName,
+  REQUIRE_PROVIDER_COLUMN_GRID,
   VISUAL_VIEWPORTS,
 } from "./targets";
 
@@ -200,6 +201,35 @@ for (const viewport of VISUAL_VIEWPORTS) {
     // the dialog over from the form.
     await amountInput.fill(AMOUNT_TO_SUBMIT_BTC);
     await dialog.getByRole("button", { name: SELECT_PROVIDER_LABEL }).click();
+    const providerRows = dialog.locator("button[aria-pressed]");
+    await expect(providerRows.first()).toBeVisible();
+    await providerRows.first().scrollIntoViewIfNeeded();
+    if (REQUIRE_PROVIDER_COLUMN_GRID)
+      await expect(providerRows.first()).toBeInViewport({ ratio: 0.999 });
+    for (const label of ["Commission", "Active BTC", "Last deposit"]) {
+      const metric = providerRows.first().getByText(label, { exact: true });
+      await expect(metric).toBeVisible();
+      // Keep the merge-base's clipped labels in its baseline image.
+      if (REQUIRE_PROVIDER_COLUMN_GRID)
+        await expect(metric).toBeInViewport({ ratio: 0.999 });
+    }
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(DEPOSIT_FLOW_STOPS.providerOptions, viewport),
+        { fullPage: false },
+      ),
+    );
+    await expect(providerRows.first()).toBeVisible();
+    if (REQUIRE_PROVIDER_COLUMN_GRID)
+      await expect(providerRows.first()).toBeInViewport({ ratio: 0.999 });
+    for (const label of ["Commission", "Active BTC", "Last deposit"]) {
+      const metric = providerRows.first().getByText(label, { exact: true });
+      await expect(metric).toBeVisible();
+      // Keep the merge-base's clipped labels in its baseline image.
+      if (REQUIRE_PROVIDER_COLUMN_GRID)
+        await expect(metric).toBeInViewport({ ratio: 0.999 });
+    }
     await dialog.locator(SELECTABLE_PROVIDER_ROW).first().click();
     const submit = dialog.locator(FLUID_CTA_SELECTOR);
     await expect(submit).toBeEnabled();
@@ -214,7 +244,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
 
     // Deferred to the end because these two accumulate across the walk, where
     // the error-surface gates cannot and so run inside `capture()` per stop.
-    // Nothing has reached disk yet, so a failure here withholds all six
+    // Nothing has reached disk yet, so a failure here withholds all
     // stops - which is what makes the capture step's `continue-on-error` safe.
     //
     // All four boundaries are named because this walk genuinely needs all

@@ -30,6 +30,7 @@ import {
   getStepLabel,
   getVisualStep,
 } from "@/components/simple/DepositProgressView/steps";
+import { ENV } from "@/config/env";
 import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
@@ -535,10 +536,13 @@ const DEMO_LOAN_UTILIZATION_BPS = 6420;
 /** Prefix for a mock row's reserve id. Real ids are decimal `reserveId`
  *  strings, so this can never collide with one. */
 const DEMO_LOAN_RESERVE_PREFIX = "demo-reserve-";
-/** Vault Devnet Babylon Hub, a registered hub, so a demo row shows its label. */
-const DEMO_LOAN_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as Address;
 /** An address no hub registry lists, to preview the unrecognised-hub warning. */
 const DEMO_UNREGISTERED_HUB = `0x${"ef".repeat(20)}` as Address;
+/**
+ * The profile's Babylon Hub, so a demo row shows its label. A profile that
+ * lists no hubs gets the unregistered hub, and the demo rows show the warning.
+ */
+const DEMO_LOAN_HUB = ENV.AAVE_HUBS.aaveHub ?? DEMO_UNREGISTERED_HUB;
 
 /** Every loan scenario shares the panel's selected borrowed asset, so this is
  *  a function of that selection rather than a frozen list — the selector
