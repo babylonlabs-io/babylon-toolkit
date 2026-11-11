@@ -821,11 +821,12 @@ What bounds it:
   `analyticsEvents.ts` (the events and each event's own fields) and `trackEvent.ts` (the network,
   visit and session ids added to every event). Event fields are route templates (never a concrete
   path or query).
-- **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`: in deployments the sidecar-api
-  proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`), which forwards the visitor's IP to
-  PostHog as `X-Forwarded-For`, or PostHog itself. Either way PostHog sees the visitor's IP
-  address. **The PostHog project must have _Discard client IP data_ enabled**; PostHog still
-  derives the country before discarding the IP, and the country is kept on purpose.
+- **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`, which in a deployment is always
+  the sidecar-api proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`); a deployment never
+  posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,
+  so PostHog still sees the visitor's IP address. **The PostHog project must have _Discard client
+  IP data_ enabled**; PostHog still derives the country before discarding the IP, and the country
+  is kept on purpose.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
   and no referrer. The visit and session ids live in memory only.
 - **Nothing before the geofence passes.** Every event is held in memory while the geofence check
