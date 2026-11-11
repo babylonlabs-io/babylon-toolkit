@@ -5,6 +5,8 @@
  * Includes configurable retry policy and AbortSignal passthrough.
  */
 
+import { combineAbortSignals } from "../../utils/abortSignals";
+
 export interface JsonRpcRequest<T = unknown> {
   jsonrpc: "2.0";
   method: string;
@@ -57,7 +59,7 @@ export interface BearerTokenProvider {
 export interface JsonRpcClientConfig {
   /** Base URL of the RPC service */
   baseUrl: string;
-  /** Timeout in milliseconds per request attempt */
+  /** Timeout per attempt in ms. Covers `call` bodies and `callRaw` headers. */
   timeout: number;
   /** Optional custom headers */
   headers?: Record<string, string>;
@@ -322,23 +324,21 @@ export class JsonRpcClient {
     signal: AbortSignal | undefined,
     authState?: AttemptAuthState,
   ): Promise<TResult> {
-    const response = await this.fetchWithRetry(
+    const responseText = await this.fetchWithRetry(
       method,
       params,
       signal,
       authState,
+      (response) =>
+        UNCAPPED_TYPED_RESPONSE_METHODS.has(method)
+          ? response.text()
+          : readResponseTextWithLimit(response, this.maxResponseBytes),
     );
 
     let jsonResponse: unknown;
     try {
-      const responseText = UNCAPPED_TYPED_RESPONSE_METHODS.has(method)
-        ? await response.text()
-        : await readResponseTextWithLimit(response, this.maxResponseBytes);
       jsonResponse = JSON.parse(responseText);
-    } catch (error) {
-      if (error instanceof JsonRpcError) {
-        throw error;
-      }
+    } catch {
       throw new JsonRpcError(
         JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
         "Invalid JSON-RPC response: body is not valid JSON",
@@ -394,21 +394,33 @@ export class JsonRpcClient {
    * detect auth errors. Callers relying on token-expired retries for
    * large downloads must read the body themselves and re-invoke
    * `callRaw` after `tokenProvider.invalidate()`.
+   * The timeout ends at the headers. `signal` can abort the body read.
+   * With `signal`, the response wraps the body and keeps the status and
+   * headers. Fetch metadata, such as `url`, is not retained.
    */
   async callRaw<TParams>(
     method: string,
     params: TParams,
     signal?: AbortSignal,
   ): Promise<Response> {
-    return this.fetchWithRetry(method, params, signal);
+    return this.fetchWithRetry(
+      method,
+      params,
+      signal,
+      undefined,
+      async (response) => response,
+      true,
+    );
   }
 
-  private async fetchWithRetry<TParams>(
+  private async fetchWithRetry<TParams, TOutput>(
     method: string,
     params: TParams,
-    callerSignal?: AbortSignal,
-    authState?: AttemptAuthState,
-  ): Promise<Response> {
+    callerSignal: AbortSignal | undefined,
+    authState: AttemptAuthState | undefined,
+    consume: (response: Response) => Promise<TOutput>,
+    callerReadsBody = false,
+  ): Promise<TOutput> {
     const requestId = ++this.requestId;
     const maxRetries = this.retryableFor(method) ? this.retries : 0;
 
@@ -432,7 +444,7 @@ export class JsonRpcClient {
       );
 
       const merged = callerSignal
-        ? mergeAbortSignals(callerSignal, timeoutController.signal)
+        ? combineAbortSignals([callerSignal, timeoutController.signal])
         : null;
       const signal = merged ? merged.signal : timeoutController.signal;
 
@@ -449,10 +461,9 @@ export class JsonRpcClient {
           signal,
         });
 
-        clearTimeout(timeoutId);
-        merged?.cleanup();
-
         if (!response.ok) {
+          clearTimeout(timeoutId);
+          merged?.cleanup();
           const shouldRetry =
             attempt < maxRetries &&
             RETRYABLE_HTTP_STATUS_CODES.has(response.status);
@@ -468,7 +479,30 @@ export class JsonRpcClient {
           );
         }
 
-        return response;
+        const output = await consume(response);
+        clearTimeout(timeoutId);
+        if (callerReadsBody && merged && response.body) {
+          const reader = response.body.getReader();
+          void reader.closed.then(merged.cleanup, merged.cleanup);
+          return new Response(
+            new ReadableStream<Uint8Array>(
+              {
+                async pull(controller) {
+                  const { done, value } = await reader.read();
+                  if (done) {
+                    reader.releaseLock();
+                    controller.close();
+                  } else controller.enqueue(value);
+                },
+                cancel: (reason) => reader.cancel(reason),
+              },
+              { highWaterMark: 0 },
+            ),
+            response,
+          ) as TOutput;
+        }
+        merged?.cleanup();
+        return output;
       } catch (error) {
         clearTimeout(timeoutId);
         merged?.cleanup();
@@ -535,41 +569,6 @@ export class JsonRpcClient {
   getBaseUrl(): string {
     return this.baseUrl;
   }
-}
-
-interface MergedSignal {
-  signal: AbortSignal;
-  /** Remove listeners from the source signals. Call after the request completes. */
-  cleanup: () => void;
-}
-
-/**
- * Merge two AbortSignals — the returned signal aborts if either input aborts.
- * Returns a cleanup function to remove listeners when the request completes
- * normally, preventing listener accumulation in long-lived polling flows.
- */
-function mergeAbortSignals(a: AbortSignal, b: AbortSignal): MergedSignal {
-  if (a.aborted) return { signal: a, cleanup: () => {} };
-  if (b.aborted) return { signal: b, cleanup: () => {} };
-
-  const controller = new AbortController();
-  const onAbortA = () => {
-    b.removeEventListener("abort", onAbortB);
-    controller.abort();
-  };
-  const onAbortB = () => {
-    a.removeEventListener("abort", onAbortA);
-    controller.abort();
-  };
-  a.addEventListener("abort", onAbortA, { once: true });
-  b.addEventListener("abort", onAbortB, { once: true });
-
-  const cleanup = () => {
-    a.removeEventListener("abort", onAbortA);
-    b.removeEventListener("abort", onAbortB);
-  };
-
-  return { signal: controller.signal, cleanup };
 }
 
 async function readResponseTextWithLimit(

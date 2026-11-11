@@ -2131,6 +2131,9 @@ claimer-artifact downloads), so the client refuses to parse it to
 detect auth errors. Callers relying on token-expired retries for
 large downloads must read the body themselves and re-invoke
 `callRaw` after `tokenProvider.invalidate()`.
+The timeout ends at the headers. `signal` can abort the body read.
+With `signal`, the response wraps the body and keeps the status and
+headers. Fetch metadata, such as `url`, is not retained.
 
 ###### Type Parameters
 
@@ -6081,7 +6084,7 @@ timeout: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts)
 
-Timeout in milliseconds per request attempt
+Timeout per attempt in ms. Covers `call` bodies and `callRaw` headers.
 
 ##### headers?
 
