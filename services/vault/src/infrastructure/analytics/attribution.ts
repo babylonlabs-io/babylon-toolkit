@@ -7,8 +7,10 @@
  * the website or has no referrer: a visit from another site is that site's.
  * The app only reads that cookie and writes no cookie or storage of its own.
  * Another site sets it, so it is untrusted input: only known keys with string
- * values are kept. Every campaign value, from the URL or the cookie, has
- * addresses and long hex scrubbed and is then truncated.
+ * values are kept. Every UTM value, from the URL or the cookie, has addresses
+ * and long hex scrubbed and is then truncated. Ad click ids are sent unchanged
+ * so they still match the ad platform's record, or dropped when they are not
+ * a plain token.
  */
 
 import { scrubString } from "@/utils/telemetry";
@@ -18,22 +20,36 @@ import logger from "../logger";
 /** Cookie written by the website's footer script. */
 const SOURCE_COOKIE_NAME = "bbn_src";
 
-const ATTRIBUTION_KEYS = [
+const UTM_KEYS = [
   "utm_source",
   "utm_medium",
   "utm_campaign",
   "utm_content",
   "utm_term",
-  "gclid",
-  "twclid",
 ] as const;
 
+/** Ad click ids, kept verbatim so a visit can be matched to its ad click. */
+const CLICK_ID_KEYS = ["gclid", "twclid"] as const;
+
+const ATTRIBUTION_KEYS = [...UTM_KEYS, ...CLICK_ID_KEYS] as const;
+
 type AttributionKey = (typeof ATTRIBUTION_KEYS)[number];
+type ClickIdKey = (typeof CLICK_ID_KEYS)[number];
 
 type CampaignFields = Partial<Record<AttributionKey, string>>;
 
-/** Longest value kept; the website script uses the same limit. */
+/** Longest UTM value kept; the website script uses the same limit. */
 const MAX_ATTRIBUTION_VALUE_LENGTH = 100;
+
+/**
+ * A click id as the ad platforms issue it: letters, digits, `-` and `_`, no
+ * longer than the 255 characters a URL parameter value is commonly capped at.
+ * Anything else is not a click id and is dropped, never cut or rewritten.
+ */
+const CLICK_ID_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
+
+/** Separator in campaign values; a word character, so it hides addresses from `\b`. */
+const VALUE_SEGMENT_SEPARATOR = "_";
 
 /** The marketing website only, not docs or other apps on its subdomains. */
 const WEBSITE_HOST = /^(www\.)?babylonlabs\.io$/;
@@ -68,12 +84,34 @@ function truncate(value: string): string {
   return value.slice(0, MAX_ATTRIBUTION_VALUE_LENGTH);
 }
 
+function isClickIdKey(key: AttributionKey): key is ClickIdKey {
+  return (CLICK_ID_KEYS as readonly string[]).includes(key);
+}
+
 /**
- * A campaign value as sent. Scrubbed before truncating: an address cut
- * mid-way no longer matches the scrubbing patterns.
+ * A UTM value as sent. Each `_`-separated segment is scrubbed on its own,
+ * because the scrubbing patterns are anchored with `\b` and `_` is a word
+ * character: `wallet_0x…` would otherwise keep its address. Scrubbed before
+ * truncating: an address cut mid-way no longer matches the patterns.
  */
-function cleanCampaignValue(value: string): string {
-  return truncate(scrubString(value));
+function cleanUtmValue(value: string): string {
+  return truncate(
+    value
+      .split(VALUE_SEGMENT_SEPARATOR)
+      .map(scrubString)
+      .join(VALUE_SEGMENT_SEPARATOR),
+  );
+}
+
+/** The value to send for a key, or null when it must not be sent. */
+function cleanValue(key: AttributionKey, value: string): string | null {
+  if (!isClickIdKey(key)) return cleanUtmValue(value);
+  return CLICK_ID_SHAPE.test(value) ? value : null;
+}
+
+function addValue(out: CampaignFields, key: AttributionKey, value: string) {
+  const cleaned = cleanValue(key, value);
+  if (cleaned !== null) out[key] = cleaned;
 }
 
 function fromQuery(search: string): CampaignFields {
@@ -81,7 +119,7 @@ function fromQuery(search: string): CampaignFields {
   const out: CampaignFields = {};
   for (const key of ATTRIBUTION_KEYS) {
     const value = query.get(key);
-    if (value) out[key] = cleanCampaignValue(value);
+    if (value) addValue(out, key, value);
   }
   return out;
 }
@@ -114,9 +152,7 @@ function fromCookie(cookieHeader: string): CampaignFields {
   const out: CampaignFields = {};
   for (const key of ATTRIBUTION_KEYS) {
     const value: unknown = Reflect.get(parsed, key);
-    if (typeof value === "string" && value) {
-      out[key] = cleanCampaignValue(value);
-    }
+    if (typeof value === "string" && value) addValue(out, key, value);
   }
   return out;
 }

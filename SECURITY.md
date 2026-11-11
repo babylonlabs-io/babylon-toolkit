@@ -823,14 +823,17 @@ What bounds it:
   visit and session ids added to every event) and `attribution.ts` (campaign parameters, the
   referrer's hostname and `via`). `$pathname` is a route template, never a concrete path or
   query. The campaign values are the one part taken from the landing URL's query (or the
-  website's cookie): only the allow-listed keys, with addresses and long hex scrubbed as for
-  Sentry, then truncated to 100 characters.
-- **Ad click ids link visits.** `gclid` and `twclid` are sent as they arrive, on every event of the
+  website's cookie): only the allow-listed keys. UTM values have addresses and long hex scrubbed
+  as for Sentry, segment by segment between underscores, then are truncated to 100 characters.
+- **Ad click ids link visits.** `gclid` and `twclid` are sent unchanged, on every event of the
   visit, because marketing needs them to match a visit to an ad click. A click id is unique to one
   click, so reloading a URL that still carries it, or a `bbn_src` cookie that still holds it
   (30 days), repeats the same value under a new visit id. PostHog can therefore join those visits
   to each other and to the ad platform's click record. This linkage is accepted; it is the reason
-  the per-load visit id does not, on its own, keep visits apart.
+  the per-load visit id does not, on its own, keep visits apart. A click id is sent only when it
+  is a plain token (letters, digits, `-` and `_`, at most 255 characters); anything else is
+  dropped. That shape still admits a hex address, so a link crafted with one as its click id
+  would have it sent; this is accepted, as the link's author chose the value.
 - **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`, which in a deployment is always
   the sidecar-api proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`); a deployment never
   posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,

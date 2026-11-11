@@ -136,6 +136,74 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe(`${"x".repeat(80)}-[ETH_ADDR]`);
   });
 
+  it("scrubs an address joined with underscores out of a campaign value in the URL", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=wallet_0x${"ab".repeat(20)}_v2`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("wallet_[ETH_ADDR]_v2");
+  });
+
+  it("scrubs an address joined with an underscore out of a campaign value in the cookie", () => {
+    const result = deriveAttribution({
+      search: "",
+      referrer: "",
+      cookie: cookieOf({
+        utm_content: "user_tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      }),
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_content).toBe("user_[BTC_ADDR]");
+  });
+
+  it("sends a click id unchanged even where a campaign value would be scrubbed", () => {
+    const twclid = "1xyzxyzxyzxyzxyzxyzxyzxyzxyz";
+    const result = deriveAttribution({
+      search: `?twclid=${twclid}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.twclid).toBe(twclid);
+  });
+
+  it("sends a click id longer than 100 characters uncut", () => {
+    const gclid = `Cj0K${"x".repeat(200)}_BwE`;
+    const result = deriveAttribution({
+      search: `?gclid=${gclid}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.gclid).toBe(gclid);
+  });
+
+  it("drops a click id that is not a plain token", () => {
+    const result = deriveAttribution({
+      search: "?utm_source=x&gclid=user%40example.com",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result).toEqual({
+      utm_source: "x",
+      $referring_domain: "$direct",
+      via: "other",
+    });
+  });
+
+  it("drops a click id longer than 255 characters", () => {
+    const result = deriveAttribution({
+      search: "",
+      referrer: "",
+      cookie: cookieOf({ gclid: "x".repeat(256) }),
+      ownHost: APP_HOST,
+    });
+    expect(result.gclid).toBeUndefined();
+  });
+
   it("truncates URL values to 100 characters", () => {
     const result = deriveAttribution({
       search: `?utm_campaign=${"x".repeat(150)}`,
