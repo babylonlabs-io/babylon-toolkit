@@ -20,6 +20,12 @@ import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
 import { type LiveBtcIdentity, assertDeriveAccountUnchanged } from "@/core/wallets/btc/assertDeriveAccountUnchanged";
+import {
+  BitcoinChain,
+  type BitcoinChainResponse,
+  mapChainToNetwork,
+  mapNetworkToChain,
+} from "@/core/wallets/btc/bitcoinChain";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import logo from "./logo.svg";
@@ -41,43 +47,7 @@ const UNISAT_PROMPT_TIMEOUT_MS = 60_000;
 // https://github.com/unisat-wallet/wallet/blob/extension/v1.7.19/packages/wallet-background/src/controllers/wallet.ts#L1134-L1145
 const UNISAT_UNSUPPORTED_ACCOUNT_MESSAGE = "Current keyring does not support deriveContextHash";
 
-enum UnisatChainEnum {
-  BITCOIN_SIGNET = "BITCOIN_SIGNET",
-  BITCOIN_MAINNET = "BITCOIN_MAINNET",
-  BITCOIN_TESTNET = "BITCOIN_TESTNET",
-}
-
-interface UnisatChainResponse {
-  enum: UnisatChainEnum;
-  name: string;
-  network: "testnet" | "livenet";
-}
-
 export const WALLET_PROVIDER_NAME = "Unisat";
-
-const mapUnisatChainToNetwork = (chain: UnisatChainEnum): Network | null => {
-  switch (chain) {
-    case UnisatChainEnum.BITCOIN_MAINNET:
-      return Network.MAINNET;
-    case UnisatChainEnum.BITCOIN_SIGNET:
-      return Network.SIGNET;
-    case UnisatChainEnum.BITCOIN_TESTNET:
-      return Network.TESTNET;
-    default:
-      return null;
-  }
-};
-
-const mapNetworkToUnisatChain = (network: Network): UnisatChainEnum => {
-  switch (network) {
-    case Network.MAINNET:
-      return UnisatChainEnum.BITCOIN_MAINNET;
-    case Network.SIGNET:
-      return UnisatChainEnum.BITCOIN_SIGNET;
-    case Network.TESTNET:
-      return UnisatChainEnum.BITCOIN_TESTNET;
-  }
-};
 
 // Unisat derivation path for BTC Signet
 // Taproot: `m/86'/1'/0'/0`
@@ -251,7 +221,7 @@ export class UnisatProvider implements IBTCProvider {
 
   private ensureExpectedChain = async (onProgress?: ProgressReporter): Promise<boolean> => {
     onProgress?.("Checking Bitcoin network");
-    let currentChain: UnisatChainResponse;
+    let currentChain: BitcoinChainResponse;
     try {
       currentChain = await withTimeout(this.provider.getChain(), UNISAT_RPC_TIMEOUT_MS, () =>
         this.timeoutError("reading its network"),
@@ -264,9 +234,9 @@ export class UnisatProvider implements IBTCProvider {
       });
     }
 
-    if (mapUnisatChainToNetwork(currentChain.enum) === this.config.network) return false;
+    if (mapChainToNetwork(currentChain.enum) === this.config.network) return false;
 
-    const expectedChain = mapNetworkToUnisatChain(this.config.network);
+    const expectedChain = mapNetworkToChain(this.config.network);
     const targetLabel = this.config.networkName || this.config.network;
 
     if (typeof this.provider.switchChain !== "function") {
@@ -528,16 +498,16 @@ export class UnisatProvider implements IBTCProvider {
   }
 
   getNetwork = async (): Promise<Network> => {
-    const chainInfo: UnisatChainResponse = await withTimeout(this.provider.getChain(), UNISAT_RPC_TIMEOUT_MS, () =>
+    const chainInfo: BitcoinChainResponse = await withTimeout(this.provider.getChain(), UNISAT_RPC_TIMEOUT_MS, () =>
       this.timeoutError("reading its network"),
     );
 
     switch (chainInfo.enum) {
-      case UnisatChainEnum.BITCOIN_MAINNET:
+      case BitcoinChain.BITCOIN_MAINNET:
         return Network.MAINNET;
-      case UnisatChainEnum.BITCOIN_SIGNET:
+      case BitcoinChain.BITCOIN_SIGNET:
         return Network.SIGNET;
-      case UnisatChainEnum.BITCOIN_TESTNET:
+      case BitcoinChain.BITCOIN_TESTNET:
         // For testnet, we return Signet
         return Network.SIGNET;
       default:
