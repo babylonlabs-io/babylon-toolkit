@@ -225,12 +225,15 @@ Specific to this component:
   silently disables a control; that is invariant 10's business and is tracked as a deviation below.
 - Product analytics links a browser session to the depositor's chain identity. When it is
   configured, each event carries the connected Ethereum address and vault events carry the full
-  vault id, so PostHog can see which addresses visited and where they came from. Both are public
-  keys into the vault registry and the indexer, which return the depositor's BTC public key, the
-  deposit amount and the peg-in transaction, so this gives up the protected session-to-identity
-  association on both chains, not only Ethereum. Because the address is the same on every visit,
-  it also joins a connected depositor's visits across reloads, browsers and devices; the per-load
-  ids and the absence of person profiles do not prevent that. The bounds are in
+  vault id, so PostHog can see which addresses visited and where they came from, and follow each
+  vault's deposit progress: timestamped `vault_registered`, `deposit_broadcast` and
+  `vault_activated` events per vault, after a `deposit_started` with the deposit's coarse amount
+  band and number of vaults. Both the address and the vault id are public keys into the vault
+  registry and the indexer, which return the depositor's BTC public key, the deposit amount and the
+  peg-in transaction, so this gives up the protected session-to-identity association on both chains,
+  not only Ethereum. Because the address is the same on every visit, it also joins a connected
+  depositor's visits across reloads, browsers and devices; the per-load ids and the absence of
+  person profiles do not prevent that. The bounds are in
   [`SECURITY.md` → _Product analytics_](../../SECURITY.md#product-analytics-posthog). _Pending
   security-owner sign-off._
 
