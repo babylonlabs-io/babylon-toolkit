@@ -8,6 +8,8 @@ import { renderHook } from "@testing-library/react";
 import type { Address } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
+import { BABYLON_HUB } from "@/test/deploymentAddresses";
+
 import type { AaveReserveConfig } from "../../applications/aave/services/fetchConfig";
 import type { FetchUserActivitiesDeps } from "../../services/activity";
 import { useActivities } from "../useActivities";
@@ -34,8 +36,6 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 const USER = "0xabc0000000000000000000000000000000000001" as Address;
-/** Vault Devnet Babylon Hub, a registered hub. */
-const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as Address;
 const USDT = "0x3333333333333333333333333333333333333333" as Address;
 
 const frozenUsdt: AaveReserveConfig = {

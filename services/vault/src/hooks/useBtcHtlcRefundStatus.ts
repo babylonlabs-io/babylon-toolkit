@@ -1,6 +1,6 @@
-// Centralized poller for whether each expired or Verified vault's Pre-PegIn HTLC
-// output has been spent (the depositor's CSV refund, or the PegIn), and that of a
-// Pending vault this device refunded. Mirrors
+// Centralized poller for whether each expired vault's Pre-PegIn HTLC output has
+// been spent (the depositor's CSV refund, or the PegIn), and that of a Pending or
+// Verified vault this device refunded. Mirrors
 // `useBtcMempoolConfirmations`: one batched query, concurrency-capped against
 // the public mempool.space rate limit, keyed by vault id (siblings of a
 // batched Pre-PegIn share a txid but own distinct HTLC outputs).

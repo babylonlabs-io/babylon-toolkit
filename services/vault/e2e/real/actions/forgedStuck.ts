@@ -217,7 +217,7 @@ async function readRows(rows: Locator): Promise<RowObservation[]> {
 
 /**
  * Watch the rows, failing the moment one offers the escape hatch. Returns once the window has passed —
- * the stuck probe and its confirmation run on mount and every 60s, so it spans two of their cycles —
+ * the stuck-vault poll runs on mount and every 60s, so it spans two of its cycles —
  * and the deposit offers Activate: on one row, with any split sibling waiting for the earlier vault. A
  * row still waiting for its activation window offers no Activate yet, so the watch goes on, under the
  * forgery, until it does or the wait runs out.
@@ -278,7 +278,7 @@ function assertForgeryConsumed(forgery: Forgery): void {
     const count = hits.get(vault.vaultId);
     if (!count || count.outspend === 0)
       throw new Error(
-        `The app never asked for vault ${vault.vaultId}'s HTLC outspend, so the forgery was never consumed and this run proves nothing. The probe runs only for vaults of the connected BTC wallet that the dashboard lists as Verified.`,
+        `The app never asked for vault ${vault.vaultId}'s HTLC outspend, so the forgery was never consumed and this run proves nothing. The stuck-vault poll probes only vaults the registry lists for the connected ETH address and reports Verified, inside their activation window.`,
       );
     if (count.hex === 0)
       throw new Error(

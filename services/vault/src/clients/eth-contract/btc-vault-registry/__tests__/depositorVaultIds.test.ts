@@ -33,6 +33,16 @@ describe("getDepositorVaultIdsFromChain", () => {
     );
   });
 
+  it("reads the latest block when no block is given", async () => {
+    mockReadContract.mockResolvedValueOnce([]);
+
+    await getDepositorVaultIdsFromChain(DEPOSITOR);
+
+    expect(mockReadContract).toHaveBeenCalledWith(
+      expect.objectContaining({ blockNumber: undefined }),
+    );
+  });
+
   it("propagates a failed read instead of answering with no vaults", async () => {
     mockReadContract.mockRejectedValueOnce(new Error("execution reverted"));
 

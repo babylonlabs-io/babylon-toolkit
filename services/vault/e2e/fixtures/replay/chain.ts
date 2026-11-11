@@ -113,6 +113,12 @@ export interface StatedAsk {
   /** Lowercased target. */
   readonly target: string;
   readonly callData: Hex;
+  /**
+   * The `eth_call` block parameter the read arrived with: a hex block number for
+   * a pinned read, or a tag such as `latest`. Two reads of one view can only be
+   * told apart by this.
+   */
+  readonly blockTag?: string;
 }
 
 export interface RecordedChain {
@@ -123,7 +129,7 @@ export interface RecordedChain {
    * the recording holds several arguments for it and no one of them is the
    * right answer to a question it never saw.
    */
-  answerCall(to: string, data: Hex): Hex | null;
+  answerCall(to: string, data: Hex, blockTag?: string): Hex | null;
   /**
    * Answer a whole `aggregate3` batch. Inner calls with no recorded answer
    * come back as `success: false`, and are also appended to
@@ -135,7 +141,7 @@ export interface RecordedChain {
    * escape the route handler, leave the request unfulfilled, and log no miss -
    * a silent green rather than the loud failure this fixture exists to give.
    */
-  answerMulticall(data: Hex): Hex | null;
+  answerMulticall(data: Hex, blockTag?: string): Hex | null;
   /**
    * Answer a non-`eth_call` method (`eth_chainId`, `eth_blockNumber`, ...):
    * the stated answer when there is one, else the recorded one.
@@ -322,31 +328,39 @@ export function buildRecordedChain(
   const unanswered: UnansweredCall[] = [];
   const statedAsks: StatedAsk[] = [];
 
-  const answerStated = (to: string, data: Hex): RecordedCall | null => {
+  const answerStated = (
+    to: string,
+    data: Hex,
+    blockTag?: string,
+  ): RecordedCall | null => {
     const stated = statedAnswers.find(
       (candidate) =>
         candidate.target.toLowerCase() === to.toLowerCase() &&
         candidate.selector.toLowerCase() === selectorOf(data),
     );
     if (!stated) return null;
-    statedAsks.push({ target: to.toLowerCase(), callData: data });
+    statedAsks.push({ target: to.toLowerCase(), callData: data, blockTag });
     return { success: true, returnData: stated.answer(data) };
   };
 
   // `?? null` covers both selector outcomes that must not answer: a pair the
   // recording never held, and one it held under several arguments.
-  const answerCall = (to: string, data: Hex): RecordedCall | null =>
-    answerStated(to, data) ??
+  const answerCall = (
+    to: string,
+    data: Hex,
+    blockTag?: string,
+  ): RecordedCall | null =>
+    answerStated(to, data, blockTag) ??
     exact.get(exactKey(to, data)) ??
     bySelector.get(selectorKey(to, data)) ??
     null;
 
   return {
-    answerCall(to, data) {
-      const outcome = answerCall(to, data);
+    answerCall(to, data, blockTag) {
+      const outcome = answerCall(to, data, blockTag);
       return outcome?.success ? outcome.returnData : null;
     },
-    answerMulticall(data: Hex): Hex | null {
+    answerMulticall(data: Hex, blockTag?: string): Hex | null {
       let calls: readonly { target: string; callData: Hex }[];
       try {
         [calls] = decodeFunctionData({
@@ -365,7 +379,7 @@ export function buildRecordedChain(
       }
 
       const results = calls.map((inner) => {
-        const outcome = answerCall(inner.target, inner.callData);
+        const outcome = answerCall(inner.target, inner.callData, blockTag);
         if (outcome === null) {
           unanswered.push({
             target: inner.target.toLowerCase(),

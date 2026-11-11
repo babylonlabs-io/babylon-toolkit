@@ -118,11 +118,9 @@ vi.mock("@/applications/aave/hooks", () => ({
 import type { ReserveLiquidity } from "@/applications/aave/hooks";
 import { COPY } from "@/copy";
 import { MARKET_RESERVE_PARAM } from "@/routes";
+import { BABYLON_HUB, CORE_HUB } from "@/test/deploymentAddresses";
 
 import BorrowingMarketsData from "../index";
-
-const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca";
-const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D";
 
 const USDC_RESERVE = {
   reserveId: 1n,

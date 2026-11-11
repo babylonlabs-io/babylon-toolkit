@@ -273,9 +273,30 @@ describe("answerEthCall", () => {
       ],
     );
 
-    answerEthCall(watch, 5, call, result);
+    answerEthCall(watch, 5, call, result, "0x10");
 
     expect(watch.vaultIdsReadSeqs).toEqual([5]);
+  });
+
+  it("does not take the stuck-vault poll's read at the latest block for the deposit check's", () => {
+    const watch = state();
+    const { call, result } = batch(
+      [{ target: REGISTRY, callData: ASK_VAULT_IDS }],
+      [
+        {
+          success: true,
+          returnData: encodeFunctionResult({
+            abi: GET_DEPOSITOR_VAULT_IDS_ABI,
+            functionName: "getDepositorVaultIds",
+            result: [],
+          }),
+        },
+      ],
+    );
+
+    answerEthCall(watch, 5, call, result, "latest");
+
+    expect(watch.vaultIdsReadSeqs).toEqual([]);
   });
 });
 

@@ -119,11 +119,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const [address, setAddress] = useState("");
   const [locked, setLocked] = useState(false);
 
-  // Mirrors the current provider/address for in-flight lock probes. A probe
-  // (`getAccounts`) is async; by the time it resolves the session may have been
-  // torn down (disconnect) or switched. Comparing the captured provider/address
-  // against this ref lets a stale resolution bail before it writes `locked` for
-  // a wallet that is no longer current.
+  // Each session has a new context object. Old lock probes cannot change it.
   const lockProbeContextRef = useRef<{ provider: IBTCProvider | undefined; address: string }>({
     provider: undefined,
     address: "",
@@ -133,13 +129,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const { open = () => {} } = useWalletConnect();
 
   const disconnect = useCallback(async () => {
-    // Invalidate any in-flight lock probe synchronously. The ref is otherwise
-    // mirrored in a passive effect that runs only after these state setters
-    // commit — leaving a window where a `getAccounts` resolution lands in the
-    // gap, passes the stale-session check, and `setLocked(true)` on a
-    // torn-down session (surfacing an "Unlock" button for a disconnected
-    // wallet, with no further poll to clear it). Clearing it here closes that
-    // window.
+    // Invalidate old probes before React commits the disconnected state.
     lockProbeContextRef.current = { provider: undefined, address: "" };
     setBTCWalletProvider(undefined);
     setNetwork(undefined);
@@ -181,9 +171,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         setPublicKeyNoCoord(publicKeyNoCoordHex);
         setLocked(false);
         setLoading(false);
-        // Mirror the new session synchronously (the passive sync effect runs
-        // only after this commit) so a probe in flight from a prior session
-        // resolves against the correct identity instead of this one.
+        // Invalidate old probes before React commits the new session.
         lockProbeContextRef.current = { provider: walletProvider, address };
 
         await callbacks?.onConnect?.(address, publicKeyNoCoordHex);
@@ -317,12 +305,8 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     };
   }, [btcWalletProvider, address, callbacks, disconnect]);
 
-  // Keep the lock-probe context in sync so an in-flight `getAccounts` resolution
-  // can detect that the session changed underneath it (see checkLock). This
-  // effect is the catch-all for event-driven address changes; the two cases
-  // where a stale probe would write to a no-longer-current session before this
-  // passive effect could run — disconnect and connect — also mirror the ref
-  // synchronously at the mutation site.
+  // Account events also change the session. Connect, disconnect and reconnect
+  // update this ref before their state changes commit.
   useEffect(() => {
     lockProbeContextRef.current = { provider: btcWalletProvider, address };
   }, [btcWalletProvider, address]);
@@ -331,38 +315,26 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   // This handles the case where user disconnects from extension while tab is in background
   const checkBTCConnection = useCallback(async () => {
     if (!btcWalletProvider) return;
+    const probeContext = lockProbeContextRef.current;
 
-    // Non-interactive pre-check (when supported): distinguishes a silent
-    // auto-lock from a real disconnect / account change WITHOUT surfacing the
-    // wallet's unlock popup. `connectWallet()` below is interactive
-    // (`requestAccounts` / `connect`) and would force an unlock prompt on a
-    // locked wallet — and, on rejection/timeout, escalate to disconnect(). For
-    // a mere auto-lock we instead flag `locked` (the unlock banner handles it)
-    // and stop here, so returning to a locked tab never forces a popup or wipes
-    // the session.
+    // A silent lock must not open an interactive prompt or disconnect the wallet.
     if (typeof btcWalletProvider.getAccounts === "function") {
       let accounts: string[] | undefined;
       try {
         accounts = await btcWalletProvider.getAccounts();
       } catch {
-        // No silent verdict — either a transient error / asleep extension, or a
-        // wallet whose getAccounts is present but unsupported (throws
-        // WALLET_METHOD_NOT_SUPPORTED). Both are treated like an absent method:
-        // fall through to the interactive path (the pre-existing
-        // disconnect-detection behavior). The current providers can't reach the
-        // unsupported case — OKX/OneKey omit getAccounts entirely (so they skip
-        // this block) and UniSat is version-gated at connect — so in practice
-        // only a genuine transient error lands here.
+        // An unsupported read or transient failure needs the connection check.
         accounts = undefined;
       }
+      // Discard old reads, including failures that would open a new prompt.
+      if (
+        lockProbeContextRef.current !== probeContext ||
+        probeContext.provider !== btcWalletProvider ||
+        probeContext.address !== address
+      ) {
+        return;
+      }
       if (accounts !== undefined) {
-        // The read is async — drop it if the wallet was disconnected or
-        // switched while it was in flight, so a stale response can't write
-        // `locked` for a session that is no longer current.
-        const probeContext = lockProbeContextRef.current;
-        if (probeContext.provider !== btcWalletProvider || probeContext.address !== address) {
-          return;
-        }
         const probe = classifyBtcAccountsProbe(accounts, address);
         if (probe === "locked") {
           setLocked(true);
@@ -434,6 +406,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   const checkLock = useCallback(async () => {
     const probedProvider = btcWalletProvider;
     const probedAddress = address;
+    const probeContext = lockProbeContextRef.current;
     if (!probedProvider || !probedAddress) return;
     // Feature-detect: wallets without a non-interactive accounts read
     // (OKX, OneKey, AppKit, hardware) can't be probed silently, so never flag
@@ -450,11 +423,12 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       return;
     }
 
-    // The read is async: a disconnect or wallet/account switch may have landed
-    // while `getAccounts` was in flight. Drop a stale response rather than
-    // flipping `locked` for a provider/address that is no longer current.
-    const probeContext = lockProbeContextRef.current;
-    if (probeContext.provider !== probedProvider || probeContext.address !== probedAddress) {
+    // Reconnect can replace the session without changing its provider or address.
+    if (
+      lockProbeContextRef.current !== probeContext ||
+      probeContext.provider !== probedProvider ||
+      probeContext.address !== probedAddress
+    ) {
       return;
     }
 
@@ -550,9 +524,8 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       // address after re-auth, and connectBTC sets both unconditionally.
       setAddress(refreshedAddress);
       setPublicKeyNoCoord(refreshedPublicKeyNoCoord);
-      // A successful re-auth means the wallet answered an interactive prompt, so
-      // it is unlocked again — clear any pending lock state immediately rather
-      // than waiting for the next poll tick.
+      // A successful unlock invalidates every earlier lock probe.
+      lockProbeContextRef.current = { provider: btcWalletProvider, address: refreshedAddress };
       setLocked(false);
       if (refreshedAddress !== address) {
         await callbacks?.onAddressChange?.(refreshedAddress, refreshedPublicKeyNoCoord);

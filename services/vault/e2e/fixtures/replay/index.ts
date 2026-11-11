@@ -280,8 +280,9 @@ export async function installRecordedBackend(
       const method = body?.method ?? "";
 
       if (method === "eth_call") {
-        const [call] = (body?.params ?? []) as [
+        const [call, blockTag] = (body?.params ?? []) as [
           { to?: string; data?: Hex } | undefined,
+          string | undefined,
         ];
         const to = call?.to ?? "";
         const data = call?.data;
@@ -295,8 +296,8 @@ export async function installRecordedBackend(
         }
         const result =
           to.toLowerCase() === MULTICALL3_ADDRESS
-            ? chain.answerMulticall(data)
-            : chain.answerCall(to, data);
+            ? chain.answerMulticall(data, blockTag)
+            : chain.answerCall(to, data, blockTag);
         if (result === null) {
           miss(`eth_call ${to.toLowerCase()} ${data.slice(0, 10)}`);
           return jsonResponse(route, {

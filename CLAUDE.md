@@ -42,7 +42,7 @@ Run the SDK's own `test` script rather than `vitest` directly when checking that
 
 For `/pre-review`, read `.claude/skills/pre-review/SKILL.md` from this checkout. Use that procedure when a local skill copy differs.
 
-Before a PR is opened, the author runs `/pre-review`, records decisions and fixes the fix-now findings. Later runs verify fixes and inspect affected code. Once fixes are verified, the author runs `/pre-review --final` for one independent whole-change review. Changed inputs invalidate final completion. Each run keeps `PR.md` current for the PR body. Human code review is still required. The `pre-review-check` CI job requires a record from the PR's branch; it does not compare the code with the record or enforce final completion. `/pre-review` is user-invoked; remind the user of this step when implementation work is done. Do not start it unprompted. See [docs/pre-review.md](docs/pre-review.md).
+Before a PR is opened, the author runs `/pre-review`, records decisions and fixes the fix-now findings. Later runs verify fixes and inspect affected code. Once fixes are verified, the author runs `/pre-review --final` for one independent whole-change review. Changed inputs invalidate final completion. Each run keeps `PR.md` current for the PR body. Human code review is still required. The `pre-review-check` CI job requires a record from the PR's branch; it does not compare the code with the record or enforce final completion. `/pre-review` is user-invoked; remind the user of this step when implementation work is done. Do not start it unprompted. See [docs/pre-review.md](docs/pre-review.md). Reviewers apply [docs/review-checklist.md](docs/review-checklist.md).
 
 ---
 
@@ -190,6 +190,11 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - Prefer discriminated unions over optional fields when states are mutually exclusive.
 - Null/undefined checks must be explicit, not hidden behind `??` fallbacks on critical paths.
 
+### No Speculative Code
+
+- No abstraction, option, parameter or extension point without a current use in the same change.
+- No hand-rolled helper for what the repository or an installed dependency already provides, unless a section of this file records why (critical path 9). Check both before writing one.
+
 ---
 
 ## TEST PHILOSOPHY
@@ -198,7 +203,9 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Each test verifies ONE specific behavior of production code.
 - Test name describes the exact behavior being tested.
-- If you can't name what production behavior a test verifies, the test shouldn't exist.
+- If you can't name what production behavior a test verifies, or which production line's change fails it, the test shouldn't exist. Rendering and wiring are not behavior, unless the component holds logic.
+- An end-to-end test walks one user journey a unit test cannot prove, and asserts the end state.
+- The visual-regression capture specs in `services/vault/e2e/visual/*.visual.spec.ts` are exempt from the render and end-to-end rules above. Their `toBeVisible` stops position the capture that CI diffs. Judge one by whether its captures cover the changed surface.
 
 ### No test bloat
 
@@ -234,6 +241,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Pattern: `NEXT_PUBLIC_FF_*`
 - Defined in `services/vault/src/config/featureFlags.ts`
+- Adding, renaming or removing a flag edits five places: `featureFlags.ts`, `services/vault/.env.example`, the flag block of the matching `service-release-*.yml`, the flag's class in `services/vault/env-manifest.json`, and the build inputs in `services/vault/project.json`. `check:env-manifest` fails when the app reads a name the manifest does not list or lists as `removed`, and when the build inputs differ from the manifest. It does not flag a manifest entry the code no longer reads, so check a removal by hand. Against the workflow it checks only that every `release-required` name is passed and that no unlisted, `removed` or `dev-test-only` name is. It does not check that a `release-optional` flag is passed, so check the workflow edit by hand: a flag missing there ships off in production. A flag the code gates on `import.meta.env.DEV`, directly or through the dev-only panel it mounts inside, is classed `dev-test-only` and stays out of the workflow and the build inputs on purpose.
 
 ### Network Profiles
 
@@ -266,6 +274,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - **Exception:** Contract / on-chain error messages live in `services/vault/src/utils/errors/errorMessages.ts`, keyed by ABI error name. Treat that file as part of the copy surface — same review rules apply.
 - Follow the style rules documented at the top of `copy.ts` (Pre-Pegin / peg-in conventions, sentence-case status labels, "has been broadcast" tense, American English, vault provider lowercase mid-sentence).
 - When adding strings that interpolate values, prefer a function (`(amount: string) => \`Your ${amount}...\``) in `copy.ts` over building the string in the component.
+- A new user-facing surface with no Figma reference is not implemented. Ask first. Error and status messages follow the copy rules above, not this gate.
 
 ---
 

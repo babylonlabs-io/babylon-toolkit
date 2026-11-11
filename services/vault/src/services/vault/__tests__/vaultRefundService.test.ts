@@ -2,6 +2,7 @@
 // (how it composes readVault / readPrePeginContext / fee / sign / broadcast
 // callbacks). The SDK's buildAndBroadcastRefund has its own dedicated tests.
 const mockBuildAndBroadcastRefund = vi.fn();
+const mockReadRefundPrePeginContext = vi.fn();
 
 const { MockRefundBroadcastRejectedError } = vi.hoisted(() => ({
   MockRefundBroadcastRejectedError: class RefundBroadcastRejectedError extends Error {
@@ -19,6 +20,8 @@ const { MockRefundBroadcastRejectedError } = vi.hoisted(() => ({
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   buildAndBroadcastRefund: (...args: unknown[]) =>
     mockBuildAndBroadcastRefund(...args),
+  readRefundPrePeginContext: (...args: unknown[]) =>
+    mockReadRefundPrePeginContext(...args),
   BIP68NotMatureError: class BIP68NotMatureError extends Error {},
   RefundBroadcastRejectedError: MockRefundBroadcastRejectedError,
   REFUND_VSIZE: 160,
@@ -32,43 +35,10 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   },
 }));
 
-// Un-rotated operator set: each participant's bonded key at the vault's frozen
-// epochs is its roster key, so resolution is a pass-through and these cases
-// stay about the refund adapter wiring.
-const mockResolveParticipantKeysAtEpochs = vi.hoisted(() =>
-  vi.fn(async (...args: unknown[]) => {
-    const q = (
-      args[0] as {
-        query: {
-          vaultProviderGenesisBtcPubkey: string;
-          vaultKeepers: { btcPubKey: string }[];
-          universalChallengers: { btcPubKey: string }[];
-        };
-      }
-    ).query;
-    const strip = (k: string) => (k.startsWith("0x") ? k.slice(2) : k);
-    return {
-      vaultProvider: {
-        operationBtcPubkey: strip(q.vaultProviderGenesisBtcPubkey),
-      },
-      vaultKeepers: q.vaultKeepers.map((k) => ({
-        operationBtcPubkey: strip(k.btcPubKey),
-      })),
-      vaultKeeperOperationKeysSorted: q.vaultKeepers
-        .map((k) => strip(k.btcPubKey))
-        .sort(),
-      universalChallengerOperationKeysSorted: q.universalChallengers
-        .map((c) => strip(c.btcPubKey))
-        .sort(),
-    };
-  }),
-);
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   getNetworkFees: vi.fn().mockResolvedValue({ halfHourFee: 10 }),
   pushTx: vi.fn().mockResolvedValue("broadcast_txid"),
-  resolveParticipantKeysAtEpochs: (...args: unknown[]) =>
-    mockResolveParticipantKeysAtEpochs(...args),
 }));
 
 vi.mock("../../../clients/btc/config", () => ({
@@ -87,11 +57,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: vi.fn(),
-  getVaultKeyEpochsFromChain: vi.fn().mockResolvedValue({
-    vpKeyEpoch: 0n,
-    appKeeperKeyEpoch: 0n,
-    ucKeyEpoch: 0n,
-  }),
+  getRegisteredPrePeginTxFromChainWithGrace: vi.fn(),
 }));
 
 vi.mock(
@@ -110,11 +76,6 @@ vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
-const mockGetOffchainParamsByVersion = vi.fn();
-const mockGetVaultKeepersByVersion = vi.fn();
-const mockGetUniversalChallengersByVersion = vi.fn();
-const mockGetVaultProviderGenesisBtcPubKey = vi.fn();
-const mockGetCurrentVaultProviderOperationBtcKey = vi.fn();
 // Lean sibling pre-filter behind discoverBatch. Defaults to deriving
 // prePeginTxHash from the same getVaultFromChain fixtures each test
 // configures, so sibling scenarios keep one source of truth. Tests that
@@ -130,39 +91,44 @@ const mockGetProtocolInfoBatch = vi.fn(async (ids: readonly string[]) => {
     }),
   );
 });
+// One reader per contract, each distinct under deep equality, so a test can tell
+// which one was passed where.
+const SDK_READERS = vi.hoisted(() => ({
+  protocolParamsReader: { reads: "protocol params" },
+  vaultKeeperReader: { reads: "vault keepers" },
+  universalChallengerReader: { reads: "universal challengers" },
+  operationKeyReader: { reads: "operation keys" },
+}));
+const REGISTRY_READER = {
+  getProtocolInfoBatch: (ids: readonly string[]) =>
+    mockGetProtocolInfoBatch(ids),
+};
 vi.mock("../../../clients/eth-contract/sdk-readers", () => ({
-  getProtocolParamsReader: vi.fn().mockResolvedValue({
-    getOffchainParamsByVersion: (...args: unknown[]) =>
-      mockGetOffchainParamsByVersion(...args),
-  }),
-  getVaultKeeperReader: vi.fn().mockResolvedValue({
-    getVaultKeepersByVersion: (...args: unknown[]) =>
-      mockGetVaultKeepersByVersion(...args),
-  }),
-  getUniversalChallengerReader: vi.fn().mockResolvedValue({
-    getUniversalChallengersByVersion: (...args: unknown[]) =>
-      mockGetUniversalChallengersByVersion(...args),
-  }),
-  getVaultRegistryReader: vi.fn().mockReturnValue({
-    getVaultProviderGenesisBtcPubKey: (...args: unknown[]) =>
-      mockGetVaultProviderGenesisBtcPubKey(...args),
-    getCurrentVaultProviderOperationBtcKey: (...args: unknown[]) =>
-      mockGetCurrentVaultProviderOperationBtcKey(...args),
-    getProtocolInfoBatch: (ids: readonly string[]) =>
-      mockGetProtocolInfoBatch(ids),
-  }),
-  getOperationKeyReader: vi.fn().mockResolvedValue({}),
+  getProtocolParamsReader: vi
+    .fn()
+    .mockResolvedValue(SDK_READERS.protocolParamsReader),
+  getVaultKeeperReader: vi
+    .fn()
+    .mockResolvedValue(SDK_READERS.vaultKeeperReader),
+  getUniversalChallengerReader: vi
+    .fn()
+    .mockResolvedValue(SDK_READERS.universalChallengerReader),
+  getOperationKeyReader: vi
+    .fn()
+    .mockResolvedValue(SDK_READERS.operationKeyReader),
+  getVaultRegistryReader: vi.fn(() => REGISTRY_READER),
 }));
 
-vi.mock("../fetchVaultProviders", () => ({
-  fetchVaultProviderById: vi.fn(),
-}));
-
-vi.mock("../fetchVaults", () => ({
-  fetchVaultRefundData: vi.fn(),
+// The refund reads nothing from the indexer. Every query fails, so a read that
+// comes back breaks the refund tests rather than passing unnoticed.
+vi.mock("../../../clients/graphql/client", () => ({
+  graphqlClient: {
+    request: vi.fn().mockRejectedValue(new Error("indexer down")),
+  },
 }));
 
 import { getNetworkFees, pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { RegistrationLogsUnavailableError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import * as bitcoin from "bitcoinjs-lib";
 import {
@@ -175,12 +141,17 @@ import {
   type Mock,
 } from "vitest";
 
+import { shouldRetry } from "@/config/queryClient";
+import { logger } from "@/infrastructure";
+
 import { fetchHtlcSpend } from "../../../clients/btc/outspend";
 import { getDepositorVaultIdsFromChain } from "../../../clients/eth-contract/btc-vault-registry/depositorVaultIds";
-import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
+import {
+  getRegisteredPrePeginTxFromChainWithGrace,
+  getVaultFromChain,
+} from "../../../clients/eth-contract/btc-vault-registry/query";
+import { graphqlClient } from "../../../clients/graphql/client";
 import { COPY } from "../../../copy";
-import { fetchVaultProviderById } from "../fetchVaultProviders";
-import { fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
   getRefundPreview,
@@ -206,24 +177,8 @@ const ON_CHAIN_VAULT = {
   htlcVout: 0,
   amount: 100_000n,
   prePeginTxHash: "0xmatching_pre_pegin_hash",
+  createdAt: 9_000_000n,
 };
-const OFFCHAIN_PARAMS = {
-  tRefund: 144,
-  feeRate: 10n,
-  minPeginFeeRate: 20n,
-  councilQuorum: 3,
-  securityCouncilKeys: ["k1", "k2", "k3"],
-};
-// Indexer GraphQL field is 0x-prefixed; on-chain reader returns the same
-// 32 bytes as bare lowercase x-only hex. Both must agree for the cross-check.
-const VP_BTC_PUBKEY_X_ONLY = "f".repeat(64);
-const VAULT_PROVIDER = { btcPubKey: `0x${VP_BTC_PUBKEY_X_ONLY}` };
-/** The key a rotated provider's operation getter returns. */
-const VP_ROTATED_BTC_PUBKEY_X_ONLY = "e".repeat(64);
-/** Matches neither candidate — a stale or poisoned indexer. */
-const VP_UNRELATED_BTC_PUBKEY_X_ONLY = "d".repeat(64);
-const VAULT_KEEPERS = [{ btcPubKey: "vk1" }, { btcPubKey: "vk2" }];
-const UNIVERSAL_CHALLENGERS = [{ btcPubKey: "uc1" }];
 // Funded Pre-PegIn tx whose HTLC output (vout 0, matching ON_CHAIN_VAULT
 // .htlcVout) carries the deposit amount (100_000) PLUS the protocol reserve.
 // The refund preview must report this funded value — what the depositor
@@ -238,10 +193,8 @@ const FUNDED_PRE_PEGIN_TX_HEX = (() => {
   );
   return tx.toHex();
 })();
-const INDEXER_VAULT = {
-  unsignedPrePeginTx: `0x${FUNDED_PRE_PEGIN_TX_HEX}`,
-  depositorBtcPubkey: "indexer_depositor_pubkey",
-};
+// As the registration log carries it: 0x-prefixed.
+const LOGGED_PRE_PEGIN_TX = `0x${FUNDED_PRE_PEGIN_TX_HEX}`;
 const BTC_WALLET_PROVIDER = {
   signPsbt: vi.fn().mockResolvedValue("signed_psbt_hex"),
 };
@@ -276,24 +229,12 @@ describe("vaultRefundService - adapter wiring", () => {
 
     (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
-    (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
+    (getRegisteredPrePeginTxFromChainWithGrace as Mock).mockResolvedValue(
+      LOGGED_PRE_PEGIN_TX,
+    );
     // Default: depositor has just the target vault. Sibling-discovery
     // tests below override this to exercise the multi-vault branch.
     (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([VAULT_ID]);
-    mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
-    (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
-    mockGetVaultProviderGenesisBtcPubKey.mockResolvedValue(
-      VP_BTC_PUBKEY_X_ONLY,
-    );
-    // Default: an un-rotated provider, whose current operation key is its
-    // registration key. The rotation cases below override this.
-    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
-      VP_BTC_PUBKEY_X_ONLY,
-    );
-    mockGetVaultKeepersByVersion.mockResolvedValue(VAULT_KEEPERS);
-    mockGetUniversalChallengersByVersion.mockResolvedValue(
-      UNIVERSAL_CHALLENGERS,
-    );
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 10 });
     (pushTx as Mock).mockResolvedValue("broadcast_txid");
 
@@ -384,11 +325,12 @@ describe("vaultRefundService - adapter wiring", () => {
     expect(getVaultFromChain).not.toHaveBeenCalledWith(brokenVaultId);
   });
 
-  it("readVault merges on-chain + indexer fields and overrides depositor pubkey with caller's", async () => {
+  it("readVault returns the chain's fields, the authenticated Pre-PegIn and the wallet's key", async () => {
     let observed: {
       hashlock: string;
       htlcVout: number;
       amount: bigint;
+      unsignedPrePeginTxHex: string;
       depositorBtcPubkey: string;
     } | null = null;
     mockBuildAndBroadcastRefund.mockImplementation(
@@ -398,6 +340,7 @@ describe("vaultRefundService - adapter wiring", () => {
           hashlock: string;
           htlcVout: number;
           amount: bigint;
+          unsignedPrePeginTxHex: string;
           depositorBtcPubkey: string;
         }>;
       }) => {
@@ -417,168 +360,23 @@ describe("vaultRefundService - adapter wiring", () => {
     expect(observed).not.toBeNull();
     expect(observed!.hashlock).toBe(ON_CHAIN_VAULT.hashlock);
     expect(observed!.htlcVout).toBe(ON_CHAIN_VAULT.htlcVout);
-    // Amount must come from on-chain contract, NOT the indexer.
     expect(observed!.amount).toBe(ON_CHAIN_VAULT.amount);
-    // Must be the caller-provided wallet pubkey, NOT the indexer value.
+    expect(observed!.unsignedPrePeginTxHex).toBe(LOGGED_PRE_PEGIN_TX);
     expect(observed!.depositorBtcPubkey).toBe(DEPOSITOR_PUBKEY);
   });
 
-  it("throws when indexer Pre-PegIn tx hash does not match on-chain", async () => {
-    (calculateBtcTxHash as Mock).mockReturnValue("0xdifferent_hash");
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        depositorAddress: DEPOSITOR_ADDRESS,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-        feeRate: 10,
-      }),
-    ).rejects.toThrow("Pre-Pegin transaction hash mismatch");
-  });
-
-  it("throws when vault is not found in indexer", async () => {
-    (fetchVaultRefundData as Mock).mockResolvedValue(null);
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        depositorAddress: DEPOSITOR_ADDRESS,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-        feeRate: 10,
-      }),
-    ).rejects.toThrow(`Vault ${VAULT_ID} not found`);
-  });
-
-  it("throws when vault provider is not found", async () => {
-    (fetchVaultProviderById as Mock).mockResolvedValue(null);
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        depositorAddress: DEPOSITOR_ADDRESS,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-        feeRate: 10,
-      }),
-    ).rejects.toThrow(
-      `Vault provider ${ON_CHAIN_VAULT.vaultProvider} not found`,
-    );
-  });
-
-  it("throws when no vault keepers are found", async () => {
-    mockGetVaultKeepersByVersion.mockResolvedValue([]);
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        depositorAddress: DEPOSITOR_ADDRESS,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-        feeRate: 10,
-      }),
-    ).rejects.toThrow(
-      `No Vault Keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
-    );
-  });
-
-  it("throws when no universal challengers are found for the version", async () => {
-    mockGetUniversalChallengersByVersion.mockResolvedValue([]);
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        depositorAddress: DEPOSITOR_ADDRESS,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-        feeRate: 10,
-      }),
-    ).rejects.toThrow(
-      `Universal challengers not found for version ${ON_CHAIN_VAULT.universalChallengersVersion}`,
-    );
-  });
-
-  // The indexer-provided VP key is cross-checked against the chain. A stale or
-  // compromised indexer that substitutes a key the registry cannot account for
-  // must not produce a refund signed against a wrong Taproot script tree.
-  it("throws when the indexer VP pubkey matches neither on-chain key", async () => {
-    (fetchVaultProviderById as Mock).mockResolvedValue({
-      btcPubKey: `0x${VP_UNRELATED_BTC_PUBKEY_X_ONLY}`,
-    });
-    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
-      VP_ROTATED_BTC_PUBKEY_X_ONLY,
-    );
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        depositorAddress: DEPOSITOR_ADDRESS,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-        feeRate: 10,
-      }),
-    ).rejects.toThrow(/Aborting refund/);
-  });
-
-  // RFC-006. Once the indexer catches up to a rotation it serves the operation
-  // key while the registration getter still returns the original. Rejecting
-  // that would strand every depositor of a rotated provider on the recovery
-  // path of last resort, triggered by an indexer deploy rather than one of ours.
-  it("accepts an indexer VP pubkey matching the current operation key", async () => {
-    (fetchVaultProviderById as Mock).mockResolvedValue({
-      btcPubKey: `0x${VP_ROTATED_BTC_PUBKEY_X_ONLY}`,
-    });
-    mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
-      VP_ROTATED_BTC_PUBKEY_X_ONLY,
-    );
-
-    await expect(
-      buildAndBroadcastRefundTransaction({
-        vaultId: VAULT_ID,
-        depositorAddress: DEPOSITOR_ADDRESS,
-        btcWalletProvider: BTC_WALLET_PROVIDER,
-        depositorBtcPubkey: DEPOSITOR_PUBKEY,
-        feeRate: 10,
-      }),
-    ).resolves.toBe("broadcast_txid");
-
-    // The registration key still seeds epoch resolution — accepting the hint
-    // must not swap which key the script tree is rebuilt from.
-    expect(mockResolveParticipantKeysAtEpochs).toHaveBeenCalledWith(
-      expect.objectContaining({
-        query: expect.objectContaining({
-          vaultProviderGenesisBtcPubkey: `0x${VP_BTC_PUBKEY_X_ONLY}`,
-        }),
-      }),
-    );
-  });
-
-  // The operation-key read is a fallback, not a second unconditional RPC on
-  // every refund.
-  it("does not read the operation key when the hint matches registration", async () => {
-    await buildAndBroadcastRefundTransaction({
-      vaultId: VAULT_ID,
-      depositorAddress: DEPOSITOR_ADDRESS,
-      btcWalletProvider: BTC_WALLET_PROVIDER,
-      depositorBtcPubkey: DEPOSITOR_PUBKEY,
-      feeRate: 10,
-    });
-
-    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
-  });
-
-  it("uses the on-chain VP pubkey in the returned refund context", async () => {
-    let observed: { vaultProviderPubkey: string } | null = null;
+  it("reads the refund context through the SDK, from the chain's readers", async () => {
+    const context = { vaultProviderPubkey: "from_the_sdk_reader" };
+    mockReadRefundPrePeginContext.mockResolvedValue(context);
+    let vault: unknown;
+    let observedContext: unknown;
     mockBuildAndBroadcastRefund.mockImplementation(
       async (input: {
         readVault: () => Promise<unknown>;
-        readPrePeginContext: (
-          v: unknown,
-        ) => Promise<{ vaultProviderPubkey: string }>;
+        readPrePeginContext: (v: unknown) => Promise<unknown>;
       }) => {
-        const vault = await input.readVault();
-        observed = await input.readPrePeginContext(vault);
+        vault = await input.readVault();
+        observedContext = await input.readPrePeginContext(vault);
         return { txId: "ok" };
       },
     );
@@ -591,38 +389,13 @@ describe("vaultRefundService - adapter wiring", () => {
       feeRate: 10,
     });
 
-    expect(observed).not.toBeNull();
-    expect(observed!.vaultProviderPubkey).toBe(VP_BTC_PUBKEY_X_ONLY);
-  });
-
-  it("forwards both fee rates into the refund context without conflating them", async () => {
-    let observed: { feeRate: bigint; minPeginFeeRate: bigint } | null = null;
-    mockBuildAndBroadcastRefund.mockImplementation(
-      async (input: {
-        readVault: () => Promise<unknown>;
-        readPrePeginContext: (
-          v: unknown,
-        ) => Promise<{ feeRate: bigint; minPeginFeeRate: bigint }>;
-      }) => {
-        const vault = await input.readVault();
-        observed = await input.readPrePeginContext(vault);
-        return { txId: "ok" };
-      },
-    );
-
-    await buildAndBroadcastRefundTransaction({
+    expect(mockReadRefundPrePeginContext).toHaveBeenCalledWith({
       vaultId: VAULT_ID,
-      depositorAddress: DEPOSITOR_ADDRESS,
-      btcWalletProvider: BTC_WALLET_PROVIDER,
-      depositorBtcPubkey: DEPOSITOR_PUBKEY,
-      feeRate: 10,
+      vault,
+      readers: { registryReader: REGISTRY_READER, ...SDK_READERS },
+      network: "testnet",
     });
-
-    expect(observed).not.toBeNull();
-    // feeRate (10n) sizes the claim value; minPeginFeeRate (20n) sizes the
-    // PegIn tx fee — distinct contract params, must not be swapped.
-    expect(observed!.feeRate).toBe(OFFCHAIN_PARAMS.feeRate);
-    expect(observed!.minPeginFeeRate).toBe(OFFCHAIN_PARAMS.minPeginFeeRate);
+    expect(observedContext).toBe(context);
   });
 
   it("forwards the caller-provided feeRate to the SDK (no silent halfHourFee fallback)", async () => {
@@ -939,30 +712,27 @@ describe("vaultRefundService - adapter wiring", () => {
 describe("getRefundPreview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
     (getVaultFromChain as Mock).mockResolvedValue(ON_CHAIN_VAULT);
-    (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
+    (getRegisteredPrePeginTxFromChainWithGrace as Mock).mockResolvedValue(
+      LOGGED_PRE_PEGIN_TX,
+    );
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 7 });
     mockFetch.mockResolvedValue({ status: 200 });
   });
 
   it("returns the funded HTLC value (deposit + reserve) as the refund amount, with the deposit amount as the fee-cap basis", async () => {
     const preview = await getRefundPreview(VAULT_ID);
-    // The reclaimed amount is the funded HTLC output value, not the bare
-    // on-chain deposit amount — the reserve returns to the depositor.
-    expect(preview.amountSats).toBe(FUNDED_HTLC_VALUE_SATS);
-    expect(preview.amountSats).not.toBe(ON_CHAIN_VAULT.amount);
-    // The SDK caps the fee against the deposit amount; the preview surfaces it
-    // separately so the UI cap mirrors the SDK exactly.
-    expect(preview.feeCapBasisSats).toBe(ON_CHAIN_VAULT.amount);
-    expect(preview.halfHourFeeSatsVb).toBe(7);
-    expect(preview.prePeginOnChain).toBe(true);
-  });
-
-  it("throws when the vault is not found in the indexer", async () => {
-    (fetchVaultRefundData as Mock).mockResolvedValue(null);
-    await expect(getRefundPreview(VAULT_ID)).rejects.toThrow(
-      `Vault ${VAULT_ID} not found`,
-    );
+    expect(preview).toEqual({
+      prePeginOnChain: true,
+      // The reclaimed amount is the funded HTLC output value, not the bare
+      // on-chain deposit amount — the reserve returns to the depositor.
+      amountSats: FUNDED_HTLC_VALUE_SATS,
+      // The SDK caps the fee against the deposit amount; the preview surfaces
+      // it separately so the UI cap mirrors the SDK exactly.
+      feeCapBasisSats: ON_CHAIN_VAULT.amount,
+      halfHourFeeSatsVb: 7,
+    });
   });
 
   it("returns null halfHourFeeSatsVb when the fee endpoint fails (vault data still loads)", async () => {
@@ -970,14 +740,16 @@ describe("getRefundPreview", () => {
       new Error("mempool unreachable"),
     );
     const preview = await getRefundPreview(VAULT_ID);
-    expect(preview.amountSats).toBe(FUNDED_HTLC_VALUE_SATS);
-    expect(preview.halfHourFeeSatsVb).toBeNull();
+    expect(preview).toMatchObject({
+      amountSats: FUNDED_HTLC_VALUE_SATS,
+      halfHourFeeSatsVb: null,
+    });
   });
 
   it("returns null halfHourFeeSatsVb when the fee endpoint reports zero", async () => {
     (getNetworkFees as Mock).mockResolvedValue({ halfHourFee: 0 });
     const preview = await getRefundPreview(VAULT_ID);
-    expect(preview.halfHourFeeSatsVb).toBeNull();
+    expect(preview).toMatchObject({ halfHourFeeSatsVb: null });
   });
 
   it("reports prePeginOnChain=false when the Pre-PegIn tx is not on Bitcoin (HTTP 404)", async () => {
@@ -1000,6 +772,348 @@ describe("getRefundPreview", () => {
   });
 });
 
+describe("vaultRefundService - Pre-PegIn bytes", () => {
+  // A real transaction, its real txid and the real hash function: what these
+  // cases pin is the check that a source's bytes are the vault's transaction.
+  const PRE_WITNESS_TX_HEX = FUNDED_PRE_PEGIN_TX_HEX;
+  const VAULT = {
+    ...ON_CHAIN_VAULT,
+    prePeginTxHash: `0x${bitcoin.Transaction.fromHex(PRE_WITNESS_TX_HEX).getId()}`,
+    // Only the spender attribution reads it; it must parse.
+    depositorSignedPeginTx: `0x${PRE_WITNESS_TX_HEX}`,
+  };
+  const SIGNED_TX_HEX = (() => {
+    const tx = bitcoin.Transaction.fromHex(PRE_WITNESS_TX_HEX);
+    tx.setWitness(0, [Buffer.alloc(64, 1), Buffer.alloc(33, 2)]);
+    return tx.toHex();
+  })();
+  const ANOTHER_TX_HEX = (() => {
+    const tx = bitcoin.Transaction.fromHex(PRE_WITNESS_TX_HEX);
+    tx.locktime = 1;
+    return tx.toHex();
+  })();
+  const REFUND_PARAMS = {
+    vaultId: VAULT_ID,
+    depositorAddress: DEPOSITOR_ADDRESS,
+    btcWalletProvider: BTC_WALLET_PROVIDER,
+    depositorBtcPubkey: DEPOSITOR_PUBKEY,
+    feeRate: 10,
+  };
+
+  /** The Pre-PegIn is on Bitcoin per the probe; `/hex` serves `txHex`, or 404s. */
+  function serveFromBitcoin(txHex: string | null) {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (!url.endsWith("/hex")) return { status: 200 };
+      return txHex === null
+        ? { ok: false, status: 404 }
+        : { ok: true, status: 200, text: async () => txHex };
+    });
+  }
+
+  function serveFromLog(txHex: string | null) {
+    const log = getRegisteredPrePeginTxFromChainWithGrace as Mock;
+    if (txHex === null) {
+      log.mockRejectedValue(new Error("no registration logs"));
+    } else {
+      log.mockResolvedValue(txHex);
+    }
+  }
+
+  /** Runs a refund up to the SDK's `readVault` and returns the bytes it gets. */
+  async function bytesTheRefundIsBuiltFrom(): Promise<string> {
+    let bytes = "";
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: {
+        readVault: () => Promise<{ unsignedPrePeginTxHex: string }>;
+      }) => {
+        bytes = (await input.readVault()).unsignedPrePeginTxHex;
+        return { txId: "ok" };
+      },
+    );
+    await buildAndBroadcastRefundTransaction(REFUND_PARAMS);
+    return bytes;
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const actual = await vi.importActual<
+      typeof import("@babylonlabs-io/ts-sdk/tbv/core/utils")
+    >("@babylonlabs-io/ts-sdk/tbv/core/utils");
+    (calculateBtcTxHash as Mock).mockImplementation(actual.calculateBtcTxHash);
+    (getVaultFromChain as Mock).mockResolvedValue(VAULT);
+    (getDepositorVaultIdsFromChain as Mock).mockResolvedValue([VAULT_ID]);
+    vi.spyOn(logger, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.mocked(logger.warn).mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("takes the Pre-PegIn from Bitcoin, stripped to its pre-witness bytes, when the log is unavailable", async () => {
+    serveFromBitcoin(SIGNED_TX_HEX);
+    serveFromLog(null);
+
+    await expect(bytesTheRefundIsBuiltFrom()).resolves.toBe(
+      `0x${PRE_WITNESS_TX_HEX}`,
+    );
+  });
+
+  it("takes the Pre-PegIn from a 0x-prefixed registration log when Bitcoin has no copy", async () => {
+    serveFromBitcoin(null);
+    serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
+
+    await expect(bytesTheRefundIsBuiltFrom()).resolves.toBe(
+      `0x${PRE_WITNESS_TX_HEX}`,
+    );
+  });
+
+  it("strips a witness carried in the registration log", async () => {
+    serveFromBitcoin(null);
+    serveFromLog(`0x${SIGNED_TX_HEX}`);
+
+    await expect(bytesTheRefundIsBuiltFrom()).resolves.toBe(
+      `0x${PRE_WITNESS_TX_HEX}`,
+    );
+  });
+
+  it("reads from Bitcoin on a runtime with no AbortSignal.timeout", async () => {
+    const original = AbortSignal.timeout;
+    // @ts-expect-error - deliberately emulating a browser that predates the API
+    delete AbortSignal.timeout;
+
+    try {
+      serveFromBitcoin(SIGNED_TX_HEX);
+      serveFromLog(null);
+
+      await expect(bytesTheRefundIsBuiltFrom()).resolves.toBe(
+        `0x${PRE_WITNESS_TX_HEX}`,
+      );
+    } finally {
+      AbortSignal.timeout = original;
+    }
+  });
+
+  it("ignores a source whose bytes hash to another txid and uses the other source", async () => {
+    serveFromBitcoin(ANOTHER_TX_HEX);
+    serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
+
+    await expect(bytesTheRefundIsBuiltFrom()).resolves.toBe(
+      `0x${PRE_WITNESS_TX_HEX}`,
+    );
+  });
+
+  it("ignores a source whose answer does not parse and uses the other source", async () => {
+    serveFromBitcoin("<html>rate limited</html>");
+    serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
+
+    await expect(bytesTheRefundIsBuiltFrom()).resolves.toBe(
+      `0x${PRE_WITNESS_TX_HEX}`,
+    );
+  });
+
+  // The race hides a loser's answer, and a wrong transaction is a tamper signal.
+  it("warns when a source serves bytes that hash to another txid", async () => {
+    serveFromBitcoin(ANOTHER_TX_HEX);
+    serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
+
+    await bytesTheRefundIsBuiltFrom();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(VAULT.prePeginTxHash),
+    );
+  });
+
+  it("does not warn when a source is merely unavailable", async () => {
+    serveFromBitcoin(null);
+    serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
+
+    await bytesTheRefundIsBuiltFrom();
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("refuses before signing, keeping each source's reason, when neither can supply the Pre-PegIn", async () => {
+    serveFromBitcoin(ANOTHER_TX_HEX);
+    serveFromLog(null);
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: {
+        readVault: () => Promise<unknown>;
+        signPsbt: (hex: string, opts: unknown) => Promise<string>;
+      }) => {
+        await input.readVault();
+        await input.signPsbt("psbt_hex", {});
+        return { txId: "ok" };
+      },
+    );
+
+    const error: Error = await buildAndBroadcastRefundTransaction(
+      REFUND_PARAMS,
+    ).then(
+      () => {
+        throw new Error("expected the refund to be refused");
+      },
+      (err) => err,
+    );
+
+    expect(error.message).toBe(
+      COPY.deposit.errors.refundPrePeginTxUnavailable(VAULT.prePeginTxHash),
+    );
+    expect((error.cause as AggregateError).errors).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("the vault registered"),
+      }),
+      expect.objectContaining({ message: "no registration logs" }),
+    ]);
+    expect(BTC_WALLET_PROVIDER.signPsbt).not.toHaveBeenCalled();
+  });
+
+  // The log read has already spent its retries; the query client repeating it
+  // would only hold the modal's spinner for another minute.
+  it("is not retried by the query client once the log read has used up its schedule", async () => {
+    serveFromBitcoin(null);
+    (getRegisteredPrePeginTxFromChainWithGrace as Mock).mockRejectedValue(
+      new RegistrationLogsUnavailableError(VAULT.createdAt),
+    );
+
+    const error: Error = await getRefundPreview(VAULT_ID).then(
+      () => {
+        throw new Error("expected the preview to fail");
+      },
+      (err) => err,
+    );
+
+    expect(shouldRetry(0, error)).toBe(false);
+  });
+
+  // Only the typed empty-log error has retries of its own, so a one-off RPC
+  // failure still needs the query client's.
+  it("leaves a log read that failed outright to the query client's retries", async () => {
+    serveFromBitcoin(null);
+    serveFromLog(null);
+
+    const error: Error = await getRefundPreview(VAULT_ID).then(
+      () => {
+        throw new Error("expected the preview to fail");
+      },
+      (err) => err,
+    );
+
+    expect(error.message).toBe(
+      COPY.deposit.errors.refundPrePeginTxUnavailable(VAULT.prePeginTxHash),
+    );
+    expect(shouldRetry(0, error)).toBe(true);
+  });
+
+  it("gives up at the deadline, without a query retry, when the log read never answers and Bitcoin has no copy", async () => {
+    vi.useFakeTimers();
+    serveFromBitcoin(null);
+    (getRegisteredPrePeginTxFromChainWithGrace as Mock).mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    let settled = false;
+    const outcome = getRefundPreview(VAULT_ID)
+      .catch((err: Error) => err)
+      .finally(() => {
+        settled = true;
+      });
+
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    const error = (await outcome) as Error;
+    expect(error.message).toBe(
+      COPY.deposit.errors.refundPrePeginTxUnavailable(VAULT.prePeginTxHash),
+    );
+    expect(shouldRetry(0, error)).toBe(false);
+  });
+
+  it("asks for the log of the vault's registration block", async () => {
+    serveFromBitcoin(null);
+    serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
+
+    await bytesTheRefundIsBuiltFrom();
+
+    expect(getRegisteredPrePeginTxFromChainWithGrace).toHaveBeenCalledWith(
+      VAULT_ID,
+      VAULT.createdAt,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("does not wait for the log once Bitcoin has answered, and cancels its backoff", async () => {
+    serveFromBitcoin(SIGNED_TX_HEX);
+    let logSignal: AbortSignal | undefined;
+    (getRegisteredPrePeginTxFromChainWithGrace as Mock).mockImplementation(
+      (_vaultId: string, _createdAt: bigint, signal: AbortSignal) => {
+        logSignal = signal;
+        return new Promise(() => {});
+      },
+    );
+
+    await expect(getRefundPreview(VAULT_ID)).resolves.toMatchObject({
+      amountSats: FUNDED_HTLC_VALUE_SATS,
+    });
+    expect(logSignal?.aborted).toBe(true);
+  });
+
+  // Only the flaky log holds a Pre-PegIn that never reached Bitcoin, and "nothing
+  // to refund" must not hang on it.
+  it("reports nothing to refund without reading the bytes when Bitcoin answers 404", async () => {
+    mockFetch.mockResolvedValue({ status: 404 });
+
+    await expect(getRefundPreview(VAULT_ID)).resolves.toEqual({
+      prePeginOnChain: false,
+    });
+    expect(getRegisteredPrePeginTxFromChainWithGrace).not.toHaveBeenCalled();
+  });
+
+  it("refuses at the broadcast guard without reading the bytes", async () => {
+    mockFetch.mockResolvedValue({ status: 404 });
+
+    await expect(
+      buildAndBroadcastRefundTransaction(REFUND_PARAMS),
+    ).rejects.toThrow(COPY.deposit.refundNotBroadcast.broadcastGuardError);
+    expect(getRegisteredPrePeginTxFromChainWithGrace).not.toHaveBeenCalled();
+  });
+
+  it("settles an already-spent HTLC without reading the bytes", async () => {
+    serveFromBitcoin(null);
+    (fetchHtlcSpend as Mock).mockResolvedValueOnce({
+      spent: true,
+      confirmed: true,
+      spendingTxid: "existing_refund_txid",
+    });
+
+    await expect(
+      buildAndBroadcastRefundTransaction(REFUND_PARAMS),
+    ).rejects.toBeInstanceOf(RefundAlreadySettledError);
+    expect(getRegisteredPrePeginTxFromChainWithGrace).not.toHaveBeenCalled();
+  });
+
+  it("reads the vault record and the bytes once per broadcast", async () => {
+    serveFromBitcoin(null);
+    serveFromLog(`0x${PRE_WITNESS_TX_HEX}`);
+
+    await bytesTheRefundIsBuiltFrom();
+
+    expect(getVaultFromChain).toHaveBeenCalledTimes(1);
+    expect(getRegisteredPrePeginTxFromChainWithGrace).toHaveBeenCalledTimes(1);
+  });
+
+  it("previews and builds a refund without reading the indexer", async () => {
+    serveFromBitcoin(SIGNED_TX_HEX);
+    serveFromLog(null);
+
+    await getRefundPreview(VAULT_ID);
+    await bytesTheRefundIsBuiltFrom();
+
+    expect(graphqlClient.request).not.toHaveBeenCalled();
+  });
+});
+
 describe("vaultRefundService - sibling batch discovery", () => {
   const SIBLING_VAULT_ID = "0xsiblingid" as `0x${string}`;
   const OTHER_VAULT_ID = "0xunrelated" as `0x${string}`;
@@ -1008,15 +1122,8 @@ describe("vaultRefundService - sibling batch discovery", () => {
     vi.clearAllMocks();
     mockFetch.mockResolvedValue({ status: 200 });
     (calculateBtcTxHash as Mock).mockReturnValue(ON_CHAIN_VAULT.prePeginTxHash);
-    (fetchVaultRefundData as Mock).mockResolvedValue(INDEXER_VAULT);
-    mockGetOffchainParamsByVersion.mockResolvedValue(OFFCHAIN_PARAMS);
-    (fetchVaultProviderById as Mock).mockResolvedValue(VAULT_PROVIDER);
-    mockGetVaultProviderGenesisBtcPubKey.mockResolvedValue(
-      VP_BTC_PUBKEY_X_ONLY,
-    );
-    mockGetVaultKeepersByVersion.mockResolvedValue(VAULT_KEEPERS);
-    mockGetUniversalChallengersByVersion.mockResolvedValue(
-      UNIVERSAL_CHALLENGERS,
+    (getRegisteredPrePeginTxFromChainWithGrace as Mock).mockResolvedValue(
+      LOGGED_PRE_PEGIN_TX,
     );
     (pushTx as Mock).mockResolvedValue("broadcast_txid");
 

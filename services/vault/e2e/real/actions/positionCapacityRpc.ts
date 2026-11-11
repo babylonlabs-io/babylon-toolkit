@@ -150,6 +150,7 @@ export async function watchPositionCapacity(
       callSeq,
       call.params[0],
       body.result as Hex,
+      call.params[1],
     );
     for (const read of state.capacityReads.slice(before))
       log(

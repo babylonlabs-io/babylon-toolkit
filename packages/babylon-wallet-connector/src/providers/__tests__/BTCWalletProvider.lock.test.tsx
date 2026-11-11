@@ -18,16 +18,14 @@ interface FakeBtcProvider {
 }
 
 const harness = vi.hoisted(() => ({
+  onVisible: null as (() => void | Promise<void>) | null,
   connector: null as {
     connectedWallet: { provider: FakeBtcProvider } | undefined;
     on: () => () => void;
   } | null,
 }));
 
-// The provider reads its session from the chain connector and wires the
-// visibility check / wallet-connect modal through these hooks. Stub them so the
-// test drives the lock engine directly: the connector supplies the fake
-// provider, and the visibility check is a no-op so only the lock poll runs.
+// Drive the lock poll and tab-return check without a wallet extension.
 vi.mock("@/hooks/useChainConnector", () => ({
   useChainConnector: () => harness.connector,
 }));
@@ -35,7 +33,9 @@ vi.mock("@/hooks/useWalletConnect", () => ({
   useWalletConnect: () => ({ open: vi.fn() }),
 }));
 vi.mock("@/hooks/useVisibilityCheck", () => ({
-  useVisibilityCheck: () => {},
+  useVisibilityCheck: (onVisible: () => void | Promise<void>) => {
+    harness.onVisible = onVisible;
+  },
 }));
 
 const ADDR = "bc1ptestcachedaddress0000000000000000000000";
@@ -76,6 +76,7 @@ function focusTab(): void {
 describe("BTCWalletProvider — silent lock engine", () => {
   beforeEach(() => {
     harness.connector = null;
+    harness.onVisible = null;
     // The lock poll and the focus probe only run while the tab is visible.
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -172,8 +173,10 @@ describe("BTCWalletProvider — silent lock engine", () => {
     expect(off.mock.calls.every(([event]) => event === "accountsChanged")).toBe(true);
   });
 
-  it("clears the lock after a successful reconnect", async () => {
-    connectWith(makeProvider({ getAccounts: async () => [] }));
+  it("keeps the wallet unlocked after an old focus check returns", async () => {
+    const getAccounts = vi.fn(async () => [] as string[]);
+    const connectWallet = vi.fn(async () => {});
+    connectWith(makeProvider({ getAccounts, connectWallet }));
 
     const { result } = renderHook(() => useBTCWallet(), { wrapper });
 
@@ -182,11 +185,95 @@ describe("BTCWalletProvider — silent lock engine", () => {
       expect(result.current.locked).toBe(true);
     });
 
+    let resolveProbe!: (accounts: string[]) => void;
+    getAccounts.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveProbe = resolve;
+      }),
+    );
+    act(() => focusTab());
+
     await act(async () => {
       await result.current.reconnect();
     });
 
     expect(result.current.locked).toBe(false);
+    await act(async () => resolveProbe([]));
+    expect(result.current.locked).toBe(false);
+    expect(connectWallet).toHaveBeenCalledTimes(1);
+
+    await act(async () => focusTab());
+    expect(result.current.locked).toBe(true);
+  });
+
+  it("keeps the wallet unlocked after an old visibility check returns", async () => {
+    const getAccounts = vi.fn(async () => [] as string[]);
+    const connectWallet = vi.fn(async () => {});
+    connectWith(makeProvider({ getAccounts, connectWallet }));
+
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
+
+    await waitFor(() => {
+      focusTab();
+      expect(result.current.locked).toBe(true);
+    });
+
+    let resolveProbe!: (accounts: string[]) => void;
+    getAccounts.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveProbe = resolve;
+      }),
+    );
+    act(() => {
+      void harness.onVisible?.();
+    });
+
+    await act(async () => {
+      await result.current.reconnect();
+    });
+
+    expect(result.current.locked).toBe(false);
+    await act(async () => resolveProbe([]));
+    expect(result.current.locked).toBe(false);
+    expect(connectWallet).toHaveBeenCalledTimes(1);
+
+    await act(async () => focusTab());
+    expect(result.current.locked).toBe(true);
+  });
+
+  it("keeps the wallet unlocked after an old visibility check fails", async () => {
+    const getAccounts = vi.fn(async () => [] as string[]);
+    const connectWallet = vi.fn(async () => {});
+    connectWith(makeProvider({ getAccounts, connectWallet }));
+
+    const { result } = renderHook(() => useBTCWallet(), { wrapper });
+
+    await waitFor(() => {
+      focusTab();
+      expect(result.current.locked).toBe(true);
+    });
+
+    let rejectProbe!: (error: Error) => void;
+    getAccounts.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectProbe = reject;
+      }),
+    );
+    act(() => {
+      void harness.onVisible?.();
+    });
+
+    await act(async () => {
+      await result.current.reconnect();
+    });
+
+    expect(result.current.locked).toBe(false);
+    await act(async () => rejectProbe(new Error("Probe failed")));
+    expect(result.current.locked).toBe(false);
+    expect(connectWallet).toHaveBeenCalledTimes(1);
+
+    await act(async () => focusTab());
+    expect(result.current.locked).toBe(true);
   });
 
   it("does not resurrect lock state for a session torn down while a probe was in flight", async () => {

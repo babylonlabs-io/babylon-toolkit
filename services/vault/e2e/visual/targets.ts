@@ -130,8 +130,16 @@ export const DEPOSIT_FLOW_STOPS = {
    * next click asks them to sign, and they never do.
    */
   signEntry: "deposit-sign-entry",
+  providerOptions: "deposit-provider-options",
   /** The reported low-ETH error, rendered by the real progress view. */
   insufficientEth: "deposit-insufficient-eth",
+} as const;
+
+export const BORROW_HINT_STOPS = {
+  "overview-light": "borrow-hint-overview-light",
+  "overview-dark": "borrow-hint-overview-dark",
+  "loans-light": "borrow-hint-loans-light",
+  "loans-dark": "borrow-hint-loans-dark",
 } as const;
 
 /**
@@ -142,6 +150,19 @@ export const DEPOSIT_FLOW_STOPS = {
  * wallet held. See `depositFlow.visual.spec.ts`.
  */
 export const DEPOSIT_SPLIT_MINIMUM_STOP = "deposit-split-minimum";
+
+export const PROVIDER_COLUMNS_STOP = "deposit-provider-columns";
+
+export const HAS_PROVIDER_COLUMN_GRID = readFileSync(
+  new URL(
+    "../../src/components/simple/VaultProviderSelectorV3.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+).includes("grid-cols-[minmax(0,1fr)_16px]");
+
+export const REQUIRE_PROVIDER_COLUMN_GRID =
+  !process.env.CAPTURE_ROOT?.endsWith("/baseline") || HAS_PROVIDER_COLUMN_GRID;
 
 /**
  * The deposit progress view's captured stops.
@@ -171,13 +192,6 @@ export const DEPOSIT_PROGRESS_STOPS = {
  * photographs /loans disconnected and the recorded depositor holds no position,
  * so no wallet reaches a row. See `activeLoan.visual.spec.ts`.
  */
-export const BORROW_HINT_STOPS = {
-  "overview-light": "borrow-hint-overview-light",
-  "overview-dark": "borrow-hint-overview-dark",
-  "loans-light": "borrow-hint-loans-light",
-  "loans-dark": "borrow-hint-loans-dark",
-} as const;
-
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
 export const VAULT_REFUND_STOPS = {
@@ -193,6 +207,19 @@ export const ARTIFACT_DOWNLOAD_STOPS = {
   activation: "artifact-download-activation-confirm",
   vault: "artifact-download-vault-confirm",
 } as const;
+export const ACTIVATION_WARNING_STOPS = {
+  light: [
+    "activation-warning-light-unchecked",
+    "activation-warning-light-checked",
+    "activation-warning-light-checked-control",
+  ],
+  dark: [
+    "activation-warning-dark-unchecked",
+    "activation-warning-dark-checked",
+    "activation-warning-dark-checked-control",
+  ],
+} as const;
+
 export const ARTIFACT_QUOTA_STOPS = {
   activation: "artifact-download-activation-quota",
   vault: "artifact-download-vault-quota",

@@ -1,5 +1,4 @@
 // Vault services - queries and transactions
-export * from "./fetchVaultProviders";
 export * from "./fetchVaults";
 export * from "./vaultActivationService";
 export * from "./vaultPayoutSignatureService";
