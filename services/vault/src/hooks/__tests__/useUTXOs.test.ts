@@ -16,7 +16,7 @@ vi.mock("@babylonlabs-io/ts-sdk", () => ({
 }));
 
 // Mock wallet-connector
-vi.mock("@babylonlabs-io/wallet-connector", () => {
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => {
   const inscriptionOutpointKey = (txid: string, vout: number) =>
     `${txid.toLowerCase()}:${vout}`;
   return {

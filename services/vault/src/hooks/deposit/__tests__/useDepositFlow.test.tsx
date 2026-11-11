@@ -153,7 +153,7 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   })),
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   getSharedWagmiConfig: () => ({}),
   useChainConnector: vi.fn(),
 }));
@@ -605,7 +605,7 @@ function signingCanceledError() {
 
 async function setupDefaultMocks() {
   const { useChainConnector } = await import(
-    "@babylonlabs-io/wallet-connector"
+    "@babylonlabs-io/wallet-connector/btc-eth"
   );
   vi.mocked(useChainConnector).mockReturnValue(null);
   ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
@@ -1658,7 +1658,7 @@ describe("useDepositFlow", () => {
           };
         if (changed === "provider") {
           const { useChainConnector } = await import(
-            "@babylonlabs-io/wallet-connector"
+            "@babylonlabs-io/wallet-connector/btc-eth"
           );
           vi.mocked(useChainConnector).mockReturnValue({
             connectedWallet: { provider: {} },

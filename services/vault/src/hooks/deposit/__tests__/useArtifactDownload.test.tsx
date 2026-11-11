@@ -20,7 +20,7 @@ beforeEach(() => {
   btcActionWallet.open.mockClear();
 });
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
   useWalletConnect: () => ({

@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
   captured: { disabledWallets: undefined as string[] | undefined },
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   APPKIT_BTC_CONNECTOR_ID: "appkit_btc",
   WalletProvider: ({
     children,

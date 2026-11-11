@@ -20,6 +20,23 @@ export const BITCOIN_WALLET_PACKAGES = [
   "bitcoinjs-lib",
 ];
 
+// The Bitcoin-Ethereum entry must not include the Cosmos wallet path: the cosmjs signing and RPC
+// clients, the Keplr types and provider, and Tomo Connect. Keystone's UR registries are outside it:
+// @keystonehq/keystone-sdk, a Bitcoin wallet dependency, ships one registry per chain it supports.
+const COSMOS_WALLET_PACKAGE_PREFIXES = [
+  "@cosmjs/",
+  "@keplr-wallet/",
+  "@tomo-inc/wallet-connect-sdk",
+  "cosmjs-types",
+];
+
+// Byte-encoding helpers that @tomo-inc/ledger-bitcoin-babylon, the Ledger v1 Bitcoin wallet dependency, requires.
+const COSMOS_UTILITY_PACKAGES = ["@cosmjs/encoding"];
+
+const isCosmosWalletPackage = (name) =>
+  !COSMOS_UTILITY_PACKAGES.includes(name) &&
+  COSMOS_WALLET_PACKAGE_PREFIXES.some((prefix) => name === prefix || name.startsWith(prefix));
+
 // Share React, query state, and AppKit with the host application.
 export const requiredExternals = [
   "react",
@@ -120,8 +137,26 @@ export function checkPackage(manifest, runtime, declarations) {
   for (const name of runtime.eth.bundledPackages) {
     if (BITCOIN_WALLET_PACKAGES.includes(name)) throw new Error(`Ethereum bundles Bitcoin wallet dependency: ${name}`);
   }
+  for (const name of [...runtime.btcEth.packages, ...runtime.btcEth.bundledPackages]) {
+    if (isCosmosWalletPackage(name)) {
+      throw new Error(`Bitcoin-Ethereum entry includes Cosmos wallet dependency: ${name}`);
+    }
+  }
+  // Declarations may name a package the manifest installs for every consumer (`@keplr-wallet/types`
+  // through `core/types.ts`); a type-only reach into an optional Cosmos peer still fails.
+  for (const name of declarations.btcEth.packages) {
+    if (isCosmosWalletPackage(name) && !manifest.dependencies?.[name]) {
+      throw new Error(`Bitcoin-Ethereum entry declares Cosmos wallet dependency: ${name}`);
+    }
+  }
   const required = new Set([...runtime.eth.packages, ...declarations.eth.packages]);
-  const used = new Set([...runtime.root.packages, ...declarations.root.packages, ...required]);
+  const used = new Set([
+    ...runtime.root.packages,
+    ...declarations.root.packages,
+    ...runtime.btcEth.packages,
+    ...declarations.btcEth.packages,
+    ...required,
+  ]);
   const optionalPeers = new Set(walletExternals);
   for (const name of used) {
     if (!required.has(name) && !requiredExternals.includes(name)) optionalPeers.add(name);

@@ -128,8 +128,8 @@ export default defineConfig({
         // not in the Vite 6 line this package uses. The `inline` string entry
         // below never matches the pnpm-realpathed id, so this regex is the one
         // entry that decides how the bundle loads.
-        external: [/\/babylon-wallet-connector\/dist\/index\.es\.js$/],
-        inline: ["@babylonlabs-io/wallet-connector", "@noble/hashes"],
+        external: [/\/babylon-wallet-connector\/dist\/btc-eth\.es\.js$/],
+        inline: ["@babylonlabs-io/wallet-connector/btc-eth", "@noble/hashes"],
       },
     },
     projects: [

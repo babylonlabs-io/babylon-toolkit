@@ -14,7 +14,7 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   Network: {
     MAINNET: "mainnet",
     SIGNET: "signet",

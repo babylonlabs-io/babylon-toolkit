@@ -1,4 +1,4 @@
-import { isUserRejectionMessage } from "@babylonlabs-io/wallet-connector";
+import { isUserRejectionMessage } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useCallback, useState } from "react";
 
 import { useBTCWallet } from "@/context/wallet";

@@ -1,5 +1,5 @@
 import { processPublicKeyToXOnly } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useBTCWallet } from "@/context/wallet";

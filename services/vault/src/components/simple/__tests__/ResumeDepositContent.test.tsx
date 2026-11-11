@@ -6,7 +6,7 @@
  * indexer can ask the wallet to derive over attacker-chosen funding outpoints.
  */
 
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { cloneElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router";
@@ -98,7 +98,7 @@ beforeEach(() => {
   btcActionWallet.open.mockClear();
 });
 
-vi.mock("@babylonlabs-io/wallet-connector", () => {
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => {
   const connector = {
     connectedWallet: {
       account: { address: "tb1test" },

@@ -31,9 +31,10 @@ export default defineConfig({
       entry: {
         index: path.resolve(__dirname, "src/index.tsx"),
         eth: path.resolve(__dirname, "src/eth.ts"),
+        "btc-eth": path.resolve(__dirname, "src/btc-eth.ts"),
       },
       formats: ["es", "cjs"],
-      fileName: (format, entryName) => format === "cjs" ? `${entryName}.cjs` : `${entryName}.${format}.js`,
+      fileName: (format, entryName) => (format === "cjs" ? `${entryName}.cjs` : `${entryName}.${format}.js`),
       // Pinned because a multi-entry lib build otherwise names the stylesheet
       // after the package, changing the published `./style.css` target.
       cssFileName: "wallet-connector",
@@ -43,8 +44,7 @@ export default defineConfig({
       external: (id) =>
         [...requiredExternals, ...walletExternals].some(
           (name) => id === name || (name !== "bitcoinjs-lib" && id.startsWith(`${name}/`)),
-        ) ||
-        id.startsWith("@reown/"),
+        ) || id.startsWith("@reown/"),
       output: {
         sourcemapExcludeSources: false,
       },

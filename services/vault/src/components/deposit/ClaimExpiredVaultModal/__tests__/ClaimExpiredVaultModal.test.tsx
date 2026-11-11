@@ -70,7 +70,7 @@ vi.mock("@/hooks/useLedgerVaultDevice", () => ({
   useLedgerVaultDevice: () => ledgerDevice,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
   useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),

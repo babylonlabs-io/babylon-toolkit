@@ -34,7 +34,7 @@ import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
+import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Hex, zeroHash } from "viem";

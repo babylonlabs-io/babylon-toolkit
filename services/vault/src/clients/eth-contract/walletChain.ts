@@ -1,7 +1,7 @@
 import {
   ETH_EMPTY_ACCOUNT_GRACE_MS,
   getSharedWagmiConfig,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 import type { Address, WalletClient } from "viem";
 import {
   ConnectorAccountNotFoundError,

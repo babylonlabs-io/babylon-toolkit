@@ -11,7 +11,7 @@
 import {
   initializeAppKitModal,
   type AppKitModalConfig,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 import { createConfig, http } from "wagmi";
 
 import { getETHChain, getNetworkConfigETH } from "@/config/network";

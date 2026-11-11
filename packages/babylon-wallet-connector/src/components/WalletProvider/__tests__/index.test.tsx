@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   initializeEthAppKitModal: vi.fn(),
   initializeUnifiedAppKitModal: vi.fn(),
+  chainProviderMetadata: { current: undefined as unknown },
 }));
 
 vi.mock("@/core/wallets/appkit/appKitModal", () => ({
@@ -23,12 +24,19 @@ vi.mock("@/core/wallets", () => ({
   default: {},
 }));
 
+vi.mock("@/core/wallets/btc", () => ({
+  default: {},
+}));
+
 vi.mock("@/core/wallets/eth", () => ({
   default: {},
 }));
 
 vi.mock("@/context/Chain.context", () => ({
-  ChainProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ChainProvider: ({ children, metadata }: { children: ReactNode; metadata: unknown }) => {
+    mocks.chainProviderMetadata.current = metadata;
+    return <>{children}</>;
+  },
 }));
 
 vi.mock("@/context/LifecycleHooks.context", () => ({
@@ -43,12 +51,13 @@ vi.mock("@/hooks/appkit/useAppKitOpenListener", () => ({
   useAppKitOpenListener: vi.fn(),
 }));
 
-vi.mock("@/widgets/tomo/BBNConnector", () => ({ TomoBBNConnector: () => null }));
-vi.mock("@/widgets/tomo/BTCConnector", () => ({ TomoBTCConnector: () => null }));
+vi.mock("@/widgets/tomo/BBNConnector", () => ({ TomoBBNConnector: () => <span>tomo-bbn-connector</span> }));
+vi.mock("@/widgets/tomo/BTCConnector", () => ({ TomoBTCConnector: () => <span>tomo-btc-connector</span> }));
 vi.mock("../components/WalletDialog", () => ({ WalletDialog: () => null }));
 
-import { WalletProvider } from "../index";
+import { WalletProvider as BTCETHWalletProvider } from "../../BTCETHWalletConnectorProvider";
 import { WalletProvider as ETHWalletProvider } from "../../ETHWalletConnectorProvider";
+import { WalletProvider } from "../index";
 
 const metadata = {
   name: "Test App",
@@ -129,6 +138,30 @@ describe("WalletProvider AppKit initialization", () => {
     expect(await screen.findByText(`${errorMessage}|${errorMessage}`)).toBeTruthy();
     expect(mocks.initializeUnifiedAppKitModal).toHaveBeenCalledTimes(2);
     expect(consoleError).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders the Tomo connectors unless Tomo is disabled", () => {
+    const view = render(<WalletProvider config={[]}>child</WalletProvider>);
+
+    expect(screen.getByText("tomo-btc-connector")).toBeTruthy();
+    expect(screen.getByText("tomo-bbn-connector")).toBeTruthy();
+
+    view.rerender(
+      <WalletProvider config={[]} disableTomo>
+        child
+      </WalletProvider>,
+    );
+
+    expect(screen.queryByText("tomo-btc-connector")).toBeNull();
+    expect(screen.queryByText("tomo-bbn-connector")).toBeNull();
+  });
+
+  it("offers the Bitcoin and Ethereum chains and no Tomo connector from the Bitcoin-Ethereum entry", () => {
+    render(<BTCETHWalletProvider config={[]}>child</BTCETHWalletProvider>);
+
+    expect(Object.keys(mocks.chainProviderMetadata.current as object)).toEqual(["BTC", "ETH"]);
+    expect(screen.queryByText("tomo-btc-connector")).toBeNull();
+    expect(screen.queryByText("tomo-bbn-connector")).toBeNull();
   });
 
   it("reports each Ethereum-only initialization failure after commit", async () => {

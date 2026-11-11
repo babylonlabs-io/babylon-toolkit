@@ -28,7 +28,7 @@ const wallet = vi.hoisted(() => ({
   useUTXOs: vi.fn(() => ({ inscriptionUTXOs: [] })),
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWalletConnect: () => ({
     connected: wallet.confirmed,
     open: wallet.open,
@@ -50,7 +50,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 
 vi.mock("@/context/wallet", async () => {
   const { useBTCWallet, useETHWallet } = await import(
-    "@babylonlabs-io/wallet-connector"
+    "@babylonlabs-io/wallet-connector/btc-eth"
   );
   const { useConnection } = await import("@/context/wallet/useConnection");
   return { useBTCWallet, useETHWallet, useConnection };
