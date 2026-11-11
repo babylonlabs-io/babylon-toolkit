@@ -596,9 +596,9 @@ describe("ViemProtocolParamsReader", () => {
     );
   });
 
-  it("rejects a maxVpCommissionBps cap of 9, below the registry's 10-bps minimum", async () => {
+  it("rejects a maxVpCommissionBps cap of 0, below the registry's 1-bps minimum", async () => {
     const publicClient = createMockPublicClient({
-      offchainParams: { ...MOCK_OFFCHAIN_PARAMS, maxVpCommissionBps: 9 },
+      offchainParams: { ...MOCK_OFFCHAIN_PARAMS, maxVpCommissionBps: 0 },
     });
     const reader = new ViemProtocolParamsReader(
       publicClient as never,
@@ -606,13 +606,13 @@ describe("ViemProtocolParamsReader", () => {
     );
 
     await expect(reader.getLatestOffchainParams()).rejects.toThrow(
-      /maxVpCommissionBps must be in \[10, 10000\), got 9/,
+      /maxVpCommissionBps must be in \[1, 10000\), got 0/,
     );
   });
 
-  it("accepts a maxVpCommissionBps cap of 10, the registry's minimum", async () => {
+  it("accepts a maxVpCommissionBps cap of 1, the registry's minimum", async () => {
     const publicClient = createMockPublicClient({
-      offchainParams: { ...MOCK_OFFCHAIN_PARAMS, maxVpCommissionBps: 10 },
+      offchainParams: { ...MOCK_OFFCHAIN_PARAMS, maxVpCommissionBps: 1 },
     });
     const reader = new ViemProtocolParamsReader(
       publicClient as never,
@@ -620,7 +620,7 @@ describe("ViemProtocolParamsReader", () => {
     );
 
     const params = await reader.getLatestOffchainParams();
-    expect(params.maxVpCommissionBps).toBe(10);
+    expect(params.maxVpCommissionBps).toBe(1);
   });
 
   it("accepts a maxVpCommissionBps cap of 9999", async () => {
@@ -646,7 +646,7 @@ describe("ViemProtocolParamsReader", () => {
     );
 
     await expect(reader.getLatestOffchainParams()).rejects.toThrow(
-      /maxVpCommissionBps must be in \[10, 10000\), got 10000/,
+      /maxVpCommissionBps must be in \[1, 10000\), got 10000/,
     );
   });
 
