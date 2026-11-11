@@ -106,6 +106,9 @@ overrides. Every name the app reads is listed with its class in `env-manifest.js
 | `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE`, `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS`, `NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS`, `NEXT_PUBLIC_FF_*` | optional   | Operator switches; see `src/config/featureFlags.ts`.                                                |
 | `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                       | build-only | Set by the release workflow.                                                                        |
 
+See [Vault allowlists](../../docs/vault-allowlists.md) for how to limit the vault providers
+offered and the wallets allowed to deposit.
+
 The Ethereum RPC in use, the profile's `ethRpcUrl` or the `NEXT_PUBLIC_ETH_RPC_URL` override,
 must serve `eth_simulateV1` with a gas allowance of at least 16,777,216: the activation checks
 its gas limit with it before sending (`src/services/vault/activationGasLimit.ts`).

@@ -218,9 +218,13 @@ function SimpleDepositContent({
   // Depositor allow-list (AllowListPolicy): block the deposit when the chain
   // says the connected Ethereum account would be refused at registration.
   // Unknown (loading or unreadable) blocks nothing — see useDepositorAllowed.
+  // Poll only while the dialog is open; a closed one keeps its last good answer.
   const isDepositorNotAllowListed =
-    useDepositorAllowed(effectiveSelectedApplication, connectedEthAddress) ===
-    false;
+    useDepositorAllowed(
+      effectiveSelectedApplication,
+      connectedEthAddress,
+      open,
+    ) === false;
 
   // Live commission (bps) for the selected provider, read from the current
   // providers list. Captured into the deposit snapshot at commit time

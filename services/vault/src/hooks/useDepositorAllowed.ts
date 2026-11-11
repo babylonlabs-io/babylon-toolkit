@@ -27,10 +27,14 @@ const DEPOSITOR_ALLOWED_STALE_TIME_MS = 30_000;
  * broadcast or ETH spent, so a deposit this check lets through still stops
  * there with no funds moved. Blocking on an unreadable value would instead stop
  * every deposit, including on networks whose gate is removed.
+ *
+ * With `poll` off the list is re-read only until a read succeeds and that
+ * answer is kept, so the deposit form opens on a known answer.
  */
 export function useDepositorAllowed(
   applicationEntryPoint: string,
   depositor: string | undefined,
+  poll: boolean,
 ): boolean | null {
   const app = toCheckedAddress(applicationEntryPoint);
   const account = toCheckedAddress(depositor);
@@ -45,6 +49,7 @@ export function useDepositorAllowed(
               applicationEntryPoint: app,
               depositor: account,
             }),
+    enabled: (query) => poll || query.state.status !== "success",
     staleTime: DEPOSITOR_ALLOWED_STALE_TIME_MS,
     refetchInterval: DEPOSITOR_ALLOWED_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: true,
