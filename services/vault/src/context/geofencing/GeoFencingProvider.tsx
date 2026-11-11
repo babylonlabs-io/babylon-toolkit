@@ -23,6 +23,7 @@ import type { GeoFencingContextType } from "./types";
 const GeoFencingContext = createContext<GeoFencingContextType>({
   isGeoBlocked: false,
   isLoading: true,
+  isGeoChecked: false,
 });
 
 export function GeoFencingProvider({ children }: PropsWithChildren) {
@@ -30,6 +31,7 @@ export function GeoFencingProvider({ children }: PropsWithChildren) {
   const hasRunRef = useRef(false);
   const [isGeoBlocked, setIsGeoBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeoChecked, setIsGeoChecked] = useState(false);
 
   useEffect(() => {
     if (hasRunRef.current) return;
@@ -55,6 +57,7 @@ export function GeoFencingProvider({ children }: PropsWithChildren) {
       }
 
       const geoResult = await checkGeofencing();
+      setIsGeoChecked(true);
       if (geoResult.isGeoBlocked) {
         setIsGeoBlocked(true);
         setIsLoading(false);
@@ -76,8 +79,8 @@ export function GeoFencingProvider({ children }: PropsWithChildren) {
   }, [handleError]);
 
   const value = useMemo(
-    () => ({ isGeoBlocked, isLoading }),
-    [isGeoBlocked, isLoading],
+    () => ({ isGeoBlocked, isLoading, isGeoChecked }),
+    [isGeoBlocked, isLoading, isGeoChecked],
   );
 
   return (

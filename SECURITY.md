@@ -828,8 +828,10 @@ What bounds it:
   derives the country before discarding the IP, and the country is kept on purpose.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
   and no referrer. The visit and session ids live in memory only.
-- **Only pages the visitor is shown.** No page view is sent while the geofence check runs, and
-  none for a geo-blocked visitor, who sees only the geo-block screen.
+- **Nothing before the geofence passes.** Every event is held in memory while the geofence check
+  runs (at most 50) and sent once it passes. Held and later events are dropped for a geo-blocked
+  visitor, who sees only the geo-block screen, and when a configuration error stops the app
+  before the check runs.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
 - **No person profiles.** Every event carries `$process_person_profile: false`.

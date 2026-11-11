@@ -3,6 +3,10 @@
  * capture API with `fetch`, so no third-party script runs in the app.
  * Analytics must never affect a deposit or a borrow: this function never
  * throws, and a failed send is only logged.
+ *
+ * Nothing leaves before the geofence outcome is known. Until then events are
+ * held; they are sent if the visitor passed, and dropped if the visitor is
+ * blocked or the check never ran.
  */
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
 
@@ -36,6 +40,27 @@ let rejectionReported = false;
 let buildFailureReported = false;
 
 type EnabledAnalyticsConfig = Extract<AnalyticsConfig, { enabled: true }>;
+
+export type GeofenceOutcome = "passed" | "failed";
+
+/** Events held while the geofence check runs; any beyond this are dropped. */
+const MAX_HELD_EVENTS = 50;
+
+let geofenceOutcome: GeofenceOutcome | null = null;
+const heldSends: (() => void)[] = [];
+let holdOverflowReported = false;
+
+/**
+ * Settle the geofence for this page load: send the held events if the visitor
+ * passed, drop them otherwise. The check runs once per page load, so only the
+ * first outcome counts.
+ */
+export function settleGeofence(outcome: GeofenceOutcome): void {
+  if (geofenceOutcome !== null) return;
+  geofenceOutcome = outcome;
+  const held = heldSends.splice(0);
+  if (outcome === "passed") held.forEach((send) => send());
+}
 
 /** A browser's Global Privacy Control signal opts the visitor out entirely. */
 function hasOptedOut(): boolean {
@@ -79,12 +104,40 @@ export function trackEvent<E extends AnalyticsEventName>(
 ): void {
   try {
     if (!config.enabled || hasOptedOut()) return;
+    // Built now, so a held event keeps the time and fields it was sent with.
     const body = buildCaptureBody(
       config,
       event,
       properties,
       new Date().toISOString(),
     );
+    const send = () => post(config, event, body);
+    if (geofenceOutcome === "passed") {
+      send();
+      return;
+    }
+    if (geofenceOutcome !== null) return;
+    if (heldSends.length < MAX_HELD_EVENTS) {
+      heldSends.push(send);
+      return;
+    }
+    if (holdOverflowReported) return;
+    holdOverflowReported = true;
+    logger.warn(
+      `Analytics dropped events beyond ${MAX_HELD_EVENTS} held during the geofence check`,
+      { category: LOG_CATEGORY, event },
+    );
+  } catch (error) {
+    reportBuildFailure(event, error);
+  }
+}
+
+function post(
+  config: EnabledAnalyticsConfig,
+  event: AnalyticsEventName,
+  body: ReturnType<typeof buildCaptureBody>,
+): void {
+  try {
     fetch(`${config.host}${CAPTURE_PATH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -122,15 +175,21 @@ export function trackEvent<E extends AnalyticsEventName>(
       },
     );
   } catch (error) {
-    // Building or sending the request threw synchronously: a bug in the
-    // payload code or a browser refusing the request, never an ad blocker.
-    if (buildFailureReported) return;
-    buildFailureReported = true;
-    logger.error(
-      new Error(`Analytics event could not be sent: ${describe(error)}`),
-      { tags: { category: LOG_CATEGORY, event } },
-    );
+    reportBuildFailure(event, error);
   }
+}
+
+/**
+ * Building or sending the request threw synchronously: a bug in the payload
+ * code or a browser refusing the request, never an ad blocker.
+ */
+function reportBuildFailure(event: AnalyticsEventName, error: unknown): void {
+  if (buildFailureReported) return;
+  buildFailureReported = true;
+  logger.error(
+    new Error(`Analytics event could not be sent: ${describe(error)}`),
+    { tags: { category: LOG_CATEGORY, event } },
+  );
 }
 
 /**

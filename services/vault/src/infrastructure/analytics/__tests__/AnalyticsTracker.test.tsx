@@ -3,26 +3,34 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AnalyticsTracker } from "../AnalyticsTracker";
-import { trackEvent } from "../trackEvent";
+import { settleGeofence, trackEvent } from "../trackEvent";
 
 const featureFlagsMock = vi.hoisted(() => ({ isExploreEnabled: true }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 const geoFencing = vi.hoisted(() => ({
-  state: { isGeoBlocked: false, isLoading: false },
+  state: { isGeoBlocked: false, isLoading: false, isGeoChecked: true },
 }));
 
 vi.mock("@/context/geofencing", () => ({
   useGeoFencing: () => geoFencing.state,
 }));
 
-vi.mock("../trackEvent", () => ({ trackEvent: vi.fn() }));
+vi.mock("../trackEvent", () => ({
+  trackEvent: vi.fn(),
+  settleGeofence: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.mocked(trackEvent).mockClear();
+  vi.mocked(settleGeofence).mockClear();
   featureFlagsMock.isExploreEnabled = true;
-  geoFencing.state = { isGeoBlocked: false, isLoading: false };
+  geoFencing.state = {
+    isGeoBlocked: false,
+    isLoading: false,
+    isGeoChecked: true,
+  };
 });
 
 // A new element each time: React skips re-rendering an identical one.
@@ -58,26 +66,44 @@ describe("AnalyticsTracker", () => {
     expect(trackEvent).not.toHaveBeenCalled();
   });
 
-  it("waits for the geofence check and then sends the page view once", () => {
-    geoFencing.state = { isGeoBlocked: false, isLoading: true };
+  it("settles the geofence as passed only once the check has run and let the visitor through", () => {
+    geoFencing.state = {
+      isGeoBlocked: false,
+      isLoading: true,
+      isGeoChecked: false,
+    };
     const view = render(trackerAt("/markets/42"));
-    expect(trackEvent).not.toHaveBeenCalled();
+    expect(settleGeofence).not.toHaveBeenCalled();
 
-    geoFencing.state = { isGeoBlocked: false, isLoading: false };
+    geoFencing.state = {
+      isGeoBlocked: false,
+      isLoading: false,
+      isGeoChecked: true,
+    };
     view.rerender(trackerAt("/markets/42"));
 
-    expect(vi.mocked(trackEvent).mock.calls).toEqual([
-      ["$pageview", { $pathname: "/markets/:reserveId" }],
-    ]);
+    expect(settleGeofence).toHaveBeenCalledExactlyOnceWith("passed");
   });
 
-  it("sends no page view for a geo-blocked visitor", () => {
-    geoFencing.state = { isGeoBlocked: false, isLoading: true };
-    const view = render(trackerAt("/markets/42"));
+  it("settles the geofence as failed for a geo-blocked visitor", () => {
+    geoFencing.state = {
+      isGeoBlocked: true,
+      isLoading: false,
+      isGeoChecked: true,
+    };
+    render(trackerAt("/markets/42"));
 
-    geoFencing.state = { isGeoBlocked: true, isLoading: false };
-    view.rerender(trackerAt("/markets/42"));
+    expect(settleGeofence).toHaveBeenCalledExactlyOnceWith("failed");
+  });
 
-    expect(trackEvent).not.toHaveBeenCalled();
+  it("settles the geofence as failed when a configuration error stopped the check before it ran", () => {
+    geoFencing.state = {
+      isGeoBlocked: false,
+      isLoading: false,
+      isGeoChecked: false,
+    };
+    render(trackerAt("/markets/42"));
+
+    expect(settleGeofence).toHaveBeenCalledExactlyOnceWith("failed");
   });
 });

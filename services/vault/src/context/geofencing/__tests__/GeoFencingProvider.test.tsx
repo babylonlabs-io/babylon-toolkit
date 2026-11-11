@@ -148,4 +148,50 @@ describe("GeoFencingProvider", () => {
 
     expect(onGeoBlocked).toHaveBeenCalledWith(false);
   });
+
+  it("reports the geofence as checked once the check has run", async () => {
+    let state: ReturnType<typeof useGeoFencing> | undefined;
+    function Probe() {
+      state = useGeoFencing();
+      return null;
+    }
+    render(
+      <ErrorProvider>
+        <GeoFencingProvider>
+          <Probe />
+        </GeoFencingProvider>
+      </ErrorProvider>,
+    );
+
+    await waitFor(() => expect(state?.isLoading).toBe(false));
+    expect(state).toEqual({
+      isGeoBlocked: false,
+      isLoading: false,
+      isGeoChecked: true,
+    });
+  });
+
+  it("reports the geofence as not checked when a wallet init error stops the checks first", async () => {
+    mockWagmiInitError = "AppKit failed";
+    let state: ReturnType<typeof useGeoFencing> | undefined;
+    function Probe() {
+      state = useGeoFencing();
+      return null;
+    }
+    render(
+      <ErrorProvider>
+        <GeoFencingProvider>
+          <Probe />
+        </GeoFencingProvider>
+      </ErrorProvider>,
+    );
+
+    await waitFor(() => expect(state?.isLoading).toBe(false));
+    expect(mockCheckGeofencing).not.toHaveBeenCalled();
+    expect(state).toEqual({
+      isGeoBlocked: false,
+      isLoading: false,
+      isGeoChecked: false,
+    });
+  });
 });

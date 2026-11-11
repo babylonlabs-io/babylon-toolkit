@@ -4,7 +4,11 @@ import type { AnalyticsConfig } from "@/config/env";
 
 import { ANALYTICS_EVENT } from "../analyticsEvents";
 import { getVisitId } from "../analyticsSession";
-import { reportAnalyticsConfigError, trackEvent } from "../trackEvent";
+import {
+  reportAnalyticsConfigError,
+  settleGeofence,
+  trackEvent,
+} from "../trackEvent";
 
 const { mockWarn, mockError } = vi.hoisted(() => ({
   mockWarn: vi.fn(),
@@ -28,11 +32,24 @@ function sentBody() {
   return JSON.parse(init.body as string);
 }
 
-/** A fresh module, so its once-per-page-load reports start unreported. */
-async function freshTrackEvent() {
+/**
+ * A fresh module, so its once-per-page-load state starts over: reports
+ * unreported, and the geofence not yet settled.
+ */
+async function freshModule() {
   vi.resetModules();
-  return (await import("../trackEvent")).trackEvent;
+  return import("../trackEvent");
 }
+
+/** A fresh module whose geofence has passed. */
+async function freshTrackEvent() {
+  const module = await freshModule();
+  module.settleGeofence("passed");
+  return module.trackEvent;
+}
+
+// The shared module's geofence passes once, for every test that sends.
+settleGeofence("passed");
 
 beforeEach(() => {
   mockWarn.mockClear();
@@ -168,5 +185,55 @@ describe("reportAnalyticsConfigError", () => {
   it("reports nothing when the configuration is valid", () => {
     reportAnalyticsConfigError(null);
     expect(mockError).not.toHaveBeenCalled();
+  });
+});
+
+describe("geofence gate", () => {
+  it("holds events until the geofence passes, then sends them in order", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/vaults" }, CONFIG);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    settle("passed");
+
+    const paths = fetchMock.mock.calls.map(
+      ([, init]) =>
+        JSON.parse((init as RequestInit).body as string).batch[0].properties
+          .$pathname,
+    );
+    expect(paths).toEqual(["/", "/vaults"]);
+  });
+
+  it("drops held events and sends nothing later when the geofence fails", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+
+    settle("failed");
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/vaults" }, CONFIG);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the first outcome of the page load", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    settle("failed");
+    settle("passed");
+
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("holds at most 50 events and warns once about the rest", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    for (let i = 0; i < 52; i += 1) {
+      send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    }
+
+    settle("passed");
+
+    expect(fetchMock).toHaveBeenCalledTimes(50);
+    expect(mockWarn).toHaveBeenCalledTimes(1);
   });
 });
