@@ -127,13 +127,15 @@ function WalletProviders({ children }: PropsWithChildren) {
   );
 
   // Reset both wallets after an account change or an Ethereum session loss.
+  // Analytics forgets the Bitcoin connection once the reset has settled, so
+  // a reconnect the reset itself provokes is not kept as the user's.
   const runWalletReset = useCallback(async () => {
     if (isDisconnectingRef.current) return;
     isDisconnectingRef.current = true;
-    forgetBtcConnection();
     try {
       await disconnectAll?.();
     } finally {
+      forgetBtcConnection();
       isDisconnectingRef.current = false;
     }
   }, [disconnectAll]);
@@ -188,10 +190,13 @@ function WalletProviders({ children }: PropsWithChildren) {
   );
 
   // A connection with the dialog closed is one the provider restored without
-  // the user.
+  // the user. One during a reset is the provider re-running its connect for
+  // the session being torn down (a BTC account change sets the new address
+  // first), so analytics does not count it.
   const handleBtcConnect = useCallback(
     (address: string) => {
       cancelBtcReset();
+      if (isDisconnectingRef.current) return;
       reportBtcConnected(address, !connectModalVisibleRef.current);
     },
     [cancelBtcReset],

@@ -311,11 +311,38 @@ describe("WalletConnectionProvider wallet resets", () => {
     expect(analytics.forgetBtcConnection).toHaveBeenCalledTimes(1);
   });
 
-  it("forgets the reported Bitcoin connection on a full reset", () => {
+  it("forgets the reported Bitcoin connection once a full reset settles", async () => {
+    let finishDisconnect = () => {};
+    h.disconnectAll.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finishDisconnect = resolve)),
+    );
     renderProvider();
 
     act(() => h.captured.eth!.onDisconnect());
+    expect(analytics.forgetBtcConnection).not.toHaveBeenCalled();
+    await act(async () => finishDisconnect());
 
+    expect(analytics.forgetBtcConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report the connection the provider re-runs during a Bitcoin account change", async () => {
+    let finishDisconnect = () => {};
+    h.disconnectAll.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finishDisconnect = resolve)),
+    );
+    renderProvider();
+
+    let reset: Promise<void> = Promise.resolve();
+    act(() => {
+      reset = btc().onAddressChange();
+    });
+    act(() => btc().onConnect(BTC_ADDRESS));
+    await act(async () => {
+      finishDisconnect();
+      await reset;
+    });
+
+    expect(analytics.reportBtcConnected).not.toHaveBeenCalled();
     expect(analytics.forgetBtcConnection).toHaveBeenCalledTimes(1);
   });
 });

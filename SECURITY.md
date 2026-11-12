@@ -836,12 +836,13 @@ What bounds it:
   wait for the geofence check, so an app that stops before it sends nothing: an invalid network
   profile or profile override, or a wallet setup error such as a missing Reown project id. The
   GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
-- **Allow-listed payload.** The payload is defined by three files together:
+- **Allow-listed payload.** The payload is defined by five files together:
   `analyticsEvents.ts` (the events and each event's own fields), `trackEvent.ts` (the wallet
-  address, network, visit and session ids added to every event) and `attribution.ts` (campaign
-  parameters, the referrer's hostname and `via`). `$pathname` is a route template, never a
-  concrete path or query; `wallet_connected` carries the chain (`eth` or `btc`) and whether the
-  app restored the session (`restored`). The campaign
+  address, network, visit and session ids added to every event), `attribution.ts` (campaign
+  parameters, the referrer's hostname and `via`), and `AnalyticsTracker.tsx` with
+  `analyticsSession.ts` (which connected address is recorded as `wallet_address`, and when).
+  `$pathname` is a route template, never a concrete path or query; `wallet_connected` carries the
+  chain (`eth` or `btc`) and whether the app restored the session (`restored`). The campaign
   values are the one part taken from the landing URL's query (or the website's cookie): only the
   allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to 100
   characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1` or `bbn1` address or a long
@@ -878,7 +879,7 @@ What bounds it:
 - **No person profiles.** Every event carries `$process_person_profile: false`. This does not
   stop events being grouped by `wallet_address` (see above).
 
-**Adding a field to any of those three files is a privacy change.** Review it the same way you
+**Changing what any of those five files sends is a privacy change.** Review it the same way you
 would review re-enabling Sentry tracing.
 
 ### Wallet integration

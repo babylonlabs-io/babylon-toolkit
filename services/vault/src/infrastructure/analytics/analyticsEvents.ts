@@ -2,9 +2,11 @@
  * The only events the vault app sends to product analytics, and each event's
  * own properties. `trackEvent` takes its properties from this map. Every event
  * also carries the fields `trackEvent.ts` adds (wallet address, network, visit
- * and session ids) and the attribution fields from `attribution.ts`, so the
- * payload is defined by these three files together and a new field in any of
- * them is a privacy change.
+ * and session ids) and the attribution fields from `attribution.ts`. Which
+ * connected address goes out as the wallet address, and when, is decided in
+ * `AnalyticsTracker.tsx` and `analyticsSession.ts`. The payload is defined by
+ * these five files together, and changing what any of them sends is a privacy
+ * change.
  */
 export const ANALYTICS_EVENT = {
   PAGEVIEW: "$pageview",
