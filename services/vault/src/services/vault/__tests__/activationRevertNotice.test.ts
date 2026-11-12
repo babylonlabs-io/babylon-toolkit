@@ -10,20 +10,20 @@ import {
 
 import { appendActivationRevertNotice } from "../activationRevertNotice";
 
-const MESSAGE = "The registry needs more gas.";
+const MESSAGE = "The application is at its deposit limit.";
 
-function insufficientGasError(): ContractError {
+function capExceededError(): ContractError {
   return new ContractError(
     MESSAGE,
     ErrorCode.CONTRACT_ERROR,
     undefined,
-    "InsufficientGasForActivation",
+    "ActivationCapExceeded",
   );
 }
 
 describe("appendActivationRevertNotice", () => {
-  it("appends the secret notice to a mined InsufficientGasForActivation revert", () => {
-    const err = tagMinedRevert(insufficientGasError());
+  it("appends the secret notice to a mined ActivationCapExceeded revert", () => {
+    const err = tagMinedRevert(capExceededError());
 
     expect(appendActivationRevertNotice(err, MESSAGE)).toBe(
       `${MESSAGE} ${COPY.deposit.errors.activationRevertedSecretPublic}`,
@@ -56,13 +56,13 @@ describe("appendActivationRevertNotice", () => {
   });
 
   it("leaves an untagged wallet rejection unchanged", () => {
-    expect(appendActivationRevertNotice(insufficientGasError(), MESSAGE)).toBe(
+    expect(appendActivationRevertNotice(capExceededError(), MESSAGE)).toBe(
       MESSAGE,
     );
   });
 
-  it("leaves a simulation-phase InsufficientGasForActivation message unchanged", () => {
-    const err = tagSimulationPhase(insufficientGasError());
+  it("leaves a simulation-phase ActivationCapExceeded message unchanged", () => {
+    const err = tagSimulationPhase(capExceededError());
 
     expect(appendActivationRevertNotice(err, MESSAGE)).toBe(MESSAGE);
   });
