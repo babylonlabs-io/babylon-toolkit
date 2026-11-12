@@ -818,10 +818,12 @@ What bounds it:
   wait for the geofence check, so an app that stops before it sends nothing: an invalid network
   profile or profile override, or a wallet setup error such as a missing Reown project id. The
   GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
-- **Allow-listed payload.** The payload is defined by two files together:
-  `analyticsEvents.ts` (the events and each event's own fields) and `trackEvent.ts` (the network,
-  visit and session ids added to every event). Event fields are route templates (never a concrete
-  path or query).
+- **Allow-listed payload.** What is sent is defined by the code in
+  `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which
+  passes the event's own properties. `analyticsEvents.ts` lists the events and their fields,
+  `trackEvent.ts` adds the network, visit and session ids (from `analyticsSession.ts`) to every
+  event, and `routeTemplate.ts` turns the path into `$pathname`, a route template, never a
+  concrete path or query.
 - **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`, which in a deployment is always
   the sidecar-api proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`); a deployment never
   posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,
@@ -830,16 +832,17 @@ What bounds it:
   is kept on purpose.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
   and no referrer. The visit and session ids live in memory only.
-- **Nothing before the geofence passes.** Every event is held in memory while the geofence check
-  runs (at most 50) and sent once it passes. Held and later events are dropped for a geo-blocked
-  visitor, who sees only the geo-block screen, and whenever the region is unknown: the health
-  endpoint did not answer (a network error, CORS or a non-451 status), or a configuration error
-  stopped the app before the check ran. The app itself still opens in those cases.
+- **Nothing before the geofence passes.** Every event is held in memory (at most 50) until the
+  startup checks, the geofence and then the GraphQL health check, have finished, and is sent if
+  the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only
+  the geo-block screen, and whenever the region is unknown: the health endpoint did not answer (a
+  network error, CORS or an error status other than 451), in which case the app still opens, or a
+  configuration error stopped the app before the check ran.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
 - **No person profiles.** Every event carries `$process_person_profile: false`.
 
-**Adding a field to either of those files is a privacy change.** Review it the same way you would
+**Changing what any of that code sends is a privacy change.** Review it the same way you would
 review re-enabling Sentry tracing.
 
 ### Wallet integration

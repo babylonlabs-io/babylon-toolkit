@@ -6,7 +6,7 @@
  *
  * Nothing leaves before the geofence outcome is known. Until then events are
  * held; they are sent if the visitor passed, and dropped if the visitor is
- * blocked or the check never ran.
+ * blocked or the region is unknown (the health check failed or never ran).
  */
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
 
@@ -43,7 +43,7 @@ type EnabledAnalyticsConfig = Extract<AnalyticsConfig, { enabled: true }>;
 
 export type GeofenceOutcome = "passed" | "failed";
 
-/** Events held while the geofence check runs; any beyond this are dropped. */
+/** Events held until the geofence settles; any beyond this are dropped. */
 const MAX_HELD_EVENTS = 50;
 
 let geofenceOutcome: GeofenceOutcome | null = null;
@@ -111,14 +111,15 @@ export function trackEvent<E extends AnalyticsEventName>(
       properties,
       new Date().toISOString(),
     );
-    const send = () => post(config, event, body);
     if (geofenceOutcome === "passed") {
-      send();
+      post(config, event, body, true);
       return;
     }
     if (geofenceOutcome !== null) return;
     if (heldSends.length < MAX_HELD_EVENTS) {
-      heldSends.push(send);
+      // Released together while the page is open, so without keepalive:
+      // browsers cap all in-flight keepalive bodies at 64 KiB together.
+      heldSends.push(() => post(config, event, body, false));
       return;
     }
     if (holdOverflowReported) return;
@@ -136,6 +137,7 @@ function post(
   config: EnabledAnalyticsConfig,
   event: AnalyticsEventName,
   body: ReturnType<typeof buildCaptureBody>,
+  keepalive: boolean,
 ): void {
   try {
     fetch(`${config.host}${CAPTURE_PATH}`, {
@@ -143,7 +145,7 @@ function post(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       // Delivered even when the event fires just before a navigation.
-      keepalive: true,
+      keepalive,
       credentials: "omit",
       // The event carries the route template only; a same-origin proxy would
       // otherwise receive the full page URL, query included, as the Referer.
