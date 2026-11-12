@@ -16,12 +16,14 @@ import { reportEthSessionConfirmed } from "./walletConnections";
  * every analytics event. Renders nothing; mount once inside the router, the
  * geofencing provider and the wallet providers.
  *
- * Events are held while the geofence check runs, sent once it passes, and
- * dropped for a blocked visitor, who sees only the geo-block screen, and
- * whenever the visitor's region is unknown: the health endpoint did not answer,
- * or a blocking configuration error stopped the check before it ran.
+ * Events are held until the startup checks (the geofence, then the GraphQL
+ * health check) finish, sent if the geofence passed, and dropped for a blocked
+ * visitor, who sees only the geo-block screen, and whenever the visitor's
+ * region is unknown: the health endpoint did not answer, or a blocking
+ * configuration error stopped the check before it ran.
  *
- * Every event carries the address of the app's confirmed Ethereum session.
+ * Every event carries the address of the app's confirmed Ethereum session,
+ * except a borrow event, which names the account that sent the borrow.
  * The session is confirmed after load, so the landing page view goes out
  * without it; `wallet_connected` is sent when it is confirmed, and carries it.
  * Only a session that starts from no address counts: if the address changes
@@ -60,7 +62,10 @@ export function AnalyticsTracker() {
     }
     // An address change under a confirmed session, e.g. an account switch
     // found on tab return while the reset is still running.
-    if (previous !== sessionAddress) setWalletAddress(null);
+    // Wallets may report one account in different casing.
+    if (previous.toLowerCase() !== sessionAddress.toLowerCase()) {
+      setWalletAddress(null);
+    }
   }, [sessionAddress]);
 
   useEffect(() => {

@@ -169,6 +169,86 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("ref_[BTC_ADDR]_x");
   });
 
+  it("scrubs 0x-prefixed hex longer than an address as a whole", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=a0x${"ab".repeat(32)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("a[HEX_REDACTED]");
+  });
+
+  it("scrubs a bare 64-character hex run", () => {
+    const result = deriveAttribution({
+      search: `?utm_content=${"cd".repeat(32)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_content).toBe("[HEX_REDACTED]");
+  });
+
+  it("scrubs a bare 40-character hex value as an Ethereum address", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref-${"ab".repeat(20)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref-[ETH_ADDR]");
+  });
+
+  it("scrubs an Ethereum address with an uppercase 0X", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=0X${"AB".repeat(20)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[ETH_ADDR]");
+  });
+
+  it("scrubs an uppercase bech32 address joined to letters", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=walletBC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KXPJZSX",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("wallet[BTC_ADDR]");
+  });
+
+  it("scrubs a Babylon address", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=bbn1${"q".repeat(38)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[BBN_ADDR]");
+  });
+
+  it("scrubs a testnet legacy Bitcoin address", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=ref_mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("leaves a legacy-shaped run joined directly to a letter, as documented", () => {
+    const result = deriveAttribution({
+      search: "?utm_campaign=x1BoatSLRHtKNngkdXEeobR76b53LETtpyT",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_campaign).toBe("x1BoatSLRHtKNngkdXEeobR76b53LETtpyT");
+  });
+
   it("sends a click id unchanged even where a campaign value would be scrubbed", () => {
     const twclid = "1xyzxyzxyzxyzxyzxyzxyzxyzxyz";
     const result = deriveAttribution({
@@ -223,6 +303,68 @@ describe("deriveAttribution", () => {
       ownHost: APP_HOST,
     });
     expect(result.gclid).toBeUndefined();
+  });
+
+  it("keeps a click id of exactly 255 characters", () => {
+    const gclid = "a".repeat(255);
+    const result = deriveAttribution({
+      search: `?gclid=${gclid}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.gclid).toBe(gclid);
+  });
+
+  it("drops a click id with a dot", () => {
+    const result = deriveAttribution({
+      search: "?gclid=a.b",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.gclid).toBeUndefined();
+  });
+
+  it("falls back to the website cookie when the URL's campaign key is empty", () => {
+    const result = deriveAttribution({
+      search: "?utm_source=",
+      referrer: "",
+      cookie: cookieOf({ utm_source: "x" }),
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_source).toBe("x");
+  });
+
+  it("reads only the bbn_src cookie, not one whose name ends with it", () => {
+    const result = deriveAttribution({
+      search: "",
+      referrer: "",
+      cookie: `xbbn_src=${encodeURIComponent(JSON.stringify({ utm_source: "x" }))}`,
+      ownHost: APP_HOST,
+    });
+    expect(result).toEqual({ $referring_domain: "$direct", via: "other" });
+  });
+
+  it("counts a btc-vaults host on another domain as an external referrer", () => {
+    const result = deriveAttribution({
+      search: "",
+      referrer: "https://btc-vaults.evil.com/",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.$referring_domain).toBe("btc-vaults.evil.com");
+  });
+
+  it("truncates a referrer hostname to 100 characters", () => {
+    const host = `${["a", "b", "c"].map((c) => c.repeat(50)).join(".")}.com`;
+    const result = deriveAttribution({
+      search: "",
+      referrer: `https://${host}/`,
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.$referring_domain).toBe(host.slice(0, 100));
   });
 
   it("truncates URL values to 100 characters", () => {
