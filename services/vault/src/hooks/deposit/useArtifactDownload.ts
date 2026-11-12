@@ -23,7 +23,6 @@ import {
   TELEMETRY_EVENT,
   TELEMETRY_STAGE,
 } from "@/infrastructure/telemetryEvents";
-import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import { getArtifactDownloadOverride } from "@/overrides/artifactDownload";
 import {
   ArtifactDownloadCancelledError,
@@ -130,7 +129,7 @@ export function useArtifactDownload(options?: {
   const [state, setState] = useState<ArtifactDownloadState>(INITIAL_STATE);
 
   // Always points at the LATEST flow's controller so cancel() aborts it.
-  // Aborting stops both the request itself (threaded into callRaw -> fetch)
+  // Aborting stops both the requests themselves (threaded into fetch)
   // and the in-flight stream (polled by fetchAndDownloadArtifacts between
   // chunks via `isCancelled`), so cancel actually releases the connection
   // instead of letting it run to completion in the background.
@@ -405,7 +404,7 @@ export function useArtifactDownload(options?: {
             );
 
       // Ensure the bearer is in cache before any artifact request. The
-      // RPC is auth-gated server-side (AUTH_GATED_METHODS), so a
+      // HTTP artifact routes require the JSON-RPC-subject bearer, so a
       // cold-cache attempt would be dead on arrival — prime once
       // upfront so every fetchAndDownloadArtifacts() below goes out
       // with a valid Authorization header. Returns false (with state
@@ -626,10 +625,7 @@ export function useArtifactDownload(options?: {
             }
           }
 
-          if (
-            isPreDepositorSignaturesError(err) ||
-            err instanceof ArtifactsNotReadyError
-          ) {
+          if (err instanceof ArtifactsNotReadyError) {
             stillProcessingAttempts += 1;
             if (
               !stallEventEmitted &&
@@ -645,10 +641,7 @@ export function useArtifactDownload(options?: {
             }
             setState((prev) => ({
               ...prev,
-              progress:
-                err instanceof ArtifactsNotReadyError && err.invalidState
-                  ? COPY.deposit.recoveryArtifacts.waitingForProvider
-                  : COPY.deposit.recoveryArtifacts.waitingForSignatures,
+              progress: COPY.deposit.recoveryArtifacts.waitingForProvider,
               receivedBytes: 0,
               totalBytes: 0,
             }));
@@ -658,11 +651,9 @@ export function useArtifactDownload(options?: {
             continue;
           }
 
-          // Artifact download goes through `callRaw`, which deliberately
-          // skips the client's reactive re-auth (the body may be unbounded,
-          // so it is never parsed to detect an auth error). This is that
-          // recovery, done by hand: re-prime the token registry once and
-          // retry the stream.
+          // The HTTP transport never refreshes a bearer the VP rejects; a 401
+          // surfaces as an auth-rejected error. Recover once by hand: re-prime
+          // the token registry and retry the download.
           if (!primeAttempted && isAuthRejectedError(err)) {
             primeAttempted = true;
             // Drop any cached token so the next acquire goes back to the server.

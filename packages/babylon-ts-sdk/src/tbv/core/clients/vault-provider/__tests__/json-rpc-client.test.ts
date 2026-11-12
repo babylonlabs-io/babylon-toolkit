@@ -286,18 +286,6 @@ describe("JsonRpcClient", () => {
     ).rejects.toThrow('missing "result" field');
   });
 
-  it("callRaw returns the raw Response object", async () => {
-    const rawResponse = createSuccessResponse({ status: "Activated" });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawResponse));
-
-    const client = createClient();
-    const response = await client.callRaw("vaultProvider_getPeginStatusByVaultId", {
-      vault_id: "abc",
-    });
-
-    expect(response).toBe(rawResponse);
-  });
-
   it("rejects typed calls before reading when Content-Length exceeds the response cap", async () => {
     vi.stubGlobal(
       "fetch",
@@ -415,39 +403,6 @@ describe("JsonRpcClient", () => {
     expect(response.results[0].result?.claimer?.status).toBe(
       "PayoutConfirmed",
     );
-  });
-
-  it("temporarily exempts depositor claimer artifact downloads from the typed response cap", async () => {
-    const artifactResponse = {
-      tx_graph_json: "x".repeat(80),
-      verifying_key_hex: "aabb",
-      babe_sessions: {
-        ["d".repeat(64)]: { decryptor_artifacts_hex: "ccdd" },
-      },
-    };
-
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          createJsonResponse(
-            { jsonrpc: "2.0", result: artifactResponse, id: 1 },
-            { headers: { "Content-Length": "512" } },
-          ),
-        ),
-    );
-
-    const client = new VaultProviderRpcClient(TEST_BASE_URL, {
-      maxResponseBytes: 64,
-    });
-
-    await expect(
-      client.requestDepositorClaimerArtifacts({
-        pegin_txid: "abc",
-        depositor_pk: "def",
-      }),
-    ).resolves.toEqual(artifactResponse);
   });
 
   it("throws timeout error after max retries on AbortError for retryable methods", async () => {
@@ -836,42 +791,5 @@ describe("JsonRpcClient", () => {
     // Both calls saw the rejection and both invalidated.
     expect(tokenProvider.invalidate).toHaveBeenCalledTimes(2);
     expect(mockFetch).toHaveBeenCalledTimes(4);
-  });
-
-  it("callRaw injects Authorization but does NOT reactively refresh", async () => {
-    const expiredRaw = new Response(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        error: { code: -32001, message: "invalid token signature" },
-        id: 1,
-      }),
-      { status: HTTP_OK, headers: { "Content-Type": "application/json" } },
-    );
-
-    const mockFetch = vi.fn().mockResolvedValue(expiredRaw);
-    vi.stubGlobal("fetch", mockFetch);
-
-    const tokenProvider = {
-      getToken: vi.fn().mockResolvedValue("tok"),
-      invalidate: vi.fn(),
-    };
-
-    const client = createClient({ tokenProvider });
-    const raw = await client.callRaw(
-      "vaultProvider_requestDepositorClaimerArtifacts",
-      {},
-    );
-
-    // callRaw succeeds regardless of body content — it does not inspect
-    // the body, so there's no reactive refresh.
-    expect(raw).toBeInstanceOf(Response);
-    expect(tokenProvider.invalidate).not.toHaveBeenCalled();
-    expect(mockFetch).toHaveBeenCalledOnce();
-
-    const headers = mockFetch.mock.calls[0][1].headers as Record<
-      string,
-      string
-    >;
-    expect(headers.Authorization).toBe("Bearer tok");
   });
 });

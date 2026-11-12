@@ -237,9 +237,6 @@ function demoBodyFor(
       jsonrpc: "2.0",
       id: 1,
       error: {
-        // Deliberately not a "still processing" state string: those match
-        // isPreDepositorSignaturesError and would route this into the
-        // wait-and-retry loop instead of the padded-error handling.
         code: -32011,
         message: `Vault provider rejected the request ${"x".repeat(DEMO_ERROR_PADDING_CHARS)}`,
       },
@@ -300,8 +297,8 @@ function demoResponse(
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      // Real streamed responses carry no length, so the progress bar's
-      // no-Content-Length fallback is what gets exercised.
+      // No Content-Length on purpose: the HTTP transport always sets one, so
+      // this is the only response that exercises the progress bar's fallback.
     },
   });
 }

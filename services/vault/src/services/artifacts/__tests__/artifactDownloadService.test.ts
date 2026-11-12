@@ -11,21 +11,19 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/utils/rpc", () => ({
-  getVpProxyUrl: (address: string) => `https://proxy.example.com/vp/${address}`,
   getVpArtifactsProxyUrl: (address: string) =>
     `https://proxy.example.com/artifacts/${address}`,
 }));
 
-const featureFlagsMock = vi.hoisted(() => ({
-  isHttpArtifactDownloadsEnabled: false,
-}));
-vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
-
 import {
   PresignFingerprintUnavailableError,
   PresignGraphMismatchError,
+  type VaultBindingContext,
 } from "../artifactBinding";
-import { fetchAndDownloadArtifacts } from "../artifactDownloadService";
+import {
+  downloadArtifactsFromResponse,
+  fetchAndDownloadArtifacts,
+} from "../artifactDownloadService";
 import type { ArtifactSaveTarget } from "../artifactSaveTarget";
 import { openArtifactSaveTarget } from "../artifactSaveTarget";
 import {
@@ -99,6 +97,12 @@ function txGraphJson(
  * here it only has to be the value the default graph reproduces.
  */
 const SIGNED_GRAPH_FINGERPRINT = fingerprintReturnedGraph(txGraph());
+
+const BINDING: VaultBindingContext = {
+  peginTxid: PEGIN_TXID,
+  depositorPk: DEPOSITOR_PK,
+  signedGraphFingerprint: SIGNED_GRAPH_FINGERPRINT,
+};
 
 /** Clears the artifact floor so fixtures exercise the path under test. */
 const VALID_HEX = "cd".repeat(MIN_DECRYPTOR_HEX_CHARS / 2);
@@ -241,24 +245,61 @@ describe("fetchAndDownloadArtifacts", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  describe("the presign fingerprint check", () => {
-    it("saves nothing when the graph differs from the one signed at presign", async () => {
-      const swapped = txGraph({
-        assert_tx: txGraph({}, PEGIN_TXID).claim_tx,
-      });
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            result: {
-              ...VALID_ARTIFACT_RESULT,
-              tx_graph_json: JSON.stringify(swapped),
-            },
-            id: 1,
-          }),
-        ),
+  it("saves the payload rebuilt from the manifest and CBOR sessions", async () => {
+    const session = new Uint8Array(MIN_DECRYPTOR_HEX_CHARS / 2).fill(0xcd);
+    const base = `https://proxy.example.com/artifacts/${PROVIDER_ADDRESS}/${PEGIN_TXID}`;
+    const manifest = JSON.stringify({
+      tx_graph_json: VALID_ARTIFACT_RESULT.tx_graph_json,
+      verifying_key_hex: VALID_ARTIFACT_RESULT.verifying_key_hex,
+      babe_sessions: {
+        [CHALLENGER_PUBKEY]: {
+          download_path: `/v1/depositor-artifacts/${PEGIN_TXID}/sessions/${CHALLENGER_PUBKEY}`,
+          byte_length: session.byteLength,
+        },
+      },
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(manifest, {
+          status: 200,
+          headers: { "content-length": String(manifest.length) },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(session, {
+          status: 200,
+          headers: {
+            etag: `"${bytesToHex(sha256(session))}"`,
+            "content-length": String(session.byteLength),
+          },
+        }),
       );
-      const { target, commit, discard } = fakeSaveTarget();
+    const { target, commit, savedBytes } = fakeSaveTarget();
+
+    await fetchAndDownloadArtifacts(
+      PROVIDER_ADDRESS,
+      PEGIN_TXID,
+      DEPOSITOR_PK,
+      SIGNED_GRAPH_FINGERPRINT,
+      target,
+    );
+
+    expect(new TextDecoder().decode(savedBytes())).toBe(expectedSavedPayload());
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
+      `${base}/manifest`,
+      `${base}/sessions/${CHALLENGER_PUBKEY}`,
+    ]);
+  });
+
+  describe("cancellation", () => {
+    it("maps an aborted request to the sentinel", async () => {
+      const controller = new AbortController();
+      controller.abort();
+      vi.mocked(fetch).mockRejectedValue(
+        new DOMException("The operation was aborted.", "AbortError"),
+      );
+      const { target, commit } = fakeSaveTarget();
 
       await expect(
         fetchAndDownloadArtifacts(
@@ -267,26 +308,57 @@ describe("fetchAndDownloadArtifacts", () => {
           DEPOSITOR_PK,
           SIGNED_GRAPH_FINGERPRINT,
           target,
+          { signal: controller.signal },
         ),
+      ).rejects.toBeInstanceOf(ArtifactDownloadCancelledError);
+      expect(commit).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("downloadArtifactsFromResponse", () => {
+  beforeEach(() => {
+    (vpTokenRegistry as VpTokenRegistry).clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    (vpTokenRegistry as VpTokenRegistry).clear();
+  });
+
+  describe("the presign fingerprint check", () => {
+    it("saves nothing when the graph differs from the one signed at presign", async () => {
+      const swapped = txGraph({
+        assert_tx: txGraph({}, PEGIN_TXID).claim_tx,
+      });
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          result: {
+            ...VALID_ARTIFACT_RESULT,
+            tx_graph_json: JSON.stringify(swapped),
+          },
+          id: 1,
+        }),
+      );
+      const { target, commit, discard } = fakeSaveTarget();
+
+      await expect(
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(PresignGraphMismatchError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
     });
 
     it("saves nothing when this device holds no presign fingerprint", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope()),
-      );
+      const response = streamingResponse(validEnvelope());
       const { target, commit, discard } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          undefined,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, {
+          ...BINDING,
+          signedGraphFingerprint: undefined,
+        }),
       ).rejects.toBeInstanceOf(PresignFingerprintUnavailableError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
@@ -295,18 +367,10 @@ describe("fetchAndDownloadArtifacts", () => {
 
   describe("a valid response", () => {
     it("writes the unwrapped payload and commits it", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope()),
-      );
+      const response = streamingResponse(validEnvelope());
       const { target, commit, discard, savedBytes } = fakeSaveTarget();
 
-      await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
-        target,
-      );
+      await downloadArtifactsFromResponse(response, target, undefined, BINDING);
 
       expect(new TextDecoder().decode(savedBytes())).toBe(
         expectedSavedPayload(),
@@ -318,15 +382,14 @@ describe("fetchAndDownloadArtifacts", () => {
     it("returns a receipt describing the saved file, not the wire body", async () => {
       const body = validEnvelope();
       const saved = new TextEncoder().encode(expectedSavedPayload());
-      vi.mocked(fetch).mockResolvedValueOnce(streamingResponse(body));
+      const response = streamingResponse(body);
       const { target } = fakeSaveTarget();
 
-      const outcome = await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
+      const outcome = await downloadArtifactsFromResponse(
+        response,
         target,
+        undefined,
+        BINDING,
       );
 
       // The digest has to be reproducible by `sha256sum` on the file the user
@@ -353,18 +416,10 @@ describe("fetchAndDownloadArtifacts", () => {
         },
         id: 1,
       });
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(body, { chunkSizeBytes: 997 }),
-      );
+      const response = streamingResponse(body, { chunkSizeBytes: 997 });
       const { target, savedBytes } = fakeSaveTarget();
 
-      await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
-        target,
-      );
+      await downloadArtifactsFromResponse(response, target, undefined, BINDING);
 
       expect(new TextDecoder().decode(savedBytes())).toBe(
         expectedSavedPayload(),
@@ -372,85 +427,21 @@ describe("fetchAndDownloadArtifacts", () => {
     });
 
     it("accepts a result body that nests an error key", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            result: {
-              ...VALID_ARTIFACT_RESULT,
-              tx_graph_json: txGraphJson({ error: "not the envelope's" }),
-            },
-            id: 1,
-          }),
-        ),
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          result: {
+            ...VALID_ARTIFACT_RESULT,
+            tx_graph_json: txGraphJson({ error: "not the envelope's" }),
+          },
+          id: 1,
+        }),
       );
       const { target, commit } = fakeSaveTarget();
 
-      await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
-        target,
-      );
+      await downloadArtifactsFromResponse(response, target, undefined, BINDING);
 
       expect(commit).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("HTTP downloads", () => {
-    afterEach(() => {
-      featureFlagsMock.isHttpArtifactDownloadsEnabled = false;
-    });
-
-    it("saves the same payload from the manifest and CBOR sessions", async () => {
-      featureFlagsMock.isHttpArtifactDownloadsEnabled = true;
-      const session = new Uint8Array(MIN_DECRYPTOR_HEX_CHARS / 2).fill(0xcd);
-      const base = `https://proxy.example.com/artifacts/${PROVIDER_ADDRESS}/${PEGIN_TXID}`;
-      const manifest = JSON.stringify({
-        tx_graph_json: VALID_ARTIFACT_RESULT.tx_graph_json,
-        verifying_key_hex: VALID_ARTIFACT_RESULT.verifying_key_hex,
-        babe_sessions: {
-          [CHALLENGER_PUBKEY]: {
-            download_path: `/v1/depositor-artifacts/${PEGIN_TXID}/sessions/${CHALLENGER_PUBKEY}`,
-            byte_length: session.byteLength,
-          },
-        },
-      });
-      vi.mocked(fetch)
-        .mockResolvedValueOnce(
-          new Response(manifest, {
-            status: 200,
-            headers: { "content-length": String(manifest.length) },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(session, {
-            status: 200,
-            headers: {
-              etag: `"${bytesToHex(sha256(session))}"`,
-              "content-length": String(session.byteLength),
-            },
-          }),
-        );
-      const { target, commit, savedBytes } = fakeSaveTarget();
-
-      await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
-        target,
-      );
-
-      expect(new TextDecoder().decode(savedBytes())).toBe(
-        expectedSavedPayload(),
-      );
-      expect(commit).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
-        `${base}/manifest`,
-        `${base}/sessions/${CHALLENGER_PUBKEY}`,
-      ]);
     });
   });
 
@@ -460,23 +451,15 @@ describe("fetchAndDownloadArtifacts", () => {
       body: string,
       chunkSizeBytes?: number,
     ): Promise<string> {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(body, { chunkSizeBytes }),
-      );
+      const response = streamingResponse(body, { chunkSizeBytes });
       const { target, savedBytes } = fakeSaveTarget();
-      await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
-        target,
-      );
+      await downloadArtifactsFromResponse(response, target, undefined, BINDING);
       return new TextDecoder().decode(savedBytes());
     }
 
     it("strips the envelope wherever result sits in it", async () => {
-      // The proxy guarantees field order only on its gRPC path, so a result
-      // that trails `id` must unwrap exactly like one that precedes it.
+      // The validator must not depend on key order: a result that trails
+      // `id` must unwrap exactly like one that precedes it.
       const resultLast = JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
@@ -598,17 +581,11 @@ describe("fetchAndDownloadArtifacts", () => {
 
     for (const [name, body] of cases) {
       it(`rejects ${name}`, async () => {
-        vi.mocked(fetch).mockResolvedValueOnce(streamingResponse(body));
+        const response = streamingResponse(body);
         const { target, commit, discard } = fakeSaveTarget();
 
         await expect(
-          fetchAndDownloadArtifacts(
-            PROVIDER_ADDRESS,
-            PEGIN_TXID,
-            DEPOSITOR_PK,
-            SIGNED_GRAPH_FINGERPRINT,
-            target,
-          ),
+          downloadArtifactsFromResponse(response, target, undefined, BINDING),
         ).rejects.toBeInstanceOf(VpResponseValidationError);
         expect(commit).not.toHaveBeenCalled();
         expect(discard).toHaveBeenCalledTimes(1);
@@ -616,23 +593,14 @@ describe("fetchAndDownloadArtifacts", () => {
     }
 
     it("rejects a truncated stream", async () => {
-      // The proxy signals a mid-stream backend failure by destroying the
-      // connection, so a half-received bundle arrives as valid-looking bytes
-      // that simply stop. Nothing distinguishes it but the missing tail.
+      // A stream that closes early arrives as valid-looking bytes that simply
+      // stop. Nothing distinguishes it but the missing tail.
       const body = validEnvelope();
-      vi.mocked(fetch).mockResolvedValueOnce(
-        truncatedResponse(body, body.length - 10),
-      );
+      const response = truncatedResponse(body, body.length - 10);
       const { target, commit, discard } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
@@ -642,63 +610,47 @@ describe("fetchAndDownloadArtifacts", () => {
       // The envelope names no deposit, so a provider can return a perfectly
       // well-formed bundle belonging to someone else. Only the tx graph
       // distinguishes them.
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            result: {
-              ...VALID_ARTIFACT_RESULT,
-              tx_graph_json: txGraphJson({}, "ff".repeat(32)),
-            },
-            id: 1,
-          }),
-        ),
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          result: {
+            ...VALID_ARTIFACT_RESULT,
+            tx_graph_json: txGraphJson({}, "ff".repeat(32)),
+          },
+          id: 1,
+        }),
       );
       const { target, commit, discard } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
     });
 
     it("rejects a bundle whose sessions do not cover the graph's challengers", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            result: {
-              ...VALID_ARTIFACT_RESULT,
-              tx_graph_json: txGraphJson({
-                challenger_pubkeys: {
-                  local: [CHALLENGER_PUBKEY],
-                  // Declared by the graph but never given a session, so the
-                  // depositor would be missing recovery material for it.
-                  universal: ["ee".repeat(32)],
-                },
-              }),
-            },
-            id: 1,
-          }),
-        ),
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          result: {
+            ...VALID_ARTIFACT_RESULT,
+            tx_graph_json: txGraphJson({
+              challenger_pubkeys: {
+                local: [CHALLENGER_PUBKEY],
+                // Declared by the graph but never given a session, so the
+                // depositor would be missing recovery material for it.
+                universal: ["ee".repeat(32)],
+              },
+            }),
+          },
+          id: 1,
+        }),
       );
       const { target, commit, discard } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
@@ -712,17 +664,11 @@ describe("fetchAndDownloadArtifacts", () => {
         result: { junk: "x".repeat(200_000) },
         id: 1,
       });
-      vi.mocked(fetch).mockResolvedValueOnce(streamingResponse(body));
+      const response = streamingResponse(body);
       const { target, commit, discard } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
@@ -731,52 +677,44 @@ describe("fetchAndDownloadArtifacts", () => {
 
   describe("JSON-RPC error envelopes", () => {
     it("surfaces RPC error responses as JsonRpcError", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            error: { code: -32011, message: "Invalid state: PendingBabeSetup" },
-            id: 1,
-          }),
-        ),
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: {
+            code: -32011,
+            message: "Vault provider rejected the request",
+          },
+          id: 1,
+        }),
       );
       const { target, commit, discard } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(JsonRpcError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
     });
 
     it("propagates wire source and structured error.data", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            error: {
-              code: -32001,
-              message: "auth token expired",
-              data: { kind: "auth_expired", expiresAt: 1700000000 },
-            },
-            id: 1,
-          }),
-        ),
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "auth token expired",
+            data: { kind: "auth_expired", expiresAt: 1700000000 },
+          },
+          id: 1,
+        }),
       );
       const { target } = fakeSaveTarget();
 
-      const err = await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
+      const err = await downloadArtifactsFromResponse(
+        response,
         target,
+        undefined,
+        BINDING,
       ).catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(JsonRpcError);
@@ -795,29 +733,21 @@ describe("fetchAndDownloadArtifacts", () => {
       // JsonRpcError). Padding no longer changes the verdict below the
       // error-value cap; past that cap we fail closed instead — see the
       // oversized-error test below.
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            error: {
-              code: -32001,
-              message: "auth token expired",
-              data: { kind: "auth_expired", padding: "x".repeat(10_000) },
-            },
-            id: 1,
-          }),
-        ),
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "auth token expired",
+            data: { kind: "auth_expired", padding: "x".repeat(10_000) },
+          },
+          id: 1,
+        }),
       );
       const { target } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(JsonRpcError);
     });
 
@@ -825,25 +755,17 @@ describe("fetchAndDownloadArtifacts", () => {
       // Beyond the error-value cap we stop buffering and reject outright
       // rather than let an unbounded "error" be used as a memory sink. The
       // download fails either way; only the error type differs.
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            error: { code: -32011, message: "x".repeat(200_000) },
-            id: 1,
-          }),
-        ),
+      const response = streamingResponse(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32011, message: "x".repeat(200_000) },
+          id: 1,
+        }),
       );
       const { target, commit } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
       expect(commit).not.toHaveBeenCalled();
     });
@@ -853,19 +775,15 @@ describe("fetchAndDownloadArtifacts", () => {
     it("reports progress against Content-Length when present", async () => {
       const body = validEnvelope();
       const byteLength = new TextEncoder().encode(body).byteLength;
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(body, { withContentLength: true }),
-      );
+      const response = streamingResponse(body, { withContentLength: true });
       const onProgress = vi.fn();
       const { target } = fakeSaveTarget();
 
-      await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
+      await downloadArtifactsFromResponse(
+        response,
         target,
         { onProgress },
+        BINDING,
       );
 
       expect(onProgress).toHaveBeenLastCalledWith(byteLength, byteLength);
@@ -874,17 +792,15 @@ describe("fetchAndDownloadArtifacts", () => {
     it("falls back to an estimated total when Content-Length is absent", async () => {
       const body = validEnvelope();
       const byteLength = new TextEncoder().encode(body).byteLength;
-      vi.mocked(fetch).mockResolvedValueOnce(streamingResponse(body));
+      const response = streamingResponse(body);
       const onProgress = vi.fn();
       const { target } = fakeSaveTarget();
 
-      await fetchAndDownloadArtifacts(
-        PROVIDER_ADDRESS,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
+      await downloadArtifactsFromResponse(
+        response,
         target,
         { onProgress },
+        BINDING,
       );
 
       const [received, total] = onProgress.mock.calls.at(-1)!;
@@ -895,62 +811,31 @@ describe("fetchAndDownloadArtifacts", () => {
 
   describe("cancellation", () => {
     it("throws the sentinel and discards when isCancelled is set", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope(), { withContentLength: true }),
-      );
+      const response = streamingResponse(validEnvelope(), {
+        withContentLength: true,
+      });
       const { target, commit, discard } = fakeSaveTarget();
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
+        downloadArtifactsFromResponse(
+          response,
           target,
           { isCancelled: () => true },
+          BINDING,
         ),
       ).rejects.toBeInstanceOf(ArtifactDownloadCancelledError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
     });
-
-    it("maps an aborted request to the sentinel", async () => {
-      const controller = new AbortController();
-      controller.abort();
-      vi.mocked(fetch).mockRejectedValue(
-        new DOMException("The operation was aborted.", "AbortError"),
-      );
-      const { target, commit } = fakeSaveTarget();
-
-      await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-          { signal: controller.signal },
-        ),
-      ).rejects.toBeInstanceOf(ArtifactDownloadCancelledError);
-      expect(commit).not.toHaveBeenCalled();
-    });
   });
 
   describe("save-target failures", () => {
     it("rejects a body larger than the target can hold", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope()),
-      );
+      const response = streamingResponse(validEnvelope());
       const { target, commit, discard } = fakeSaveTarget({ maxBytes: 8 });
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(ArtifactDownloadTooLargeError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
@@ -959,9 +844,7 @@ describe("fetchAndDownloadArtifacts", () => {
     it("discards the writable when the final commit fails", async () => {
       // A rejected close leaves the transaction open, so its temporary file
       // would otherwise linger until the browser reclaims it.
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope()),
-      );
+      const response = streamingResponse(validEnvelope());
       const { target, commit, discard } = fakeSaveTarget();
       commit.mockRejectedValueOnce(
         new ArtifactFileAccessError("close failed", {
@@ -970,21 +853,13 @@ describe("fetchAndDownloadArtifacts", () => {
       );
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(ArtifactFileAccessError);
       expect(discard).toHaveBeenCalledTimes(1);
     });
 
     it("surfaces a write failure and discards the partial file", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope()),
-      );
+      const response = streamingResponse(validEnvelope());
       const { target, write, commit, discard } = fakeSaveTarget();
       write.mockRejectedValueOnce(
         new ArtifactFileAccessError("disk full", {
@@ -993,13 +868,7 @@ describe("fetchAndDownloadArtifacts", () => {
       );
 
       await expect(
-        fetchAndDownloadArtifacts(
-          PROVIDER_ADDRESS,
-          PEGIN_TXID,
-          DEPOSITOR_PK,
-          SIGNED_GRAPH_FINGERPRINT,
-          target,
-        ),
+        downloadArtifactsFromResponse(response, target, undefined, BINDING),
       ).rejects.toBeInstanceOf(ArtifactFileAccessError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);

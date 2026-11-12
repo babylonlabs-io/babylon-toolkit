@@ -1018,9 +1018,8 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 Read the VP operation key selected by `epoch`.
 
 This is public rather than hidden inside `OperationKeyReader` because
-subject-specific VP authentication needs exactly one participant: the
-gRPC bootstrap is signed by the key frozen into the vault, while the
-JSON-RPC bootstrap is signed by the provider's live key.
+VP authentication pins both token subjects to the key selected by the
+vault's frozen VP epoch (btc-vault #2984).
 
 ###### Parameters
 
@@ -1094,9 +1093,8 @@ Falls back on-chain to the registration key when the provider has never
 rotated, so this returns the same value as
 `getVaultProviderGenesisBtcPubKey` until the first rotation.
 
-This is the key the VP's server uses for JSON-RPC-subject authentication.
-The gRPC-subject bootstrap is instead bound to the existing vault's frozen
-epoch and resolves through `getVaultProviderOperationBtcKeyAtEpoch`.
+Read for payout and refund participant checks. It is not a token-subject
+pin: those resolve through `getVaultProviderOperationBtcKeyAtEpoch`.
 
 ###### Parameters
 
@@ -1546,7 +1544,6 @@ const status = await client.getPeginStatusByVaultId({ vault_id: "0xabc..." });
 - [`PeginStatusReader`](services.md#peginstatusreader)
 - [`WotsKeySubmitter`](services.md#wotskeysubmitter)
 - [`PresignClient`](services.md#presignclient)
-- [`ClaimerArtifactsReader`](services.md#claimerartifactsreader)
 
 #### Constructors
 
@@ -1661,35 +1658,6 @@ Called after the pegin is finalized on Ethereum, when the VP is in
 ###### Implementation of
 
 [`WotsKeySubmitter`](services.md#wotskeysubmitter).[`submitDepositorWotsKey`](services.md#submitdepositorwotskey)
-
-##### requestDepositorClaimerArtifacts()
-
-```ts
-requestDepositorClaimerArtifacts(params, signal?): Promise<RequestDepositorClaimerArtifactsResponse>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts)
-
-Request the BaBe DecryptorArtifacts needed for the depositor to
-independently evaluate garbled circuits during a challenge.
-
-###### Parameters
-
-###### params
-
-[`RequestDepositorClaimerArtifactsParams`](#requestdepositorclaimerartifactsparams)
-
-###### signal?
-
-`AbortSignal`
-
-###### Returns
-
-`Promise`\<[`RequestDepositorClaimerArtifactsResponse`](#requestdepositorclaimerartifactsresponse)\>
-
-###### Implementation of
-
-[`ClaimerArtifactsReader`](services.md#claimerartifactsreader).[`requestDepositorClaimerArtifacts`](services.md#requestdepositorclaimerartifacts)
 
 ##### getPeginStatusByVaultId()
 
@@ -1879,8 +1847,7 @@ Return the cached `VpTokenProvider` for `peginTxid` if one exists
 with matching anchor, provider, audience, and subject-specific issuer
 bindings, otherwise construct and cache a fresh provider. A mismatch
 throws — silent overwrite would mask derivation drift or cross-provider
-cache reuse. A legitimate live JSON-RPC key rotation is handled inside
-`VpTokenProvider` through its chain-backed refresh callback.
+cache reuse.
 
 ###### Parameters
 
@@ -2111,50 +2078,6 @@ The result from the RPC method
 ###### Throws
 
 JsonRpcError if the RPC call fails
-
-##### callRaw()
-
-```ts
-callRaw<TParams>(
-   method, 
-   params, 
-signal?): Promise<Response>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts)
-
-Make a JSON-RPC request returning the raw Response (unparsed body).
-
-Bearer tokens are injected identically to `call`. **Reactive refresh
-is NOT performed here** — the response body may be unbounded (e.g.
-claimer-artifact downloads), so the client refuses to parse it to
-detect auth errors. Callers relying on token-expired retries for
-large downloads must read the body themselves and re-invoke
-`callRaw` after `tokenProvider.invalidate()`.
-
-###### Type Parameters
-
-###### TParams
-
-`TParams`
-
-###### Parameters
-
-###### method
-
-`string`
-
-###### params
-
-`TParams`
-
-###### signal?
-
-`AbortSignal`
-
-###### Returns
-
-`Promise`\<`Response`\>
 
 ##### getBaseUrl()
 
@@ -3479,9 +3402,10 @@ getCurrentVaultProviderOperationBtcKey(vpAddress): Promise<OnChainBtcPubkey>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
-Read a vault provider's *current* RFC-006 operation BTC key — the key its
-server uses for the JSON-RPC token subject. Falls back to the registration
-key when the provider has never rotated.
+Read a vault provider's *current* RFC-006 operation BTC key, for payout and
+refund participant checks. It is not a token-subject pin: those resolve
+through [getVaultProviderOperationBtcKeyAtEpoch](#getvaultprovideroperationbtckeyatepoch). Falls back to the
+registration key when the provider has never rotated.
 
 ###### Parameters
 
@@ -5343,7 +5267,9 @@ pinnedServerPubkey: OnChainBtcPubkey;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts)
 
-On-chain VP pubkey, branded so it can only come from the registry reader.
+Frozen-epoch VP pubkey used by the JSON-RPC-subject bootstrap: the
+operation key at the vault's VP epoch, branded so it can only come from
+the registry reader. A live key that has since rotated is rejected.
 
 ##### grpcPinnedServerPubkey
 
@@ -5364,20 +5290,6 @@ grpcKeyEpoch: bigint;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts)
 
 Vault's frozen VP epoch, paired with `grpcPinnedServerPubkey`.
-
-##### refreshJsonRpcPinnedServerPubkey()?
-
-```ts
-optional refreshJsonRpcPinnedServerPubkey: () => Promise<OnChainBtcPubkey>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts)
-
-Re-read the current operation key after a JSON-RPC identity mismatch.
-
-###### Returns
-
-`Promise`\<[`OnChainBtcPubkey`](#onchainbtcpubkey)\>
 
 ##### depositorBtcPubkey
 
@@ -5450,6 +5362,8 @@ pinnedServerPubkey: OnChainBtcPubkey;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
 
+Frozen-epoch VP pubkey used by the JSON-RPC-subject bootstrap: the operation key at the vault's VP epoch.
+
 ##### grpcPinnedServerPubkey
 
 ```ts
@@ -5469,20 +5383,6 @@ grpcKeyEpoch: bigint;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
 
 Vault's frozen VP epoch, paired with `grpcPinnedServerPubkey`.
-
-##### refreshJsonRpcPinnedServerPubkey()?
-
-```ts
-optional refreshJsonRpcPinnedServerPubkey: () => Promise<OnChainBtcPubkey>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
-
-Re-read the current operation key after a JSON-RPC identity mismatch.
-
-###### Returns
-
-`Promise`\<[`OnChainBtcPubkey`](#onchainbtcpubkey)\>
 
 ##### depositorBtcPubkey
 
@@ -5655,6 +5555,8 @@ pinnedServerPubkey: OnChainBtcPubkey;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
+Frozen-epoch issuer for the JSON-RPC token subject: the operation key at the vault's VP epoch.
+
 ##### grpcPinnedServerPubkey
 
 ```ts
@@ -5674,20 +5576,6 @@ grpcKeyEpoch: bigint;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
 Frozen VP epoch that selected `grpcPinnedServerPubkey`.
-
-##### refreshJsonRpcPinnedServerPubkey()?
-
-```ts
-optional refreshJsonRpcPinnedServerPubkey: () => Promise<OnChainBtcPubkey>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
-
-Authoritative live-key resolver for bounded JSON-RPC pin recovery.
-
-###### Returns
-
-`Promise`\<[`OnChainBtcPubkey`](#onchainbtcpubkey)\>
 
 ##### expectedAudienceXOnlyPubkey
 
@@ -6121,8 +6009,7 @@ optional maxResponseBytes: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts)
 
-Maximum response body size, in bytes, for typed JSON-RPC calls.
-`callRaw` intentionally returns the unparsed Response and is not capped here.
+Maximum response body size, in bytes, for JSON-RPC calls.
 Default: 2 MiB.
 
 ##### retryableFor()?
@@ -6161,7 +6048,6 @@ Per-request bearer-token source. A non-null return attaches
 `Authorization: Bearer <token>`; `null` skips auth. `call`
 additionally retries once when the server rejects the bearer
 (invalidate + refetch + retry) — see [isAuthRejectedError](#isauthrejectederror).
-`callRaw` skips reactive refresh.
 
 ***
 
@@ -6407,32 +6293,6 @@ Payout signatures per claimer.
 
 ```ts
 payout_signature: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-***
-
-### RequestDepositorClaimerArtifactsParams
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-Params for requesting BaBe DecryptorArtifacts from the VP.
-
-#### Properties
-
-##### pegin\_txid
-
-```ts
-pegin_txid: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-##### depositor\_pk
-
-```ts
-depositor_pk: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
@@ -6726,7 +6586,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
 
-Response from `requestDepositorClaimerArtifacts`.
+The depositor's recovery-artifact payload: graph, verifying key and one BaBe session per challenger.
 
 #### Properties
 
@@ -8357,7 +8217,7 @@ function validateRequestDepositorClaimerArtifactsResponse(response): asserts res
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts)
 
-Validate a requestDepositorClaimerArtifacts response.
+Validate a recovery-artifact payload (graph, verifying key, BaBe sessions).
 
 #### Parameters
 
@@ -8754,19 +8614,6 @@ thing: this bearer is dead, mint a new one.
 Numerically equal to [JSON\_RPC\_ERROR\_CODES.NETWORK](#network), which this
 client throws for local network failures. `source` is what separates
 them — see [isAuthRejectedError](#isauthrejectederror).
-
-***
-
-### PRE\_DEPOSITOR\_SIGNATURES\_STATES
-
-```ts
-const PRE_DEPOSITOR_SIGNATURES_STATES: readonly DaemonStatus[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-States where the VP is still processing (no depositor action needed).
-Excludes PENDING_DEPOSITOR_WOTS_PK (requires depositor action).
 
 ***
 

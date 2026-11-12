@@ -33,14 +33,12 @@ import {
   TOKEN_ISSUE_METHOD,
 } from "./innerTokenClient";
 import {
-  ServerIdentityError,
   type ServerIdentityResponse,
   verifyServerIdentity,
 } from "./serverIdentity";
 import {
   CWT_SUBJECT_GRPC,
   CWT_SUBJECT_JSONRPC,
-  CwtVerificationError,
   verifyDepositorCwt,
 } from "./verifyDepositorCwt";
 
@@ -76,19 +74,18 @@ export interface VpTokenProviderConfig {
   peginTxid: string;
   /** 64-char hex of the 32-byte OP_RETURN auth-anchor preimage. */
   authAnchorHex: string;
-  /** Live JSON-RPC-subject VP pubkey from chain; branded so mirrors can't substitute it. */
+  /**
+   * Pin for the JSON-RPC-subject bootstrap. This must be the operation key at
+   * the vault's frozen VP epoch: vaultd issues `auth_createDepositorToken`
+   * under that key (btc-vault PR 2984), and a mismatch is rejected with no
+   * retry. Branded so mirrors can't substitute it.
+   */
   pinnedServerPubkey: OnChainBtcPubkey;
   /**
    * Pin for the gRPC-subject bootstrap. This must be the operation key at the
    * vault's frozen VP epoch: vaultd signs this subject with that key.
    */
   grpcPinnedServerPubkey: OnChainBtcPubkey;
-  /**
-   * Re-read the authoritative current operation key after a JSON-RPC-subject
-   * identity mismatch. The provider retries at most once, and only when the
-   * chain returns a key different from the stale pin.
-   */
-  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /**
    * Depositor x-only pubkey (32-byte hex). Asserted against every
    * issued token's CWT `aud` claim so a token minted for a different
@@ -128,16 +125,13 @@ interface CachedToken {
  * `JsonRpcClient` as `tokenProvider`.
  */
 export class VpTokenProvider implements BearerTokenProvider {
-  // Most identity-bearing fields remain readonly and are checked against
-  // re-registration in the registry's `getOrCreate`. The JSON-RPC pin is the
-  // one exception: RFC-006 explicitly permits it to move, but only to a value
-  // re-read through the caller's authoritative chain resolver.
+  // Every identity-bearing field is readonly and checked against
+  // re-registration in the registry's `getOrCreate`.
   private client: JsonRpcClient;
   private readonly peginTxid: string;
   private readonly authAnchorHex: string;
-  private jsonRpcPinnedServerPubkey: OnChainBtcPubkey;
+  private readonly jsonRpcPinnedServerPubkey: OnChainBtcPubkey;
   private readonly grpcPinnedServerPubkey: OnChainBtcPubkey;
-  private readonly refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   private readonly expectedAudienceXOnlyPubkey: string;
   private readonly authGatedMethods: ReadonlySet<string>;
   private readonly grpcGatedMethods: ReadonlySet<string>;
@@ -157,8 +151,6 @@ export class VpTokenProvider implements BearerTokenProvider {
     this.authAnchorHex = config.authAnchorHex;
     this.jsonRpcPinnedServerPubkey = config.pinnedServerPubkey;
     this.grpcPinnedServerPubkey = config.grpcPinnedServerPubkey;
-    this.refreshJsonRpcPinnedServerPubkey =
-      config.refreshJsonRpcPinnedServerPubkey;
     this.expectedAudienceXOnlyPubkey = config.expectedAudienceXOnlyPubkey;
     this.authGatedMethods = config.authGatedMethods;
     this.grpcGatedMethods = config.grpcGatedMethods;
@@ -268,7 +260,7 @@ export class VpTokenProvider implements BearerTokenProvider {
 
     const p = (async () => {
       try {
-        const fresh = await this.acquireAndVerify(subject, issueMethod, true);
+        const fresh = await this.acquireAndVerify(subject, issueMethod);
         if (subject === "grpc") {
           this.cachedGrpc = fresh;
         } else {
@@ -295,7 +287,6 @@ export class VpTokenProvider implements BearerTokenProvider {
   private async acquireAndVerify(
     subject: "jsonrpc" | "grpc",
     issueMethod: string,
-    allowPinRefresh: boolean,
   ): Promise<CachedToken> {
     const response = await this.client.call<
       { pegin_txid: string; auth_anchor: string },
@@ -306,77 +297,52 @@ export class VpTokenProvider implements BearerTokenProvider {
     });
     const pinnedServerPubkey = this.getPinnedServerPubkey(subject);
 
-    try {
-      verifyServerIdentity({
-        proof: response.server_identity,
-        pinnedServerPubkey,
-        now: this.now(),
-      });
+    verifyServerIdentity({
+      proof: response.server_identity,
+      pinnedServerPubkey,
+      now: this.now(),
+    });
 
-      // Validate wire payload before caching so a malformed response
-      // from a compromised VP or proxy can't poison the cache with
-      // unusable values (non-string token, non-integer expiry, etc.).
-      if (typeof response.token !== "string" || response.token.length === 0) {
-        throw new Error(
-          `VpTokenProvider: invalid token in acquire response (expected non-empty string, got ${typeof response.token})`,
-        );
-      }
-      const now = this.now();
-      if (
-        !Number.isSafeInteger(response.expires_at) ||
-        response.expires_at <= now ||
-        response.expires_at > MAX_EXPIRES_AT_SECS
-      ) {
-        throw new Error(
-          `VpTokenProvider: invalid expires_at in acquire response (got ${JSON.stringify(response.expires_at)}; must be a safe integer in (${now}, ${MAX_EXPIRES_AT_SECS}])`,
-        );
-      }
-
-      // Cryptographically verify the token itself — not just the wire
-      // envelope. The COSE Sign1 signature is checked against the
-      // (server-identity-verified) ephemeral key, and the inner CWT
-      // claims are bound to this depositor (`aud`), this VP (`iss`),
-      // and this subject. Without this the bearer is an opaque blob the
-      // FE would attach to mutations on the VP's word alone.
-      verifyDepositorCwt({
-        token: response.token,
-        ephemeralPubkeyHex: response.server_identity.ephemeral_pubkey,
-        expectedIssuerXOnlyPubkey: pinnedServerPubkey,
-        expectedSubject:
-          subject === "grpc" ? CWT_SUBJECT_GRPC : CWT_SUBJECT_JSONRPC,
-        expectedAudienceXOnlyPubkey: this.expectedAudienceXOnlyPubkey,
-        responseExpiresAt: response.expires_at,
-        serverIdentityExpiresAt: response.server_identity.expires_at,
-        now,
-      });
-
-      return {
-        token: response.token,
-        expiresAt: response.expires_at,
-      };
-    } catch (error) {
-      if (
-        allowPinRefresh &&
-        subject === "jsonrpc" &&
-        this.refreshJsonRpcPinnedServerPubkey &&
-        isPinnedIdentityMismatch(error)
-      ) {
-        const refreshed = await this.refreshJsonRpcPinnedServerPubkey();
-        if (refreshed !== this.jsonRpcPinnedServerPubkey) {
-          this.jsonRpcPinnedServerPubkey = refreshed;
-          return this.acquireAndVerify(subject, issueMethod, false);
-        }
-      }
-      throw error;
+    // Validate wire payload before caching so a malformed response
+    // from a compromised VP or proxy can't poison the cache with
+    // unusable values (non-string token, non-integer expiry, etc.).
+    if (typeof response.token !== "string" || response.token.length === 0) {
+      throw new Error(
+        `VpTokenProvider: invalid token in acquire response (expected non-empty string, got ${typeof response.token})`,
+      );
     }
-  }
-}
+    const now = this.now();
+    if (
+      !Number.isSafeInteger(response.expires_at) ||
+      response.expires_at <= now ||
+      response.expires_at > MAX_EXPIRES_AT_SECS
+    ) {
+      throw new Error(
+        `VpTokenProvider: invalid expires_at in acquire response (got ${JSON.stringify(response.expires_at)}; must be a safe integer in (${now}, ${MAX_EXPIRES_AT_SECS}])`,
+      );
+    }
 
-function isPinnedIdentityMismatch(error: unknown): boolean {
-  return (
-    (error instanceof ServerIdentityError &&
-      error.reason === "pinned_pubkey_mismatch") ||
-    (error instanceof CwtVerificationError &&
-      error.reason === "issuer_mismatch")
-  );
+    // Cryptographically verify the token itself — not just the wire
+    // envelope. The COSE Sign1 signature is checked against the
+    // (server-identity-verified) ephemeral key, and the inner CWT
+    // claims are bound to this depositor (`aud`), this VP (`iss`),
+    // and this subject. Without this the bearer is an opaque blob the
+    // FE would attach to mutations on the VP's word alone.
+    verifyDepositorCwt({
+      token: response.token,
+      ephemeralPubkeyHex: response.server_identity.ephemeral_pubkey,
+      expectedIssuerXOnlyPubkey: pinnedServerPubkey,
+      expectedSubject:
+        subject === "grpc" ? CWT_SUBJECT_GRPC : CWT_SUBJECT_JSONRPC,
+      expectedAudienceXOnlyPubkey: this.expectedAudienceXOnlyPubkey,
+      responseExpiresAt: response.expires_at,
+      serverIdentityExpiresAt: response.server_identity.expires_at,
+      now,
+    });
+
+    return {
+      token: response.token,
+      expiresAt: response.expires_at,
+    };
+  }
 }

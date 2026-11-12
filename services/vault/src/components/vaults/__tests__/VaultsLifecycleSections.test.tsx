@@ -1500,7 +1500,6 @@ describe("VaultsLifecycleSections expired artifact download", () => {
   };
 
   beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_FF_HTTP_ARTIFACT_DOWNLOADS", "true");
     vi.mocked(getSignedGraphFingerprint).mockReturnValue({
       status: "found",
       fingerprint: "ee".repeat(32),
@@ -1508,7 +1507,6 @@ describe("VaultsLifecycleSections expired artifact download", () => {
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
     vi.mocked(getSignedGraphFingerprint).mockReturnValue({
       status: "no-entry",
     });

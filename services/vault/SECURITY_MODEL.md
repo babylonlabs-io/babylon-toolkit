@@ -235,7 +235,7 @@ cannot drift into disagreeing about the same gap.
 
 | # | Invariant broken | Gap | Authoritative entry (root matrix row) |
 | --- | --- | --- | --- |
-| 1 | 8 | Recovery-artifact bodies are validated structurally, from the envelope prefix only. A well-formed envelope may wrap a corrupt body, after which the client records the artifacts as obtained and stops warning — a failure surfacing at claim time. | `Artifacts` / adversary A |
+| 1 | 8 | Recovery artifacts are validated structurally end to end (manifest and session shapes, each session's SHA-256 ETag, the assembled body, the vault binding and the presign fingerprint) but never proven decryptable: a well-formed package whose sessions cannot decrypt a challenge is accepted, after which the client records the artifacts as obtained and stops warning — a failure surfacing at claim time. | `Artifacts` / adversary A |
 | 2 | 10 | Address screening fails open when its endpoint is unset or malformed. This is an operator-error deviation with a real fix (a production startup gate), **not** an instance of the advisory-checks non-claim: that non-claim covers a user editing their own bundle, whereas a typo'd `NEXT_PUBLIC_TBV_UTILS_API` ships screening disabled for everyone, with no user-visible signal. | `Screening` / adversary G |
 | 3 | 7 | Egress is not constrained to known hosts, so exfiltration of derived secrets is prevented by discipline — telemetry field denylists, absence of HTML sinks — rather than by a runtime boundary. | `CSP` / adversary D |
 | 4 | 11 | The entry document is not integrity-protected by subresource hashing; only its assets are. Origin write access remains the residual trust for the whole application. | `Delivery` / adversary D |

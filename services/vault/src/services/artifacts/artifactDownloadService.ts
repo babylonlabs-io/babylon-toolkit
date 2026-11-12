@@ -41,16 +41,14 @@ import {
   stripHexPrefix,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  JsonRpcClient,
   VpResponseValidationError,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 
-import featureFlags from "@/config/featureFlags";
 import { logger } from "@/infrastructure";
-import { getVpArtifactsProxyUrl, getVpProxyUrl } from "@/utils/rpc";
+import { getVpArtifactsProxyUrl } from "@/utils/rpc";
 
 import {
   assertBundleBoundToVault,
@@ -69,12 +67,10 @@ import {
 import { fetchHttpArtifactsResponse } from "./httpArtifactDownload";
 import { ArtifactStreamValidator } from "./streamingArtifactValidator";
 
-/** Timeout for the artifact request RPC call (artifacts can be large). */
-const RPC_TIMEOUT_MS = 120 * 1000;
-
 /**
  * Fallback total used by the progress bar when the server omits
- * Content-Length — which the streaming proxy always does.
+ * Content-Length. The HTTP transport always sets one, so this serves only the
+ * dev demo's synthetic stream.
  *
  * A measured vault-devnet bundle is 1,410,824,702 bytes (8 challengers at
  * ~176 MB of hex each). The estimate sits above that so the displayed
@@ -86,8 +82,8 @@ const ARTIFACT_TOTAL_FALLBACK_BYTES = 1_600_000_000;
 export interface FetchArtifactsOptions {
   /**
    * Invoked after each chunk read from the response body. `totalBytes`
-   * comes from Content-Length when present, otherwise falls back to a
-   * fixed estimate (the server does not always send a length header).
+   * comes from Content-Length, which the HTTP transport always sets; the
+   * fixed estimate covers only a response without one (the dev demo).
    */
   onProgress?: (receivedBytes: number, totalBytes: number) => void;
   /**
@@ -97,11 +93,10 @@ export interface FetchArtifactsOptions {
    */
   isCancelled?: () => boolean;
   /**
-   * Aborts the underlying request (threaded into `callRaw` → `fetch`).
-   * Unlike `isCancelled`, which is only polled *between* chunk reads, this
-   * unblocks a `reader.read()` stalled on a silent connection, so Cancel
-   * releases the socket immediately instead of hanging until the next byte,
-   * EOF, or the RPC timeout.
+   * Aborts the underlying requests (threaded into `fetch`). Unlike
+   * `isCancelled`, which is only polled *between* chunk reads, this unblocks
+   * a `reader.read()` stalled on a silent connection, so Cancel releases the
+   * socket immediately instead of hanging until the next byte or EOF.
    */
   signal?: AbortSignal;
 }
@@ -124,9 +119,13 @@ export interface ArtifactDownloadOutcome {
  * save them to `target`.
  *
  * Resolves only when the whole body has been validated and durably written.
- * Throws `JsonRpcError` for an error envelope, `VpResponseValidationError` for
- * a malformed or truncated payload, `ArtifactFileAccessError` when the save
- * fails, and `ArtifactDownloadCancelledError` when the caller cancels.
+ * Throws `JsonRpcError` when the provider rejects the bearer,
+ * `ArtifactsNotReadyError` while the provider does not serve the package yet,
+ * `VpResponseValidationError` for a malformed or truncated payload,
+ * `ArtifactFileAccessError` when the save fails,
+ * `ArtifactDownloadCancelledError` when the caller cancels, and a plain
+ * `Error` for a download quota, an unexpected HTTP status or exhausted
+ * transfer attempts.
  *
  * @param providerAddress - Vault provider's Ethereum address.
  * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
@@ -148,11 +147,9 @@ export async function fetchAndDownloadArtifacts(
   // The caller (useArtifactDownload) primes the bearer before invoking
   // this service when the registry is cold, so peek() returns the active
   // provider only when its provider and depositor bindings match this request.
-  // The request then goes out with a valid Authorization header
-  // for this auth-gated RPC. `callRaw` does not reactively refresh when the
-  // server rejects the bearer, so a token that goes stale mid-download
-  // bubbles up as an error and the caller's auth-failure retry path handles
-  // re-priming.
+  // The HTTP transport never refreshes a bearer the server rejects, so a
+  // token that goes stale mid-download bubbles up as an error and the
+  // caller's auth-failure retry path handles re-priming.
   const tokenProvider = vpTokenRegistry.peek({
     peginTxid: normalizedPeginTxid,
     providerAddress,
@@ -161,28 +158,12 @@ export async function fetchAndDownloadArtifacts(
 
   let response: Response;
   try {
-    response = featureFlags.isHttpArtifactDownloadsEnabled
-      ? await fetchHttpArtifactsResponse(
-          getVpArtifactsProxyUrl(providerAddress),
-          normalizedPeginTxid,
-          async () => (await tokenProvider?.getJsonRpcToken()) ?? null,
-          options?.signal,
-        )
-      : await new JsonRpcClient({
-          baseUrl: getVpProxyUrl(providerAddress),
-          timeout: RPC_TIMEOUT_MS,
-          // Artifact requests are idempotent reads — safe to retry on
-          // transient errors
-          retryableFor: () => true,
-          tokenProvider,
-        }).callRaw(
-          "vaultProvider_requestDepositorClaimerArtifacts",
-          {
-            pegin_txid: normalizedPeginTxid,
-            depositor_pk: stripHexPrefix(depositorPk),
-          },
-          options?.signal,
-        );
+    response = await fetchHttpArtifactsResponse(
+      getVpArtifactsProxyUrl(providerAddress),
+      normalizedPeginTxid,
+      async () => (await tokenProvider?.getJsonRpcToken()) ?? null,
+      options?.signal,
+    );
   } catch (err) {
     throw normalizeCancellation(err, options);
   }
@@ -270,8 +251,8 @@ export async function downloadArtifactsFromResponse(
       options?.onProgress?.(received, totalBytes);
     }
 
-    // Rejects a truncated document — the proxy signals a mid-stream backend
-    // failure by destroying the connection, not by sending an error envelope.
+    // Rejects a stream that closes before the closing brace (the demo's
+    // truncated case); the HTTP transport errors its stream on a failure instead.
     const validated = validator.finish();
 
     // Schema-valid is not the same as ours: nothing in the envelope names the
@@ -314,8 +295,8 @@ export async function downloadArtifactsFromResponse(
 }
 
 /**
- * A cancellation can surface as our own sentinel, the RPC client's "Request
- * aborted", or a DOM AbortError. Normalize all of them so the caller's catch
+ * A cancellation can surface as our own sentinel or as the DOM AbortError
+ * `fetch` throws for an aborted signal. Normalize both so the caller's catch
  * swallows the cancel instead of rendering it as a download failure.
  */
 function normalizeCancellation(

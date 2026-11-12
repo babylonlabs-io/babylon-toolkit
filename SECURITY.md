@@ -101,7 +101,7 @@ rubric below.
     (`packages/babylon-ts-sdk/src/tbv/core/vault-secrets/`,
     `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`)
   - Pinning each VP token subject to its authoritative on-chain operation key:
-    the live key for JSON-RPC and the vault's frozen epoch key for gRPC
+    the key frozen at the vault's VP epoch, for both the JSON-RPC and gRPC subjects
     (`packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts`)
   - Strict shape validation of everything read back from `localStorage`
     (`services/vault/src/storage/peginStorage.ts`)
@@ -116,8 +116,8 @@ rubric below.
   [`.github/CODEOWNERS`](.github/CODEOWNERS), plus:
   - `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/` — the whole untrusted-counterparty
     surface, including `auth/` and `validators.ts`
-  - `services/vault/src/services/artifacts/artifactDownloadService.ts` — ~1 GB partially-validated
-    recovery payload
+  - `services/vault/src/services/artifacts/artifactDownloadService.ts` — ~1 GB recovery payload,
+    validated structurally but never proven decryptable
   - `services/vault/src/config/env.ts` — every deployment parameter, and the fallback path
   - `services/vault/index.html` — the CSP
   - `services/vault/vite.config.ts`, `services/vault/src/build/sriPlugin.ts` — build integrity
@@ -474,20 +474,24 @@ If the depositor's refund already spent the HTLC, the PegIn can never be broadca
 already back with the depositor. Whether a swept vault that is still Verified should keep normal
 activation alongside the escape hatch is a separate product decision.
 
-### Claimer artifacts — recovery material with partial validation
+### Claimer artifacts — recovery material with structural validation only
 
 `services/vault/src/services/artifacts/artifactDownloadService.ts` fetches the BaBe Decryptor
-artifacts a depositor needs to claim their vault independently of the VP. Two properties matter:
+artifacts a depositor needs to claim their vault independently of the VP, over the provider's
+authenticated HTTP artifact routes (`services/vault/src/services/artifacts/httpArtifactDownload.ts`).
+Two properties matter:
 
-- The payload is roughly **1 GB**, so it is streamed and retained as a `Blob`. Full schema validation
-  is deliberately deferred until the backend supports streaming delivery. Today only small responses
-  (expected JSON-RPC error envelopes, under 4 KiB) are parsed and validated; large responses are
-  checked **structurally, from the first 64 KiB of the JSON-RPC envelope prefix only**.
-- **This is a known gap.** A malicious VP can return a well-formed envelope wrapping a useless or
-  corrupted artifact body, and the app will accept it, mark the artifacts downloaded
-  (`services/vault/src/utils/artifactDownloadStorage.ts`), and stop warning the user. The user
-  discovers the problem only when they need to claim. Closing this requires end-to-end validation of
-  the artifact body — treat it as a fund-recovery item, not a robustness improvement.
+- The payload is roughly **1 GB**, so it is streamed, validated and written to disk chunk by chunk
+  and never held whole in memory. The manifest and every session are shape-checked, each session's
+  bytes are compared with its SHA-256 ETag, the assembled body is parsed end to end by the streaming
+  validator, the transaction graph inside it is bound to the requested vault, and its transaction set
+  must reproduce the presign fingerprint this device recorded.
+- **This is a known gap.** None of that proves the artifacts decrypt: no client-side BaBe verifier
+  exists. A VP can serve a well-formed package whose sessions cannot decrypt a challenge, and the app
+  will accept it, mark the artifacts downloaded (`services/vault/src/utils/artifactDownloadStorage.ts`),
+  and stop warning the user. The user discovers the problem only when they need to claim. Closing
+  this requires a client-side artifact verifier — treat it as a fund-recovery item, not a robustness
+  improvement.
 
 `hasArtifactsDownloaded` is a `localStorage` flag whose failure mode is deliberately safe: on quota
 error or private browsing, the write silently fails and the gate keeps warning. Preserve that
@@ -523,7 +527,10 @@ the validator reopens this hole.
 ### Vault provider — the hostile-counterparty boundary
 
 All VP traffic goes through the vault-provider proxy (`vpProxyUrl` in `services/vault/networks/<name>.json`,
-`services/vault/src/utils/rpc/vpProxy.ts`), addressed per-VP as `${VP_PROXY_URL}/rpc/${vpAddress}`.
+`services/vault/src/utils/rpc/vpProxy.ts`), addressed per-VP as `${VP_PROXY_URL}/rpc/${vpAddress}` for
+JSON-RPC and `${VP_PROXY_URL}/artifacts/${vpAddress}/<pegin txid>/{manifest,sessions/<key>}` for the recovery
+artifact routes, which carry the JSON-RPC-subject bearer in an `Authorization` header and are fetched with
+`redirect: "error"` so a redirect can never choose where the bearer goes.
 The proxy is what dereferences provider-supplied URLs and enforces SSRF policy — the frontend never
 fetches a provider-supplied URL directly, and must not start.
 
@@ -531,12 +538,12 @@ fetches a provider-supplied URL directly, and must not start.
 `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts` verifies a
 BIP-322 signature by the VP's persistent key over
 `(SERVER_IDENTITY_DOMAIN, ephemeral_pubkey, expires_at)`, and pins `server_pubkey` against the
-operation key read from the registry contract. The JSON-RPC subject uses the provider's live key;
-the gRPC subject uses the key selected by the vault's frozen VP epoch. After a rejected bearer
-exposes a stale JSON-RPC pin, the provider re-reads the authoritative live key and retries the
-BIP-322 bootstrap once. The frozen gRPC pin never follows live rotation. A mismatch after that
-bounded recovery rejects the token. This is what makes the proxy a transport rather than a trusted
-party: a compromised proxy cannot mint an identity it does not hold the on-chain key for.
+operation key read from the registry contract. Both subjects use the key selected by the vault's
+frozen VP epoch: the provider issues every token the toolkit requests (`auth_createDepositorToken`)
+under the identity frozen into the peg-in (btc-vault #2984), and the pin never follows a later
+rotation. A mismatch rejects the token; there is no live re-read or retry. This is what makes the
+proxy a transport rather than a trusted party: a compromised proxy cannot mint an identity it does
+not hold the on-chain key for.
 
 Related bounds worth preserving:
 
@@ -556,10 +563,8 @@ JSON-RPC client casts responses without inspection. `VpResponseValidationError` 
 a safe user-facing `.message` from a technical `.detail` for logs; keep that separation, and keep
 `VP_ERROR_PREVIEW_MAX_LEN` bounded so a hostile VP cannot flood logs through an error path.
 
-`JsonRpcClient` caps typed responses at 2 MiB by default and retries only read methods. **Write
+`JsonRpcClient` caps every response at 2 MiB by default and retries only read methods. **Write
 methods are not retried by default** — preserve that; a retried write is a duplicate submission.
-`callRaw` is intentionally uncapped for the artifact stream and is the one path where the size bound
-does not apply.
 
 ### Indexer (GraphQL)
 
@@ -975,8 +980,8 @@ only repository-local safeguards.
    same. The secret is sourced from its generator, never from UI or storage state.
 8. **Split outputs sum exactly to `totalDeposit - fees`** and broadcast order is asserted explicitly.
 9. **Each VP token subject's `server_pubkey` is pinned to its authoritative on-chain operation
-   key** — live for JSON-RPC and frozen at the vault's epoch for gRPC — and live-key recovery is
-   limited to one chain re-read and one BIP-322 retry. Every VP RPC response passes runtime
+   key**, frozen at the vault's VP epoch for both subjects, with no live re-read or retry on a
+   mismatch. Every VP RPC response passes runtime
    validation before any security-relevant field is used.
 10. **No value read from `localStorage` reaches PSBT construction, vault matching, or ID
     normalisation without passing `hasValidSecurityFields`.**
@@ -1030,8 +1035,8 @@ only repository-local safeguards.
 | Activation          | —/C       | The wallet's gas estimate lands on the registry's catch-and-redeem path, so the activation transaction succeeds but redeems the vault instead of activating it | Position never opened; the BTC returns through the VP payout with the secret public in calldata | `planActivationGasLimit` searches the limit with `eth_simulateV1`, starting from the registry's `minActivationGas` gate as a provably failing lower bound (`BTCVaultRegistry.sol:728 @102e78c5`), and refuses a limit at which the registry emits the depositor-key `VaultClaimableBy`; the chosen limit is re-checked as the send's pre-flight and passed to the wallet | `activationGasLimit.test.ts`, `vaultActivationService.test.ts` |
 | Activation          | B/—       | The deposit form's cap check reads a cached `maxVaultsPerPosition` and an indexer vault count, so a deposit into a position that is already full, or that the depositor's own unactivated deposits will fill (a concurrent tab, an earlier session), is registered and its Pre-PegIn broadcast | The registry redeems the vault at activation instead of activating it: the ETH peg-in fee, the activation gas and the BTC claim costs are lost, and the BTC returns through the VP payout | A fresh, fail-closed on-chain check before a new deposit's chain switch and every signing prompt (only the BTC wallet's liveness probe, which can ask a locked wallet to unlock, runs earlier), before each registration attempt, and before every new or resumed Pre-PegIn broadcast: the vault's application is asked `allowedToDeposit` for the deposit plus the depositor's other Pending and Verified vaults in that application, read from the registry's `getDepositorVaultIds` and each vault's on-chain status, never from the indexer; every chain read of one check is pinned to one block (the head less a small lag), so a load-balanced RPC answering from nodes at different heights cannot make a vault that activates mid-check disappear from both counts. At broadcast a Pending vault registered after the deposit is left out only when the mempool API answers "not found" for its Pre-PegIn (it has locked nothing, and its own broadcast check counts this deposit if its client runs this check); any other answer or a failed lookup counts it, and a refusal that rests on a failed lookup is reported as "couldn't check", not "full". So of two unbroadcast registered deposits that fit only one at a time the earlier is broadcast and the later refused. **Residual:** the reads reserve nothing, so a concurrent activation or broadcast, a limit change after the last check, a deposit registered in the blocks the pinned reads lag behind, a later deposit whose client does not run this check and broadcasts after this one's check, or a mempool API that denies a later deposit's broadcast Pre-PegIn can still lead to a redeem (closing it needs a contract-side reservation); a Pending vault past its acknowledgment window or a Verified vault past its activation window is over-counted until its expiry is reported, so an abandoned deposit holds its room until then; the later of two unbroadcast registered deposits that fit only one at a time loses its peg-in fee | `positionCapacity.test.ts`, `depositorVaultIds.test.ts`, `useDepositFlow.test.tsx`, E2E `position-capacity.spec.ts`, E2E `--inject-position-full` |
 | Activation          | C         | A mempool API reports a healthy Verified BTCVault's HTLC as spent by its PegIn (an `outspend` naming the public PegIn txid, served with a fabricated witness), so the app shows "Activation incomplete", hides Activate and offers only activate-and-redeem | The depositor redeems a BTCVault that could have activated: the secret is revealed, the position never opens, and the BTC returns through the VP payout minus commission | The stuck state also requires the PegIn, fetched by the on-chain signed PegIn's txid, to spend the registered HTLC outpoint with a witness Bitcoin would accept: leaf committed to the HTLC output of the registered Pre-PegIn, preimage of the registered hashlock, every required signature valid (`verifyPeginHashlockSpend`); the row fails open to normal activation, and the confirm re-runs the proof before the secret check and the Ethereum wallet prompt and refuses without it. **Residual:** the participants' PegIn signatures are public (`getPeginInputSignaturesForVault`), so once the secret is public (e.g. a reverted activation's calldata) anyone can assemble a valid PegIn and show the stuck state without broadcasting it — and, while the HTLC is unspent, could equally broadcast it and sweep the HTLC for real | SDK `verifyPeginHashlockSpend.test.ts` (incl. a real signet PegIn), `outspend.test.ts`, `useStuckVaults.test.ts`, `useVaultActions.test.ts`, `useClaimExpiredVault.test.tsx` |
-| Artifacts           | A         | VP returns a valid JSON-RPC envelope wrapping a corrupt ~1 GB artifact body       | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — only the envelope prefix is validated for large payloads                                        | close with end-to-end body validation                             |
-| VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 identity pinned per subject to the live or frozen-epoch on-chain operation key; bounded live-key refresh; 2h ephemeral-key lifetime cap | `serverIdentity.test.ts`, `tokenRegistry.test.ts`                  |
+| Artifacts           | A         | VP serves a well-formed artifact manifest and CBOR sessions that match their SHA-256 ETags but whose content cannot decrypt a challenge | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — the manifest and session shapes, each session's SHA-256 ETag, the whole assembled body, the vault binding and the presign fingerprint are checked; decryptability is not (no client-side BaBe verifier) | close with a client-side artifact verifier before activation       |
+| VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 identity pinned per subject to the vault's frozen-epoch on-chain operation key; no live-key refresh; 2h ephemeral-key lifetime cap | `serverIdentity.test.ts`, `tokenRegistry.test.ts`                  |
 | VP responses        | A         | Malformed or hostile VP response is cast without inspection                       | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                    | `validators.test.ts`, `json-rpc-client.test.ts`                   |
 | Indexer             | B         | Wrong vault status induces an irreversible user action                            | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification | deposit-context tests                                             |
 | Indexer             | B         | Indexer leaves a stuck vault out of its list, or reports a wrong status, depositor key, HTLC vout, PegIn hash or Pre-PegIn for it, until the activation deadline passes | Activate-and-redeem is never offered, and the contract refuses it after the deadline; the depositor must then rely on the expired-vault redeem | Stuck vaults are found from the registry's `getDepositorVaultIds` and on-chain records plus the Bitcoin proof, and their row is built from those values alone, replacing or standing in for the indexed row. **Residual:** the indexer-fed Aave config check can replace the page or hold a loader, which is a visible outage for all users; on a cold load a hung vault list or position read holds the `/vaults` loader until a stuck-vault read has found the vault; a protocol params read failure replaces the rows with the provider's error panel; past the deadline an omitted row disappears and the expired-vault redeem is offered only from indexer rows; a malicious Ethereum RPC can still hide the state | `useStuckVaults.test.ts`, `stuckVaultRows.test.ts`, `computeDepositPollingResult.test.ts`, `useVaultsPageEmptiness.test.ts`, E2E `stuck-from-chain.spec.ts` |
@@ -1131,7 +1136,7 @@ Concrete calibration examples for this repository. These are illustrations, not 
 
 | Severity          | Example finding in this repo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Critical**      | Any path that lets a VP-supplied value reach a signature without independent re-derivation — a payout amount, an HTLC value, or PSBT sighash metadata (I4 × L2, ↑ silent). Removal or weakening of a WASM value guard on a path feeding a signed transaction (I4 × L2). A `VAULT_WASM_COMMIT` bump that changes expander output and ships without golden-vector verification, invalidating in-flight deposits (I4 × L2). Accepting a corrupt claimer-artifact body because only the envelope prefix is validated, discovered only at claim time (I4 × L1 → High, ↑ silent → Critical). A telemetry refactor that renames a secret-bearing field out of the denylist and silently discloses vault secrets (I3 × L2 → High, ↑ silent → Critical). Write access to the vault S3 bucket or the release OIDC role, i.e. arbitrary JavaScript in every user's browser with a wallet connected (I4 × L1 → High by matrix; ↑ raise to Critical, since it is unattributable and defeats every other control). `'unsafe-inline'` or `'unsafe-eval'` added to `script-src` (I3 × L3). |
+| **Critical**      | Any path that lets a VP-supplied value reach a signature without independent re-derivation — a payout amount, an HTLC value, or PSBT sighash metadata (I4 × L2, ↑ silent). Removal or weakening of a WASM value guard on a path feeding a signed transaction (I4 × L2). A `VAULT_WASM_COMMIT` bump that changes expander output and ships without golden-vector verification, invalidating in-flight deposits (I4 × L2). Accepting a claimer-artifact package that passes every structural check but cannot decrypt a challenge, discovered only at claim time (I4 × L1 → High, ↑ silent → Critical). A telemetry refactor that renames a secret-bearing field out of the denylist and silently discloses vault secrets (I3 × L2 → High, ↑ silent → Critical). Write access to the vault S3 bucket or the release OIDC role, i.e. arbitrary JavaScript in every user's browser with a wallet connected (I4 × L1 → High by matrix; ↑ raise to Critical, since it is unattributable and defeats every other control). `'unsafe-inline'` or `'unsafe-eval'` added to `script-src` (I3 × L3). |
 | **High**          | Undersigning or oversigning the challenger set — recovery material missing for an active challenger, or a signature handed to an unrecognised key (I4 × L1). A wrong-but-valid `contracts.btcVaultRegistry` shipping to production (I4 × L1). A `localStorage`-sourced value reaching PSBT construction without passing `hasValidSecurityFields` (I3 × L2). Enabling Sentry tracing or replay without the corresponding URL scrubber, transmitting depositor addresses (I3 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Medium**        | Screening silently disabled by a typo'd `NEXT_PUBLIC_TBV_UTILS_API` (I3 × L2 by impact of the compliance bypass, ↓ because the gate is advisory client-side ⇒ Medium; state the reasoning). Missing `X-Frame-Options`/HSTS at the CDN, enabling clickjacking of the dApp (I2 × L2). A known-vulnerable transitive dependency shipping because no SCA gate exists (I2 × L2). A tampered `localStorage` entry wiping all pending deposit records (I2 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Low**           | An external link with `target="_blank"` and no `rel="noopener"` (I1 × L2). `connect-src https:` remaining broad in an environment where a narrow allowlist is feasible (I1 × L2 — raise if paired with any script-injection path). Verbose error text exposing an internal endpoint URL in a user-facing message (I1 × L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
