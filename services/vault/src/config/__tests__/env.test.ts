@@ -294,6 +294,21 @@ describe("resolveAnalyticsConfig", () => {
     ]);
   });
 
+  it("records an error when the host carries only a username", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://user@us.i.posthog.com",
+        KEY,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual([
+      "NEXT_PUBLIC_POSTHOG_HOST must be an https origin with an optional path, without credentials, a query or a fragment",
+    ]);
+  });
+
   it("records an error when the host carries only a password", () => {
     const errors: string[] = [];
     expect(
