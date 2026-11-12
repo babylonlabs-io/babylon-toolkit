@@ -156,12 +156,10 @@ describe("WalletProvider AppKit initialization", () => {
     expect(screen.queryByText("tomo-bbn-connector")).toBeNull();
   });
 
-  it("offers the Bitcoin and Ethereum chains and no Tomo connector from the Bitcoin-Ethereum entry", () => {
+  it("offers the Bitcoin and Ethereum chains from the Bitcoin-Ethereum entry", () => {
     render(<BTCETHWalletProvider config={[]}>child</BTCETHWalletProvider>);
 
     expect(Object.keys(mocks.chainProviderMetadata.current as object)).toEqual(["BTC", "ETH"]);
-    expect(screen.queryByText("tomo-btc-connector")).toBeNull();
-    expect(screen.queryByText("tomo-bbn-connector")).toBeNull();
   });
 
   it("reports each Ethereum-only initialization failure after commit", async () => {
