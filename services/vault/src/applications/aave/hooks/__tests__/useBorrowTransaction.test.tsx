@@ -58,6 +58,14 @@ vi.mock("@/infrastructure/analytics", async (importOriginal) => ({
   trackEvent: mockTrackEvent,
 }));
 
+/** Each tracked event with its fields, built the way trackEvent builds them. */
+function trackedEvents(): [unknown, unknown][] {
+  return mockTrackEvent.mock.calls.map(([event, properties]) => [
+    event,
+    typeof properties === "function" ? properties() : properties,
+  ]);
+}
+
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
@@ -356,7 +364,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
     expect(result.current.pendingWrite).toBeNull();
     expect(mockInvalidateQueries).toHaveBeenCalled();
-    expect(mockTrackEvent.mock.calls).toEqual([
+    expect(trackedEvents()).toEqual([
       ["borrow_started", BORROW_FIELDS],
       ["borrow_succeeded", BORROW_FIELDS],
     ]);
@@ -521,9 +529,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       expect(result.current.pendingWrite).toBeNull();
       expect(mockInvalidateQueries).toHaveBeenCalled();
       // A borrow with no receipt is never reported as succeeded.
-      expect(mockTrackEvent.mock.calls).toEqual([
-        ["borrow_started", BORROW_FIELDS],
-      ]);
+      expect(trackedEvents()).toEqual([["borrow_started", BORROW_FIELDS]]);
     } finally {
       vi.useRealTimers();
     }
@@ -586,7 +592,7 @@ describe("useBorrowTransaction — analytics", () => {
       await result.current.executeBorrow(100, LIVE_RESERVE);
     });
 
-    expect(mockTrackEvent.mock.calls).toEqual([
+    expect(trackedEvents()).toEqual([
       ["borrow_started", BORROW_FIELDS],
       ["borrow_succeeded", BORROW_FIELDS],
     ]);
@@ -604,10 +610,13 @@ describe("useBorrowTransaction — analytics", () => {
       } as never);
     });
 
-    expect(mockTrackEvent).toHaveBeenCalledWith("borrow_started", {
-      reserve: "USDC",
-      wallet_address: "0xuser",
-    });
+    expect(trackedEvents()).toContainEqual([
+      "borrow_started",
+      {
+        reserve: "USDC",
+        wallet_address: "0xuser",
+      },
+    ]);
   });
 
   it("bounds an unregistered token's indexer label to 32 characters", async () => {
@@ -622,10 +631,13 @@ describe("useBorrowTransaction — analytics", () => {
       } as never);
     });
 
-    expect(mockTrackEvent).toHaveBeenCalledWith("borrow_started", {
-      reserve: "T".repeat(32),
-      wallet_address: "0xuser",
-    });
+    expect(trackedEvents()).toContainEqual([
+      "borrow_started",
+      {
+        reserve: "T".repeat(32),
+        wallet_address: "0xuser",
+      },
+    ]);
   });
 
   it("sends borrow_started but no borrow_succeeded when the borrow reverts", async () => {
@@ -636,9 +648,7 @@ describe("useBorrowTransaction — analytics", () => {
       await result.current.executeBorrow(100, LIVE_RESERVE);
     });
 
-    expect(mockTrackEvent.mock.calls).toEqual([
-      ["borrow_started", BORROW_FIELDS],
-    ]);
+    expect(trackedEvents()).toEqual([["borrow_started", BORROW_FIELDS]]);
   });
 
   it("sends nothing for a borrow the pre-sign validation refuses", async () => {
