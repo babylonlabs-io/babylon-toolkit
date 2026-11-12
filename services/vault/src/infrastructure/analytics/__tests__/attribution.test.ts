@@ -73,7 +73,8 @@ describe("deriveAttribution", () => {
     ).toEqual({ utm_source: "x", $referring_domain: "$direct", via: "other" });
   });
 
-  it("treats a malformed cookie as no source", () => {
+  it("treats a malformed cookie as no source and warns without its value", () => {
+    mockWarn.mockClear();
     expect(
       deriveAttribution({
         search: "",
@@ -82,6 +83,10 @@ describe("deriveAttribution", () => {
         ownHost: APP_HOST,
       }),
     ).toEqual({ $referring_domain: "$direct", via: "other" });
+    expect(mockWarn).toHaveBeenCalledWith(
+      "Analytics source cookie is malformed; the visit has no source",
+      { category: "analytics" },
+    );
   });
 
   it("treats a cookie that is valid JSON but not an object as no source", () => {
@@ -93,6 +98,38 @@ describe("deriveAttribution", () => {
         ownHost: APP_HOST,
       }),
     ).toEqual({ $referring_domain: "$direct", via: "other" });
+  });
+
+  it("treats a cookie holding JSON null as no source", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "",
+        cookie: "bbn_src=null",
+        ownHost: APP_HOST,
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
+  });
+
+  it("drops an empty campaign value from the cookie", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "",
+        cookie: cookieOf({ utm_source: "" }),
+        ownHost: APP_HOST,
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
+  });
+
+  it("truncates by code point, so an emoji at the limit is kept whole", () => {
+    const result = deriveAttribution({
+      search: `?utm_campaign=${"x".repeat(99)}%F0%9F%98%80b`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_campaign).toBe(`${"x".repeat(99)}\u{1F600}`);
   });
 
   it("truncates cookie values to 100 characters", () => {
@@ -199,6 +236,26 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("ref-[ETH_ADDR]");
   });
 
+  it("scrubs a bare Ethereum address preceded by hex letters", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref${"ab".repeat(20)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("r[ETH_ADDR]");
+  });
+
+  it("scrubs a bare Ethereum address followed by hex letters", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=${"ab".repeat(20)}cafe`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[ETH_ADDR]");
+  });
+
   it("scrubs an Ethereum address with an uppercase 0X", () => {
     const result = deriveAttribution({
       search: `?utm_term=0X${"AB".repeat(20)}`,
@@ -237,6 +294,48 @@ describe("deriveAttribution", () => {
       ownHost: APP_HOST,
     });
     expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("scrubs a mainnet P2SH legacy Bitcoin address", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=ref_3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("scrubs a testnet legacy Bitcoin address starting with n", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=ref_n4VQ5YdHf7hLQ2gWQYYrcxoE5B7nWuDFNF",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("scrubs a 35-character testnet P2SH address", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=ref_2N8hwP1WmJrFF5QWABn38y63uYLhnJYJYTF",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("leaves a legacy-shaped run followed directly by letters, as documented", () => {
+    const result = deriveAttribution({
+      search: "?utm_campaign=ref_1BoatSLRHtKNngkdXEeobR76b53LETtpyTxyz",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_campaign).toBe(
+      "ref_1BoatSLRHtKNngkdXEeobR76b53LETtpyTxyz",
+    );
   });
 
   it("leaves a legacy-shaped run joined directly to a letter, as documented", () => {
@@ -388,20 +487,26 @@ describe("deriveAttribution", () => {
     ).toEqual({ $referring_domain: "www.google.com", via: "other" });
   });
 
-  it("does not count any btc-vaults host as a referrer", () => {
-    for (const referrer of [
-      `https://${APP_HOST}/vaults`,
-      "https://btc-vaults.babylonlabs.io/",
-    ]) {
-      expect(
-        deriveAttribution({
-          search: "",
-          referrer,
-          cookie: "",
-          ownHost: APP_HOST,
-        }),
-      ).toEqual({ $referring_domain: "$direct", via: "other" });
-    }
+  it("does not count the app's own host as a referrer", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: `https://${APP_HOST}/vaults`,
+        cookie: "",
+        ownHost: APP_HOST,
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
+  });
+
+  it("does not count another btc-vaults host as a referrer", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "https://btc-vaults.babylonlabs.io/",
+        cookie: "",
+        ownHost: APP_HOST,
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
   });
 
   it("does not count the current host as a referrer when it is not a btc-vaults host", () => {
@@ -435,6 +540,17 @@ describe("deriveAttribution", () => {
         ownHost: APP_HOST,
       }).via,
     ).toBe("other");
+  });
+
+  it("does not count a host that only starts with babylonlabs.io as the website", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "https://babylonlabs.io.evil.com/",
+        cookie: cookieOf({ utm_source: "x" }),
+        ownHost: APP_HOST,
+      }),
+    ).toEqual({ $referring_domain: "babylonlabs.io.evil.com", via: "other" });
   });
 
   it("ignores the website cookie when the visit came from another site", () => {

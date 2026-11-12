@@ -211,8 +211,9 @@ Specific to this component:
   this component holds the only copy of some resume state.
 - **No claim about protocol correctness or economic outcomes**, including liquidation.
 - **No chain-privacy claim.** The model claims only that this component does not amplify linkage
-  through telemetry, except for the ad click ids product analytics sends on purpose so marketing
-  can match a visit to its ad click (root `SECURITY.md`, product analytics).
+  through telemetry, except for the campaign values product analytics sends on purpose, ad click
+  ids included, so marketing can match a visit to its traffic source and ad click (root
+  `SECURITY.md`, product analytics).
 
 ### Accepted risks
 
