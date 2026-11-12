@@ -61,7 +61,10 @@ export function AnalyticsTracker() {
     }
     // An address change under a confirmed session, e.g. an account switch
     // found on tab return while the reset is still running.
-    if (previous !== sessionAddress) setWalletAddress(null);
+    // Wallets may report one account in different casing.
+    if (previous.toLowerCase() !== sessionAddress.toLowerCase()) {
+      setWalletAddress(null);
+    }
   }, [sessionAddress]);
 
   useEffect(() => {

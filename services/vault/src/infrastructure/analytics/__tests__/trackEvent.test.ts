@@ -267,6 +267,17 @@ describe("geofence gate", () => {
     expect(sentBody().batch[0].timestamp).toBe("2026-01-02T03:04:05.000Z");
   });
 
+  it("sends a held event with the wallet address it was tracked with", async () => {
+    const module = await freshModule();
+    const session = await import("../analyticsSession");
+    module.trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    session.setWalletAddress("0x1111111111111111111111111111111111111111");
+
+    module.settleGeofence("passed");
+
+    expect(sentBody().batch[0].properties).not.toHaveProperty("wallet_address");
+  });
+
   it("drops held events and sends nothing later when the geofence fails", async () => {
     const { trackEvent: send, settleGeofence: settle } = await freshModule();
     send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
