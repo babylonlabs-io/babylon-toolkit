@@ -158,36 +158,78 @@ describe("trackEvent", () => {
     );
   });
 
-  it.each([400, 403, 404])(
-    "reports HTTP %i as an error, like a rejected key",
-    async (status) => {
-      const send = await freshTrackEvent();
-      fetchMock.mockResolvedValue(new Response(null, { status }));
-      send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
-      await vi.waitFor(() =>
-        expect(mockError).toHaveBeenCalledWith(
-          new Error(`Analytics capture rejected: HTTP ${status}`),
-          { tags: { category: "analytics", event: "$pageview" } },
-        ),
-      );
-      expect(mockWarn).not.toHaveBeenCalled();
-    },
-  );
+  it("reports a malformed request (HTTP 400) as an error", async () => {
+    const send = await freshTrackEvent();
+    fetchMock.mockResolvedValue(new Response(null, { status: 400 }));
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    await vi.waitFor(() =>
+      expect(mockError).toHaveBeenCalledWith(
+        new Error("Analytics capture rejected: HTTP 400"),
+        { tags: { category: "analytics", event: "$pageview" } },
+      ),
+    );
+    expect(mockWarn).not.toHaveBeenCalled();
+  });
 
-  it.each([429, 503])(
-    "logs HTTP %i from PostHog as a warning, not an error",
-    async (status) => {
-      fetchMock.mockResolvedValue(new Response(null, { status }));
-      trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
-      await vi.waitFor(() =>
-        expect(mockWarn).toHaveBeenCalledWith(
-          `Analytics capture failed: HTTP ${status}`,
-          { category: "analytics", event: "$pageview" },
-        ),
-      );
-      expect(mockError).not.toHaveBeenCalled();
-    },
-  );
+  it("reports a forbidden key (HTTP 403) as an error", async () => {
+    const send = await freshTrackEvent();
+    fetchMock.mockResolvedValue(new Response(null, { status: 403 }));
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    await vi.waitFor(() =>
+      expect(mockError).toHaveBeenCalledWith(
+        new Error("Analytics capture rejected: HTTP 403"),
+        { tags: { category: "analytics", event: "$pageview" } },
+      ),
+    );
+    expect(mockWarn).not.toHaveBeenCalled();
+  });
+
+  it("reports a host that is not a capture API (HTTP 404) as an error", async () => {
+    const send = await freshTrackEvent();
+    fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    await vi.waitFor(() =>
+      expect(mockError).toHaveBeenCalledWith(
+        new Error("Analytics capture rejected: HTTP 404"),
+        { tags: { category: "analytics", event: "$pageview" } },
+      ),
+    );
+    expect(mockWarn).not.toHaveBeenCalled();
+  });
+
+  it("logs PostHog rate limiting (HTTP 429) as a warning, not an error", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 429 }));
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    await vi.waitFor(() =>
+      expect(mockWarn).toHaveBeenCalledWith(
+        "Analytics capture failed: HTTP 429",
+        { category: "analytics", event: "$pageview" },
+      ),
+    );
+    expect(mockError).not.toHaveBeenCalled();
+  });
+
+  it("logs a PostHog outage (HTTP 503) as a warning, not an error", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 503 }));
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    await vi.waitFor(() =>
+      expect(mockWarn).toHaveBeenCalledWith(
+        "Analytics capture failed: HTTP 503",
+        { category: "analytics", event: "$pageview" },
+      ),
+    );
+    expect(mockError).not.toHaveBeenCalled();
+  });
+
+  it("logs nothing when PostHog accepts the event", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // Let the response settle before checking that nothing was logged.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockWarn).not.toHaveBeenCalled();
+    expect(mockError).not.toHaveBeenCalled();
+  });
 
   it("reports an event that cannot be built as an error once per page load", async () => {
     const send = await freshTrackEvent();
@@ -298,6 +340,18 @@ describe("geofence gate", () => {
     send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/vaults" }, CONFIG);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("holds nothing after the geofence fails, so no hold-limit warning follows", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    settle("failed");
+
+    for (let i = 0; i < 51; i += 1) {
+      send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    }
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockWarn).not.toHaveBeenCalled();
   });
 
   it("keeps the first outcome of the page load", async () => {
