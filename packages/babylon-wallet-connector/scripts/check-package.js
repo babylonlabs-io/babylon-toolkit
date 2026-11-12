@@ -2,7 +2,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { bundledDependencies, checkPackage, emittedDependencies } from "./package-boundary.js";
+import {
+  assertNoStubbedStreamTransform,
+  bundledDependencies,
+  checkPackage,
+  emittedDependencies,
+} from "./package-boundary.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
@@ -11,7 +16,10 @@ const runtime = {
   root: emittedDependencies(entries(".", ["import", "require"])),
   eth: emittedDependencies(entries("./eth", ["import", "require"])),
 };
-for (const graph of Object.values(runtime)) graph.bundledPackages = bundledDependencies(graph.files);
+for (const graph of Object.values(runtime)) {
+  graph.bundledPackages = bundledDependencies(graph.files);
+  assertNoStubbedStreamTransform(graph.files);
+}
 const declarations = {
   root: emittedDependencies(entries(".", ["types"])),
   eth: emittedDependencies(entries("./eth", ["types"])),

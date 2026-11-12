@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import {
+  assertNoStubbedStreamTransform,
   bundledDependencies,
   checkPackage,
   emittedDependencies,
@@ -178,4 +179,46 @@ test("ignores import text in comments and strings", () => {
     ),
     [],
   );
+});
+
+function bundle(t, contents) {
+  const root = mkdtempSync(join(tmpdir(), "wallet-stub-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const file = join(root, "index.es.js");
+  writeFileSync(file, contents);
+  return file;
+}
+
+test("rejects cipher-base reading Transform from an empty stream stub", (t) => {
+  const file = bundle(
+    t,
+    `const __viteBrowserExternal = {}, require$$2$2 = /* @__PURE__ */ getAugmentedNamespace(__viteBrowserExternal$1);
+    var g = require$$2$2.Transform;`,
+  );
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /reads stream.Transform from an empty browser stub/);
+});
+
+test("rejects a minified Transform read from an empty stream stub", (t) => {
+  const file = bundle(t, "require$$2$4=getAugmentedNamespace$1(__viteBrowserExternal$3);var Dc=require$$2$4.Transform;");
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /reads stream.Transform from an empty browser stub/);
+});
+
+test("rejects a Transform read through another interop helper and pure-comment form", (t) => {
+  const file = bundle(t, "var x = /*#__PURE__*/ _interopNamespace(__viteBrowserExternal$1); var g = x.Transform;");
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /through x;/);
+});
+
+test("rejects a Transform read directly from the stub namespace", (t) => {
+  const file = bundle(t, "const __viteBrowserExternal$1 = Object.freeze({}); var g = __viteBrowserExternal$1.Transform;");
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /through __viteBrowserExternal\$1;/);
+});
+
+test("accepts guarded builtin reads from the stub and Transform from stream-browserify", (t) => {
+  const file = bundle(
+    t,
+    `const require$$2$2 = /* @__PURE__ */ getAugmentedNamespace(__viteBrowserExternal$1);
+    var B = require$$2$2; B && B.debuglog;
+    var g = requireStreamBrowserify().Transform;`,
+  );
+  assert.doesNotThrow(() => assertNoStubbedStreamTransform([file]));
 });
