@@ -160,7 +160,7 @@ describe("trackEvent", () => {
       ANALYTICS_EVENT.BORROW_SUCCEEDED,
       {
         reserve: "USDC",
-        wallet_address: "0xabcdef0000000000000000000000000000000002",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
       },
       CONFIG,
     );
