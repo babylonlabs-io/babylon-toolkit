@@ -294,6 +294,21 @@ describe("resolveAnalyticsConfig", () => {
     ]);
   });
 
+  it("records an error when the host carries only a password", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://:hunter2@us.i.posthog.com",
+        KEY,
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual([
+      "NEXT_PUBLIC_POSTHOG_HOST must be an https origin with an optional path, without credentials, a query or a fragment",
+    ]);
+  });
+
   it("records an error when the host has a query", () => {
     const errors: string[] = [];
     expect(
@@ -318,6 +333,21 @@ describe("resolveAnalyticsConfig", () => {
       ),
     ).toEqual({ enabled: false });
     expect(errors).toHaveLength(1);
+  });
+
+  it("records an error when a phc_ key carries characters other than letters and digits", () => {
+    const errors: string[] = [];
+    expect(
+      resolveAnalyticsConfig(
+        "https://us.i.posthog.com",
+        "phc_abc-!",
+        "devnet",
+        errors,
+      ),
+    ).toEqual({ enabled: false });
+    expect(errors).toEqual([
+      'NEXT_PUBLIC_POSTHOG_PROJECT_KEY must be a PostHog project key ("phc_" followed by letters and digits)',
+    ]);
   });
 
   it("records an error when the key is not a PostHog project key", () => {

@@ -49,20 +49,23 @@ const CLICK_ID_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
 /**
  * Addresses and long hex scrubbed out of UTM values, in this order, following
  * MetaMask's Sentry scrubbing (`app/scripts/lib/setupSentry.ts`). A prefixed
- * form (`0x`, `bc1`, `tb1`, `bbn1`) or a long hex run is matched anywhere, so
- * one joined directly to other text is still caught. A legacy Bitcoin address
- * has no distinctive prefix, so it is matched only between non-alphanumeric
- * characters: unanchored, the pattern would eat ordinary campaign words. Even
- * so a campaign word of that shape is replaced; scrubbing too much is the
- * accepted direction.
+ * form (`0x`, `bc1`, `tb1`, `bbn1`, in any case) or a long hex run is matched
+ * anywhere, so one joined directly to other text is still caught; a bare
+ * 40-character hex value (an Ethereum address without `0x`) is matched when
+ * no other hex digit adjoins it. A legacy Bitcoin address (mainnet `1`/`3`,
+ * testnet `m`/`n`/`2`) has no distinctive prefix, so it is matched only
+ * between non-alphanumeric characters: unanchored, the pattern would eat
+ * ordinary campaign words. Even so a campaign word of that shape is replaced;
+ * scrubbing too much is the accepted direction.
  */
 const UTM_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
-  [/0x[0-9a-fA-F]{41,}|[0-9a-fA-F]{64,}/g, "[HEX_REDACTED]"],
-  [/0x[0-9a-fA-F]{40}/g, "[ETH_ADDR]"],
-  [/(?:bc1|tb1)[a-zA-HJ-NP-Z0-9]{24,62}/g, "[BTC_ADDR]"],
-  [/bbn1[a-z0-9]{38,58}/g, "[BBN_ADDR]"],
+  [/0x[0-9a-f]{41,}|[0-9a-f]{64,}/gi, "[HEX_REDACTED]"],
+  [/0x[0-9a-f]{40}/gi, "[ETH_ADDR]"],
+  [/(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])/gi, "[ETH_ADDR]"],
+  [/(?:bc1|tb1)[a-z0-9]{24,62}/gi, "[BTC_ADDR]"],
+  [/bbn1[a-z0-9]{38,58}/gi, "[BBN_ADDR]"],
   [
-    /(?<![A-Za-z0-9])[13][a-km-zA-HJ-NP-Z1-9]{24,33}(?![A-Za-z0-9])/g,
+    /(?<![A-Za-z0-9])[13mn2][a-km-zA-HJ-NP-Z1-9]{24,33}(?![A-Za-z0-9])/g,
     "[BTC_ADDR]",
   ],
 ];
