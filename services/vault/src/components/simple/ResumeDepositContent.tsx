@@ -23,7 +23,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 

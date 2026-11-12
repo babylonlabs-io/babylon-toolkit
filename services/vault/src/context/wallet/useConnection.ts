@@ -2,7 +2,7 @@ import {
   useBTCWallet,
   useETHWallet,
   useWalletConnect,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 
 export interface ConnectionState {
   /** Whether the Ethereum wallet has a confirmed session. */

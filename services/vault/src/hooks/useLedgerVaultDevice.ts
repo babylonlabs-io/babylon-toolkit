@@ -9,7 +9,7 @@
 import {
   type DeviceAppState,
   useChainConnector,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { isLedgerVaultConnector } from "@/context/wallet/ledgerVaultConnector";

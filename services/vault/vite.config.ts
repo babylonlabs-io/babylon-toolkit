@@ -151,7 +151,7 @@ export default defineConfig(({ mode, command }) => ({
     include: [
       "bitcoinjs-lib",
       "@bitcoin-js/tiny-secp256k1-asmjs",
-      "@babylonlabs-io/wallet-connector",
+      "@babylonlabs-io/wallet-connector/btc-eth",
       // BOTH signer entries MUST accompany wallet-connector above: the dep
       // optimizer would otherwise give the E2E bootstrap (which imports the
       // `/testing` subpath) a different dmkSession module instance than the

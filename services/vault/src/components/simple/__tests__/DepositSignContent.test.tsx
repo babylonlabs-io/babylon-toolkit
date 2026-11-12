@@ -11,7 +11,7 @@ import type { DepositProgressViewProps } from "../DepositProgressView";
 import { DepositSignContent } from "../DepositSignContent";
 
 const btcActionWallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
   useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),

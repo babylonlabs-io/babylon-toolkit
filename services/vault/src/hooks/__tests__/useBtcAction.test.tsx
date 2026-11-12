@@ -21,7 +21,7 @@ const wallet = vi.hoisted(() => {
   return { state, useBTCWallet };
 });
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: wallet.useBTCWallet,
   useWalletConnect: () => ({

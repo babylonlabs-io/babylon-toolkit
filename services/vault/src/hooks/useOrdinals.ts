@@ -9,7 +9,7 @@ import {
   useOrdinals as useBaseOrdinals,
   useChainConnector,
   type UTXO,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 
 /**
  * Get the ordinals API URL from environment variable.
@@ -45,4 +45,4 @@ export type {
   FilteredUtxos,
   InscriptionIdentifier,
   UTXO,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";

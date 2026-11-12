@@ -1,5 +1,5 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
 import {
   forwardRef,
   useCallback,

@@ -31,7 +31,7 @@ vi.mock("@/hooks/deposit/useArtifactDownload", () => ({
   useArtifactDownload: () => hookState.current,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useChainConnector: () => null,
 }));
 

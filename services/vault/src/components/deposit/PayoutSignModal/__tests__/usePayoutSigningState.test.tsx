@@ -79,7 +79,7 @@ let mockBtcConnector: {
     provider?: unknown;
   };
 } | null = null;
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({
     connected: Boolean(mockBtcConnector?.connectedWallet),

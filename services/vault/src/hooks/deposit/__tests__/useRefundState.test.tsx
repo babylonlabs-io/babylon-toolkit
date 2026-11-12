@@ -27,7 +27,7 @@ const btcWallet = vi.hoisted(() => ({
 // re-exports it from the connector. useBtcAction imports it from the package
 // and useBtcWalletUnlock from the barrel, so each path below carries only the
 // members its own consumer reads.
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({
     connected: btcWallet.connected,

@@ -1,5 +1,5 @@
 import { Heading } from "@babylonlabs-io/core-ui";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";

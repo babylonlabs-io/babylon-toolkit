@@ -23,6 +23,11 @@
       "require": "./dist/eth.cjs",
       "import": "./dist/eth.es.js"
     },
+    "./btc-eth": {
+      "types": "./dist/btc-eth.d.ts",
+      "require": "./dist/btc-eth.cjs",
+      "import": "./dist/btc-eth.es.js"
+    },
     "./style.css": "./dist/wallet-connector.css"
   },
   "scripts": {
@@ -79,7 +84,6 @@
   },
   "peerDependencies": {
     "@babylonlabs-io/ledger-vault-signer": "workspace:*",
-    "@cosmjs/proto-signing": "0.36.0",
     "@cosmjs/stargate": "0.36.0",
     "@keystonehq/sdk": "0.22.1",
     "@reown/appkit-adapter-bitcoin": "1.8.12",
@@ -98,7 +102,6 @@
     "@chromatic-com/storybook": "3.2.7",
     "@commitlint/cli": "19.8.1",
     "@commitlint/config-conventional": "19.8.1",
-    "@cosmjs/proto-signing": "0.36.0",
     "@cosmjs/stargate": "0.36.0",
     "@eslint/js": "9.32.0",
     "@internal/eslint-config": "workspace:*",
@@ -177,9 +180,6 @@
   },
   "peerDependenciesMeta": {
     "@babylonlabs-io/ledger-vault-signer": {
-      "optional": true
-    },
-    "@cosmjs/proto-signing": {
       "optional": true
     },
     "@cosmjs/stargate": {

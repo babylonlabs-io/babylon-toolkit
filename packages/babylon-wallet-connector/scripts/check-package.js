@@ -15,6 +15,7 @@ const entries = (subpath, formats) => formats.map((format) => resolve(root, mani
 const runtime = {
   root: emittedDependencies(entries(".", ["import", "require"])),
   eth: emittedDependencies(entries("./eth", ["import", "require"])),
+  btcEth: emittedDependencies(entries("./btc-eth", ["import", "require"])),
 };
 for (const graph of Object.values(runtime)) {
   graph.bundledPackages = bundledDependencies(graph.files);
@@ -23,7 +24,10 @@ for (const graph of Object.values(runtime)) {
 const declarations = {
   root: emittedDependencies(entries(".", ["types"])),
   eth: emittedDependencies(entries("./eth", ["types"])),
+  btcEth: emittedDependencies(entries("./btc-eth", ["types"])),
 };
 const report = checkPackage(manifest, runtime, declarations);
 writeFileSync(resolve(root, "dist/package-dependencies.json"), JSON.stringify(report, null, 2) + "\n");
-console.log(`Wallet package verified: ${report.optionalPeers.length} optional peers; Ethereum imports none.`);
+console.log(
+  `Wallet package verified: ${report.optionalPeers.length} optional peers; Ethereum imports none; Bitcoin-Ethereum carries no Cosmos wallet package.`,
+);
