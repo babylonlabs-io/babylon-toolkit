@@ -1,3 +1,5 @@
+import { getEventListeners } from "node:events";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { VaultProviderRpcClient } from "../api";
@@ -53,6 +55,21 @@ function createStreamedTextResponse(chunks: string[]): Response {
           controller.enqueue(encoder.encode(chunk));
         }
         controller.close();
+      },
+    }),
+    { status: HTTP_OK, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+function createStalledBodyResponse(signal: AbortSignal): Response {
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        signal.addEventListener(
+          "abort",
+          () => controller.error(new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
       },
     }),
     { status: HTTP_OK, headers: { "Content-Type": "application/json" } },
@@ -130,7 +147,9 @@ describe("JsonRpcClient", () => {
     ).rejects.toThrow(JsonRpcError);
 
     try {
-      await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
+      await client.call("vaultProvider_getPeginStatusByVaultId", {
+        vault_id: "abc",
+      });
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
       expect((err as JsonRpcError).code).toBe(RpcErrorCode.PEGIN_NOT_FOUND);
@@ -265,7 +284,9 @@ describe("JsonRpcClient", () => {
       headers: { Authorization: "Bearer token123" },
     });
 
-    await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
+    await client.call("vaultProvider_getPeginStatusByVaultId", {
+      vault_id: "abc",
+    });
 
     const [, options] = mockFetch.mock.calls[0];
     expect(options.headers).toEqual({
@@ -291,11 +312,150 @@ describe("JsonRpcClient", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawResponse));
 
     const client = createClient();
-    const response = await client.callRaw("vaultProvider_getPeginStatusByVaultId", {
-      vault_id: "abc",
-    });
+    const response = await client.callRaw(
+      "vaultProvider_getPeginStatusByVaultId",
+      {
+        vault_id: "abc",
+      },
+    );
 
     expect(response).toBe(rawResponse);
+  });
+
+  it("times out a typed call when the response body stalls after the headers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        createStalledBodyResponse(init.signal!),
+      ),
+    );
+
+    const client = createClient();
+    const resultPromise = client
+      .call("vaultProvider_submitDepositorWotsKey", { pegin_txid: "abc" })
+      .catch((e: Error) => e);
+
+    await vi.advanceTimersByTimeAsync(TEST_TIMEOUT_MS);
+    const error = await resultPromise;
+
+    expect(error).toBeInstanceOf(JsonRpcError);
+    expect((error as JsonRpcError).code).toBe(JSON_RPC_ERROR_CODES.TIMEOUT);
+  });
+
+  it("aborts a typed call when the caller aborts during a stalled response body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        createStalledBodyResponse(init.signal!),
+      ),
+    );
+    const controller = new AbortController();
+
+    const client = createClient();
+    const resultPromise = client
+      .call(
+        "vaultProvider_submitDepositorWotsKey",
+        { pegin_txid: "abc" },
+        controller.signal,
+      )
+      .catch((e: Error) => e);
+
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort();
+    const error = await resultPromise;
+
+    expect((error as Error).message).toBe("Request aborted");
+  });
+
+  it("callRaw keeps the caller signal attached to the response body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        createStalledBodyResponse(init.signal!),
+      ),
+    );
+    const controller = new AbortController();
+
+    const client = createClient();
+    const response = await client.callRaw(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+      { pegin_txid: "abc" },
+      controller.signal,
+    );
+    const bodyPromise = response.text().catch((e: Error) => e);
+
+    await vi.advanceTimersByTimeAsync(TEST_TIMEOUT_MS);
+    expect(vi.mocked(fetch).mock.calls[0][1]?.signal?.aborted).toBe(false);
+    controller.abort();
+    const error = await bodyPromise;
+
+    expect((error as Error).name).toBe("AbortError");
+  });
+
+  it("rejects a raw body read when the caller cancels before reading", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (_url: string, init: RequestInit) =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode("{}"));
+                controller.close();
+                init.signal!.addEventListener(
+                  "abort",
+                  () =>
+                    controller.error(new DOMException("Aborted", "AbortError")),
+                  { once: true },
+                );
+              },
+            }),
+          ),
+      ),
+    );
+    const controller = new AbortController();
+    const response = await createClient().callRaw(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+      {},
+      controller.signal,
+    );
+
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort();
+
+    await expect(response.text()).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("returns an empty raw response and releases caller listeners", async () => {
+    const rawResponse = new Response(null, { status: 204 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawResponse));
+    const controller = new AbortController();
+    const response = await createClient().callRaw(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+      {},
+      controller.signal,
+    );
+
+    expect(response).toBe(rawResponse);
+    expect(await response.text()).toBe("");
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("releases caller abort listeners when a raw response body ends", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(createSuccessResponse("ok")),
+    );
+    const controller = new AbortController();
+    const response = await createClient().callRaw(
+      "vaultProvider_requestDepositorClaimerArtifacts",
+      { pegin_txid: "abc" },
+      controller.signal,
+    );
+
+    await response.text();
+
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
   });
 
   it("rejects typed calls before reading when Content-Length exceeds the response cap", async () => {
@@ -314,7 +474,9 @@ describe("JsonRpcClient", () => {
     const client = createClient({ maxResponseBytes: 64 });
 
     try {
-      await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
+      await client.call("vaultProvider_getPeginStatusByVaultId", {
+        vault_id: "abc",
+      });
       expect.fail("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
@@ -412,9 +574,7 @@ describe("JsonRpcClient", () => {
       vault_ids: [vaultId],
     });
 
-    expect(response.results[0].result?.claimer?.status).toBe(
-      "PayoutConfirmed",
-    );
+    expect(response.results[0].result?.claimer?.status).toBe("PayoutConfirmed");
   });
 
   it("temporarily exempts depositor claimer artifact downloads from the typed response cap", async () => {
