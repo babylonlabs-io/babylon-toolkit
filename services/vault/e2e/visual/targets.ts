@@ -135,6 +135,13 @@ export const DEPOSIT_FLOW_STOPS = {
   insufficientEth: "deposit-insufficient-eth",
 } as const;
 
+export const BORROW_HINT_STOPS = {
+  "overview-light": "borrow-hint-overview-light",
+  "overview-dark": "borrow-hint-overview-dark",
+  "loans-light": "borrow-hint-loans-light",
+  "loans-dark": "borrow-hint-loans-dark",
+} as const;
+
 /**
  * The deposit form with the slider's mark at the two-vault minimum. The
  * slider draws that mark only when the wallet can deposit more than the

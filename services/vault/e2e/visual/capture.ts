@@ -36,6 +36,7 @@ import {
   ACTIVE_LOAN_STOP,
   ARTIFACT_DOWNLOAD_STOPS,
   ARTIFACT_QUOTA_STOPS,
+  BORROW_HINT_STOPS,
   CONNECT_GUIDE_STOP,
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
@@ -446,6 +447,7 @@ export async function ensureOutputDir(): Promise<void> {
       ),
     ),
     ...[
+      ...Object.values(BORROW_HINT_STOPS),
       ACTIVE_LOAN_STOP,
       ...Object.values(LOAN_PICKER_STOPS).flatMap(Object.values),
       PROVIDER_COLUMNS_STOP,
