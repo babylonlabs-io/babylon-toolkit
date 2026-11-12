@@ -210,8 +210,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         // the user declines, is not counted. A borrow whose pre-flight
         // simulation then rejects, that the user declines in the wallet, or
         // that reverts is counted as started but never as succeeded.
-        trackEvent(
-          ANALYTICS_EVENT.BORROW_STARTED,
+        trackEvent(ANALYTICS_EVENT.BORROW_STARTED, () =>
           borrowAnalyticsFields(reserve, account),
         );
         await borrow(
@@ -227,8 +226,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // its inclusion, and one the user stopped waiting on is not confirming.
       setIsConfirming(outcome === "mined");
       if (outcome === "mined") {
-        trackEvent(
-          ANALYTICS_EVENT.BORROW_SUCCEEDED,
+        trackEvent(ANALYTICS_EVENT.BORROW_SUCCEEDED, () =>
           borrowAnalyticsFields(reserve, account),
         );
       }

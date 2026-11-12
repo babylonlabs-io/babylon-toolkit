@@ -120,16 +120,23 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   };
 }
 
+/**
+ * `properties` may be a function that builds them. Pass one when building the
+ * fields can throw: it runs inside this function's guard, so a throw is
+ * reported here and never reaches the caller's flow.
+ */
 export function trackEvent<E extends AnalyticsEventName>(
   event: E,
-  properties: AnalyticsEventProperties[E],
+  properties: AnalyticsEventProperties[E] | (() => AnalyticsEventProperties[E]),
   config: AnalyticsConfig = ENV.ANALYTICS,
 ): void {
   try {
     if (!config.enabled || hasOptedOut()) return;
+    const resolved =
+      typeof properties === "function" ? properties() : properties;
     // Built now, so a held event keeps the time and fields it was sent with.
     const body = JSON.stringify(
-      buildCaptureBody(config, event, properties, new Date().toISOString()),
+      buildCaptureBody(config, event, resolved, new Date().toISOString()),
     );
     if (geofenceOutcome === "passed") {
       post(config, event, body, true);
