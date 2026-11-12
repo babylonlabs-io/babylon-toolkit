@@ -15,6 +15,14 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // BTCVault the position does not hold.
   InvalidVaultsArray:
     "The BTCVault list doesn't match your current position. Refresh the page and try again.",
+  // Activation only: the adapter refuses a BTCVault that would take the
+  // position past its BTCVault count or size limit.
+  InvalidPositionSizes:
+    "Adding this BTCVault would take your position past its BTCVault count or size limit, so it was not activated.",
+  // Raised on activation, borrow and collateral withdrawal while the
+  // application's vaultBTC reserve is out of balance.
+  VaultBTCSharesAssetsMismatch:
+    "The application's BTC collateral accounting is out of balance, so this action can't go through right now. Try again later.",
 
   // ============================================================================
   // BTCVaultRegistry errors
@@ -31,8 +39,9 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // so this is the fallback for a governance change mid-flow.
   ActivationDelayNotElapsed:
     "The BTCVault activation window has not opened yet. The deposit list shows how long is left.",
-  InsufficientGasForActivation:
-    "The activation was not given enough gas to run, so the BTCVault was not activated. Try again.",
+  // Either the application's total cap or this wallet's cap would be passed.
+  ActivationCapExceeded:
+    "This BTCVault would exceed the application's deposit limit or your per-address limit, so it was not activated.",
   InvalidSecret:
     "The secret does not match the BTCVault's hashlock. Please verify your secret and try again.",
   InvalidHashlock: "The BTCVault does not have a valid hashlock configured.",
@@ -71,10 +80,11 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Aave Spoke errors
   // ============================================================================
   ReentrancyGuardReentrantCall: "Reentrant call detected.",
-  // Reserve state and risk checks a borrow or repay can hit.
+  // Reserve state and risk checks a borrow, a repay or an activation can hit.
   ReservePaused:
     "This market is on hold, so it can't be used right now. Try again later.",
-  ReserveFrozen: "This market isn't accepting new borrows right now.",
+  ReserveFrozen:
+    "This market is frozen, so it isn't accepting new collateral or borrows right now.",
   ReserveNotBorrowable: "This asset can't be borrowed from this market.",
   MaximumUserReservesExceeded:
     "This position already borrows as many assets as it can. Fully repay a loan to borrow a different asset.",
@@ -86,6 +96,9 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   // Fixed text for callers that have no reserve to name; the borrow and repay
   // forms scale and name the hub (describeAaveRevert).
+  // Activation supplies the BTCVault as collateral, which the hub can cap.
+  AddCapExceeded:
+    "This market has reached its collateral limit on its hub, so it can't accept more right now.",
   DrawCapExceeded:
     "This market has reached its borrow limit on its hub. Enter a lower amount or borrow from another hub.",
   InsufficientLiquidity:
