@@ -40,7 +40,10 @@ export type AnalyticsConfig =
   | { enabled: false }
   | {
       enabled: true;
-      /** PostHog ingestion origin, e.g. https://us.i.posthog.com. */
+      /**
+       * PostHog ingestion URL: https, optionally with a path, e.g. the sidecar proxy
+       * https://sidecar-api.<env>.babylonlabs.io/posthog.
+       */
       host: string;
       /** Public, write-only project key (`phc_…`). */
       projectKey: string;

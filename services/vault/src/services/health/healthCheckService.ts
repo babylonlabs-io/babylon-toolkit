@@ -52,9 +52,10 @@ export async function checkGeofencing(): Promise<HealthCheckResult> {
       return { healthy: false, isGeoBlocked: true };
     }
 
-    // Non-451 errors don't block the user - GraphQL check handles general availability
+    // Non-451 errors don't block the user - GraphQL check handles general
+    // availability. `healthy: false` records that the region is unknown.
     logger.warn("Healthcheck endpoint error", { data: { error } });
-    return { healthy: true, isGeoBlocked: false };
+    return { healthy: false, isGeoBlocked: false };
   }
 }
 

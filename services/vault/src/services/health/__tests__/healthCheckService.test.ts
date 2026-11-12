@@ -130,7 +130,7 @@ describe("healthCheckService", () => {
       expect(result.isGeoBlocked).toBe(true);
     });
 
-    it("returns healthy when healthcheck fails with non-451 error", async () => {
+    it("reports the region unknown, but not blocked, when healthcheck fails with a non-451 error", async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -138,8 +138,7 @@ describe("healthCheckService", () => {
 
       const result = await checkGeofencing();
 
-      // Non-451 errors don't block the user
-      expect(result.healthy).toBe(true);
+      expect(result.healthy).toBe(false);
       expect(result.isGeoBlocked).toBe(false);
       expect(result.error).toBeUndefined();
     });

@@ -814,9 +814,10 @@ What bounds it:
 - **Off unless configured.** Without both `NEXT_PUBLIC_POSTHOG_HOST` and
   `NEXT_PUBLIC_POSTHOG_PROJECT_KEY` nothing is sent. Setting one without the other, a host that is
   not https or carries credentials, a query or a fragment, or a key that is not a `phc_` project
-  key turns analytics off and is reported with `logger.error`; it does not block the app. An app
-  whose network profile or a profile override is invalid sends nothing; other blocking errors,
-  such as a missing Reown project id, do not stop page views.
+  key turns analytics off and is reported with `logger.error`; it does not block the app. Events
+  wait for the geofence check, so an app that stops before it sends nothing: an invalid network
+  profile or profile override, or a wallet setup error such as a missing Reown project id. The
+  GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
 - **Allow-listed payload.** The payload is defined by two files together:
   `analyticsEvents.ts` (the events and each event's own fields) and `trackEvent.ts` (the network,
   visit and session ids added to every event). Event fields are route templates (never a concrete
@@ -831,8 +832,9 @@ What bounds it:
   and no referrer. The visit and session ids live in memory only.
 - **Nothing before the geofence passes.** Every event is held in memory while the geofence check
   runs (at most 50) and sent once it passes. Held and later events are dropped for a geo-blocked
-  visitor, who sees only the geo-block screen, and when a configuration error stops the app
-  before the check runs.
+  visitor, who sees only the geo-block screen, and whenever the region is unknown: the health
+  endpoint did not answer (a network error, CORS or a non-451 status), or a configuration error
+  stopped the app before the check ran. The app itself still opens in those cases.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
 - **No person profiles.** Every event carries `$process_person_profile: false`.

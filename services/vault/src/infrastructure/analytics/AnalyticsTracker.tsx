@@ -12,9 +12,9 @@ import { settleGeofence, trackEvent } from "./trackEvent";
  * Renders nothing; mount once inside the router and the geofencing provider.
  *
  * Events are held while the geofence check runs, sent once it passes, and
- * dropped for a blocked visitor, who sees only the geo-block screen, and when
- * a blocking configuration error stopped the check before it ran, so the
- * visitor's region is unknown.
+ * dropped for a blocked visitor, who sees only the geo-block screen, and
+ * whenever the visitor's region is unknown: the health endpoint did not answer,
+ * or a blocking configuration error stopped the check before it ran.
  */
 export function AnalyticsTracker() {
   const { pathname } = useLocation();

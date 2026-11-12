@@ -57,7 +57,7 @@ export function GeoFencingProvider({ children }: PropsWithChildren) {
       }
 
       const geoResult = await checkGeofencing();
-      setIsGeoChecked(true);
+      setIsGeoChecked(geoResult.healthy || geoResult.isGeoBlocked === true);
       if (geoResult.isGeoBlocked) {
         setIsGeoBlocked(true);
         setIsLoading(false);

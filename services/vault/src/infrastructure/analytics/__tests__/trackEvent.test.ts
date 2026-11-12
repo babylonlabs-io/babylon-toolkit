@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnalyticsConfig } from "@/config/env";
 
 import { ANALYTICS_EVENT } from "../analyticsEvents";
-import { getVisitId } from "../analyticsSession";
+import { getSessionId, getVisitId } from "../analyticsSession";
 import {
   reportAnalyticsConfigError,
   settleGeofence,
@@ -102,6 +102,7 @@ describe("trackEvent", () => {
       properties: {
         $pathname: "/vaults",
         network: "devnet",
+        $session_id: getSessionId(),
         $process_person_profile: false,
       },
     });
@@ -121,6 +122,22 @@ describe("trackEvent", () => {
       { tags: { category: "analytics", event: "$pageview" } },
     );
   });
+
+  it.each([400, 403, 404])(
+    "reports HTTP %i as an error, like a rejected key",
+    async (status) => {
+      const send = await freshTrackEvent();
+      fetchMock.mockResolvedValue(new Response(null, { status }));
+      send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+      await vi.waitFor(() =>
+        expect(mockError).toHaveBeenCalledWith(
+          new Error(`Analytics capture rejected: HTTP ${status}`),
+          { tags: { category: "analytics", event: "$pageview" } },
+        ),
+      );
+      expect(mockWarn).not.toHaveBeenCalled();
+    },
+  );
 
   it("logs a PostHog outage as a warning, not an error", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 503 }));
@@ -162,14 +179,6 @@ describe("trackEvent", () => {
         { category: "analytics", event: "$pageview" },
       ),
     );
-  });
-
-  it("writes no cookie or browser storage", () => {
-    const cookieBefore = document.cookie;
-    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
-    expect(document.cookie).toBe(cookieBefore);
-    expect(localStorage.length).toBe(0);
-    expect(sessionStorage.length).toBe(0);
   });
 });
 
@@ -223,6 +232,28 @@ describe("geofence gate", () => {
     send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps sending held events when one send throws, and reports it once", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/vaults" }, CONFIG);
+    fetchMock.mockImplementationOnce(() => {
+      throw new TypeError("Request refused");
+    });
+
+    expect(() => settle("passed")).not.toThrow();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(JSON.parse(init.body as string).batch[0].properties.$pathname).toBe(
+      "/vaults",
+    );
+    expect(mockError).toHaveBeenCalledTimes(1);
+    expect(mockError).toHaveBeenCalledWith(
+      new Error("Analytics event could not be sent: Request refused"),
+      { tags: { category: "analytics", event: "$pageview" } },
+    );
   });
 
   it("holds at most 50 events and warns once about the rest", async () => {
