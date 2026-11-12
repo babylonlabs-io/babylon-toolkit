@@ -823,8 +823,12 @@ What bounds it:
   visit and session ids added to every event) and `attribution.ts` (campaign parameters, the
   referrer's hostname and `via`). `$pathname` is a route template, never a concrete path or
   query. The campaign values are the one part taken from the landing URL's query (or the
-  website's cookie): only the allow-listed keys. UTM values have addresses and long hex scrubbed
-  as for Sentry, segment by segment between underscores, then are truncated to 100 characters.
+  website's cookie): only the allow-listed keys. UTM values have addresses and long hex scrubbed,
+  then are truncated to 100 characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1`
+  or `bbn1` address or a long hex run is caught anywhere, even joined to other text, but a legacy
+  Bitcoin address only between non-alphanumeric characters, so one joined directly to a letter or
+  digit is sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is
+  the accepted direction.
 - **Ad click ids link visits.** `gclid` and `twclid` are sent unchanged, on every event of the
   visit, because marketing needs them to match a visit to an ad click. A click id is unique to one
   click, so reloading a URL that still carries it, or a `bbn_src` cookie that still holds it

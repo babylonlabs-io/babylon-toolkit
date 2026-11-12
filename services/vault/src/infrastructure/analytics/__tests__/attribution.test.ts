@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  captureAttribution,
-  deriveAttribution,
-  getAttribution,
-} from "../attribution";
+import { deriveAttribution } from "../attribution";
+
+const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }));
+vi.mock("../../logger", () => ({
+  default: { warn: mockWarn, error: vi.fn() },
+}));
 
 const APP_HOST = "btc-vaults.testnet.babylonlabs.io";
 
@@ -136,26 +137,36 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe(`${"x".repeat(80)}-[ETH_ADDR]`);
   });
 
-  it("scrubs an address joined with underscores out of a campaign value in the URL", () => {
+  it("scrubs an address joined directly to letters out of a campaign value in the URL", () => {
     const result = deriveAttribution({
-      search: `?utm_term=wallet_0x${"ab".repeat(20)}_v2`,
+      search: `?utm_term=wallet0x${"ab".repeat(20)}v2`,
       referrer: "",
       cookie: "",
       ownHost: APP_HOST,
     });
-    expect(result.utm_term).toBe("wallet_[ETH_ADDR]_v2");
+    expect(result.utm_term).toBe("wallet[ETH_ADDR]v2");
   });
 
-  it("scrubs an address joined with an underscore out of a campaign value in the cookie", () => {
+  it("scrubs an address joined directly to letters out of a campaign value in the cookie", () => {
     const result = deriveAttribution({
       search: "",
       referrer: "",
       cookie: cookieOf({
-        utm_content: "user_tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+        utm_content: "usertb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
       }),
       ownHost: APP_HOST,
     });
-    expect(result.utm_content).toBe("user_[BTC_ADDR]");
+    expect(result.utm_content).toBe("user[BTC_ADDR]");
+  });
+
+  it("scrubs a legacy Bitcoin address joined with underscores", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=ref_1BoatSLRHtKNngkdXEeobR76b53LETtpyT_x",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]_x");
   });
 
   it("sends a click id unchanged even where a campaign value would be scrubbed", () => {
@@ -192,6 +203,16 @@ describe("deriveAttribution", () => {
       $referring_domain: "$direct",
       via: "other",
     });
+  });
+
+  it("keeps the website cookie out when the URL's only campaign key is a dropped click id", () => {
+    const result = deriveAttribution({
+      search: "?gclid=a%40b",
+      referrer: "",
+      cookie: cookieOf({ utm_source: "x" }),
+      ownHost: APP_HOST,
+    });
+    expect(result).toEqual({ $referring_domain: "$direct", via: "other" });
   });
 
   it("drops a click id longer than 255 characters", () => {
@@ -291,11 +312,21 @@ describe("captureAttribution", () => {
     vi.restoreAllMocks();
   });
 
-  it("leaves the visit without attribution when the cookie cannot be read", () => {
+  it("leaves the visit without attribution and warns when the cookie cannot be read", async () => {
+    vi.resetModules();
+    const { captureAttribution, getAttribution } = await import(
+      "../attribution"
+    );
     vi.spyOn(document, "cookie", "get").mockImplementation(() => {
       throw new DOMException("opaque origin", "SecurityError");
     });
+
     expect(() => captureAttribution()).not.toThrow();
+
     expect(getAttribution()).toBeNull();
+    expect(mockWarn).toHaveBeenCalledWith(
+      "Analytics attribution unavailable: SecurityError: opaque origin",
+      { category: "analytics" },
+    );
   });
 });

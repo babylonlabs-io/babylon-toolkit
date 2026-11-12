@@ -13,8 +13,6 @@
  * a plain token.
  */
 
-import { scrubString } from "@/utils/telemetry";
-
 import logger from "../logger";
 
 /** Cookie written by the website's footer script. */
@@ -48,8 +46,26 @@ const MAX_ATTRIBUTION_VALUE_LENGTH = 100;
  */
 const CLICK_ID_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
 
-/** Separator in campaign values; a word character, so it hides addresses from `\b`. */
-const VALUE_SEGMENT_SEPARATOR = "_";
+/**
+ * Addresses and long hex scrubbed out of UTM values, in this order, following
+ * MetaMask's Sentry scrubbing (`app/scripts/lib/setupSentry.ts`). A prefixed
+ * form (`0x`, `bc1`, `tb1`, `bbn1`) or a long hex run is matched anywhere, so
+ * one joined directly to other text is still caught. A legacy Bitcoin address
+ * has no distinctive prefix, so it is matched only between non-alphanumeric
+ * characters: unanchored, the pattern would eat ordinary campaign words. Even
+ * so a campaign word of that shape is replaced; scrubbing too much is the
+ * accepted direction.
+ */
+const UTM_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
+  [/0x[0-9a-fA-F]{41,}|[0-9a-fA-F]{64,}/g, "[HEX_REDACTED]"],
+  [/0x[0-9a-fA-F]{40}/g, "[ETH_ADDR]"],
+  [/(?:bc1|tb1)[a-zA-HJ-NP-Z0-9]{24,62}/g, "[BTC_ADDR]"],
+  [/bbn1[a-z0-9]{38,58}/g, "[BBN_ADDR]"],
+  [
+    /(?<![A-Za-z0-9])[13][a-km-zA-HJ-NP-Z1-9]{24,33}(?![A-Za-z0-9])/g,
+    "[BTC_ADDR]",
+  ],
+];
 
 /** The marketing website only, not docs or other apps on its subdomains. */
 const WEBSITE_HOST = /^(www\.)?babylonlabs\.io$/;
@@ -89,18 +105,15 @@ function isClickIdKey(key: AttributionKey): key is ClickIdKey {
 }
 
 /**
- * A UTM value as sent. Each `_`-separated segment is scrubbed on its own,
- * because the scrubbing patterns are anchored with `\b` and `_` is a word
- * character: `wallet_0x…` would otherwise keep its address. Scrubbed before
- * truncating: an address cut mid-way no longer matches the patterns.
+ * A UTM value as sent. Scrubbed before truncating: an address cut mid-way no
+ * longer matches the patterns.
  */
 function cleanUtmValue(value: string): string {
-  return truncate(
-    value
-      .split(VALUE_SEGMENT_SEPARATOR)
-      .map(scrubString)
-      .join(VALUE_SEGMENT_SEPARATOR),
+  const scrubbed = UTM_SCRUB_PATTERNS.reduce(
+    (text, [pattern, replacement]) => text.replace(pattern, replacement),
+    value,
   );
+  return truncate(scrubbed);
 }
 
 /** The value to send for a key, or null when it must not be sent. */
@@ -114,14 +127,26 @@ function addValue(out: CampaignFields, key: AttributionKey, value: string) {
   if (cleaned !== null) out[key] = cleaned;
 }
 
-function fromQuery(search: string): CampaignFields {
+interface QueryCampaign {
+  fields: CampaignFields;
+  /**
+   * Whether the URL named any campaign key, even one whose value was then
+   * dropped: such a URL is its own source, never the cookie's.
+   */
+  present: boolean;
+}
+
+function fromQuery(search: string): QueryCampaign {
   const query = new URLSearchParams(search);
-  const out: CampaignFields = {};
+  const fields: CampaignFields = {};
+  let present = false;
   for (const key of ATTRIBUTION_KEYS) {
     const value = query.get(key);
-    if (value) addValue(out, key, value);
+    if (!value) continue;
+    present = true;
+    addValue(fields, key, value);
   }
-  return out;
+  return { fields, present };
 }
 
 function readCookie(cookieHeader: string, name: string): string | null {
@@ -184,8 +209,8 @@ export function deriveAttribution({
   // The cookie remembers an earlier website visit; it must not claim a visit
   // that arrived from somewhere else.
   const cookieApplies = externalHost === null || via === "website";
-  let source = campaign;
-  if (Object.keys(campaign).length === 0 && cookieApplies) {
+  let source = campaign.fields;
+  if (!campaign.present && cookieApplies) {
     source = fromCookie(cookie);
   }
   return {
