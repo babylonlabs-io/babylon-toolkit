@@ -836,21 +836,25 @@ What bounds it:
   wait for the geofence check, so an app that stops before it sends nothing: an invalid network
   profile or profile override, or a wallet setup error such as a missing Reown project id. The
   GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
-- **Allow-listed payload.** The payload is defined by five files together:
-  `analyticsEvents.ts` (the events and each event's own fields), `trackEvent.ts` (the wallet
-  address, network, visit and session ids added to every event), `attribution.ts` (campaign
-  parameters, the referrer's hostname and `via`), and `AnalyticsTracker.tsx` with
-  `analyticsSession.ts` (which connected address is recorded as `wallet_address`, and when).
-  `$pathname` is a route template, never a concrete path or query; `wallet_connected` carries the
-  chain (`eth` or `btc`) and whether the app restored the session (`restored`). The campaign
-  values are the one part taken from the landing URL's query (or the website's cookie): only the
-  allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to 100
-  characters. As in MetaMask's Sentry scrubbing, a `0x`, `bc1`, `tb1` or `bbn1` address or a long
-  hex run is caught anywhere, even joined to other text, but a legacy Bitcoin address only between
-  non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
-  shaped like a legacy address is replaced; scrubbing too much is the accepted direction. The app
-  does not itself send the BTC address, transaction hashes, exact amounts or anything
-  secret-bearing; as above, the address leads to the first three on-chain.
+- **Allow-listed payload.** What is sent is defined by the code in
+  `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
+  the event's own properties. `analyticsEvents.ts` lists the events and their fields,
+  `trackEvent.ts` adds the wallet address, network, visit and session ids (from
+  `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
+  referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
+  Ethereum address is recorded as `wallet_address`, `walletConnections.ts` decides when
+  `wallet_connected` is sent, and `routeTemplate.ts` turns the path into `$pathname`, a route
+  template, never a concrete path or query. `wallet_connected` carries the chain (`eth` or `btc`)
+  and whether the app restored the session (`restored`). The campaign values are the one part taken
+  from the landing URL's query (or the website's cookie): only the allow-listed keys. UTM values
+  have addresses and long hex scrubbed, then are truncated to 100 characters. As in MetaMask's
+  Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long
+  hex run is caught anywhere, even joined to other text, and a bare 40-character hex value when no
+  other hex digit adjoins it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`) is
+  caught only between non-alphanumeric characters, so one joined directly to a letter or digit is
+  sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is the accepted
+  direction. The app does not itself send the BTC address, transaction hashes, exact amounts or
+  anything secret-bearing; as above, the address leads to the first three on-chain.
 - **Ad click ids link visits.** `gclid` and `twclid` are sent unchanged, on every event of the
   visit, because marketing needs them to match a visit to an ad click. A click id is unique to one
   click, so reloading a URL that still carries it, or a `bbn_src` cookie that still holds it
@@ -869,18 +873,19 @@ What bounds it:
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
   and no referrer. The visit and session ids live in memory only. The app only reads the
   website's `bbn_src` cookie, and treats its contents as untrusted input.
-- **Nothing before the geofence passes.** Every event is held in memory while the geofence check
-  runs (at most 50) and sent once it passes. Held and later events are dropped for a geo-blocked
-  visitor, who sees only the geo-block screen, and whenever the region is unknown: the health
-  endpoint did not answer (a network error, CORS or a non-451 status), or a configuration error
-  stopped the app before the check ran. The app itself still opens in those cases.
+- **Nothing before the geofence passes.** Every event is held in memory (at most 50) until the
+  startup checks, the geofence and then the GraphQL health check, have finished, and is sent if
+  the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only
+  the geo-block screen, and whenever the region is unknown: the health endpoint did not answer (a
+  network error, CORS or an error status other than 451), in which case the app still opens, or a
+  configuration error stopped the app before the check ran.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
 - **No person profiles.** Every event carries `$process_person_profile: false`. This does not
   stop events being grouped by `wallet_address` (see above).
 
-**Changing what any of those five files sends is a privacy change.** Review it the same way you
-would review re-enabling Sentry tracing.
+**Changing what any of that code sends is a privacy change.** Review it the same way you would
+review re-enabling Sentry tracing.
 
 ### Wallet integration
 

@@ -108,6 +108,32 @@ describe("GeoFencingProvider", () => {
     expect(onGeoBlocked).toHaveBeenCalledWith(false);
   });
 
+  it("reports a blocked visitor's region as known", async () => {
+    mockCheckGeofencing.mockResolvedValueOnce({
+      healthy: false,
+      isGeoBlocked: true,
+    });
+    let state: ReturnType<typeof useGeoFencing> | undefined;
+    function Probe() {
+      state = useGeoFencing();
+      return null;
+    }
+    render(
+      <ErrorProvider>
+        <GeoFencingProvider>
+          <Probe />
+        </GeoFencingProvider>
+      </ErrorProvider>,
+    );
+
+    await waitFor(() => expect(state?.isLoading).toBe(false));
+    expect(state).toEqual({
+      isGeoBlocked: true,
+      isLoading: false,
+      isGeoChecked: true,
+    });
+  });
+
   it("sets isGeoBlocked when user is geo-blocked without showing error modal", async () => {
     mockCheckGeofencing.mockResolvedValueOnce({
       healthy: false,
