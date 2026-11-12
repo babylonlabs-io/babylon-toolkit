@@ -826,8 +826,8 @@ with on-chain data needs it, and the address alone already reaches the same reco
 reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
 in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
 only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
-no confirmed Ethereum session carry no address, except on a borrow event, which names the account
-that sent the borrow; apart from that and the ad click ids they stay unlinked.
+no confirmed Ethereum session carry no address, except on a borrow or withdrawal event, which names
+the account that sent the transaction; apart from that and the ad click ids they stay unlinked.
 
 What bounds it:
 
