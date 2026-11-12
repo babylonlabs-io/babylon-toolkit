@@ -50,23 +50,26 @@ const CLICK_ID_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
  * Addresses and long hex scrubbed out of UTM values, in this order, following
  * MetaMask's Sentry scrubbing (`app/scripts/lib/setupSentry.ts`). A prefixed
  * form (`0x`, `bc1`, `tb1`, `bbn1`, in any case) or a long hex run is matched
- * anywhere, so one joined directly to other text is still caught; a bare
- * 40-character hex value (an Ethereum address without `0x`) is matched when
- * no other hex digit adjoins it. A legacy Bitcoin address (mainnet `1`/`3`,
- * testnet `m`/`n`/`2`) has no distinctive prefix, so it is matched only
- * between non-alphanumeric characters: unanchored, the pattern would eat
- * ordinary campaign words. Even so a campaign word of that shape is replaced;
- * scrubbing too much is the accepted direction.
+ * anywhere, so one joined directly to other text is still caught, and so is
+ * any bare run of 40 or more hex digits (an Ethereum address without `0x`,
+ * with whatever hex letters adjoin it). A legacy Bitcoin address (mainnet
+ * `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) has no distinctive
+ * prefix, so it is matched only between non-alphanumeric characters:
+ * unanchored, the pattern would eat ordinary campaign words. Even so a
+ * campaign word of that shape is replaced; scrubbing too much is the accepted
+ * direction. No pattern uses lookbehind, which Safari before 16.4 rejects:
+ * this module runs at startup, so an unsupported pattern would stop the app.
  */
 const UTM_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/0x[0-9a-f]{41,}|[0-9a-f]{64,}/gi, "[HEX_REDACTED]"],
   [/0x[0-9a-f]{40}/gi, "[ETH_ADDR]"],
-  [/(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])/gi, "[ETH_ADDR]"],
+  [/[0-9a-f]{40,}/gi, "[ETH_ADDR]"],
   [/(?:bc1|tb1)[a-z0-9]{24,62}/gi, "[BTC_ADDR]"],
   [/bbn1[a-z0-9]{38,58}/gi, "[BBN_ADDR]"],
+  // The leading boundary is captured and put back, in place of a lookbehind.
   [
-    /(?<![A-Za-z0-9])[13mn2][a-km-zA-HJ-NP-Z1-9]{24,33}(?![A-Za-z0-9])/g,
-    "[BTC_ADDR]",
+    /(^|[^A-Za-z0-9])[13mn2][a-km-zA-HJ-NP-Z1-9]{24,34}(?![A-Za-z0-9])/g,
+    "$1[BTC_ADDR]",
   ],
 ];
 
@@ -99,8 +102,9 @@ interface AttributionSources {
   ownHost: string;
 }
 
+/** Cut by code point, so an emoji is never split into a lone surrogate. */
 function truncate(value: string): string {
-  return value.slice(0, MAX_ATTRIBUTION_VALUE_LENGTH);
+  return Array.from(value).slice(0, MAX_ATTRIBUTION_VALUE_LENGTH).join("");
 }
 
 function isClickIdKey(key: AttributionKey): key is ClickIdKey {
@@ -172,11 +176,16 @@ function fromCookie(cookieHeader: string): CampaignFields {
     parsed = JSON.parse(decodeURIComponent(raw));
   } catch {
     // Another site's value: malformed means "no source", not an app error.
+    // The value itself is not logged: it may hold an address.
+    logger.warn(
+      "Analytics source cookie is malformed; the visit has no source",
+      {
+        category: "analytics",
+      },
+    );
     return {};
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return {};
-  }
+  if (typeof parsed !== "object" || parsed === null) return {};
   const out: CampaignFields = {};
   for (const key of ATTRIBUTION_KEYS) {
     const value: unknown = Reflect.get(parsed, key);
@@ -241,10 +250,9 @@ export function captureAttribution(): void {
   } catch (error) {
     // Reading `document.cookie` throws on an opaque origin. Analytics must
     // never stop the app from starting: the visit simply has no attribution.
-    logger.warn(
-      `Analytics attribution unavailable: ${error instanceof Error ? error.message : String(error)}`,
-      { category: "analytics" },
-    );
+    logger.warn(`Analytics attribution unavailable: ${String(error)}`, {
+      category: "analytics",
+    });
   }
 }
 
