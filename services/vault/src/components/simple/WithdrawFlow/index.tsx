@@ -80,11 +80,11 @@ function WithdrawFlowContent({
   // it. `getEffectiveVaultSelection` still filters every read, so a vault that
   // leaves the position mid-flow drops out on its own.
   const [selectedVaultIds, setSelectedVaultIds] = useState(preSelectedVaultIds);
-  // The risk card names one health factor at two decimals, so the
-  // acknowledgement covers that displayed value: it is stored as the value
-  // the user ticked for and derived on every render, so a refetch that moves
-  // the raw float without changing the shown number keeps the tick, and a
-  // change to the shown number drops it in the same render.
+  // Select vaults before accepting risk, so the warning uses that selection.
+  // Continue and Confirm require acceptance when the selection is at risk.
+  // Acceptance covers the health factor shown to two decimal places.
+  // A different shown value needs acceptance. Hidden decimal changes keep it.
+  // If the accepted value returns, the tick returns too.
   const [acknowledgedFor, setAcknowledgedFor] = useState<string | null>(null);
   const toggleVault = useCallback((vaultId: string) => {
     setSelectedVaultIds((ids) =>
