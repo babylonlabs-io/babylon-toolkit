@@ -12,7 +12,10 @@ type BtcCallbacks = {
 
 const h = vi.hoisted(() => ({
   disconnectAll: vi.fn(async () => {}),
-  btcConnector: { disconnect: vi.fn<(scope: string) => Promise<void>>() },
+  btcConnector: {
+    disconnect: vi.fn<(scope: string) => Promise<void>>(),
+    connectedWallet: {} as object | null,
+  },
   visible: false,
   captured: {
     btc: undefined as undefined | BtcCallbacks,
@@ -103,6 +106,7 @@ describe("WalletConnectionProvider wallet resets", () => {
     vi.useFakeTimers();
     h.disconnectAll.mockClear();
     h.btcConnector.disconnect.mockReset();
+    h.btcConnector.connectedWallet = {};
     h.visible = false;
     h.captured.btc = undefined;
     h.captured.eth = undefined;
@@ -321,6 +325,31 @@ describe("WalletConnectionProvider wallet resets", () => {
     act(() => h.captured.eth!.onDisconnect());
     expect(analytics.forgetBtcConnection).not.toHaveBeenCalled();
     await act(async () => finishDisconnect());
+
+    expect(analytics.forgetBtcConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report a connection that lands after the reset cleared the Bitcoin wallet", async () => {
+    h.disconnectAll.mockImplementationOnce(async () => {
+      h.btcConnector.connectedWallet = null;
+    });
+    renderProvider();
+
+    await act(() => btc().onAddressChange());
+    act(() => btc().onConnect(BTC_ADDRESS));
+
+    expect(analytics.reportBtcConnected).not.toHaveBeenCalled();
+  });
+
+  it("forgets the reported Bitcoin connection even when the reset fails", async () => {
+    h.disconnectAll.mockRejectedValueOnce(new Error("wallet refused"));
+    renderProvider();
+
+    await act(async () => {
+      await btc()
+        .onAddressChange()
+        .catch(() => {});
+    });
 
     expect(analytics.forgetBtcConnection).toHaveBeenCalledTimes(1);
   });

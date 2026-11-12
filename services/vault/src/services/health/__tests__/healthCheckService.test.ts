@@ -140,6 +140,9 @@ describe("healthCheckService", () => {
 
       expect(result.healthy).toBe(false);
       expect(result.isGeoBlocked).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith("Healthcheck endpoint error", {
+        data: { error: expect.any(ApiError) },
+      });
       expect(result.error).toBeUndefined();
     });
   });

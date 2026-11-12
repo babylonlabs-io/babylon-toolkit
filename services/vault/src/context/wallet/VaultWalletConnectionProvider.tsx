@@ -190,16 +190,17 @@ function WalletProviders({ children }: PropsWithChildren) {
   );
 
   // A connection with the dialog closed is one the provider restored without
-  // the user. One during a reset is the provider re-running its connect for
-  // the session being torn down (a BTC account change sets the new address
-  // first), so analytics does not count it.
+  // the user. A BTC account change sets the new address first, so the
+  // provider re-runs its connect for the session the reset is tearing down.
+  // That connect lands during the reset, or after it has cleared the
+  // connector's wallet; analytics counts neither.
   const handleBtcConnect = useCallback(
     (address: string) => {
       cancelBtcReset();
-      if (isDisconnectingRef.current) return;
+      if (isDisconnectingRef.current || !btcConnector?.connectedWallet) return;
       reportBtcConnected(address, !connectModalVisibleRef.current);
     },
-    [cancelBtcReset],
+    [cancelBtcReset, btcConnector],
   );
 
   // BTC: debounce disconnect (blip-tolerant), cancel on reconnect, but reset

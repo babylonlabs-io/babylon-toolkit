@@ -19,7 +19,10 @@ export function getSessionId(): string {
   return sessionId;
 }
 
-/** The connected Ethereum address, lowercased, or null when none is connected. */
+/**
+ * The confirmed Ethereum session's address, lowercased, or null: no confirmed
+ * session, or its address changed and the session is being reset.
+ */
 export function getWalletAddress(): string | null {
   return walletAddress;
 }

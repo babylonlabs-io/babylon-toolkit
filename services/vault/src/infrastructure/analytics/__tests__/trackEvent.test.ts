@@ -89,7 +89,10 @@ describe("trackEvent", () => {
   });
 
   it("posts one anonymous event to the PostHog batch endpoint without credentials or a referrer", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-02T03:04:05.000Z"));
     trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/vaults" }, CONFIG);
+    vi.useRealTimers();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://us.i.posthog.com/batch/");
@@ -105,6 +108,7 @@ describe("trackEvent", () => {
     expect(body.batch[0]).toMatchObject({
       event: "$pageview",
       distinct_id: getVisitId(),
+      timestamp: "2026-01-02T03:04:05.000Z",
       properties: {
         $pathname: "/vaults",
         network: "devnet",
@@ -170,17 +174,20 @@ describe("trackEvent", () => {
     },
   );
 
-  it("logs a PostHog outage as a warning, not an error", async () => {
-    fetchMock.mockResolvedValue(new Response(null, { status: 503 }));
-    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
-    await vi.waitFor(() =>
-      expect(mockWarn).toHaveBeenCalledWith(
-        "Analytics capture failed: HTTP 503",
-        { category: "analytics", event: "$pageview" },
-      ),
-    );
-    expect(mockError).not.toHaveBeenCalled();
-  });
+  it.each([429, 503])(
+    "logs HTTP %i from PostHog as a warning, not an error",
+    async (status) => {
+      fetchMock.mockResolvedValue(new Response(null, { status }));
+      trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+      await vi.waitFor(() =>
+        expect(mockWarn).toHaveBeenCalledWith(
+          `Analytics capture failed: HTTP ${status}`,
+          { category: "analytics", event: "$pageview" },
+        ),
+      );
+      expect(mockError).not.toHaveBeenCalled();
+    },
+  );
 
   it("reports an event that cannot be built as an error once per page load", async () => {
     const send = await freshTrackEvent();
@@ -255,6 +262,32 @@ describe("geofence gate", () => {
           .$pathname,
     );
     expect(paths).toEqual(["/", "/vaults"]);
+  });
+
+  it("sends a held event with the time it was tracked, without keepalive", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-02T03:04:05.000Z"));
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    vi.setSystemTime(new Date("2026-01-02T03:04:09.000Z"));
+
+    settle("passed");
+    vi.useRealTimers();
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.keepalive).toBe(false);
+    expect(sentBody().batch[0].timestamp).toBe("2026-01-02T03:04:05.000Z");
+  });
+
+  it("sends a held event with the wallet address it was tracked with", async () => {
+    const module = await freshModule();
+    const session = await import("../analyticsSession");
+    module.trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    session.setWalletAddress("0x1111111111111111111111111111111111111111");
+
+    module.settleGeofence("passed");
+
+    expect(sentBody().batch[0].properties).not.toHaveProperty("wallet_address");
   });
 
   it("drops held events and sends nothing later when the geofence fails", async () => {

@@ -201,6 +201,18 @@ describe("AnalyticsTracker", () => {
     expect(getWalletAddress()).toBeNull();
   });
 
+  it("keeps the address when the wallet reports the same account in different casing", () => {
+    wallets.eth = { address: ETH_ADDRESS };
+    wallets.session = { connected: true };
+    const view = render(tracker());
+
+    wallets.eth = { address: ETH_ADDRESS.toLowerCase() };
+    view.rerender(tracker());
+
+    expect(connectedEvents()).toHaveLength(1);
+    expect(getWalletAddress()).toBe(ETH_ADDRESS.toLowerCase());
+  });
+
   it("sends wallet_connected for the new account once its session is confirmed after the reset", () => {
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
