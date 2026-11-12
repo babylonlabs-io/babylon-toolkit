@@ -212,7 +212,8 @@ Specific to this component:
 - **No claim about protocol correctness or economic outcomes**, including liquidation.
 - **No chain-privacy claim.** The model claims only that this component does not amplify linkage
   through error telemetry (Sentry). Product analytics is the exception, listed under accepted
-  risks; it also sends the ad click ids marketing uses to match a visit to its ad click (root
+  risks; it also sends the campaign values, ad click ids included, that marketing uses to match a
+  visit to its traffic source and ad click (root
   `SECURITY.md`, product analytics).
 
 ### Accepted risks

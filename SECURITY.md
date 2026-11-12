@@ -825,7 +825,8 @@ not only on Ethereum.
 reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
 in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
 only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
-no confirmed Ethereum session carry no address, and stay unlinked apart from the ad click ids.
+no confirmed Ethereum session carry no address, and stay unlinked apart from the campaign
+values (see _Campaign values link visits_ below).
 
 What bounds it:
 
@@ -847,18 +848,22 @@ What bounds it:
   template, never a concrete path or query. `wallet_connected` carries the chain (`eth` or `btc`)
   and whether the app restored the session (`restored`). The campaign values are the one part taken
   from the landing URL's query (or the website's cookie): only the allow-listed keys. UTM values
-  have addresses and long hex scrubbed, then are truncated to 100 characters. As in MetaMask's
-  Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long
-  hex run is caught anywhere, even joined to other text, and a bare 40-character hex value when no
-  other hex digit adjoins it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`) is
-  caught only between non-alphanumeric characters, so one joined directly to a letter or digit is
-  sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is the accepted
-  direction. The app does not itself send the BTC address, transaction hashes, exact amounts or
-  anything secret-bearing; as above, the address leads to the first three on-chain.
-- **Ad click ids link visits.** `gclid` and `twclid` are sent unchanged, on every event of the
-  visit, because marketing needs them to match a visit to an ad click. A click id is unique to one
-  click, so reloading a URL that still carries it, or a `bbn_src` cookie that still holds it
-  (30 days), repeats the same value under a new visit id. PostHog can therefore join those visits
+  have addresses and long hex scrubbed, then are truncated to 100 characters (by code point, so no
+  character is split). As in MetaMask's Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or
+  `bbn1` prefix (in any case) or a long hex run is caught anywhere, even joined to other text, and so
+  is any bare run of 40 or more hex digits. A legacy Bitcoin address (mainnet `1`/`3`, testnet
+  `m`/`n`/`2`, 25 to 35 characters) is caught only between non-alphanumeric characters, so one
+  joined directly to a letter or digit is sent. A campaign word shaped like a legacy address is
+  replaced; scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which
+  Safari before 16.4 rejects: the module runs at startup, so an unsupported pattern would stop the
+  app. The app does not itself send the BTC address, transaction hashes, exact amounts or anything
+  secret-bearing; as above, the address leads to the first three on-chain.
+- **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
+  value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
+  still holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each
+  other. A UTM value is shared by everyone who followed the same link, so it links visits only as
+  far as the campaign is narrow. `gclid` and `twclid` are sent unchanged, because marketing needs
+  them to match a visit to an ad click; a click id is unique to one click, so it joins those visits
   to each other and to the ad platform's click record. This linkage is accepted; it is the reason
   the per-load visit id does not, on its own, keep visits apart. A click id is sent only when it
   is a plain token (letters, digits, `-` and `_`, at most 255 characters); anything else is
