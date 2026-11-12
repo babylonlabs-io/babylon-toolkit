@@ -33,7 +33,13 @@ function deriveNetworkMap(config: Readonly<ChainConfigArr>): Record<string, stri
 
 const btcValidation = { validateAddress, validateAddressWithPK };
 
-export interface WalletProviderShellProps {
+/**
+ * The props every entry point's `WalletProvider` shares. Entry points extend
+ * this interface rather than `Omit<>` the shell's: Storybook's react-docgen
+ * expands an `extends` clause (`applyExtends`) but not a mapped type, and the
+ * URL args its stories take are dropped for a prop it cannot see.
+ */
+export interface WalletProviderCommonProps {
   ttl?: number;
   persistent?: boolean;
   lifecycleHooks?: LifeCycleHooksProps;
@@ -61,6 +67,9 @@ export interface WalletProviderShellProps {
   /** A short line under each chain's name on the connect screen that says why the app needs that wallet. */
   chainDescriptions?: Partial<Record<ChainId, string>>;
   isChainHidden?: (chain: IChain) => boolean;
+}
+
+export interface WalletProviderShellProps extends WalletProviderCommonProps {
   /** The chains this shell offers. An entry point passes only the metadata its module graph may carry. */
   metadata: ChainMetadataMap;
   /** Extra connector widgets, rendered inside the chain context after `children`. */

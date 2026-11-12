@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from "react";
 
-import { WalletProviderShell, type WalletProviderShellProps } from "@/components/WalletProvider/WalletProviderShell";
+import { WalletProviderShell, type WalletProviderCommonProps } from "@/components/WalletProvider/WalletProviderShell";
 import type { ChainMetadataMap } from "@/context/Chain.context";
 import type { ChainId } from "@/core/types";
 import btcMetadata from "@/core/wallets/btc";
@@ -11,11 +11,7 @@ const metadata: ChainMetadataMap = { BTC: btcMetadata, ETH: ethMetadata };
 
 type BTCETHChainId = Extract<ChainId, "BTC" | "ETH">;
 
-export interface WalletProviderProps
-  extends Omit<
-    WalletProviderShellProps,
-    "metadata" | "connectors" | "config" | "requiredChains" | "chainDescriptions"
-  > {
+export interface WalletProviderProps extends WalletProviderCommonProps {
   config: Readonly<BTCETHChainConfigArr>;
   /** Defaults to every configured chain. */
   requiredChains?: readonly BTCETHChainId[];

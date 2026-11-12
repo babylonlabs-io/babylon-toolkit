@@ -5,9 +5,9 @@ import chainMetadata from "@/core/wallets";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
 
-import { WalletProviderShell, type WalletProviderShellProps } from "./WalletProviderShell";
+import { WalletProviderShell, type WalletProviderCommonProps } from "./WalletProviderShell";
 
-export interface WalletProviderProps extends Omit<WalletProviderShellProps, "metadata" | "connectors"> {
+export interface WalletProviderProps extends WalletProviderCommonProps {
   theme?: string;
   disableTomo?: boolean;
 }
