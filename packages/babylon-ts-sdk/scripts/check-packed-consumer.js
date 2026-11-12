@@ -113,8 +113,8 @@ try {
   }
   if (
     manifest.peerDependencies?.["@bitcoin-js/tiny-secp256k1-asmjs"] !==
-      "2.2.3" ||
-    manifest.peerDependencies?.["bitcoinjs-lib"] !== "6.1.7"
+      "2.2.5" ||
+    manifest.peerDependencies?.["bitcoinjs-lib"] !== "6.1.10"
   ) {
     throw new Error("Packed SDK has an unexpected Bitcoin peer version");
   }
