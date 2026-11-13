@@ -807,7 +807,7 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can measure how visitors use the app. It is a separate channel from Sentry.
+can attribute visits to a traffic source. It is a separate channel from Sentry.
 
 What bounds it:
 
@@ -819,11 +819,37 @@ What bounds it:
   profile or profile override, or a wallet setup error such as a missing Reown project id. The
   GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
 - **Allow-listed payload.** What is sent is defined by the code in
-  `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which
-  passes the event's own properties. `analyticsEvents.ts` lists the events and their fields,
-  `trackEvent.ts` adds the network, visit and session ids (from `analyticsSession.ts`) to every
-  event, and `routeTemplate.ts` turns the path into `$pathname`, a route template, never a
-  concrete path or query.
+  `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
+  the event's own properties. `analyticsEvents.ts` lists the events and their fields,
+  `trackEvent.ts` adds the network, visit and session ids (from `analyticsSession.ts`) and the
+  attribution fields (from `attribution.ts`: campaign parameters, the referrer's hostname and `via`)
+  to every event, and `routeTemplate.ts` turns the path into `$pathname`, a route template, never a
+  concrete path or query. The campaign values are the one part taken from the landing URL's query
+  (or the website's cookie): only the allow-listed keys. UTM values have addresses and long hex
+  scrubbed, then are truncated to 100 characters (by code point, so no surrogate pair is split). As in
+  MetaMask's Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case)
+  or a long hex run is caught anywhere, even joined to other text, and so is any bare run of 40 or
+  more hex digits. These matches are taken from the original value and where two overlap the whole
+  span is replaced, so an address glued to hex is never sent minus the part a hex match took. A
+  `bc1`, `tb1` or `bbn1` match takes the whole run of letters and digits it starts, so an address
+  joined after another is caught with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet
+  `m`/`n`/`2`, 25 to 35 characters) is caught only between non-alphanumeric characters, so one
+  joined directly to a letter or digit is sent. A campaign word shaped like a legacy address is
+  replaced; scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which
+  Safari before 16.4 rejects: the module runs at startup, so an unsupported pattern would stop the
+  app.
+- **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
+  value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
+  still holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each
+  other. A UTM value is shared by everyone who followed the same link, so it links visits only as
+  far as the campaign is narrow. `gclid` and `twclid` are sent unchanged, because marketing needs
+  them to match a visit to an ad click; a click id is unique to one click, so it joins those visits
+  to each other and to the ad platform's click record. This linkage is accepted; it is the reason
+  the per-load visit id does not, on its own, keep visits apart. A click id is sent only when it
+  is a plain token (letters, digits, `-` and `_`, at most 255 characters); anything else is
+  dropped. That shape still admits any address (hex, bech32, Babylon or legacy), none of which is
+  scrubbed from a click id, so a link crafted with one as its click id would have it sent; this is
+  accepted, as the link's author chose the value.
 - **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`, which in a deployment is always
   the sidecar-api proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`); a deployment never
   posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,
@@ -831,7 +857,8 @@ What bounds it:
   IP data_ enabled**; PostHog still derives the country before discarding the IP, and the country
   is kept on purpose.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
-  and no referrer. The visit and session ids live in memory only.
+  and no referrer. The visit and session ids live in memory only. The app only reads the
+  website's `bbn_src` cookie, and treats its contents as untrusted input.
 - **Nothing before the geofence passes.** Every event is held in memory (at most 50) until the
   startup checks, the geofence and then the GraphQL health check, have finished, and is sent if
   the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only

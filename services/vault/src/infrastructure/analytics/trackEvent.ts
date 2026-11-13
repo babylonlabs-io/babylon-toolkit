@@ -17,6 +17,7 @@ import type {
   AnalyticsEventProperties,
 } from "./analyticsEvents";
 import { getSessionId, getVisitId } from "./analyticsSession";
+import { getAttribution } from "./attribution";
 
 const CAPTURE_PATH = "/batch/";
 
@@ -89,6 +90,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         distinct_id: getVisitId(),
         timestamp,
         properties: {
+          ...getAttribution(),
           ...properties,
           network: config.network,
           $session_id: getSessionId(),
@@ -150,8 +152,9 @@ function post(
       // Delivered even when the event fires just before a navigation.
       keepalive,
       credentials: "omit",
-      // The event carries the route template only; a same-origin proxy would
-      // otherwise receive the full page URL, query included, as the Referer.
+      // `$pathname` is a route template and the campaign values are an
+      // allow-list read once at startup; a Referer would otherwise send the
+      // full current page URL, query included.
       referrerPolicy: "no-referrer",
     }).then(
       (response) => {

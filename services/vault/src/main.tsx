@@ -13,7 +13,10 @@ import { BrowserRouter } from "react-router";
 import GlobalError from "@/components/pages/global-error";
 import { initSpeculosTransportForE2E } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
-import { reportAnalyticsConfigError } from "@/infrastructure/analytics";
+import {
+  captureAttribution,
+  reportAnalyticsConfigError,
+} from "@/infrastructure/analytics";
 import Providers from "@/providers";
 import { Router } from "@/router";
 import { reloadForStaleDeploy } from "@/utils/lazyWithRetry";
@@ -27,6 +30,10 @@ initEccLib(ecc);
 
 // After Sentry starts: env.ts runs too early to report this itself.
 reportAnalyticsConfigError();
+
+// Before the first render: a redirect in the router would drop the landing
+// URL's campaign parameters.
+captureAttribution();
 
 // Vite fires this on a dynamic-import preload failure (stale chunk 404 after a
 // redeploy) — trigger the bounded one-shot reload. No preventDefault: letting
