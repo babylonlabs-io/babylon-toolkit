@@ -231,3 +231,25 @@ export function assertNoStubbedStreamTransform(files) {
     }
   }
 }
+
+// Keystone's bundled CBOR encoder (bc-ur-registry) writes a value as bytes only if
+// `value instanceof Buffer`. A second Buffer implementation in the same bundle makes the
+// providers' Buffers fail that check, and PSBT QR codes are encoded as
+// `{type:"Buffer",data:[...]}`, which the device rejects. Each implementation of the
+// `buffer` package defines `Buffer.prototype._isBuffer`, so a format's files may define it
+// at most once. ES and CommonJS outputs are separate bundles and are counted apart.
+const BUFFER_CLASS_DEFINITION = /\.prototype\._isBuffer\s*=/g;
+const OUTPUT_FORMAT_EXTENSIONS = [".cjs", ".js"];
+
+export function assertSingleBufferClass(files) {
+  for (const extension of OUTPUT_FORMAT_EXTENSIONS) {
+    const definitions = [...files]
+      .filter((file) => file.endsWith(extension))
+      .flatMap((file) => [...readFileSync(file, "utf8").matchAll(BUFFER_CLASS_DEFINITION)].map(() => file));
+    if (definitions.length > 1) {
+      throw new Error(
+        `The ${extension} bundle defines ${definitions.length} Buffer classes (${[...new Set(definitions)].join(", ")}); alias bare "buffer" to the polyfill shim so it has one`,
+      );
+    }
+  }
+}

@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import {
   assertNoStubbedStreamTransform,
+  assertSingleBufferClass,
   bundledDependencies,
   checkPackage,
   emittedDependencies,
@@ -295,4 +296,32 @@ test("accepts guarded builtin reads from the stub and Transform from stream-brow
     var g = requireStreamBrowserify().Transform;`,
   );
   assert.doesNotThrow(() => assertNoStubbedStreamTransform([file]));
+});
+
+test("rejects a second Buffer class in another file of the same output format", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wallet-buffer-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const chunk = join(root, "useOrdinalsHook.js");
+  const entry = join(root, "index.es.js");
+  writeFileSync(chunk, "function Buffer$1() {} Buffer$1.prototype._isBuffer = true;");
+  writeFileSync(entry, "function f(){} f.prototype._isBuffer=!0;");
+  assert.throws(() => assertSingleBufferClass(new Set([chunk, entry])), /The \.js bundle defines 2 Buffer classes/);
+});
+
+test("rejects two Buffer classes bundled into one chunk", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wallet-buffer-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const chunk = join(root, "useOrdinalsHook.cjs");
+  writeFileSync(chunk, "function f(){} f.prototype._isBuffer=!0; function v(){} v.prototype._isBuffer=!0;");
+  assert.throws(() => assertSingleBufferClass(new Set([chunk])), /The \.cjs bundle defines 2 Buffer classes/);
+});
+
+test("accepts one Buffer class in the ES output and one in the CommonJS output", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wallet-buffer-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const es = join(root, "useOrdinalsHook.js");
+  const cjs = join(root, "useOrdinalsHook.cjs");
+  writeFileSync(es, "function Buffer$1() {} Buffer$1.prototype._isBuffer = true;");
+  writeFileSync(cjs, "function f(){} f.prototype._isBuffer=!0;");
+  assert.doesNotThrow(() => assertSingleBufferClass(new Set([es, cjs])));
 });
