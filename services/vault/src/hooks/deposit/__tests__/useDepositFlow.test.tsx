@@ -1953,6 +1953,57 @@ describe("useDepositFlow", () => {
       });
     });
 
+    it("sends no vault_registered or deposit_broadcast when the registration fails", async () => {
+      const { trackEvent } = vi.mocked(
+        await import("@/infrastructure/analytics"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      registerPeginBatchAndWait.mockRejectedValueOnce(
+        new Error("User rejected the request"),
+      );
+      trackEvent.mockClear();
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).not.toBeNull();
+      });
+      expect(trackEvent.mock.calls).toEqual([
+        ["deposit_started", { amount_bucket: "<0.01", vault_count: 2 }],
+      ]);
+    });
+
+    it("sends no deposit_broadcast when the broadcast fails", async () => {
+      const { trackEvent } = vi.mocked(
+        await import("@/infrastructure/analytics"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      broadcastPrePeginTransaction.mockRejectedValueOnce(
+        new Error("User rejected the request"),
+      );
+      trackEvent.mockClear();
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).not.toBeNull();
+      });
+      expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+      expect(trackEvent.mock.calls).toEqual([
+        ["deposit_started", { amount_bucket: "<0.01", vault_count: 2 }],
+        ["vault_registered", { vault_id: "0xVault0Id" }],
+        ["vault_registered", { vault_id: "0xVault1Id" }],
+      ]);
+    });
+
     it("should save pegins with PENDING status before broadcast", async () => {
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),

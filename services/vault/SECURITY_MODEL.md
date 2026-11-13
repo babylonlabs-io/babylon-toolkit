@@ -228,7 +228,8 @@ Specific to this component:
 - Product analytics links a browser session to the depositor's chain identity. When it is
   configured, each event carries the confirmed session's Ethereum address (a borrow event carries
   the account that sent the borrow instead) and vault events carry the full vault id, so PostHog can
-  see which addresses visited and where they came from, and follow each vault's deposit progress:
+  see which addresses visited, where they came from and, from the country it derives from the
+  visitor's IP and keeps, where they browse from, and follow each vault's deposit progress:
   timestamped `vault_registered`, `deposit_broadcast` and `vault_activated` events per vault, after
   a `deposit_started` with the deposit's coarse amount band and number of vaults. It also sees each
   borrow: `borrow_started` and `borrow_succeeded` with the reserve's symbol and the account that
@@ -238,7 +239,8 @@ Specific to this component:
   only Ethereum. Because the address is the same on every visit, it also joins a connected
   depositor's visits across reloads, browsers and devices, and a vault id joins every visit that
   sent a milestone for that vault, with or without an address; the per-load ids and the absence of
-  person profiles do not prevent that. The bounds are in [`SECURITY.md` → _Product
+  person profiles do not prevent that. Only the project's _Discard client IP data_ setting keeps
+  the raw IP off the address. The bounds are in [`SECURITY.md` → _Product
   analytics_](../../SECURITY.md#product-analytics-posthog).
 
 ### Known deviations
