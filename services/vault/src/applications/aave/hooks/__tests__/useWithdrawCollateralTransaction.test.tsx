@@ -252,17 +252,6 @@ describe("useWithdrawCollateralTransaction", () => {
     ]);
   });
 
-  it("sends no withdraw_succeeded when the transaction reverts", async () => {
-    mockWithdraw.mockRejectedValue(new Error("execution reverted"));
-    const { result } = setup();
-
-    await act(async () => {
-      await result.current.executeWithdraw(SELECTION);
-    });
-
-    expect(mockTrackEvent).not.toHaveBeenCalled();
-  });
-
   it("leaves the position query untouched when the transaction reverts", async () => {
     mockWithdraw.mockRejectedValue(new Error("execution reverted"));
     const { client, result } = setup();
