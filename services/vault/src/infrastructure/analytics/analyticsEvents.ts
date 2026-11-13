@@ -19,7 +19,7 @@ export const ANALYTICS_EVENT = {
 export type AnalyticsEventName =
   (typeof ANALYTICS_EVENT)[keyof typeof ANALYTICS_EVENT];
 
-export type WalletChain = "eth" | "btc";
+type WalletChain = "eth" | "btc";
 
 export interface AnalyticsEventProperties {
   /** Route template (`/markets/:reserveId`), never the concrete path or query. */
