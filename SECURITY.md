@@ -810,9 +810,9 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
 attribute deposits and borrows to a traffic source. It is a separate channel from Sentry, and unlike
-Sentry it **deliberately sends the connected Ethereum address** (`wallet_address`) and the full
-vault id (`vault_id`); this is not an oversight. It is an accepted risk, recorded in the vault
-model's _Accepted risks_.
+Sentry it **deliberately sends the connected Ethereum address** (`wallet_address`; for a borrow, the
+account that sent it) and the full vault id (`vault_id`); this is not an oversight. It is an
+accepted risk, recorded in the vault model's _Accepted risks_.
 
 **What it links, through public chain data.** The address and the vault id are public keys into
 the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
@@ -847,7 +847,8 @@ What bounds it:
 - **Allow-listed payload.** What is sent is defined by the code in
   `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
   the event's own properties. `analyticsEvents.ts` lists the events and their fields,
-  `trackEvent.ts` adds the wallet address, network, visit and session ids (from
+  `trackEvent.ts` adds the wallet address (the event's own `wallet_address` when it carries one, as
+  borrow events do, otherwise the session's), network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
   Ethereum address is recorded as `wallet_address` (never a value that is not an address),
@@ -856,7 +857,8 @@ What bounds it:
   carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit
   events carry a coarse amount band, the number of vaults in a deposit and the vault id; borrow
   events carry the reserve's symbol: the registry's symbol, or for a token the registry does not
-  list the indexer's label, unscrubbed and cut to 32 characters. Borrow events send, as
+  list the indexer's label, unscrubbed except that an address-shaped symbol is replaced by the
+  unknown-token placeholder, and cut to 32 characters (by code point). Borrow events send, as
   `wallet_address`, the account that sent the transaction rather than whichever wallet is connected
   when it is mined. The campaign values are the one part taken from the landing URL's query (or the
   website's cookie): only the allow-listed keys. UTM values have addresses and long hex scrubbed,

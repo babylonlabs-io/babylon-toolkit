@@ -70,9 +70,25 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
+const ethWallet = vi.hoisted(() => ({ address: "0xuser" }));
 vi.mock("@/context/wallet", () => ({
-  useETHWallet: () => ({ address: "0xuser" }),
+  useETHWallet: () => ethWallet,
 }));
+
+const reserveLabel = vi.hoisted(() => ({ throws: false }));
+vi.mock("../../utils/reserveTokenLabel", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../utils/reserveTokenLabel")>();
+  return {
+    ...actual,
+    getReserveTokenLabel: (
+      ...args: Parameters<typeof actual.getReserveTokenLabel>
+    ) => {
+      if (reserveLabel.throws) throw new Error("label lookup failed");
+      return actual.getReserveTokenLabel(...args);
+    },
+  };
+});
 
 vi.mock("@/clients/eth-contract/walletChain", () => ({
   getWalletClientOnExpectedChain: vi
@@ -138,6 +154,8 @@ beforeEach(() => {
   mockAssertNoTransactionInFlight.mockResolvedValue(undefined);
   mockAssertReserve.mockResolvedValue(undefined);
   mockGetERC20Decimals.mockResolvedValue(6);
+  ethWallet.address = "0xuser";
+  reserveLabel.throws = false;
 });
 
 describe("useBorrowTransaction — pause gating", () => {
@@ -329,7 +347,7 @@ describe("useBorrowTransaction — a transaction already in flight", () => {
 });
 
 describe("useBorrowTransaction — unconfirmed broadcast", () => {
-  it("keeps waiting on a borrow whose receipt wait timed out and succeeds once it is mined", async () => {
+  it("keeps waiting on a borrow whose receipt wait timed out and succeeds once it is mined, naming the account that sent it", async () => {
     let mine!: (receipt: unknown) => void;
     mockWaitReceipt.mockReturnValue(
       new Promise((resolve) => {
@@ -337,7 +355,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       }),
     );
     mockBorrow.mockRejectedValue(unconfirmedBorrow());
-    const { result } = renderHook(() => useBorrowTransaction());
+    const { result, rerender } = renderHook(() => useBorrowTransaction());
 
     let borrowing!: Promise<string>;
     await act(async () => {
@@ -351,6 +369,10 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     });
     expect(result.current.isProcessing).toBe(true);
     expect(result.current.error).toBeNull();
+
+    // The user switches account in the wallet while the borrow is unconfirmed.
+    ethWallet.address = "0xother";
+    rerender();
 
     await act(async () => {
       mine({
@@ -638,6 +660,45 @@ describe("useBorrowTransaction — analytics", () => {
         wallet_address: "0xuser",
       },
     ]);
+  });
+
+  it("keeps an emoji whole when bounding an unregistered token's label", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, {
+        reserveId: "r1",
+        reserve: { underlying: "0x0000000000000000000000000000000000000001" },
+        token: {
+          address: "0xtoken",
+          decimals: 6,
+          symbol: `${"T".repeat(31)}\u{1F600}X`,
+        },
+      } as never);
+    });
+
+    expect(trackedEvents()).toContainEqual([
+      "borrow_started",
+      {
+        reserve: `${"T".repeat(31)}\u{1F600}`,
+        wallet_address: "0xuser",
+      },
+    ]);
+  });
+
+  it("still borrows when the reserve label cannot be read for analytics", async () => {
+    reserveLabel.throws = true;
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockBorrow).toHaveBeenCalled();
+    expect(resolved).toBe("succeeded");
   });
 
   it("sends borrow_started but no borrow_succeeded when the borrow reverts", async () => {

@@ -293,6 +293,30 @@ describe("trackEvent", () => {
     );
   });
 
+  it("reports a property builder that throws once, sends nothing and does not throw", async () => {
+    const send = await freshTrackEvent();
+    const build = (): { $pathname: string } => {
+      throw new Error("no label");
+    };
+
+    expect(() => send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG)).not.toThrow();
+    send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockError).toHaveBeenCalledExactlyOnceWith(
+      new Error("Analytics event could not be sent: no label"),
+      { tags: { category: "analytics", event: "$pageview" } },
+    );
+  });
+
+  it("does not call the property builder when analytics is off", () => {
+    const build = vi.fn(() => ({ $pathname: "/" }));
+
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, build, { enabled: false });
+
+    expect(build).not.toHaveBeenCalled();
+  });
+
   it("logs a network failure instead of throwing", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     expect(() =>

@@ -50,7 +50,10 @@ import { getReserveTokenLabel } from "../utils/reserveTokenLabel";
 
 import { usePendingAaveWrite } from "./usePendingAaveWrite";
 
-/** Longest reserve label sent to analytics; an unregistered token's label comes from the indexer. */
+/**
+ * Longest reserve label sent to analytics, in code points so an emoji is never
+ * split; an unregistered token's label comes from the indexer.
+ */
 const MAX_ANALYTICS_RESERVE_LENGTH = 32;
 
 /**
@@ -60,10 +63,9 @@ const MAX_ANALYTICS_RESERVE_LENGTH = 32;
  */
 function borrowAnalyticsFields(reserve: AaveReserveConfig, account: Address) {
   return {
-    reserve: getReserveTokenLabel(reserve).symbol.slice(
-      0,
-      MAX_ANALYTICS_RESERVE_LENGTH,
-    ),
+    reserve: Array.from(getReserveTokenLabel(reserve).symbol)
+      .slice(0, MAX_ANALYTICS_RESERVE_LENGTH)
+      .join(""),
     wallet_address: account,
   };
 }
