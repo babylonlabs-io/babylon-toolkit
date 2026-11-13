@@ -9,7 +9,11 @@
  * - Bitcoin comes from the BTC provider's `onConnect`. The provider calls it
  *   more than once for one connection (again once its own address state
  *   settles, and after a brief disconnect), so a repeat of the address already
- *   sent is ignored until the app clears the Bitcoin session.
+ *   sent is ignored until the app clears the Bitcoin session. It counts the
+ *   connector connecting, before the dialog has validated the wallet or the
+ *   user has confirmed it: a wallet the dialog then rejects, or a connection
+ *   the user abandons, is still counted, and one that comes before the
+ *   Ethereum session is confirmed carries no address.
  * - Ethereum is sent when the app's session is confirmed, not from the ETH
  *   provider's `onConnect`. That callback fires when wagmi restores an account
  *   the app holds no session for, and always before the session is confirmed,

@@ -227,7 +227,9 @@ Specific to this component:
   silently disables a control; that is invariant 10's business and is tracked as a deviation below.
 - Product analytics links a browser session to the depositor's chain identity. When it is
   configured, each event carries the connected Ethereum address, so PostHog can see which addresses
-  visited and where they came from. The address is a public key into the vault registry and the
+  visited, where they came from and, from the country it derives from the visitor's IP and keeps,
+  where they browse from; only the project's _Discard client IP data_ setting keeps the raw IP off
+  the address. The address is a public key into the vault registry and the
   indexer, which return the depositor's BTC public key, the deposit amount and the peg-in
   transaction for each of their vaults, so this gives up the protected session-to-identity
   association on both chains, not only Ethereum. Because the address is the same on every visit, it

@@ -131,6 +131,51 @@ describe("trackEvent", () => {
     );
   });
 
+  it("sends only the allow-listed fields, with and without a wallet address", () => {
+    window.history.pushState({}, "", "/?utm_source=x");
+    captureAttribution();
+    window.history.pushState({}, "", "/");
+    trackEvent(
+      ANALYTICS_EVENT.WALLET_CONNECTED,
+      { chain: "btc", restored: false },
+      CONFIG,
+    );
+    setWalletAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80");
+    trackEvent(
+      ANALYTICS_EVENT.WALLET_CONNECTED,
+      { chain: "eth", restored: false },
+      CONFIG,
+    );
+
+    const bodies = fetchMock.mock.calls.map(([, init]) =>
+      JSON.parse((init as RequestInit).body as string),
+    );
+    const baseKeys = [
+      "$process_person_profile",
+      "$referring_domain",
+      "$session_id",
+      "chain",
+      "network",
+      "restored",
+      "utm_source",
+      "via",
+    ];
+    for (const body of bodies) {
+      expect(Object.keys(body).sort()).toEqual(["api_key", "batch"]);
+      expect(Object.keys(body.batch[0]).sort()).toEqual([
+        "distinct_id",
+        "event",
+        "properties",
+        "timestamp",
+      ]);
+    }
+    expect(Object.keys(bodies[0].batch[0].properties).sort()).toEqual(baseKeys);
+    expect(Object.keys(bodies[1].batch[0].properties).sort()).toEqual([
+      ...baseKeys,
+      "wallet_address",
+    ]);
+  });
+
   it("reports a rejected key as an error once per page load", async () => {
     const send = await freshTrackEvent();
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }));

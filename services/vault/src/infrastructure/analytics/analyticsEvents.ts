@@ -21,8 +21,9 @@ export interface AnalyticsEventProperties {
   /**
    * A wallet connection, once per connection. `restored` is false when the
    * user connected in the connect dialog and true when the app restored a
-   * saved session. Ethereum counts when the app's session is confirmed. See
-   * `walletConnections.ts`.
+   * saved session. Ethereum counts when the app's session is confirmed;
+   * Bitcoin counts when its connector connects, before the dialog validates
+   * the wallet or the user confirms. See `walletConnections.ts`.
    */
   [ANALYTICS_EVENT.WALLET_CONNECTED]: {
     chain: WalletChain;
