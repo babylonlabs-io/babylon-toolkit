@@ -808,27 +808,33 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 
 ### Product analytics (PostHog)
 
-`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can attribute deposits, borrows and withdrawals to a traffic source. It is a separate channel from
+`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
+attribute deposits, borrows and withdrawals to a traffic source. It is a separate channel from
 Sentry, and unlike Sentry it **deliberately sends the connected Ethereum address**
-(`wallet_address`) and the full vault id (`vault_id`), as Aave and Uniswap send addresses. This is
-an accepted risk (see the vault model's _Accepted risks_), not an oversight.
+(`wallet_address`; for a borrow or a withdrawal, the account that sent it) and the full vault id
+(`vault_id`); this is not an oversight. It is an accepted risk, recorded in the vault model's
+_Accepted risks_.
 
 **What it links, through public chain data.** The address and the vault id are public keys into
 the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
 amount and the peg-in transaction for them. So anyone with access to the PostHog project can tie a
 browsing session and its traffic source to the depositor's identity on **both** chains, not only
 on Ethereum. The full vault id is kept, rather than Sentry's short id, because the revenue join
-with on-chain data needs it, and the address alone already reaches the same records.
+with on-chain data needs it. It reaches those records even from an event that carries no
+`wallet_address`.
 
 **It also links visits to each other.** The visit and session ids are per page load, but
 `wallet_address` is the same on every visit: it joins a connected depositor's visits across
 reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
 in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
-only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
-no confirmed Ethereum session carry no address, except on a borrow or withdrawal event, which names
-the account that sent the transaction; apart from that and the campaign values (see _Campaign
-values link visits_ below) they stay unlinked.
+only stops PostHog building a profile, not anyone grouping events by `wallet_address`. The
+`vault_id` on each deposit milestone and withdrawal links visits the same way: it is the same on
+every visit that sends an event for that vault, so it joins the visit that registered a deposit to
+later visits that broadcast, activated or withdrew it, on another device too, and also when the
+address was cleared and those events carry none. Visits with no confirmed Ethereum session carry no
+address, except on a borrow or withdrawal event, which names the account that sent the transaction;
+a visit with neither an address nor a vault event stays unlinked apart from the campaign values
+(see _Campaign values link visits_ below).
 
 What bounds it:
 
@@ -842,29 +848,32 @@ What bounds it:
 - **Allow-listed payload.** What is sent is defined by the code in
   `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
   the event's own properties. `analyticsEvents.ts` lists the events and their fields,
-  `trackEvent.ts` adds the wallet address, network, visit and session ids (from
+  `trackEvent.ts` adds the wallet address (the event's own `wallet_address` when it carries one, as
+  borrow events do, otherwise the session's), network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
-  Ethereum address is recorded as `wallet_address`, `walletConnections.ts` decides when
-  `wallet_connected` is sent, and `routeTemplate.ts` turns the path into `$pathname`, a route
-  template, never a concrete path or query. `wallet_connected` carries the chain (`eth` or `btc`)
-  and whether the app restored the session (`restored`); deposit events carry a coarse amount band,
-  the number of vaults in a deposit and the vault id; borrow events carry the reserve's symbol: the
-  registry's symbol, or for a token the registry does not list the indexer's label, unscrubbed and
-  cut to 32 characters; `withdraw_succeeded` carries the vault id, once per vault withdrawn. Borrow
-  and withdrawal events send, as `wallet_address`, the account that sent the transaction rather than
-  whichever wallet is connected when it is mined. The campaign values are the one part taken from
-  the landing URL's query (or the website's cookie): only the allow-listed keys. UTM values have
-  addresses and long hex scrubbed, then are truncated to 100 characters (by code point, so no
-  surrogate pair is split). As in MetaMask's Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or
-  `bbn1` prefix (in any case) or a long hex run is caught anywhere, even joined to other text, and
-  so is any bare run of 40 or more hex digits. A legacy Bitcoin address (mainnet `1`/`3`, testnet
-  `m`/`n`/`2`, 25 to 35 characters) is caught only between non-alphanumeric characters, so one
-  joined directly to a letter or digit is sent. A campaign word shaped like a legacy address is
-  replaced; scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which
-  Safari before 16.4 rejects: the module runs at startup, so an unsupported pattern would stop the
-  app. The app does not itself send the BTC address, transaction hashes, exact amounts or anything
-  secret-bearing; as above, the address and vault id lead to the first three on-chain.
+  Ethereum address is recorded as `wallet_address` (never a value that is not an address),
+  `walletConnections.ts` decides when `wallet_connected` is sent, and `routeTemplate.ts` turns the
+  path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
+  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit
+  events carry a coarse amount band, the number of vaults in a deposit and the vault id; borrow
+  events carry the reserve's symbol: the registry's symbol, or for a token the registry does not
+  list the indexer's label, unscrubbed except that an address-shaped symbol is replaced by the
+  unknown-token placeholder, and cut to 32 characters (by code point); `withdraw_succeeded` carries
+  the vault id, once per vault withdrawn. Borrow and withdrawal events send, as `wallet_address`,
+  the account that sent the transaction rather than whichever wallet is connected when it is mined.
+  The campaign values are the one part taken from the landing URL's query (or the website's cookie):
+  only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
+  100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
+  an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
+  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. A legacy
+  Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only between
+  non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
+  shaped like a legacy address is replaced; scrubbing too much is the accepted direction. No scrub
+  pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at startup, so an
+  unsupported pattern would stop the app. The app does not itself send the BTC address, transaction
+  hashes, exact amounts or anything secret-bearing; as above, the address and vault id lead to the
+  first three on-chain.
 - **Campaign values link visits.** Every campaign value is sent on every event of the visit. A value
   that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that still
   holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each other.

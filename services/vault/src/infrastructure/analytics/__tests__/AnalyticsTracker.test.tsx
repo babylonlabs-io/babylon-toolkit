@@ -40,15 +40,6 @@ vi.mock("../trackEvent", () => ({
   settleGeofence: vi.fn(),
 }));
 
-// A new element each time: React skips re-rendering an identical one.
-function tracker() {
-  return (
-    <MemoryRouter initialEntries={["/"]}>
-      <AnalyticsTracker />
-    </MemoryRouter>
-  );
-}
-
 /** Each wallet_connected sent, with the address it carried. */
 function connectedEvents() {
   return walletAddressAtSend.filter(
@@ -159,12 +150,12 @@ describe("AnalyticsTracker", () => {
   });
 
   it("sends a restored wallet_connected with the address when a saved session is confirmed after load", () => {
-    const view = render(tracker());
+    const view = render(trackerAt("/"));
     expect(connectedEvents()).toEqual([]);
 
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
 
     expect(connectedEvents()).toEqual([
       {
@@ -176,12 +167,12 @@ describe("AnalyticsTracker", () => {
   });
 
   it("sends a user wallet_connected when the session follows the dialog's confirmation", () => {
-    const view = render(tracker());
+    const view = render(trackerAt("/"));
 
     markUserConfirmation();
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
 
     expect(connectedEvents().map(({ properties }) => properties)).toEqual([
       { chain: "eth", restored: false },
@@ -191,11 +182,11 @@ describe("AnalyticsTracker", () => {
   it("sends nothing and clears the address when the account changes while the session stays confirmed", () => {
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
-    const view = render(tracker());
+    const view = render(trackerAt("/"));
     expect(getWalletAddress()).toBe(ETH_ADDRESS.toLowerCase());
 
     wallets.eth = { address: OTHER_ETH_ADDRESS };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
 
     expect(connectedEvents()).toHaveLength(1);
     expect(getWalletAddress()).toBeNull();
@@ -204,10 +195,10 @@ describe("AnalyticsTracker", () => {
   it("keeps the address when the wallet reports the same account in different casing", () => {
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
-    const view = render(tracker());
+    const view = render(trackerAt("/"));
 
     wallets.eth = { address: ETH_ADDRESS.toLowerCase() };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
 
     expect(connectedEvents()).toHaveLength(1);
     expect(getWalletAddress()).toBe(ETH_ADDRESS.toLowerCase());
@@ -216,14 +207,14 @@ describe("AnalyticsTracker", () => {
   it("sends wallet_connected for the new account once its session is confirmed after the reset", () => {
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
-    const view = render(tracker());
+    const view = render(trackerAt("/"));
     wallets.eth = { address: OTHER_ETH_ADDRESS };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
 
     wallets.session = { connected: false };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
     wallets.session = { connected: true };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
 
     expect(connectedEvents().map(({ walletAddress }) => walletAddress)).toEqual(
       [ETH_ADDRESS.toLowerCase(), OTHER_ETH_ADDRESS.toLowerCase()],
@@ -234,35 +225,45 @@ describe("AnalyticsTracker", () => {
   it("sends nothing and records no address for an address without a confirmed session", () => {
     // The ETH wallet reports an account the app holds no session for.
     wallets.eth = { address: ETH_ADDRESS };
-    const view = render(tracker());
-    view.rerender(tracker());
+    const view = render(trackerAt("/"));
+    view.rerender(trackerAt("/"));
+
+    expect(connectedEvents()).toEqual([]);
+    expect(getWalletAddress()).toBeNull();
+  });
+
+  it("sends nothing and records no address when the wallet reports a value that is not an address", () => {
+    const view = render(trackerAt("/"));
+    wallets.eth = { address: "0xnot-an-address" };
+    wallets.session = { connected: true };
+    view.rerender(trackerAt("/"));
 
     expect(connectedEvents()).toEqual([]);
     expect(getWalletAddress()).toBeNull();
   });
 
   it("sends wallet_connected again when a dropped session is confirmed again", () => {
-    const view = render(tracker());
+    const view = render(trackerAt("/"));
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
     wallets.session = { connected: false };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
     wallets.session = { connected: true };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
 
     expect(connectedEvents()).toHaveLength(2);
   });
 
   it("clears the recorded address when the session ends but the wallet keeps its address", () => {
-    const view = render(tracker());
+    const view = render(trackerAt("/"));
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
     expect(getWalletAddress()).not.toBeNull();
 
     wallets.session = { connected: false };
-    view.rerender(tracker());
+    view.rerender(trackerAt("/"));
     expect(getWalletAddress()).toBeNull();
   });
 });

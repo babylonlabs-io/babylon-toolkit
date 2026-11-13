@@ -131,16 +131,31 @@ describe("trackEvent", () => {
     );
   });
 
-  it("sends every vault id as lowercase 0x-prefixed hex, adding the prefix only once", () => {
-    for (const vaultId of ["ABCDEF01", "0xABcdEF01", "0XABCDEF01"]) {
-      fetchMock.mockClear();
-      trackEvent(
-        ANALYTICS_EVENT.DEPOSIT_BROADCAST,
-        { vault_id: vaultId },
-        CONFIG,
-      );
-      expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
-    }
+  it("adds a 0x prefix to a vault id without one, lowercased", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "ABCDEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
+  it("lowercases a vault id with a lowercase 0x prefix without adding another", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "0xABcdEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
+  it("sends a vault id with an uppercase 0X prefix as lowercase 0x hex", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "0XABCDEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
   });
 
   it("sends an event's own account, lowercased, in place of the session's address", () => {
@@ -278,6 +293,30 @@ describe("trackEvent", () => {
     );
   });
 
+  it("reports a property builder that throws once, sends nothing and does not throw", async () => {
+    const send = await freshTrackEvent();
+    const build = (): { $pathname: string } => {
+      throw new Error("no label");
+    };
+
+    expect(() => send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG)).not.toThrow();
+    send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockError).toHaveBeenCalledExactlyOnceWith(
+      new Error("Analytics event could not be sent: no label"),
+      { tags: { category: "analytics", event: "$pageview" } },
+    );
+  });
+
+  it("does not call the property builder when analytics is off", () => {
+    const build = vi.fn(() => ({ $pathname: "/" }));
+
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, build, { enabled: false });
+
+    expect(build).not.toHaveBeenCalled();
+  });
+
   it("logs a network failure instead of throwing", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     expect(() =>
@@ -354,12 +393,15 @@ describe("geofence gate", () => {
   it("sends a held event with the wallet address it was tracked with", async () => {
     const module = await freshModule();
     const session = await import("../analyticsSession");
-    module.trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
     session.setWalletAddress("0x1111111111111111111111111111111111111111");
+    module.trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    session.setWalletAddress("0x2222222222222222222222222222222222222222");
 
     module.settleGeofence("passed");
 
-    expect(sentBody().batch[0].properties).not.toHaveProperty("wallet_address");
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0x1111111111111111111111111111111111111111",
+    );
   });
 
   it("drops held events and sends nothing later when the geofence fails", async () => {
