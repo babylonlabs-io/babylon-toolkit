@@ -252,7 +252,7 @@ describe("useWithdrawCollateralTransaction", () => {
     ]);
   });
 
-  it("leaves the position query untouched when the transaction reverts", async () => {
+  it("leaves the position query untouched and sends no withdraw_succeeded when the transaction reverts", async () => {
     mockWithdraw.mockRejectedValue(new Error("execution reverted"));
     const { client, result } = setup();
 
@@ -264,6 +264,7 @@ describe("useWithdrawCollateralTransaction", () => {
     expect(resolved).toBe("failed");
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(false);
     expect(mockMarkVaultsAsPending).not.toHaveBeenCalled();
+    expect(mockTrackEvent).not.toHaveBeenCalled();
   });
 });
 
