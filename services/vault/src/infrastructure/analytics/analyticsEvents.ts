@@ -39,5 +39,11 @@ export interface AnalyticsEventProperties {
   };
   [ANALYTICS_EVENT.VAULT_REGISTERED]: { vault_id: string };
   [ANALYTICS_EVENT.DEPOSIT_BROADCAST]: { vault_id: string };
+  /**
+   * Sent only when this session saw the activation add the vault as Aave
+   * collateral (the application's `CollateralAdded` log). An activation whose
+   * send outcome is unknown, one into another application, and a vault
+   * returned at activation are not counted.
+   */
   [ANALYTICS_EVENT.VAULT_ACTIVATED]: { vault_id: string };
 }

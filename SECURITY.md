@@ -819,15 +819,20 @@ the vault registry and the indexer, which return the depositor's BTC public key,
 amount and the peg-in transaction for them. So anyone with access to the PostHog project can tie a
 browsing session and its traffic source to the depositor's identity on **both** chains, not only
 on Ethereum. The full vault id is kept, rather than Sentry's short id, because the revenue join
-with on-chain data needs it, and the address alone already reaches the same records.
+with on-chain data needs it. It reaches those records even from an event that carries no
+`wallet_address`.
 
 **It also links visits to each other.** The visit and session ids are per page load, but
 `wallet_address` is the same on every visit: it joins a connected depositor's visits across
 reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
 in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
-only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
-no confirmed Ethereum session carry no address, and stay unlinked apart from the campaign
-values (see _Campaign values link visits_ below).
+only stops PostHog building a profile, not anyone grouping events by `wallet_address`. The
+`vault_id` on each deposit milestone links visits the same way: it is the same on every visit that
+sends a milestone for that vault, so it joins the visit that registered a deposit to a later visit
+that broadcast or activated it, on another device too, and also when the address was cleared and
+those events carry none. Visits with no confirmed Ethereum session and no deposit milestone carry
+neither key, and stay unlinked apart from the campaign values (see _Campaign values link visits_
+below).
 
 What bounds it:
 

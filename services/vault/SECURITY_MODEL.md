@@ -233,7 +233,8 @@ Specific to this component:
   registry and the indexer, which return the depositor's BTC public key, the deposit amount and the
   peg-in transaction, so this gives up the protected session-to-identity association on both chains,
   not only Ethereum. Because the address is the same on every visit, it also joins a connected
-  depositor's visits across reloads, browsers and devices; the per-load ids and the absence of
+  depositor's visits across reloads, browsers and devices, and a vault id joins every visit that
+  sent a milestone for that vault, with or without an address; the per-load ids and the absence of
   person profiles do not prevent that. The bounds are in [`SECURITY.md` → _Product
   analytics_](../../SECURITY.md#product-analytics-posthog).
 

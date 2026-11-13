@@ -131,16 +131,31 @@ describe("trackEvent", () => {
     );
   });
 
-  it("sends every vault id as lowercase 0x-prefixed hex, adding the prefix only once", () => {
-    for (const vaultId of ["ABCDEF01", "0xABcdEF01", "0XABCDEF01"]) {
-      fetchMock.mockClear();
-      trackEvent(
-        ANALYTICS_EVENT.DEPOSIT_BROADCAST,
-        { vault_id: vaultId },
-        CONFIG,
-      );
-      expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
-    }
+  it("adds a 0x prefix to a vault id without one, lowercased", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "ABCDEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
+  it("lowercases a vault id with a lowercase 0x prefix without adding another", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "0xABcdEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
+  it("sends a vault id with an uppercase 0X prefix as lowercase 0x hex", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "0XABCDEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
   });
 
   it("reports a rejected key as an error once per page load", async () => {
