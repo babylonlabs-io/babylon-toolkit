@@ -134,7 +134,7 @@ export function ClaimExpiredVaultConfirmContent({
         )}
         {ledgerStep?.kind === "awaiting-continue" && (
           <Callout variant="info">
-            {COPY.deposit.ledger.activationPause.hint}
+            {COPY.deposit.ledger.recoveryActivationPause.hint}
           </Callout>
         )}
         <div className="flex w-full gap-4">
@@ -160,7 +160,7 @@ export function ClaimExpiredVaultConfirmContent({
                 <span>{COPY.common.confirming}</span>
               </span>
             ) : ledgerStep?.kind === "awaiting-continue" ? (
-              COPY.deposit.ledger.activationPause.continue
+              COPY.deposit.ledger.recoveryActivationPause.continue
             ) : ledgerStep?.kind === "reconnect-required" ? (
               COPY.deposit.ledger.reconnectButton
             ) : error && !errorTerminal && !errorOutcomeUnknown ? (
