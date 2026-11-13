@@ -192,6 +192,20 @@ describe("AnalyticsTracker", () => {
     expect(getWalletAddress()).toBeNull();
   });
 
+  it("sends nothing for an account that follows a non-address while the session stays confirmed", () => {
+    wallets.eth = { address: ETH_ADDRESS };
+    wallets.session = { connected: true };
+    const view = render(trackerAt("/"));
+
+    wallets.eth = { address: "0xnot-an-address" };
+    view.rerender(trackerAt("/"));
+    wallets.eth = { address: OTHER_ETH_ADDRESS };
+    view.rerender(trackerAt("/"));
+
+    expect(connectedEvents()).toHaveLength(1);
+    expect(getWalletAddress()).toBeNull();
+  });
+
   it("keeps the address when the wallet reports the same account in different casing", () => {
     wallets.eth = { address: ETH_ADDRESS };
     wallets.session = { connected: true };

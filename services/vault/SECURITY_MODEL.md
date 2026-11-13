@@ -113,7 +113,8 @@ Security-critical assets:
 - the depositor's BTC and the collateral position it backs;
 - vault-secret material — the only material capable of recovering a deposit;
 - the depositor's ability to claim **independently of the vault provider**;
-- the association between one browser session and the depositor's chain identity.
+- the association between one browser session and the depositor's chain identity (given up when
+  product analytics is configured; see _Accepted risks_).
 
 An outcome is a security failure of this component when:
 
