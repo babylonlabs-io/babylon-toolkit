@@ -4,6 +4,7 @@ import { useLocation } from "react-router";
 
 import { useGeoFencing } from "@/context/geofencing";
 import { useETHWallet } from "@/context/wallet";
+import { toCheckedAddress } from "@/utils/addressUtils";
 
 import { ANALYTICS_EVENT } from "./analyticsEvents";
 import { setWalletAddress } from "./analyticsSession";
@@ -38,8 +39,11 @@ export function AnalyticsTracker() {
   const { connected: sessionConfirmed } = useWalletConnect();
   const { address: ethAddress } = useETHWallet();
   // An address alone is no session: the wallet can report an account the app
-  // holds no session for.
-  const sessionAddress = sessionConfirmed && ethAddress ? ethAddress : null;
+  // holds no session for. A value that is not an address is no session either:
+  // the wallet reported it, and nothing else checks it before it is sent.
+  const checkedAddress = toCheckedAddress(ethAddress);
+  const sessionAddress =
+    sessionConfirmed && checkedAddress !== undefined ? checkedAddress : null;
 
   useEffect(() => {
     if (isLoading) return;

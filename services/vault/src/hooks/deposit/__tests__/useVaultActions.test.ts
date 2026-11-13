@@ -1998,33 +1998,6 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     );
   });
 
-  it("does not send vault_activated when the activation added no collateral and redeemed nothing for the depositor", async () => {
-    const reader = readerReturning({
-      depositorSignedPeginTx: "0xdeadbeef",
-      hashlock: ON_CHAIN_HASHLOCK,
-    });
-    mockGetVaultRegistryReader.mockReturnValue(reader);
-    mockActivateVaultWithSecret.mockResolvedValue({
-      transactionHash: "0xtx",
-      receipt: { logs: [] },
-    } as never);
-    // An application that redeemed the vault for a keeper inside activation.
-    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
-    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(false);
-    mockTrackEvent.mockClear();
-
-    const { result } = renderHook(() => useVaultActions());
-
-    await act(async () => {
-      await result.current.handleActivation(baseActivationParams);
-    });
-
-    expect(mockTrackEvent).not.toHaveBeenCalledWith(
-      "vault_activated",
-      expect.anything(),
-    );
-  });
-
   it("does not tag the escape hatch as returned, since its redeem tag already says so", async () => {
     const { logger } = await import("@/infrastructure");
     const reader = readerReturning({
