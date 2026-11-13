@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   assertNoStubbedStreamTransform,
+  assertSingleBufferClass,
   bundledDependencies,
   checkPackage,
   emittedDependencies,
@@ -20,6 +21,7 @@ const runtime = {
 for (const graph of Object.values(runtime)) {
   graph.bundledPackages = bundledDependencies(graph.files);
   assertNoStubbedStreamTransform(graph.files);
+  assertSingleBufferClass(graph.files);
 }
 const declarations = {
   root: emittedDependencies(entries(".", ["types"])),
