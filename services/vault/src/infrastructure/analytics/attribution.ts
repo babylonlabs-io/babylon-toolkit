@@ -57,14 +57,17 @@ const CLICK_ID_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
  * applied one after another a hex pattern would take the start of a `bc1` or
  * `bbn1` address glued after it and send the rest. Overlapping spans are
  * replaced as one, with the label of the one that starts first (the earlier
- * pattern on a tie).
+ * pattern on a tie). The `bc1`/`tb1` and `bbn1` patterns have no upper bound:
+ * a pattern's matches never overlap each other, so a capped match that ended
+ * inside a second address joined after it would leave that address's tail.
+ * They take the whole alphanumeric run instead.
  */
 const PREFIXED_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/0x[0-9a-f]{41,}|[0-9a-f]{64,}/gi, "[HEX_REDACTED]"],
   [/0x[0-9a-f]{40}/gi, "[ETH_ADDR]"],
   [/[0-9a-f]{40,}/gi, "[ETH_ADDR]"],
-  [/(?:bc1|tb1)[a-z0-9]{24,62}/gi, "[BTC_ADDR]"],
-  [/bbn1[a-z0-9]{38,58}/gi, "[BBN_ADDR]"],
+  [/(?:bc1|tb1)[a-z0-9]{24,}/gi, "[BTC_ADDR]"],
+  [/bbn1[a-z0-9]{38,}/gi, "[BBN_ADDR]"],
 ];
 
 /**
