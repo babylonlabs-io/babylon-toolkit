@@ -247,12 +247,12 @@ jobs:
           NETWORK: ${{ matrix.network }}
         run: pnpm --filter @services/vault run check:built-profile "$NETWORK"
 
-      - name: Copy all index.html to fix path for activity, app/aave
+      - name: Copy index.html for static routes and app/aave
         run: |
-          cd services/vault/dist
-          cp index.html activity
-          mkdir -p app
-          cp index.html app/aave
+          pnpm exec tsx --tsconfig=services/vault/tsconfig.lib.json -e 'import { copyFileSync, mkdirSync } from "node:fs"; import { dirname } from "node:path"; import { ROUTES } from "./services/vault/src/routes.ts";
+          for (const route of [...Object.values(ROUTES), "/app/aave"].filter((route) => route !== "/")) {
+            const target = `services/vault/dist${route}`; mkdirSync(dirname(target), { recursive: true }); copyFileSync("services/vault/dist/index.html", target);
+          }'
 
       - name: Generate sha256sum checksum
         env:
