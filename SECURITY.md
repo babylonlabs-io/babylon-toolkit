@@ -808,11 +808,10 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 
 ### Product analytics (PostHog)
 
-`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry
-it **deliberately sends the connected Ethereum address** (`wallet_address`), as Aave and Uniswap
-send addresses. This is an accepted risk (see the vault model's _Accepted risks_), not an
-oversight.
+`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
+attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry it
+**deliberately sends the connected Ethereum address** (`wallet_address`); this is not an oversight.
+It is an accepted risk, recorded in the vault model's _Accepted risks_.
 
 **What it links, through public chain data.** The address is a public key into the vault registry
 and the indexer, which return the depositor's vaults and, for each, the depositor's BTC public key,
@@ -843,21 +842,22 @@ What bounds it:
   `trackEvent.ts` adds the wallet address, network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
-  Ethereum address is recorded as `wallet_address`, `walletConnections.ts` decides when
-  `wallet_connected` is sent, and `routeTemplate.ts` turns the path into `$pathname`, a route
-  template, never a concrete path or query. `wallet_connected` carries the chain (`eth` or `btc`)
-  and whether the app restored the session (`restored`). The campaign values are the one part taken
-  from the landing URL's query (or the website's cookie): only the allow-listed keys. UTM values
-  have addresses and long hex scrubbed, then are truncated to 100 characters (by code point, so no
-  surrogate pair is split). As in MetaMask's Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or
-  `bbn1` prefix (in any case) or a long hex run is caught anywhere, even joined to other text, and so
-  is any bare run of 40 or more hex digits. A legacy Bitcoin address (mainnet `1`/`3`, testnet
-  `m`/`n`/`2`, 25 to 35 characters) is caught only between non-alphanumeric characters, so one
-  joined directly to a letter or digit is sent. A campaign word shaped like a legacy address is
-  replaced; scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which
-  Safari before 16.4 rejects: the module runs at startup, so an unsupported pattern would stop the
-  app. The app does not itself send the BTC address, transaction hashes, exact amounts or anything
-  secret-bearing; as above, the address leads to the first three on-chain.
+  Ethereum address is recorded as `wallet_address` (never a value that is not an address),
+  `walletConnections.ts` decides when `wallet_connected` is sent, and `routeTemplate.ts` turns the
+  path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
+  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`). The
+  campaign values are the one part taken from the landing URL's query (or the website's cookie):
+  only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
+  100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
+  an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
+  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. A legacy
+  Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only between
+  non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
+  shaped like a legacy address is replaced; scrubbing too much is the accepted direction. No scrub
+  pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at startup, so an
+  unsupported pattern would stop the app. The app does not itself send the BTC address, transaction
+  hashes, exact amounts or anything secret-bearing; as above, the address leads to the first three
+  on-chain.
 - **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
   value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
   still holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each
