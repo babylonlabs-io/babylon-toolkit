@@ -117,6 +117,7 @@ import {
 } from "@/utils/errors";
 
 import { STOP_WAITING_AVAILABLE_AFTER_MS } from "../../constants";
+import { getPendingAaveWrite } from "../../services/pendingAaveWrite";
 import { BorrowReserveCapUnavailableError } from "../../utils/borrowReserveLimit";
 import { useBorrowTransaction } from "../useBorrowTransaction";
 
@@ -373,6 +374,8 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     // The user switches account in the wallet while the borrow is unconfirmed.
     ethWallet.address = "0xother";
     rerender();
+    // The hook now shows the other account's lock; the sender's still holds.
+    expect(getPendingAaveWrite("0xuser")).not.toBeNull();
 
     await act(async () => {
       mine({
@@ -384,7 +387,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       await expect(borrowing).resolves.toBe("succeeded");
     });
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
-    expect(result.current.pendingWrite).toBeNull();
+    expect(getPendingAaveWrite("0xuser")).toBeNull();
     expect(mockInvalidateQueries).toHaveBeenCalled();
     expect(trackedEvents()).toEqual([
       ["borrow_started", BORROW_FIELDS],

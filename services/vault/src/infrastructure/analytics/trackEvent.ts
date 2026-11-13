@@ -11,6 +11,7 @@
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
+import { toCheckedAddress } from "@/utils/addressUtils";
 
 import logger from "../logger";
 
@@ -59,8 +60,11 @@ let holdOverflowReported = false;
 
 /**
  * Settle the geofence for this page load: send the held events if the visitor
- * passed, drop them otherwise. The check runs once per page load, so only the
- * first outcome counts.
+ * passed, drop them otherwise. Only the first outcome counts until the page
+ * reloads. Retrying the global error screen remounts the geofence provider,
+ * which checks again, but that answer is ignored: after a failed first check
+ * nothing is sent, and after a passed one the remounted tracker's page view is
+ * sent at once, a second view of the same path.
  */
 export function settleGeofence(outcome: GeofenceOutcome): void {
   if (geofenceOutcome !== null) return;
@@ -90,6 +94,16 @@ function normalizeVaultId(properties: object): object {
   return { ...properties, vault_id: ensureHexPrefix(vaultId.toLowerCase()) };
 }
 
+/**
+ * An event's own account, lowercased, or null when it is not an address. The
+ * wallet reports it and nothing upstream checks it, so it gets the same check
+ * the session's address gets in `AnalyticsTracker.tsx`.
+ */
+function checkedEventWallet(value: string): string | null {
+  const checked = toCheckedAddress(value);
+  return checked === undefined ? null : checked.toLowerCase();
+}
+
 function buildCaptureBody<E extends AnalyticsEventName>(
   config: EnabledAnalyticsConfig,
   event: E,
@@ -97,11 +111,15 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   timestamp: string,
 ) {
   // An event about a transaction names the account that sent it; the
-  // session's address can change before the transaction is mined.
-  const eventWallet: unknown = Reflect.get(properties, "wallet_address");
+  // session's address can change before the transaction is mined. One that
+  // fails the check is left out, never replaced by the session's.
+  const {
+    wallet_address: eventWallet,
+    ...eventProperties
+  }: { wallet_address?: unknown } = normalizeVaultId(properties);
   const wallet =
     typeof eventWallet === "string"
-      ? eventWallet.toLowerCase()
+      ? checkedEventWallet(eventWallet)
       : getWalletAddress();
   return {
     api_key: config.projectKey,
@@ -112,7 +130,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         timestamp,
         properties: {
           ...getAttribution(),
-          ...normalizeVaultId(properties),
+          ...eventProperties,
           ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),

@@ -113,6 +113,29 @@ describe("ENV with a mispaired profile", () => {
   });
 });
 
+describe("ENV with valid analytics settings", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("turns analytics on for the profile's network", async () => {
+    vi.resetModules();
+    vi.stubEnv("TBV_NETWORK_PROFILE", JSON.stringify(PROFILE));
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_KEY", "phc_abc123");
+    const env = await import("@/config/env");
+    expect(env.envInitError).toBeNull();
+    expect(env.analyticsConfigError).toBeNull();
+    expect(env.ENV.ANALYTICS).toEqual({
+      enabled: true,
+      host: "https://us.i.posthog.com",
+      projectKey: "phc_abc123",
+      network: "devnet",
+    });
+  });
+});
+
 describe("ENV with a bad analytics setting", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

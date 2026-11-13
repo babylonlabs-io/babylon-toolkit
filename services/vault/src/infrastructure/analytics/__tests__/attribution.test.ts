@@ -226,6 +226,46 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("a[HEX_REDACTED]");
   });
 
+  it("scrubs 0x-prefixed hex one digit longer than an address as a whole", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=0x${"ab".repeat(20)}c`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[HEX_REDACTED]");
+  });
+
+  it("scrubs an Ethereum address glued to a bech32 address as a whole", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=0x${"ab".repeat(20)}bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[HEX_REDACTED]");
+  });
+
+  it("scrubs a bare hex run glued to a Babylon address as a whole", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref-${"ab".repeat(20)}bbn1${"q".repeat(38)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref-[ETH_ADDR]");
+  });
+
+  it("scrubs an Ethereum address whose hex contains bc1 as a whole", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=0x${"ab".repeat(5)}bc1${"cd".repeat(13)}d-x`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[ETH_ADDR]-x");
+  });
+
   it("scrubs a bare 64-character hex run", () => {
     const result = deriveAttribution({
       search: `?utm_content=${"cd".repeat(32)}`,
@@ -286,6 +326,17 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("wallet[BTC_ADDR]");
   });
 
+  it("scrubs a 62-character taproot address", () => {
+    const result = deriveAttribution({
+      search:
+        "?utm_term=bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[BTC_ADDR]");
+  });
+
   it("scrubs a Babylon address", () => {
     const result = deriveAttribution({
       search: `?utm_term=bbn1${"q".repeat(38)}`,
@@ -339,6 +390,16 @@ describe("deriveAttribution", () => {
   it("scrubs a 35-character testnet P2SH address", () => {
     const result = deriveAttribution({
       search: "?utm_term=ref_2N8hwP1WmJrFF5QWABn38y63uYLhnJYJYTF",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("scrubs a 25-character legacy Bitcoin address", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref_1${"A".repeat(24)}`,
       referrer: "",
       cookie: "",
       ownHost: APP_HOST,

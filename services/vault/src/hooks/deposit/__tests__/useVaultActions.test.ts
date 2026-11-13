@@ -1959,6 +1959,8 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       transactionHash: "0xtx",
       receipt: { logs: [] },
     } as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(true);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(false);
     mockTrackEvent.mockClear();
 
     const { result } = renderHook(() => useVaultActions());
@@ -1970,6 +1972,32 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(mockTrackEvent).toHaveBeenCalledWith("vault_activated", {
       vault_id: "0xvaultId",
     });
+  });
+
+  it("does not send vault_activated when the application added no collateral and nothing was redeemed for the depositor", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockActivateVaultWithSecret.mockResolvedValue({
+      transactionHash: "0xtx",
+      receipt: { logs: [] },
+    } as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(false);
+    mockTrackEvent.mockClear();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockTrackEvent).not.toHaveBeenCalledWith(
+      "vault_activated",
+      expect.anything(),
+    );
   });
 
   it("does not send vault_activated when the registry redeemed the vault instead", async () => {
