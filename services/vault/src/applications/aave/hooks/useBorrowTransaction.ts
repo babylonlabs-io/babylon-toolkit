@@ -17,6 +17,7 @@ import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
+import { ANALYTICS_EVENT, trackEvent } from "@/infrastructure/analytics";
 import {
   ErrorCode,
   SendOutcomeUnknownError,
@@ -45,8 +46,29 @@ import {
 } from "../services/pendingAaveWrite";
 import { BorrowReserveCapUnavailableError } from "../utils/borrowReserveLimit";
 import { describeAaveRevert } from "../utils/describeAaveRevert";
+import { getReserveTokenLabel } from "../utils/reserveTokenLabel";
 
 import { usePendingAaveWrite } from "./usePendingAaveWrite";
+
+/**
+ * Longest reserve label sent to analytics, in code points so a surrogate pair is
+ * never split; an unregistered token's label comes from the indexer.
+ */
+const MAX_ANALYTICS_RESERVE_LENGTH = 32;
+
+/**
+ * The borrow's analytics fields: the registry-first token label, bounded, and
+ * the account that submitted the borrow, which a disconnect while it is
+ * pending would otherwise clear or replace on the event.
+ */
+function borrowAnalyticsFields(reserve: AaveReserveConfig, account: Address) {
+  return {
+    reserve: Array.from(getReserveTokenLabel(reserve).symbol)
+      .slice(0, MAX_ANALYTICS_RESERVE_LENGTH)
+      .join(""),
+    wallet_address: account,
+  };
+}
 
 export interface UseBorrowTransactionResult {
   /**
@@ -184,6 +206,19 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
 
         // Adapter resolves borrower's proxy from msg.sender
         const walletClient = await getWalletClientOnExpectedChain(account);
+
+        // Sent once the pre-sign checks have passed and the wallet is on the
+        // expected chain, so a borrow those checks refuse, or a chain switch
+        // the user declines, is not counted. A borrow whose pre-flight
+        // simulation then rejects, that the user declines in the wallet, or
+        // that reverts is counted as started but never as succeeded. So is one
+        // the wallet replaced with a different call, which never ran, and one
+        // whose replacement could not be read or that the wallet refused as
+        // "nonce too low", whose outcome is unknown here even if it was mined.
+        // A speed-up of the same call settles as mined and is counted.
+        trackEvent(ANALYTICS_EVENT.BORROW_STARTED, () =>
+          borrowAnalyticsFields(reserve, account),
+        );
         await borrow(
           walletClient,
           chain,
@@ -196,6 +231,11 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // the lock's watch found after the first wait gave up never reported
       // its inclusion, and one the user stopped waiting on is not confirming.
       setIsConfirming(outcome === "mined");
+      if (outcome === "mined") {
+        trackEvent(ANALYTICS_EVENT.BORROW_SUCCEEDED, () =>
+          borrowAnalyticsFields(reserve, account),
+        );
+      }
 
       // Invalidate position queries to refresh data, and the hub reads behind
       // the loan forms (liquidity, our spoke's borrow limit and hub state).

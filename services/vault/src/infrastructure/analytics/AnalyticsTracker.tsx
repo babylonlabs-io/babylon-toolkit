@@ -23,7 +23,8 @@ import { reportEthSessionConfirmed } from "./walletConnections";
  * region is unknown: the health endpoint did not answer, or a blocking
  * configuration error stopped the check before it ran.
  *
- * Every event carries the address of the app's confirmed Ethereum session.
+ * Every event carries the address of the app's confirmed Ethereum session,
+ * except a borrow event, which names the account that sent the borrow.
  * The session is confirmed after load, so the landing page view goes out
  * without it; `wallet_connected` is sent when it is confirmed, and carries it.
  * Only a session that starts from no address counts: if the address changes

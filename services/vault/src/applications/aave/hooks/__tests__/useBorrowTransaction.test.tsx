@@ -52,13 +52,43 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), event: vi.fn() },
 }));
 
+const mockTrackEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/infrastructure/analytics")>()),
+  trackEvent: mockTrackEvent,
+}));
+
+/** Each tracked event with its fields, built the way trackEvent builds them. */
+function trackedEvents(): [unknown, unknown][] {
+  return mockTrackEvent.mock.calls.map(([event, properties]) => [
+    event,
+    typeof properties === "function" ? properties() : properties,
+  ]);
+}
+
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
+const ethWallet = vi.hoisted(() => ({ address: "0xuser" }));
 vi.mock("@/context/wallet", () => ({
-  useETHWallet: () => ({ address: "0xuser" }),
+  useETHWallet: () => ethWallet,
 }));
+
+const reserveLabel = vi.hoisted(() => ({ throws: false }));
+vi.mock("../../utils/reserveTokenLabel", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../utils/reserveTokenLabel")>();
+  return {
+    ...actual,
+    getReserveTokenLabel: (
+      ...args: Parameters<typeof actual.getReserveTokenLabel>
+    ) => {
+      if (reserveLabel.throws) throw new Error("label lookup failed");
+      return actual.getReserveTokenLabel(...args);
+    },
+  };
+});
 
 vi.mock("@/clients/eth-contract/walletChain", () => ({
   getWalletClientOnExpectedChain: vi
@@ -87,14 +117,19 @@ import {
 } from "@/utils/errors";
 
 import { STOP_WAITING_AVAILABLE_AFTER_MS } from "../../constants";
+import { getPendingAaveWrite } from "../../services/pendingAaveWrite";
 import { BorrowReserveCapUnavailableError } from "../../utils/borrowReserveLimit";
 import { useBorrowTransaction } from "../useBorrowTransaction";
 
 const RESERVE = {} as never;
+// The underlying is the registry's mainnet USDC.
+const USDC_UNDERLYING = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
 const LIVE_RESERVE = {
   reserveId: "r1",
+  reserve: { underlying: USDC_UNDERLYING },
   token: { address: "0xtoken", decimals: 6, symbol: "USDC" },
 } as never;
+const BORROW_FIELDS = { reserve: "USDC", wallet_address: "0xuser" };
 
 const HASH =
   "0x5555555555555555555555555555555555555555555555555555555555555555";
@@ -120,6 +155,8 @@ beforeEach(() => {
   mockAssertNoTransactionInFlight.mockResolvedValue(undefined);
   mockAssertReserve.mockResolvedValue(undefined);
   mockGetERC20Decimals.mockResolvedValue(6);
+  ethWallet.address = "0xuser";
+  reserveLabel.throws = false;
 });
 
 describe("useBorrowTransaction — pause gating", () => {
@@ -311,7 +348,7 @@ describe("useBorrowTransaction — a transaction already in flight", () => {
 });
 
 describe("useBorrowTransaction — unconfirmed broadcast", () => {
-  it("keeps waiting on a borrow whose receipt wait timed out and succeeds once it is mined", async () => {
+  it("keeps waiting on a borrow whose receipt wait timed out and succeeds once it is mined, naming the account that sent it", async () => {
     let mine!: (receipt: unknown) => void;
     mockWaitReceipt.mockReturnValue(
       new Promise((resolve) => {
@@ -319,7 +356,7 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       }),
     );
     mockBorrow.mockRejectedValue(unconfirmedBorrow());
-    const { result } = renderHook(() => useBorrowTransaction());
+    const { result, rerender } = renderHook(() => useBorrowTransaction());
 
     let borrowing!: Promise<string>;
     await act(async () => {
@@ -334,6 +371,12 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
     expect(result.current.isProcessing).toBe(true);
     expect(result.current.error).toBeNull();
 
+    // The user switches account in the wallet while the borrow is unconfirmed.
+    ethWallet.address = "0xother";
+    rerender();
+    // The hook now shows the other account's lock; the sender's still holds.
+    expect(getPendingAaveWrite("0xuser")).not.toBeNull();
+
     await act(async () => {
       mine({
         status: "success",
@@ -344,8 +387,12 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       await expect(borrowing).resolves.toBe("succeeded");
     });
     expect(getWalletClientOnExpectedChain).toHaveBeenCalledWith("0xuser");
-    expect(result.current.pendingWrite).toBeNull();
+    expect(getPendingAaveWrite("0xuser")).toBeNull();
     expect(mockInvalidateQueries).toHaveBeenCalled();
+    expect(trackedEvents()).toEqual([
+      ["borrow_started", BORROW_FIELDS],
+      ["borrow_succeeded", BORROW_FIELDS],
+    ]);
   });
 
   it("refuses a borrow from a remounted form while the first one is still unconfirmed", async () => {
@@ -506,6 +553,8 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       expect(result.current.error).toBeNull();
       expect(result.current.pendingWrite).toBeNull();
       expect(mockInvalidateQueries).toHaveBeenCalled();
+      // A borrow with no receipt is never reported as succeeded.
+      expect(trackedEvents()).toEqual([["borrow_started", BORROW_FIELDS]]);
     } finally {
       vi.useRealTimers();
     }
@@ -556,5 +605,153 @@ describe("useBorrowTransaction — unconfirmed broadcast", () => {
       });
       vi.useRealTimers();
     }
+  });
+});
+
+describe("useBorrowTransaction — analytics", () => {
+  it("sends borrow_started and borrow_succeeded with the reserve symbol and the borrowing account once the borrow is mined", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(trackedEvents()).toEqual([
+      ["borrow_started", BORROW_FIELDS],
+      ["borrow_succeeded", BORROW_FIELDS],
+    ]);
+  });
+
+  it("sends the registry's symbol for a registered token, not the indexer's", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, {
+        reserveId: "r1",
+        reserve: { underlying: USDC_UNDERLYING },
+        token: { address: "0xtoken", decimals: 6, symbol: "FAKE" },
+      } as never);
+    });
+
+    expect(trackedEvents()).toContainEqual([
+      "borrow_started",
+      {
+        reserve: "USDC",
+        wallet_address: "0xuser",
+      },
+    ]);
+  });
+
+  it("bounds an unregistered token's indexer label to 32 characters", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, {
+        reserveId: "r1",
+        reserve: { underlying: "0x0000000000000000000000000000000000000001" },
+        token: { address: "0xtoken", decimals: 6, symbol: "T".repeat(50) },
+      } as never);
+    });
+
+    expect(trackedEvents()).toContainEqual([
+      "borrow_started",
+      {
+        reserve: "T".repeat(32),
+        wallet_address: "0xuser",
+      },
+    ]);
+  });
+
+  it("keeps an emoji whole when bounding an unregistered token's label", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, {
+        reserveId: "r1",
+        reserve: { underlying: "0x0000000000000000000000000000000000000001" },
+        token: {
+          address: "0xtoken",
+          decimals: 6,
+          symbol: `${"T".repeat(31)}\u{1F600}X`,
+        },
+      } as never);
+    });
+
+    expect(trackedEvents()).toContainEqual([
+      "borrow_started",
+      {
+        reserve: `${"T".repeat(31)}\u{1F600}`,
+        wallet_address: "0xuser",
+      },
+    ]);
+  });
+
+  it("passes the analytics fields as a builder, so a reserve label that cannot be read does not stop the borrow", async () => {
+    reserveLabel.throws = true;
+    mockBorrow.mockResolvedValue({ transactionHash: HASH });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockBorrow).toHaveBeenCalled();
+    expect(resolved).toBe("succeeded");
+  });
+
+  it("sends borrow_started but no borrow_succeeded when the borrow reverts", async () => {
+    mockBorrow.mockRejectedValue(new Error("execution reverted"));
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(trackedEvents()).toEqual([["borrow_started", BORROW_FIELDS]]);
+  });
+
+  it("sends nothing for a borrow the pre-sign validation refuses", async () => {
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE, async () => {
+        throw new Error("Health factor too low");
+      });
+    });
+
+    expect(mockBorrow).not.toHaveBeenCalled();
+    expect(mockTrackEvent).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing for a borrow whose chain switch the user declines", async () => {
+    vi.mocked(getWalletClientOnExpectedChain).mockRejectedValueOnce(
+      new Error("User rejected the chain switch"),
+    );
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockBorrow).not.toHaveBeenCalled();
+    expect(mockTrackEvent).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing for a borrow refused while another transaction is in flight", async () => {
+    mockAssertNoTransactionInFlight.mockRejectedValue(
+      new TransactionInFlightError(),
+    );
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(mockTrackEvent).not.toHaveBeenCalled();
   });
 });
