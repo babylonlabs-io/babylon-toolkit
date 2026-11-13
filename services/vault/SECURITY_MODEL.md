@@ -226,16 +226,20 @@ Specific to this component:
   Mitigated by review only. This does **not** extend to a malformed or absent parameter that
   silently disables a control; that is invariant 10's business and is tracked as a deviation below.
 - Product analytics links a browser session to the depositor's chain identity. When it is
-  configured, each event carries the connected Ethereum address, so PostHog can see which addresses
-  visited, where they came from and, from the country it derives from the visitor's IP and keeps,
-  where they browse from; only the project's _Discard client IP data_ setting keeps the raw IP off
-  the address. The address is a public key into the vault registry and the
-  indexer, which return the depositor's BTC public key, the deposit amount and the peg-in
-  transaction for each of their vaults, so this gives up the protected session-to-identity
-  association on both chains, not only Ethereum. Because the address is the same on every visit, it
-  also joins a connected depositor's visits across reloads, browsers and devices; the per-load ids
-  and the absence of person profiles do not prevent that. The bounds are in [`SECURITY.md` →
-  _Product analytics_](../../SECURITY.md#product-analytics-posthog).
+  configured, each event carries the connected Ethereum address and vault events carry the full
+  vault id, so PostHog can see which addresses visited, where they came from and, from the country it
+  derives from the visitor's IP and keeps, where they browse from, and follow each vault's deposit
+  progress: timestamped `vault_registered`, `deposit_broadcast` and
+  `vault_activated` events per vault, after a `deposit_started` with the deposit's coarse amount
+  band and number of vaults. Both the address and the vault id are public keys into the vault
+  registry and the indexer, which return the depositor's BTC public key, the deposit amount and the
+  peg-in transaction, so this gives up the protected session-to-identity association on both chains,
+  not only Ethereum. Because the address is the same on every visit, it also joins a connected
+  depositor's visits across reloads, browsers and devices, and a vault id joins every visit that
+  sent a milestone for that vault, with or without an address; the per-load ids and the absence of
+  person profiles do not prevent that. Only the project's _Discard client IP data_ setting keeps
+  the raw IP off the address. The bounds are in [`SECURITY.md` → _Product
+  analytics_](../../SECURITY.md#product-analytics-posthog).
 
 ### Known deviations
 

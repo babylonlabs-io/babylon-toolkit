@@ -157,8 +157,8 @@ that reaches a signature.
   of these is secret — they are public chain data — but their _association with one browser session_
   is a wallet fingerprint. `scrubString` and `redactData` in `services/vault/src/utils/telemetry.ts`
   strip them from Sentry events and breadcrumbs by regex and by field name. Product analytics is the one
-  deliberate exception: it sends the Ethereum address, as an accepted risk (see _Product analytics
-  (PostHog)_ below).
+  deliberate exception: it sends the Ethereum address and the vault id, as an accepted risk (see
+  _Product analytics (PostHog)_ below).
 
 ### Not confidential, but integrity-critical
 
@@ -809,24 +809,31 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
-attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry it
-**deliberately sends the connected Ethereum address** (`wallet_address`); this is not an oversight.
-It is an accepted risk, recorded in the vault model's _Accepted risks_.
+attribute deposits to a traffic source. It is a separate channel from Sentry, and unlike Sentry it
+**deliberately sends the connected Ethereum address** (`wallet_address`) and the full vault id
+(`vault_id`); this is not an oversight. It is an accepted risk, recorded in the vault model's
+_Accepted risks_.
 
-**What it links, through public chain data.** The address is a public key into the vault registry
-and the indexer, which return the depositor's vaults and, for each, the depositor's BTC public key,
-the exact deposit amount and the peg-in transaction. So anyone with access to the PostHog project
-can tie a browsing session and its traffic source to the depositor's identity on **both** chains,
-not only on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
-_Client IP_ below).
+**What it links, through public chain data.** The address and the vault id are public keys into
+the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
+amount and the peg-in transaction for them. So anyone with access to the PostHog project can tie a
+browsing session and its traffic source to the depositor's identity on **both** chains, not only
+on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
+_Client IP_ below). The full vault id is kept, rather than Sentry's short id, because the revenue join
+with on-chain data needs it. It reaches those records even from an event that carries no
+`wallet_address`.
 
 **It also links visits to each other.** The visit and session ids are per page load, but
 `wallet_address` is the same on every visit: it joins a connected depositor's visits across
 reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
 in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
-only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
-no confirmed Ethereum session carry no address, and stay unlinked apart from the campaign
-values (see _Campaign values link visits_ below).
+only stops PostHog building a profile, not anyone grouping events by `wallet_address`. The
+`vault_id` on each deposit milestone links visits the same way: it is the same on every visit that
+sends a milestone for that vault, so it joins the visit that registered a deposit to a later visit
+that broadcast or activated it, on another device too, and also when the address was cleared and
+those events carry none. Visits with no confirmed Ethereum session and no deposit milestone carry
+neither key, and stay unlinked apart from the campaign values (see _Campaign values link visits_
+below).
 
 What bounds it:
 
@@ -848,7 +855,8 @@ What bounds it:
   reports a Bitcoin connection (it decides whether one counts and whether it was restored) and when
   `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the
   path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
-  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`). The
+  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit
+  events carry a coarse amount band, the number of vaults in a deposit and the vault id. The
   campaign values are the one part taken from the landing URL's query (or the website's cookie):
   only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
   100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
@@ -862,14 +870,14 @@ What bounds it:
   sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is the accepted
   direction. No scrub pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at
   startup, so an unsupported pattern would stop the app. The app does not itself send the BTC
-  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address leads
-  to the first three on-chain.
-- **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
-  value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
-  still holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each
-  other. A UTM value is shared by everyone who followed the same link, so it links visits only as
-  far as the campaign is narrow. `gclid` and `twclid` are sent unchanged, because marketing needs
-  them to match a visit to an ad click; a click id is unique to one click, so it joins those visits
+  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address and
+  vault id lead to the first three on-chain.
+- **Campaign values link visits.** Every campaign value is sent on every event of the visit. A value
+  that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that still
+  holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each other.
+  A UTM value is shared by everyone who followed the same link, so it links visits only as far as
+  the campaign is narrow. `gclid` and `twclid` are sent unchanged, because marketing needs them to
+  match a visit to an ad click; a click id is unique to one click, so it joins those visits
   to each other and to the ad platform's click record. This linkage is accepted; it is the reason
   the per-load visit id does not, on its own, keep visits apart. A click id is sent only when it
   is a plain token (letters, digits, `-` and `_`, at most 255 characters); anything else is
@@ -1152,7 +1160,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
-| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): PostHog sees visiting addresses and sources      | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts` |
+| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): addresses, sources and vault deposit progress    | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts` |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions            | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |

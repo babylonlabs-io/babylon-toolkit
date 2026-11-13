@@ -8,6 +8,8 @@
  * held; they are sent if the visitor passed, and dropped if the visitor is
  * blocked or the region is unknown (the health check failed or never ran).
  */
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
 
 import logger from "../logger";
@@ -76,6 +78,17 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Vault ids reach the call sites in more than one form (with or without `0x`,
+ * mixed case). One form keeps a vault's events joinable in PostHog and with
+ * on-chain data.
+ */
+function normalizeVaultId(properties: object): object {
+  const vaultId: unknown = Reflect.get(properties, "vault_id");
+  if (typeof vaultId !== "string") return properties;
+  return { ...properties, vault_id: ensureHexPrefix(vaultId.toLowerCase()) };
+}
+
 function buildCaptureBody<E extends AnalyticsEventName>(
   config: EnabledAnalyticsConfig,
   event: E,
@@ -92,7 +105,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         timestamp,
         properties: {
           ...getAttribution(),
-          ...properties,
+          ...normalizeVaultId(properties),
           ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),
