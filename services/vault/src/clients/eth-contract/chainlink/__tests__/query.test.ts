@@ -446,6 +446,8 @@ describe("getTokenPrices", () => {
   });
 
   it("logs warning when BTC_PRICE_FEED env override is active", async () => {
+    vi.resetModules();
+    const { getTokenPrices } = await import("../query");
     const { ENV } = await import("@/config/env");
     const { logger } = await import("@/infrastructure");
     const originalFeed = ENV.BTC_PRICE_FEED;

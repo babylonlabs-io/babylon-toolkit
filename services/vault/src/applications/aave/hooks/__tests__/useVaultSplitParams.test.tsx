@@ -95,7 +95,7 @@ describe("useVaultSplitParams", () => {
       // resolve quickly in the rejected-mock test below.
       defaultOptions: { queries: { retry: false, retryDelay: 0 } },
     });
-    vi.clearAllMocks();
+    vi.resetAllMocks();
 
     // Default mock values: bonus curve with max bonus at HF 0.90 and 90% of
     // it at HF 1.0; CF=7500 (BPS), max LB=10555 (BPS). viem decodes these
@@ -321,26 +321,6 @@ describe("useVaultSplitParams", () => {
   });
 
   it("exposes refetch that re-runs the contract calls and returns fresh values", async () => {
-    // Earlier tests in this file null out the spoke address; restore it so
-    // the query is enabled here.
-    const { useAaveConfig } = vi.mocked(await import("../../context"));
-    useAaveConfig.mockReturnValue({
-      config: {
-        adapterAddress: "0x1",
-        vaultBtcAddress: "0x2",
-        btcVaultRegistryAddress: "0x3",
-        coreSpokeAddress: "0xSpokeAddress",
-        vaultBtcReserveId: 1n,
-      },
-      vbtcReserve: null,
-      borrowableReserves: [],
-      allBorrowReserves: [],
-      hubSpokeConfigs: {},
-      maxBorrowReserves: { status: "loaded", limit: null },
-      chainMaxBorrowReserves: { status: "loaded", limit: null },
-      refetchConfig: vi.fn(),
-    });
-
     // beforeEach default has CF=0.75 (7500 BPS). Initial load picks that up.
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
 
