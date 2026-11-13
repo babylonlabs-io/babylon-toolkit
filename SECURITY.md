@@ -829,7 +829,9 @@ What bounds it:
   scrubbed, then are truncated to 100 characters (by code point, so no surrogate pair is split). As in
   MetaMask's Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case)
   or a long hex run is caught anywhere, even joined to other text, and so is any bare run of 40 or
-  more hex digits. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35
+  more hex digits. These matches are taken from the original value and where two overlap the whole
+  span is replaced, so an address glued to hex is never sent minus the part a hex match took. A
+  legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35
   characters) is caught only between non-alphanumeric characters, so one joined directly to a letter
   or digit is sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is
   the accepted direction. No scrub pattern uses lookbehind, which Safari before 16.4 rejects: the
