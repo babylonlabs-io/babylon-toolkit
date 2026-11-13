@@ -852,16 +852,22 @@ What bounds it:
   borrow events do, otherwise the session's), network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
-  Ethereum address the session records for `wallet_address` (never a value that is not an address; a
-  borrow event's own account does not pass through this check), `walletConnections.ts` decides when
-  `wallet_connected` is sent, and `routeTemplate.ts` turns the path into `$pathname`, a route
-  template, never a concrete path or query. `wallet_connected` carries the chain (`eth` or `btc`)
-  and whether the app restored the session (`restored`); deposit events carry a coarse amount band,
-  the number of vaults in a deposit and the vault id; borrow events carry the reserve's symbol: the
-  registry's symbol, or for a token the registry does not list the indexer's label, unscrubbed
-  except that an address-shaped symbol is replaced by the unknown-token placeholder, and cut to 32
-  characters (by code point). Borrow events send, as `wallet_address`, the account that sent the
-  transaction rather than whichever wallet is connected when it is mined. The campaign values are
+  Ethereum address the session records for `wallet_address`, and `trackEvent.ts` puts a borrow
+  event's own account through the same check, so `wallet_address` is never a value that is not an
+  address (an event account that fails it is left out, not replaced by the session's),
+  `wallet_connected` is sent through `walletConnections.ts` when `VaultWalletConnectionProvider.tsx`
+  reports a Bitcoin connection (it decides whether one counts and whether it was restored) and when
+  `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the path
+  into `$pathname`, a route template, never a concrete path or query. `wallet_connected` carries the
+  chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit events carry
+  a coarse amount band, the number of vaults in a deposit and the vault id; borrow events carry the
+  reserve's symbol: the registry's symbol, or for a token the registry does not list the indexer's
+  label, unscrubbed except that a label starting with lowercase `0x` and at least 42 characters long
+  (the address the indexer returns for a token with no `symbol()`) is replaced by the unknown-token
+  placeholder, and cut to 32 characters (by code point). No other address shape is caught: a `0X`,
+  `bc1` or `bbn1` label, a bare hex run or a legacy Bitcoin address is sent as it is, up to that
+  cut. Borrow events send, as `wallet_address`, the account that sent the transaction rather than
+  whichever wallet is connected when it is mined. The campaign values are
   the one part taken from the landing URL's query (or the website's cookie): only the allow-listed
   keys. UTM values have addresses and long hex scrubbed, then are truncated to 100 characters (by
   code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing, an address with a

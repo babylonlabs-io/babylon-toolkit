@@ -233,6 +233,31 @@ describe("trackEvent", () => {
     ]);
   });
 
+  it("leaves out an event's own account that is not an address, without sending the session's", () => {
+    setWalletAddress("0x1111111111111111111111111111111111111111");
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      { reserve: "USDC", wallet_address: "not-an-address" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties).not.toHaveProperty("wallet_address");
+  });
+
+  it("sends the fields a property builder returns", () => {
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_STARTED,
+      () => ({
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      }),
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties).toMatchObject({
+      reserve: "USDC",
+      wallet_address: "0xabcdef0000000000000000000000000000000002",
+    });
+  });
+
   it("reports a rejected key as an error once per page load", async () => {
     const send = await freshTrackEvent();
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }));

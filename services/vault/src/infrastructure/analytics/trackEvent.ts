@@ -11,6 +11,7 @@
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
+import { toCheckedAddress } from "@/utils/addressUtils";
 
 import logger from "../logger";
 
@@ -93,6 +94,16 @@ function normalizeVaultId(properties: object): object {
   return { ...properties, vault_id: ensureHexPrefix(vaultId.toLowerCase()) };
 }
 
+/**
+ * An event's own account, lowercased, or null when it is not an address. The
+ * wallet reports it and nothing upstream checks it, so it gets the same check
+ * the session's address gets in `AnalyticsTracker.tsx`.
+ */
+function checkedEventWallet(value: string): string | null {
+  const checked = toCheckedAddress(value);
+  return checked === undefined ? null : checked.toLowerCase();
+}
+
 function buildCaptureBody<E extends AnalyticsEventName>(
   config: EnabledAnalyticsConfig,
   event: E,
@@ -100,11 +111,15 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   timestamp: string,
 ) {
   // An event about a transaction names the account that sent it; the
-  // session's address can change before the transaction is mined.
-  const eventWallet: unknown = Reflect.get(properties, "wallet_address");
+  // session's address can change before the transaction is mined. One that
+  // fails the check is left out, never replaced by the session's.
+  const {
+    wallet_address: eventWallet,
+    ...eventProperties
+  }: { wallet_address?: unknown } = normalizeVaultId(properties);
   const wallet =
     typeof eventWallet === "string"
-      ? eventWallet.toLowerCase()
+      ? checkedEventWallet(eventWallet)
       : getWalletAddress();
   return {
     api_key: config.projectKey,
@@ -115,7 +130,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         timestamp,
         properties: {
           ...getAttribution(),
-          ...normalizeVaultId(properties),
+          ...eventProperties,
           ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),
