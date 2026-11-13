@@ -863,14 +863,15 @@ What bounds it:
   an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
   anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. These
   matches are taken from the original value and where two overlap the whole span is replaced, so an
-  address glued to hex is never sent minus the part a hex match took. A legacy Bitcoin address
-  (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only between
-  non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
-  shaped like a legacy address is replaced; scrubbing too much is the accepted direction. No scrub
-  pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at startup, so an
-  unsupported pattern would stop the app. The app does not itself send the BTC address, transaction
-  hashes, exact amounts or anything secret-bearing; as above, the address and vault id lead to the
-  first three on-chain.
+  address glued to hex is never sent minus the part a hex match took. A `bc1`, `tb1` or `bbn1` match
+  takes the whole run of letters and digits it starts, so an address joined after another is caught
+  with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is
+  caught only between non-alphanumeric characters, so one joined directly to a letter or digit is
+  sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is the accepted
+  direction. No scrub pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at
+  startup, so an unsupported pattern would stop the app. The app does not itself send the BTC
+  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address and
+  vault id lead to the first three on-chain.
 - **Campaign values link visits.** Every campaign value is sent on every event of the visit. A value
   that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that still
   holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each other.
@@ -880,8 +881,9 @@ What bounds it:
   to each other and to the ad platform's click record. This linkage is accepted; it is the reason
   the per-load visit id does not, on its own, keep visits apart. A click id is sent only when it
   is a plain token (letters, digits, `-` and `_`, at most 255 characters); anything else is
-  dropped. That shape still admits a hex address, so a link crafted with one as its click id
-  would have it sent; this is accepted, as the link's author chose the value.
+  dropped. That shape still admits any address (hex, bech32, Babylon or legacy), none of which is
+  scrubbed from a click id, so a link crafted with one as its click id would have it sent; this is
+  accepted, as the link's author chose the value.
 - **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`, which in a deployment is always
   the sidecar-api proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`); a deployment never
   posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,
