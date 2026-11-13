@@ -212,8 +212,10 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         // the user declines, is not counted. A borrow whose pre-flight
         // simulation then rejects, that the user declines in the wallet, or
         // that reverts is counted as started but never as succeeded. So is one
-        // the wallet replaced (a speed-up) or refused as "nonce too low": its
-        // outcome is unknown here even if it was mined.
+        // the wallet replaced with a different call, which never ran, and one
+        // whose replacement could not be read or that the wallet refused as
+        // "nonce too low", whose outcome is unknown here even if it was mined.
+        // A speed-up of the same call settles as mined and is counted.
         trackEvent(ANALYTICS_EVENT.BORROW_STARTED, () =>
           borrowAnalyticsFields(reserve, account),
         );
