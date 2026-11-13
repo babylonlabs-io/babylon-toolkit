@@ -53,8 +53,11 @@ let holdOverflowReported = false;
 
 /**
  * Settle the geofence for this page load: send the held events if the visitor
- * passed, drop them otherwise. The check runs once per page load, so only the
- * first outcome counts.
+ * passed, drop them otherwise. Only the first outcome counts until the page
+ * reloads. Retrying the global error screen remounts the geofence provider,
+ * which checks again, but that answer is ignored: after a failed first check
+ * nothing is sent, and after a passed one the remounted tracker's page view is
+ * sent at once, a second view of the same path.
  */
 export function settleGeofence(outcome: GeofenceOutcome): void {
   if (geofenceOutcome !== null) return;
