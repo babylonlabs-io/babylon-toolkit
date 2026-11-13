@@ -266,6 +266,57 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("[ETH_ADDR]-x");
   });
 
+  it("scrubs a bech32 address that comes before an Ethereum address", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx-0x${"ab".repeat(20)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[BTC_ADDR]-[ETH_ADDR]");
+  });
+
+  it("scrubs a Babylon address to its end when a hex run inside it ends earlier", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref-bbn1${"ab".repeat(20)}qqqq-x`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref-[BBN_ADDR]-x");
+  });
+
+  it("scrubs two joined bech32 addresses as a whole", () => {
+    const result = deriveAttribution({
+      search:
+        "?utm_term=ref-bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsxbc1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx-x",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref-[BTC_ADDR]-x");
+  });
+
+  it("scrubs a bech32 address joined after a word containing bc1", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=abc1${"x".repeat(30)}bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq-x`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("a[BTC_ADDR]-x");
+  });
+
+  it("scrubs two joined Babylon addresses as a whole", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref-bbn1${"q".repeat(38)}bbn1${"q".repeat(38)}-x`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref-[BBN_ADDR]-x");
+  });
+
   it("scrubs a bare 64-character hex run", () => {
     const result = deriveAttribution({
       search: `?utm_content=${"cd".repeat(32)}`,
