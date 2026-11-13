@@ -35,12 +35,16 @@ const CONFIGURATION_FAULT_STATUSES: ReadonlySet<number> = new Set([
 ]);
 
 /**
- * Whether a configuration fault or a failure to build an event has been
- * reported this page load. Both repeat on every event, so one report each is
- * enough.
+ * Whether a configuration fault has been reported this page load. It repeats
+ * on every event, so one report is enough.
  */
 let rejectionReported = false;
-let buildFailureReported = false;
+/**
+ * The events whose build has failed this page load. A failure repeats on every
+ * send of its event, but one event's builder can fail while the others build,
+ * so each event is reported once.
+ */
+const buildFailuresReported = new Set<AnalyticsEventName>();
 
 type EnabledAnalyticsConfig = Extract<AnalyticsConfig, { enabled: true }>;
 
@@ -214,8 +218,8 @@ function post(
  * code or a browser refusing the request, never an ad blocker.
  */
 function reportBuildFailure(event: AnalyticsEventName, error: unknown): void {
-  if (buildFailureReported) return;
-  buildFailureReported = true;
+  if (buildFailuresReported.has(event)) return;
+  buildFailuresReported.add(event);
   logger.error(
     new Error(`Analytics event could not be sent: ${describe(error)}`),
     { tags: { category: LOG_CATEGORY, event } },

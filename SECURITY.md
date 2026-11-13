@@ -849,25 +849,26 @@ What bounds it:
   `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
   the event's own properties. `analyticsEvents.ts` lists the events and their fields,
   `trackEvent.ts` adds the wallet address (the event's own `wallet_address` when it carries one, as
-  borrow events do, otherwise the session's), network, visit and session ids (from
+  borrow and withdrawal events do, otherwise the session's), network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
-  Ethereum address is recorded as `wallet_address` (never a value that is not an address),
-  `walletConnections.ts` decides when `wallet_connected` is sent, and `routeTemplate.ts` turns the
-  path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
-  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit
-  events carry a coarse amount band, the number of vaults in a deposit and the vault id; borrow
-  events carry the reserve's symbol: the registry's symbol, or for a token the registry does not
-  list the indexer's label, unscrubbed except that an address-shaped symbol is replaced by the
-  unknown-token placeholder, and cut to 32 characters (by code point); `withdraw_succeeded` carries
-  the vault id, once per vault withdrawn. Borrow and withdrawal events send, as `wallet_address`,
-  the account that sent the transaction rather than whichever wallet is connected when it is mined.
-  The campaign values are the one part taken from the landing URL's query (or the website's cookie):
-  only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
-  100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
-  an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
-  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. A legacy
-  Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only between
+  Ethereum address the session records for `wallet_address` (never a value that is not an address; a
+  borrow or withdrawal event's own account does not pass through this check), `walletConnections.ts`
+  decides when `wallet_connected` is sent, and `routeTemplate.ts` turns the path into `$pathname`, a
+  route template, never a concrete path or query. `wallet_connected` carries the chain (`eth` or
+  `btc`) and whether the app restored the session (`restored`); deposit events carry a coarse amount
+  band, the number of vaults in a deposit and the vault id; borrow events carry the reserve's
+  symbol: the registry's symbol, or for a token the registry does not list the indexer's label,
+  unscrubbed except that an address-shaped symbol is replaced by the unknown-token placeholder, and
+  cut to 32 characters (by code point); `withdraw_succeeded` carries the vault id, once per vault
+  withdrawn. Borrow and withdrawal events send, as `wallet_address`, the account that sent the
+  transaction rather than whichever wallet is connected when it is mined. The campaign values are
+  the one part taken from the landing URL's query (or the website's cookie): only the allow-listed
+  keys. UTM values have addresses and long hex scrubbed, then are truncated to 100 characters (by
+  code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing, an address with a
+  `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught anywhere, even
+  joined to other text, and so is any bare run of 40 or more hex digits. A legacy Bitcoin address
+  (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only between
   non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
   shaped like a legacy address is replaced; scrubbing too much is the accepted direction. No scrub
   pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at startup, so an

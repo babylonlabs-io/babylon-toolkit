@@ -51,8 +51,8 @@ import { getReserveTokenLabel } from "../utils/reserveTokenLabel";
 import { usePendingAaveWrite } from "./usePendingAaveWrite";
 
 /**
- * Longest reserve label sent to analytics, in code points so an emoji is never
- * split; an unregistered token's label comes from the indexer.
+ * Longest reserve label sent to analytics, in code points so a surrogate pair is
+ * never split; an unregistered token's label comes from the indexer.
  */
 const MAX_ANALYTICS_RESERVE_LENGTH = 32;
 
@@ -211,7 +211,9 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         // expected chain, so a borrow those checks refuse, or a chain switch
         // the user declines, is not counted. A borrow whose pre-flight
         // simulation then rejects, that the user declines in the wallet, or
-        // that reverts is counted as started but never as succeeded.
+        // that reverts is counted as started but never as succeeded. So is one
+        // the wallet replaced (a speed-up) or refused as "nonce too low": its
+        // outcome is unknown here even if it was mined.
         trackEvent(ANALYTICS_EVENT.BORROW_STARTED, () =>
           borrowAnalyticsFields(reserve, account),
         );

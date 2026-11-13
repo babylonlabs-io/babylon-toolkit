@@ -40,11 +40,8 @@ export function AnalyticsTracker() {
   const { connected: sessionConfirmed } = useWalletConnect();
   const { address: ethAddress } = useETHWallet();
   // An address alone is no session: the wallet can report an account the app
-  // holds no session for. A value that is not an address is no session either:
-  // the wallet reported it, and nothing else checks it before it is sent.
-  const checkedAddress = toCheckedAddress(ethAddress);
-  const sessionAddress =
-    sessionConfirmed && checkedAddress !== undefined ? checkedAddress : null;
+  // holds no session for.
+  const sessionAddress = sessionConfirmed && ethAddress ? ethAddress : null;
 
   useEffect(() => {
     if (isLoading) return;
@@ -61,7 +58,12 @@ export function AnalyticsTracker() {
       return;
     }
     if (previous === null) {
-      setWalletAddress(sessionAddress);
+      // A value that is not an address is never recorded or sent: the wallet
+      // reported it, and nothing else checks it. It still counts as the
+      // session's address below, so a later change is not a new session.
+      const checked = toCheckedAddress(sessionAddress);
+      if (checked === undefined) return;
+      setWalletAddress(checked);
       reportEthSessionConfirmed();
       return;
     }

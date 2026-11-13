@@ -309,6 +309,28 @@ describe("trackEvent", () => {
     );
   });
 
+  it("reports a build failure of another event even after one event's builder failed", async () => {
+    const send = await freshTrackEvent();
+    const build = (): { $pathname: string } => {
+      throw new Error("no label");
+    };
+    const broken = {
+      get chain(): "eth" {
+        throw new Error("no chain");
+      },
+      restored: false,
+    };
+
+    send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG);
+    send(ANALYTICS_EVENT.WALLET_CONNECTED, broken, CONFIG);
+
+    expect(mockError).toHaveBeenCalledTimes(2);
+    expect(mockError).toHaveBeenLastCalledWith(
+      new Error("Analytics event could not be sent: no chain"),
+      { tags: { category: "analytics", event: "wallet_connected" } },
+    );
+  });
+
   it("does not call the property builder when analytics is off", () => {
     const build = vi.fn(() => ({ $pathname: "/" }));
 

@@ -687,7 +687,7 @@ describe("useBorrowTransaction — analytics", () => {
     ]);
   });
 
-  it("still borrows when the reserve label cannot be read for analytics", async () => {
+  it("passes the analytics fields as a builder, so a reserve label that cannot be read does not stop the borrow", async () => {
     reserveLabel.throws = true;
     mockBorrow.mockResolvedValue({ transactionHash: HASH });
     const { result } = renderHook(() => useBorrowTransaction());
