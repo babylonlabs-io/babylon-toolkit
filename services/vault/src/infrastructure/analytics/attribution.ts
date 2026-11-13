@@ -47,31 +47,75 @@ const MAX_ATTRIBUTION_VALUE_LENGTH = 100;
 const CLICK_ID_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
 
 /**
- * Addresses and long hex scrubbed out of UTM values, in this order, following
- * MetaMask's Sentry scrubbing (`app/scripts/lib/setupSentry.ts`). A prefixed
- * form (`0x`, `bc1`, `tb1`, `bbn1`, in any case) or a long hex run is matched
- * anywhere, so one joined directly to other text is still caught, and so is
- * any bare run of 40 or more hex digits (an Ethereum address without `0x`,
- * with whatever hex letters adjoin it). A legacy Bitcoin address (mainnet
- * `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) has no distinctive
- * prefix, so it is matched only between non-alphanumeric characters:
- * unanchored, the pattern would eat ordinary campaign words. Even so a
- * campaign word of that shape is replaced; scrubbing too much is the accepted
- * direction. No pattern uses lookbehind, which Safari before 16.4 rejects:
- * this module runs at startup, so an unsupported pattern would stop the app.
+ * Addresses and long hex scrubbed out of UTM values, following MetaMask's
+ * Sentry scrubbing (`app/scripts/lib/setupSentry.ts`). A prefixed form (`0x`,
+ * `bc1`, `tb1`, `bbn1`, in any case) or a long hex run is matched anywhere, so
+ * one joined directly to other text is still caught, and so is any bare run of
+ * 40 or more hex digits (an Ethereum address without `0x`, with whatever hex
+ * letters adjoin it). These patterns all run on the original value and every
+ * span any of them matches is replaced: `b`, `c` and `1` are hex digits, so
+ * applied one after another a hex pattern would take the start of a `bc1` or
+ * `bbn1` address glued after it and send the rest. Overlapping spans are
+ * replaced as one, with the label of the one that starts first (the earlier
+ * pattern on a tie).
  */
-const UTM_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
+const PREFIXED_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/0x[0-9a-f]{41,}|[0-9a-f]{64,}/gi, "[HEX_REDACTED]"],
   [/0x[0-9a-f]{40}/gi, "[ETH_ADDR]"],
   [/[0-9a-f]{40,}/gi, "[ETH_ADDR]"],
   [/(?:bc1|tb1)[a-z0-9]{24,62}/gi, "[BTC_ADDR]"],
   [/bbn1[a-z0-9]{38,58}/gi, "[BBN_ADDR]"],
-  // The leading boundary is captured and put back, in place of a lookbehind.
-  [
-    /(^|[^A-Za-z0-9])[13mn2][a-km-zA-HJ-NP-Z1-9]{24,34}(?![A-Za-z0-9])/g,
-    "$1[BTC_ADDR]",
-  ],
 ];
+
+/**
+ * A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35
+ * characters) has no distinctive prefix, so it is matched only between
+ * non-alphanumeric characters: unanchored, the pattern would eat ordinary
+ * campaign words. It runs after the prefixed patterns, on their output, so a
+ * replacement label's bracket counts as a boundary. Even so a campaign word of
+ * that shape is replaced; scrubbing too much is the accepted direction. The
+ * leading boundary is captured and put back in place of a lookbehind, which
+ * Safari before 16.4 rejects: this module runs at startup, so an unsupported
+ * pattern would stop the app.
+ */
+const LEGACY_BTC_ADDRESS =
+  /(^|[^A-Za-z0-9])[13mn2][a-km-zA-HJ-NP-Z1-9]{24,34}(?![A-Za-z0-9])/g;
+
+interface ScrubSpan {
+  start: number;
+  end: number;
+  label: string;
+}
+
+/** Replace every span a prefixed pattern matches, overlaps merged. */
+function scrubPrefixed(value: string): string {
+  const spans: ScrubSpan[] = PREFIXED_SCRUB_PATTERNS.flatMap(
+    ([pattern, label]) =>
+      Array.from(value.matchAll(pattern), (match) => ({
+        start: match.index,
+        end: match.index + match[0].length,
+        label,
+      })),
+  );
+  // Stable, so a tie keeps the pattern order.
+  spans.sort((a, b) => a.start - b.start);
+  const merged: ScrubSpan[] = [];
+  for (const span of spans) {
+    const last = merged.at(-1);
+    if (last !== undefined && span.start < last.end) {
+      last.end = Math.max(last.end, span.end);
+    } else {
+      merged.push({ ...span });
+    }
+  }
+  let scrubbed = "";
+  let cursor = 0;
+  for (const span of merged) {
+    scrubbed += value.slice(cursor, span.start) + span.label;
+    cursor = span.end;
+  }
+  return scrubbed + value.slice(cursor);
+}
 
 /** The marketing website only, not docs or other apps on its subdomains. */
 const WEBSITE_HOST = /^(www\.)?babylonlabs\.io$/;
@@ -116,9 +160,9 @@ function isClickIdKey(key: AttributionKey): key is ClickIdKey {
  * longer matches the patterns.
  */
 function cleanUtmValue(value: string): string {
-  const scrubbed = UTM_SCRUB_PATTERNS.reduce(
-    (text, [pattern, replacement]) => text.replace(pattern, replacement),
-    value,
+  const scrubbed = scrubPrefixed(value).replace(
+    LEGACY_BTC_ADDRESS,
+    "$1[BTC_ADDR]",
   );
   return truncate(scrubbed);
 }

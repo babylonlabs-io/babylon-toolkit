@@ -850,8 +850,10 @@ What bounds it:
   only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
   100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
   an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
-  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. A legacy
-  Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only between
+  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. These
+  matches are taken from the original value and where two overlap the whole span is replaced, so an
+  address glued to hex is never sent minus the part a hex match took. A legacy Bitcoin address
+  (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only between
   non-alphanumeric characters, so one joined directly to a letter or digit is sent. A campaign word
   shaped like a legacy address is replaced; scrubbing too much is the accepted direction. No scrub
   pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at startup, so an
@@ -883,7 +885,10 @@ What bounds it:
   the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only
   the geo-block screen, and whenever the region is unknown: the health endpoint did not answer (a
   network error, CORS or an error status other than 451), in which case the app still opens, or a
-  configuration error stopped the app before the check ran.
+  configuration error stopped the app before the check ran. The first outcome holds until the
+  page reloads: retrying from the global error screen runs the geofence check again, but its
+  answer changes nothing, so analytics stays off after a failed first check and on after a
+  passed one.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
 - **No person profiles.** Every event carries `$process_person_profile: false`. This does not
