@@ -89,7 +89,8 @@ describe("deriveAttribution", () => {
     );
   });
 
-  it("treats a cookie that is valid JSON but not an object as no source", () => {
+  it("treats a cookie that is valid JSON but not an object as no source and warns", () => {
+    mockWarn.mockClear();
     expect(
       deriveAttribution({
         search: "",
@@ -98,9 +99,14 @@ describe("deriveAttribution", () => {
         ownHost: APP_HOST,
       }),
     ).toEqual({ $referring_domain: "$direct", via: "other" });
+    expect(mockWarn).toHaveBeenCalledWith(
+      "Analytics source cookie is malformed; the visit has no source",
+      { category: "analytics" },
+    );
   });
 
-  it("treats a cookie holding JSON null as no source", () => {
+  it("treats a cookie holding JSON null as no source and warns", () => {
+    mockWarn.mockClear();
     expect(
       deriveAttribution({
         search: "",
@@ -109,6 +115,10 @@ describe("deriveAttribution", () => {
         ownHost: APP_HOST,
       }),
     ).toEqual({ $referring_domain: "$direct", via: "other" });
+    expect(mockWarn).toHaveBeenCalledWith(
+      "Analytics source cookie is malformed; the visit has no source",
+      { category: "analytics" },
+    );
   });
 
   it("drops an empty campaign value from the cookie", () => {
@@ -296,6 +306,16 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("ref_[BTC_ADDR]");
   });
 
+  it("scrubs a value that is only a legacy Bitcoin address", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=1BoatSLRHtKNngkdXEeobR76b53LETtpyT",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("[BTC_ADDR]");
+  });
+
   it("scrubs a mainnet P2SH legacy Bitcoin address", () => {
     const result = deriveAttribution({
       search: "?utm_term=ref_3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
@@ -435,6 +455,17 @@ describe("deriveAttribution", () => {
     expect(result.utm_source).toBe("x");
   });
 
+  it("does not warn when there is no source cookie", () => {
+    mockWarn.mockClear();
+    deriveAttribution({
+      search: "",
+      referrer: "",
+      cookie: "other=1",
+      ownHost: APP_HOST,
+    });
+    expect(mockWarn).not.toHaveBeenCalled();
+  });
+
   it("reads only the bbn_src cookie, not one whose name ends with it", () => {
     const result = deriveAttribution({
       search: "",
@@ -474,6 +505,17 @@ describe("deriveAttribution", () => {
       ownHost: APP_HOST,
     });
     expect(result.utm_campaign).toBe("x".repeat(100));
+  });
+
+  it("treats a referrer that is not a URL as no referrer", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "not a url",
+        cookie: "",
+        ownHost: APP_HOST,
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
   });
 
   it("reports an external referrer by hostname only", () => {

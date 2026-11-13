@@ -826,7 +826,7 @@ What bounds it:
   to every event, and `routeTemplate.ts` turns the path into `$pathname`, a route template, never a
   concrete path or query. The campaign values are the one part taken from the landing URL's query
   (or the website's cookie): only the allow-listed keys. UTM values have addresses and long hex
-  scrubbed, then are truncated to 100 characters (by code point, so no character is split). As in
+  scrubbed, then are truncated to 100 characters (by code point, so no surrogate pair is split). As in
   MetaMask's Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case)
   or a long hex run is caught anywhere, even joined to other text, and so is any bare run of 40 or
   more hex digits. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35
