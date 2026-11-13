@@ -167,7 +167,20 @@ function readCookie(cookieHeader: string, name: string): string | null {
   return null;
 }
 
-/** The website's source cookie; absent or malformed means no source. */
+/**
+ * Another site's value: malformed means "no source", not an app error. The
+ * value itself is not logged: it may hold an address.
+ */
+function warnMalformedCookie(): void {
+  logger.warn("Analytics source cookie is malformed; the visit has no source", {
+    category: "analytics",
+  });
+}
+
+/**
+ * The website's source cookie. Absent means no source; malformed, or JSON that
+ * is not an object, means no source and is logged.
+ */
 function fromCookie(cookieHeader: string): CampaignFields {
   const raw = readCookie(cookieHeader, SOURCE_COOKIE_NAME);
   if (raw === null) return {};
@@ -175,17 +188,13 @@ function fromCookie(cookieHeader: string): CampaignFields {
   try {
     parsed = JSON.parse(decodeURIComponent(raw));
   } catch {
-    // Another site's value: malformed means "no source", not an app error.
-    // The value itself is not logged: it may hold an address.
-    logger.warn(
-      "Analytics source cookie is malformed; the visit has no source",
-      {
-        category: "analytics",
-      },
-    );
+    warnMalformedCookie();
     return {};
   }
-  if (typeof parsed !== "object" || parsed === null) return {};
+  if (typeof parsed !== "object" || parsed === null) {
+    warnMalformedCookie();
+    return {};
+  }
   const out: CampaignFields = {};
   for (const key of ATTRIBUTION_KEYS) {
     const value: unknown = Reflect.get(parsed, key);
