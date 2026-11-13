@@ -256,6 +256,18 @@ describe("AnalyticsTracker", () => {
     expect(getWalletAddress()).toBeNull();
   });
 
+  it("sends nothing for an address that follows a non-address while the session stays confirmed", () => {
+    wallets.eth = { address: "0xnot-an-address" };
+    wallets.session = { connected: true };
+    const view = render(trackerAt("/"));
+
+    wallets.eth = { address: ETH_ADDRESS };
+    view.rerender(trackerAt("/"));
+
+    expect(connectedEvents()).toEqual([]);
+    expect(getWalletAddress()).toBeNull();
+  });
+
   it("sends wallet_connected again when a dropped session is confirmed again", () => {
     const view = render(trackerAt("/"));
     wallets.eth = { address: ETH_ADDRESS };
