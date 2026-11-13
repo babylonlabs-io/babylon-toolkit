@@ -837,7 +837,10 @@ What bounds it:
   the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only
   the geo-block screen, and whenever the region is unknown: the health endpoint did not answer (a
   network error, CORS or an error status other than 451), in which case the app still opens, or a
-  configuration error stopped the app before the check ran.
+  configuration error stopped the app before the check ran. The first outcome holds until the
+  page reloads: retrying from the global error screen runs the geofence check again, but its
+  answer changes nothing, so analytics stays off after a failed first check and on after a
+  passed one.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
 - **No person profiles.** Every event carries `$process_person_profile: false`.
