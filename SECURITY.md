@@ -809,10 +809,11 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
-attribute deposits and borrows to a traffic source. It is a separate channel from Sentry, and unlike
-Sentry it **deliberately sends the connected Ethereum address** (`wallet_address`; for a borrow, the
-account that sent it) and the full vault id (`vault_id`); this is not an oversight. It is an
-accepted risk, recorded in the vault model's _Accepted risks_.
+attribute deposits, borrows and withdrawals to a traffic source. It is a separate channel from
+Sentry, and unlike Sentry it **deliberately sends the connected Ethereum address**
+(`wallet_address`; for a borrow or a withdrawal, the account that sent it) and the full vault id
+(`vault_id`); this is not an oversight. It is an accepted risk, recorded in the vault model's
+_Accepted risks_.
 
 **What it links, through public chain data.** The address and the vault id are public keys into
 the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
@@ -828,13 +829,13 @@ with on-chain data needs it. It reaches those records even from an event that ca
 reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
 in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
 only stops PostHog building a profile, not anyone grouping events by `wallet_address`. The
-`vault_id` on each deposit milestone links visits the same way: it is the same on every visit that
-sends a milestone for that vault, so it joins the visit that registered a deposit to a later visit
-that broadcast or activated it, on another device too, and also when the address was cleared and
-those events carry none. Visits with no confirmed Ethereum session carry no address, except on a
-borrow event, which names the account that sent the borrow; a visit with neither an address nor a
-deposit milestone stays unlinked apart from the campaign values (see _Campaign values link visits_
-below).
+`vault_id` on each deposit milestone and withdrawal links visits the same way: it is the same on
+every visit that sends an event for that vault, so it joins the visit that registered a deposit to
+later visits that broadcast, activated or withdrew it, on another device too, and also when the
+address was cleared and those events carry none. Visits with no confirmed Ethereum session carry no
+address, except on a borrow or withdrawal event, which names the account that sent the transaction;
+a visit with neither an address nor a vault event stays unlinked apart from the campaign values
+(see _Campaign values link visits_ below).
 
 What bounds it:
 
@@ -849,12 +850,12 @@ What bounds it:
   `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
   the event's own properties. `analyticsEvents.ts` lists the events and their fields,
   `trackEvent.ts` adds the wallet address (the event's own `wallet_address` when it carries one, as
-  borrow events do, otherwise the session's), network, visit and session ids (from
+  borrow and withdrawal events do, otherwise the session's), network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
-  Ethereum address the session records for `wallet_address`, and `trackEvent.ts` puts a borrow
-  event's own account through the same check, so `wallet_address` is never a value that is not an
-  address (an event account that fails it is left out, not replaced by the session's),
+  Ethereum address the session records for `wallet_address`, and `trackEvent.ts` puts a borrow or
+  withdrawal event's own account through the same check, so `wallet_address` is never a value that
+  is not an address (an event account that fails it is left out, not replaced by the session's),
   `wallet_connected` is sent through `walletConnections.ts` when `VaultWalletConnectionProvider.tsx`
   reports a Bitcoin connection (it decides whether one counts and whether it was restored) and when
   `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the path
@@ -866,8 +867,9 @@ What bounds it:
   (the address the indexer returns for a token with no `symbol()`) is replaced by the unknown-token
   placeholder, and cut to 32 characters (by code point). No other address shape is caught: a `0X`,
   `bc1` or `bbn1` label, a bare hex run or a legacy Bitcoin address is sent as it is, up to that
-  cut. Borrow events send, as `wallet_address`, the account that sent the transaction rather than
-  whichever wallet is connected when it is mined. The campaign values are
+  cut. `withdraw_succeeded` carries the vault id, once per vault withdrawn. Borrow and withdrawal
+  events send, as `wallet_address`, the account that sent the transaction rather than whichever
+  wallet is connected when it is mined. The campaign values are
   the one part taken from the landing URL's query (or the website's cookie): only the allow-listed
   keys. UTM values have addresses and long hex scrubbed, then are truncated to 100 characters (by
   code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing, an address with a

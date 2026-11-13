@@ -24,7 +24,8 @@ import { reportEthSessionConfirmed } from "./walletConnections";
  * configuration error stopped the check before it ran.
  *
  * Every event carries the address of the app's confirmed Ethereum session,
- * except a borrow event, which names the account that sent the borrow.
+ * except a borrow or withdrawal event, which names the account that sent the
+ * transaction.
  * The session is confirmed after load, so the landing page view goes out
  * without it; `wallet_connected` is sent when it is confirmed, and carries it.
  * Only a session that starts from no address counts: if the address changes

@@ -14,6 +14,7 @@ export const ANALYTICS_EVENT = {
   VAULT_ACTIVATED: "vault_activated",
   BORROW_STARTED: "borrow_started",
   BORROW_SUCCEEDED: "borrow_succeeded",
+  WITHDRAW_SUCCEEDED: "withdraw_succeeded",
 } as const;
 
 export type AnalyticsEventName =
@@ -57,6 +58,14 @@ export interface AnalyticsEventProperties {
   [ANALYTICS_EVENT.BORROW_STARTED]: { reserve: string; wallet_address: string };
   [ANALYTICS_EVENT.BORROW_SUCCEEDED]: {
     reserve: string;
+    wallet_address: string;
+  };
+  /**
+   * Sent once per vault when the withdrawal is mined, with the account that
+   * sent it.
+   */
+  [ANALYTICS_EVENT.WITHDRAW_SUCCEEDED]: {
+    vault_id: string;
     wallet_address: string;
   };
 }
