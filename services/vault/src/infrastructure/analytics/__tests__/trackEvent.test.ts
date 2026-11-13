@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnalyticsConfig } from "@/config/env";
 
 import { ANALYTICS_EVENT } from "../analyticsEvents";
-import { getSessionId, getVisitId } from "../analyticsSession";
+import {
+  getSessionId,
+  getVisitId,
+  setWalletAddress,
+} from "../analyticsSession";
 import { captureAttribution } from "../attribution";
 import {
   reportAnalyticsConfigError,
@@ -57,6 +61,7 @@ beforeEach(() => {
   mockError.mockClear();
   fetchMock.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
+  setWalletAddress(null);
 });
 
 afterEach(() => {
@@ -111,6 +116,64 @@ describe("trackEvent", () => {
         $process_person_profile: false,
       },
     });
+    expect(body.batch[0].properties.wallet_address).toBeUndefined();
+  });
+
+  it("attaches the connected wallet address, lowercased", () => {
+    setWalletAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80");
+    trackEvent(
+      ANALYTICS_EVENT.WALLET_CONNECTED,
+      { chain: "eth", restored: false },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0x742d35cc6634c0532925a3b844bc9e7595f2bd80",
+    );
+  });
+
+  it("sends only the allow-listed fields, with and without a wallet address", () => {
+    window.history.pushState({}, "", "/?utm_source=x");
+    captureAttribution();
+    window.history.pushState({}, "", "/");
+    trackEvent(
+      ANALYTICS_EVENT.WALLET_CONNECTED,
+      { chain: "btc", restored: false },
+      CONFIG,
+    );
+    setWalletAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80");
+    trackEvent(
+      ANALYTICS_EVENT.WALLET_CONNECTED,
+      { chain: "eth", restored: false },
+      CONFIG,
+    );
+
+    const bodies = fetchMock.mock.calls.map(([, init]) =>
+      JSON.parse((init as RequestInit).body as string),
+    );
+    const baseKeys = [
+      "$process_person_profile",
+      "$referring_domain",
+      "$session_id",
+      "chain",
+      "network",
+      "restored",
+      "utm_source",
+      "via",
+    ];
+    for (const body of bodies) {
+      expect(Object.keys(body).sort()).toEqual(["api_key", "batch"]);
+      expect(Object.keys(body.batch[0]).sort()).toEqual([
+        "distinct_id",
+        "event",
+        "properties",
+        "timestamp",
+      ]);
+    }
+    expect(Object.keys(bodies[0].batch[0].properties).sort()).toEqual(baseKeys);
+    expect(Object.keys(bodies[1].batch[0].properties).sort()).toEqual([
+      ...baseKeys,
+      "wallet_address",
+    ]);
   });
 
   it("reports a rejected key as an error once per page load", async () => {
@@ -289,6 +352,20 @@ describe("geofence gate", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.keepalive).toBe(false);
     expect(sentBody().batch[0].timestamp).toBe("2026-01-02T03:04:05.000Z");
+  });
+
+  it("sends a held event with the wallet address it was tracked with", async () => {
+    const module = await freshModule();
+    const session = await import("../analyticsSession");
+    session.setWalletAddress("0x1111111111111111111111111111111111111111");
+    module.trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    session.setWalletAddress("0x2222222222222222222222222222222222222222");
+
+    module.settleGeofence("passed");
+
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0x1111111111111111111111111111111111111111",
+    );
   });
 
   it("drops held events and sends nothing later when the geofence fails", async () => {

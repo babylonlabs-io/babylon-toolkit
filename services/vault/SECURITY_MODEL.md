@@ -113,7 +113,8 @@ Security-critical assets:
 - the depositor's BTC and the collateral position it backs;
 - vault-secret material — the only material capable of recovering a deposit;
 - the depositor's ability to claim **independently of the vault provider**;
-- the association between one browser session and the depositor's chain identity.
+- the association between one browser session and the depositor's chain identity (given up when
+  product analytics is configured; see _Accepted risks_).
 
 An outcome is a security failure of this component when:
 
@@ -211,8 +212,9 @@ Specific to this component:
   this component holds the only copy of some resume state.
 - **No claim about protocol correctness or economic outcomes**, including liquidation.
 - **No chain-privacy claim.** The model claims only that this component does not amplify linkage
-  through telemetry, except for the campaign values product analytics sends on purpose, ad click
-  ids included, so marketing can match a visit to its traffic source and ad click (root
+  through error telemetry (Sentry). Product analytics is the exception, listed under accepted
+  risks; it also sends the campaign values, ad click ids included, that marketing uses to match a
+  visit to its traffic source and ad click (root
   `SECURITY.md`, product analytics).
 
 ### Accepted risks
@@ -223,6 +225,17 @@ Specific to this component:
   configuration is baked in at build time and the application has nothing to check it against.
   Mitigated by review only. This does **not** extend to a malformed or absent parameter that
   silently disables a control; that is invariant 10's business and is tracked as a deviation below.
+- Product analytics links a browser session to the depositor's chain identity. When it is
+  configured, each event carries the connected Ethereum address, so PostHog can see which addresses
+  visited, where they came from and, from the country it derives from the visitor's IP and keeps,
+  where they browse from; only the project's _Discard client IP data_ setting keeps the raw IP off
+  the address. The address is a public key into the vault registry and the
+  indexer, which return the depositor's BTC public key, the deposit amount and the peg-in
+  transaction for each of their vaults, so this gives up the protected session-to-identity
+  association on both chains, not only Ethereum. Because the address is the same on every visit, it
+  also joins a connected depositor's visits across reloads, browsers and devices; the per-load ids
+  and the absence of person profiles do not prevent that. The bounds are in [`SECURITY.md` →
+  _Product analytics_](../../SECURITY.md#product-analytics-posthog).
 
 ### Known deviations
 

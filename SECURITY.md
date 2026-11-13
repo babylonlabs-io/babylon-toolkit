@@ -156,7 +156,9 @@ that reaches a signature.
 - **Bitcoin and Ethereum addresses, public keys, amounts, UTXO sets, and raw transaction hex.** None
   of these is secret — they are public chain data — but their _association with one browser session_
   is a wallet fingerprint. `scrubString` and `redactData` in `services/vault/src/utils/telemetry.ts`
-  strip them from Sentry events and breadcrumbs by regex and by field name.
+  strip them from Sentry events and breadcrumbs by regex and by field name. Product analytics is the one
+  deliberate exception: it sends the Ethereum address, as an accepted risk (see _Product analytics
+  (PostHog)_ below).
 
 ### Not confidential, but integrity-critical
 
@@ -806,8 +808,25 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 
 ### Product analytics (PostHog)
 
-`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can attribute visits to a traffic source. It is a separate channel from Sentry.
+`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
+attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry it
+**deliberately sends the connected Ethereum address** (`wallet_address`); this is not an oversight.
+It is an accepted risk, recorded in the vault model's _Accepted risks_.
+
+**What it links, through public chain data.** The address is a public key into the vault registry
+and the indexer, which return the depositor's vaults and, for each, the depositor's BTC public key,
+the exact deposit amount and the peg-in transaction. So anyone with access to the PostHog project
+can tie a browsing session and its traffic source to the depositor's identity on **both** chains,
+not only on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
+_Client IP_ below).
+
+**It also links visits to each other.** The visit and session ids are per page load, but
+`wallet_address` is the same on every visit: it joins a connected depositor's visits across
+reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
+in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
+only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
+no confirmed Ethereum session carry no address, and stay unlinked apart from the campaign
+values (see _Campaign values link visits_ below).
 
 What bounds it:
 
@@ -821,23 +840,30 @@ What bounds it:
 - **Allow-listed payload.** What is sent is defined by the code in
   `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
   the event's own properties. `analyticsEvents.ts` lists the events and their fields,
-  `trackEvent.ts` adds the network, visit and session ids (from `analyticsSession.ts`) and the
-  attribution fields (from `attribution.ts`: campaign parameters, the referrer's hostname and `via`)
-  to every event, and `routeTemplate.ts` turns the path into `$pathname`, a route template, never a
-  concrete path or query. The campaign values are the one part taken from the landing URL's query
-  (or the website's cookie): only the allow-listed keys. UTM values have addresses and long hex
-  scrubbed, then are truncated to 100 characters (by code point, so no surrogate pair is split). As in
-  MetaMask's Sentry scrubbing, an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case)
-  or a long hex run is caught anywhere, even joined to other text, and so is any bare run of 40 or
-  more hex digits. These matches are taken from the original value and where two overlap the whole
-  span is replaced, so an address glued to hex is never sent minus the part a hex match took. A
-  `bc1`, `tb1` or `bbn1` match takes the whole run of letters and digits it starts, so an address
-  joined after another is caught with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet
-  `m`/`n`/`2`, 25 to 35 characters) is caught only between non-alphanumeric characters, so one
-  joined directly to a letter or digit is sent. A campaign word shaped like a legacy address is
-  replaced; scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which
-  Safari before 16.4 rejects: the module runs at startup, so an unsupported pattern would stop the
-  app.
+  `trackEvent.ts` adds the wallet address, network, visit and session ids (from
+  `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
+  referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
+  Ethereum address is recorded as `wallet_address` (never a value that is not an address),
+  `wallet_connected` is sent through `walletConnections.ts` when `VaultWalletConnectionProvider.tsx`
+  reports a Bitcoin connection (it decides whether one counts and whether it was restored) and when
+  `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the
+  path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
+  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`). The
+  campaign values are the one part taken from the landing URL's query (or the website's cookie):
+  only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
+  100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
+  an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
+  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. These
+  matches are taken from the original value and where two overlap the whole span is replaced, so an
+  address glued to hex is never sent minus the part a hex match took. A `bc1`, `tb1` or `bbn1` match
+  takes the whole run of letters and digits it starts, so an address joined after another is caught
+  with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is
+  caught only between non-alphanumeric characters, so one joined directly to a letter or digit is
+  sent. A campaign word shaped like a legacy address is replaced; scrubbing too much is the accepted
+  direction. No scrub pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at
+  startup, so an unsupported pattern would stop the app. The app does not itself send the BTC
+  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address leads
+  to the first three on-chain.
 - **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
   value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
   still holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each
@@ -855,7 +881,9 @@ What bounds it:
   posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,
   so PostHog still sees the visitor's IP address. **The PostHog project must have _Discard client
   IP data_ enabled**; PostHog still derives the country before discarding the IP, and the country
-  is kept on purpose.
+  is kept on purpose. For a connected depositor that country sits on the events that carry their
+  address, and this setting, which lives in the PostHog project rather than in this repository, is
+  the only thing that keeps the raw IP off an identified user.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
   and no referrer. The visit and session ids live in memory only. The app only reads the
   website's `bbn_src` cookie, and treats its contents as untrusted input.
@@ -870,7 +898,8 @@ What bounds it:
   passed one.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
-- **No person profiles.** Every event carries `$process_person_profile: false`.
+- **No person profiles.** Every event carries `$process_person_profile: false`. This does not
+  stop events being grouped by `wallet_address` (see above).
 
 **Changing what any of that code sends is a privacy change.** Review it the same way you would
 review re-enabling Sentry tracing.
@@ -1123,6 +1152,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
+| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): PostHog sees visiting addresses and sources      | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts` |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimumReleaseAge=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions            | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |
