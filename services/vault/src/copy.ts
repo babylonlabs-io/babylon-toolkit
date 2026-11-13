@@ -658,6 +658,10 @@ export const COPY = {
       awaitingBtcDepthAndVpSetup:
         "Awaiting Bitcoin confirmations and vault provider setup",
       verifyingDeposit: "Verifying signatures and collecting ACKs",
+      collectingAcknowledgments: (completed: number, total: number) =>
+        `Collecting acknowledgments: ${completed} of ${total}`,
+      providerStuck:
+        "The vault provider is not responding. Your funds are not affected.",
       confirmingActivation: "Confirming activation",
     },
     // Ledger vault wallet only. One Ledger can hold both the

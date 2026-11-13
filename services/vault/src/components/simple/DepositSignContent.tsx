@@ -254,6 +254,7 @@ export function DepositSignContent({
         onRetry={retryDeposit ?? (canResume ? handleResume : undefined)}
         started={started}
         onSign={handleSign}
+        vaultIds={btcConfirmationDetail?.depositIds}
         btcConfirmationDetail={btcConfirmationDetail}
         ethConfirmationDetail={ethConfirmationDetail}
         canCancelSigning={canCancelDeviceSign}

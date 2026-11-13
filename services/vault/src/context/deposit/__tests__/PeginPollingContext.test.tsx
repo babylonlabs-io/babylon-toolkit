@@ -1,8 +1,18 @@
-import { act, render, renderHook, waitFor } from "@testing-library/react";
+import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ProviderWaitDetail } from "@/components/simple/DepositProgressView/ProviderWaitDetail";
+import { ProviderWaitDetailContainer } from "@/components/simple/DepositProgressView/ProviderWaitDetailContainer";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import { setDepositOverride } from "@/overrides/deposits";
 
 import featureFlags from "../../../config/featureFlags";
@@ -24,7 +34,10 @@ import { getPendingPeginsStorageKey } from "../../../storage/peginStorage";
 import { loadRefundedHtlcs } from "../../../storage/refundedHtlcCache";
 import { usePeginStorage } from "../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../types/activity";
-import type { PeginPollingContextValue } from "../../../types/peginPolling";
+import type {
+  PeginPollingContextValue,
+  ProviderVerificationProgress,
+} from "../../../types/peginPolling";
 import {
   PeginPollingProvider,
   resetPeginPollingProviderCount,
@@ -38,6 +51,9 @@ import { usePendingDepositSummary } from "../pendingDepositCount";
 
 const mockQueryResult = {
   polledIds: undefined as string[] | undefined,
+  verificationProgress: undefined as
+    | Map<string, ProviderVerificationProgress>
+    | undefined,
   errors: undefined as Map<string, Error> | undefined,
   needsWotsKey: undefined as Set<string> | undefined,
   pendingIngestion: undefined as Set<string> | undefined,
@@ -159,6 +175,7 @@ function renderProvider(isConnected = false, activities = [ACTIVITY]) {
 describe("PeginPollingContext", () => {
   beforeEach(() => {
     mockParamsEnabledCalls.length = 0;
+    mockQueryResult.verificationProgress = undefined;
     mockQueryResult.errors = undefined;
     mockQueryResult.needsWotsKey = undefined;
     mockQueryResult.pendingIngestion = undefined;
@@ -192,6 +209,155 @@ describe("PeginPollingContext", () => {
   // otherwise leak fake timers into every later `waitFor` and cascade timeouts.
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it.each(["normal", "stuck"])(
+    "renders safely after malformed ACK counts with %s provider health",
+    async (healthInfo) => {
+      const { applyPerDepositStatus } = await vi.importActual<
+        typeof import("../../../hooks/deposit/usePeginPollingQuery")
+      >("../../../hooks/deposit/usePeginPollingQuery");
+      const sets = {
+        errors: new Map<string, Error>(),
+        needsWotsKey: new Set<string>(),
+        pendingIngestion: new Set<string>(),
+        pendingDepositorSignatures: new Set<string>(),
+        verificationProgress: new Map<string, ProviderVerificationProgress>(),
+      };
+      applyPerDepositStatus(
+        {
+          pegin_txid: "ab".repeat(32),
+          vault_id: `0x${"cd".repeat(32)}`,
+          status: "PendingACKs",
+          progress: {
+            ack_collection: {
+              completed_challengers: { toString: null, valueOf: null },
+              total_challengers: 3,
+            },
+          },
+          health_info: healthInfo,
+        } as unknown as GetPeginStatusResponse,
+        ACTIVITY_ID,
+        sets,
+      );
+      Object.assign(mockQueryResult, sets);
+      render(
+        <PeginPollingProvider
+          activities={[ACTIVITY]}
+          pendingPegins={[]}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          <ProviderWaitDetailContainer depositId={ACTIVITY_ID} />
+        </PeginPollingProvider>,
+      );
+      expect(
+        screen.getByText(
+          healthInfo === "stuck"
+            ? COPY.deposit.waitDetails.providerStuck
+            : COPY.deposit.waitDetails.verifyingDeposit,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Collecting acknowledgments:/),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each<[DepositFlowStep, string]>([
+    [
+      DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+      COPY.deposit.waitDetails.awaitingBtcDepthAndVpSetup,
+    ],
+    [
+      DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+      COPY.deposit.waitDetails.confirmingActivation,
+    ],
+  ])("keeps verification data out of waiting step %s", (step, status) => {
+    const { container } = render(
+      <ProviderWaitDetail
+        step={step}
+        verification={{
+          ackCollection: {
+            completed_challengers: 1,
+            total_challengers: 3,
+            completed_challenger_pubkeys: ["challenger-1"],
+            pending_challenger_pubkeys: ["challenger-2", "challenger-3"],
+          },
+          healthInfo: "stuck",
+        }}
+      />,
+    );
+    expect(screen.getByText(status)).toBeInTheDocument();
+    expect(container.querySelector(".bbn-loader")).not.toBeNull();
+    expect(
+      screen.queryByText(COPY.deposit.waitDetails.providerStuck),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Collecting acknowledgments: 1 of 3"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows live ACK progress from the shared provider and replaces it when stuck", () => {
+    const ackCollection = {
+      completed_challengers: 1,
+      total_challengers: 3,
+      completed_challenger_pubkeys: ["challenger-1"],
+      pending_challenger_pubkeys: ["challenger-2", "challenger-3"],
+    };
+    mockQueryResult.verificationProgress = new Map([
+      [ACTIVITY_ID, { ackCollection, healthInfo: "normal" }],
+    ]);
+    const view = (
+      <PeginPollingProvider
+        activities={[ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <ProviderWaitDetailContainer depositId={ACTIVITY_ID} />
+        <ProviderWaitDetailContainer depositId="unindexed-vault" />
+      </PeginPollingProvider>
+    );
+    const { container, rerender } = render(view);
+    expect(container.querySelectorAll(".bbn-loader")).toHaveLength(2);
+    expect(
+      screen.getByText("Collecting acknowledgments: 1 of 3"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(COPY.deposit.waitDetails.verifyingDeposit),
+    ).toHaveLength(2);
+    mockQueryResult.verificationProgress = new Map([
+      [ACTIVITY_ID, { ackCollection, healthInfo: "stuck" }],
+    ]);
+    rerender(
+      <PeginPollingProvider
+        activities={[ACTIVITY]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        <ProviderWaitDetailContainer depositId={ACTIVITY_ID} />
+        <ProviderWaitDetailContainer depositId="unindexed-vault" />
+      </PeginPollingProvider>,
+    );
+    expect(container.querySelectorAll(".bbn-loader")).toHaveLength(1);
+    expect(
+      screen.queryByText("Collecting acknowledgments: 1 of 3"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The vault provider is not responding. Your funds are not affected.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.waitDetails.verifyingDeposit),
+    ).toBeInTheDocument();
+    mockQueryResult.verificationProgress = new Map();
+    rerender(view);
+    expect(
+      screen.queryByText(COPY.deposit.waitDetails.providerStuck),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText(COPY.deposit.waitDetails.verifyingDeposit),
+    ).toHaveLength(2);
   });
 
   it("trusts an in-memory PAYOUT_SIGNED over a stale-cached transactionsReady so the Sign button hides immediately after signing", () => {

@@ -15,6 +15,12 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
   ),
 }));
 
+vi.mock("../ProviderWaitDetailContainer", () => ({
+  ProviderWaitDetailContainer: ({ depositId }: { depositId: string }) => (
+    <div data-testid="provider-verification-id">{depositId}</div>
+  ),
+}));
+
 // DepositCardShell derives the header estimate from the on-chain confirmation
 // depth; the estimate itself is covered in DepositCardShell.test.tsx.
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -76,6 +82,27 @@ const baseProps = {
 };
 
 describe("DepositProgressView", () => {
+  it("uses each lane's vault id for provider verification progress", () => {
+    render(
+      <DepositProgressView
+        {...baseProps}
+        currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+        vaultCount={2}
+        vaultIds={["vault-1", "vault-2"]}
+        currentVaultIndex={1}
+        perVaultSteps={[
+          DepositFlowStep.AWAIT_VP_VERIFICATION,
+          DepositFlowStep.AWAIT_VP_VERIFICATION,
+        ]}
+      />,
+    );
+    expect(
+      screen
+        .getAllByTestId("provider-verification-id")
+        .map((node) => node.textContent),
+    ).toEqual(["vault-1", "vault-2"]);
+  });
+
   describe("grouped sections", () => {
     it("renders only the group holding the current step", () => {
       render(

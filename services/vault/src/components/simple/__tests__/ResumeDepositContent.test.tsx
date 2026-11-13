@@ -248,6 +248,7 @@ vi.mock("../ActivationGate", () => ({
 vi.mock("../DepositProgressView", () => ({
   DepositProgressView: ({
     currentStep,
+    vaultIds,
     error,
     errorVariant,
     isComplete,
@@ -264,6 +265,7 @@ vi.mock("../DepositProgressView", () => ({
     continuePrompt,
   }: {
     currentStep?: string;
+    vaultIds?: string[];
     error?: { title: string; body: string } | null;
     errorVariant?: "error" | "warning";
     isComplete?: boolean;
@@ -291,6 +293,7 @@ vi.mock("../DepositProgressView", () => ({
       </button>
       <span data-testid="wots-hint">{wotsApprovalHint ?? ""}</span>
       <span data-testid="step">{String(currentStep)}</span>
+      <span data-testid="vault-ids">{vaultIds?.join(",")}</span>
       <span data-testid="error">{error?.body ?? ""}</span>
       <span data-testid="error-title">{error?.title ?? ""}</span>
       {/* Mirrors the real prop default. */}
@@ -939,7 +942,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     await waitFor(() => expect(handleSign).toHaveBeenCalledTimes(1));
   });
 
-  it("stays on the verification wait while the contract is still PENDING", () => {
+  it("uses the current vault for verification when sibling ids are absent", () => {
     mockUseDepositPollingResult.mockReturnValue({
       peginState: { contractStatus: 0 },
     } as never);
@@ -948,6 +951,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
 
     // AWAIT_VP_VERIFICATION
     expect(getByTestId("step").textContent).toBe("12");
+    expect(getByTestId("vault-ids").textContent).toBe(baseActivity.id);
     expect(getByTestId("terminal").textContent).toBe("");
   });
 
