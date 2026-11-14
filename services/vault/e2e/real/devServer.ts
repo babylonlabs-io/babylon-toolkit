@@ -71,7 +71,14 @@ export async function ensureDevServer(
     cwd: VAULT_DIR,
     // Pin the profile so the app serves the same deployment the pre-flight read. `pnpm dev` also
     // passes it to Vite as the mode, so `.env.<profile>.local` applies, as in networkContracts.ts.
-    env: { ...process.env, NEXT_PUBLIC_TBV_NETWORK: NETWORKS[network].profile },
+    // Analytics off: no run may send test wallets to a real PostHog project. Variables already in
+    // the environment take precedence over `.env.<profile>.local`.
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_TBV_NETWORK: NETWORKS[network].profile,
+      NEXT_PUBLIC_POSTHOG_HOST: "",
+      NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
+    },
     detached: true,
     stdio: "ignore",
   });

@@ -62,6 +62,9 @@ export const MOCK_ENV_VARS = {
   // captures them. The DSN alone enables Sentry; this only changes where events are POSTed.
   NEXT_PUBLIC_SENTRY_TUNNEL_URL: "http://localhost:8092/sentry-tunnel",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "e2e-test",
+  // Analytics off: no spec may send test wallets to a real PostHog project.
+  NEXT_PUBLIC_POSTHOG_HOST: "",
+  NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
   // Gate that the page-side `getInjectedWallets()` helper reads to
   // decide whether to surface `window.__BABYLON_E2E_WALLETS__`.
   NEXT_PUBLIC_E2E_MODE: "1",
@@ -146,6 +149,8 @@ export default defineConfig({
       env: {
         NEXT_PUBLIC_TBV_NETWORK: MISSING_PROFILE_NAME,
         NEXT_PUBLIC_SENTRY_DSN: "",
+        NEXT_PUBLIC_POSTHOG_HOST: "",
+        NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-missing",
       },
     },

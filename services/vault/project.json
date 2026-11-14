@@ -80,6 +80,12 @@
           "env": "NEXT_PUBLIC_SENTRY_TUNNEL_URL"
         },
         {
+          "env": "NEXT_PUBLIC_POSTHOG_HOST"
+        },
+        {
+          "env": "NEXT_PUBLIC_POSTHOG_PROJECT_KEY"
+        },
+        {
           "env": "NEXT_PUBLIC_CANONICAL"
         },
         {
