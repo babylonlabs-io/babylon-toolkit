@@ -2310,14 +2310,13 @@ export const COPY = {
     noActiveLoans: {
       title: "No active loans",
       bodyNoCap: "You haven't borrowed any assets yet",
-      // Figma I13779:43096;13155:11244 verbatim at a cap of one.
       body: (limit: number) => ({
         lead: "Once you choose an asset, ",
         emphasis:
           limit === 1
             ? "your position is tied to it"
             : `this position can borrow ${limit} assets`,
-        rest: ". To borrow a different asset, you'll need to create a new position.",
+        rest: ". When you reach this limit, fully repay an existing loan before you borrow a different asset.",
       }),
     },
     // v3 Loans page empty state, disconnected — no position to describe yet,

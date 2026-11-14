@@ -96,14 +96,11 @@ vi.mock("@/components/shared", () => ({
   ),
 }));
 
-// One cap for the mock and every assertion derived from it: a change here
-// must move the asserted copy branch with it, not silently compare the wrong one.
-// Not 1: a cap hard-coded to 1 in the page would pass at a mocked cap of 1.
-const MOCK_CAP = 2;
+const borrowCapMock = vi.hoisted(() => ({ limit: 2 }));
 
 vi.mock("@/applications/aave/context", () => ({
   useAaveConfig: () => ({
-    maxBorrowReserves: { status: "loaded", limit: MOCK_CAP },
+    maxBorrowReserves: { status: "loaded", limit: borrowCapMock.limit },
   }),
 }));
 
@@ -189,6 +186,7 @@ const DEMO_LOAN_ROW = {
 describe("Loans page — loading gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    borrowCapMock.limit = 2;
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
     walletMock.confirmed = true;
@@ -245,23 +243,26 @@ describe("Loans page — loading gate", () => {
     expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
   });
 
-  it("shows the summary for collateral without a loan", () => {
-    useDashboardStateMock.mockReturnValue(CONNECTED_LOADED);
-    render(<Loans />);
-    expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
-    expect(
-      screen.getByText(COPY.loans.noActiveLoans.title),
-    ).toBeInTheDocument();
-    // The body, not just the title: it states what the cap means for this
-    // position, and the mocked cap is what selects the wording. Read as
-    // one string because the design emphasises the middle clause in its own
-    // element, so the sentence spans several nodes.
-    const body = COPY.loans.noActiveLoans.body(MOCK_CAP);
-    expect(
-      screen.getByTestId("loans-empty-state-description"),
-    ).toHaveTextContent(`${body.lead}${body.emphasis}${body.rest}`);
-    expect(screen.getByRole("button", { name: "Repay" })).toBeDisabled();
-  });
+  it.each([1, 2])(
+    "shows how to change assets at a borrow limit of %i",
+    (limit) => {
+      borrowCapMock.limit = limit;
+      useDashboardStateMock.mockReturnValue(CONNECTED_LOADED);
+      render(<Loans />);
+      expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.loans.noActiveLoans.title),
+      ).toBeInTheDocument();
+      const expected =
+        limit === 1
+          ? "Once you choose an asset, your position is tied to it. When you reach this limit, fully repay an existing loan before you borrow a different asset."
+          : "Once you choose an asset, this position can borrow 2 assets. When you reach this limit, fully repay an existing loan before you borrow a different asset.";
+      expect(
+        screen.getByTestId("loans-empty-state-description"),
+      ).toHaveTextContent(expected);
+      expect(screen.getByRole("button", { name: "Repay" })).toBeDisabled();
+    },
+  );
 
   it("keeps Repay available when indexed collateral details are missing", () => {
     useDashboardStateMock.mockReturnValue({
