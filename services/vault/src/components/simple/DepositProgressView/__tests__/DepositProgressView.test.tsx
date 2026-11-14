@@ -1644,7 +1644,7 @@ describe("DepositProgressView", () => {
       expect(mockLedgerDevice.reconnect).toHaveBeenCalledTimes(1);
     });
 
-    it("renders a continue prompt as the step hint and the enabled footer action", () => {
+    it("labels the activation signature and names the action in its hint", () => {
       const onContinue = vi.fn();
       render(
         <DepositProgressView
@@ -1660,11 +1660,13 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.ledger.activationPause.hint),
+        screen.getByText(
+          "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Sign Transaction.",
+        ),
       ).toBeInTheDocument();
       fireEvent.click(
         screen.getByRole("button", {
-          name: COPY.deposit.ledger.activationPause.continue,
+          name: "Sign Transaction",
         }),
       );
       expect(onContinue).toHaveBeenCalledTimes(1);
