@@ -53,6 +53,7 @@ import { LedgerHint } from "./LedgerHint";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
+import { ProviderWaitDetailContainer } from "./ProviderWaitDetailContainer";
 import { SplitGroupedProgress } from "./SplitGroupedProgress";
 import {
   buildStepItems,
@@ -110,6 +111,8 @@ export interface DepositProgressViewProps {
    * timelines.
    */
   vaultCount?: number;
+  /** Vault ids in lane order, used for display-only provider progress. */
+  vaultIds?: readonly string[];
   /**
    * Which vault is currently being processed for per-vault phases (WOTS,
    * payout signing, artifact download). `null` when not in a per-vault phase
@@ -231,6 +234,7 @@ function errorContentKey(error: DepositErrorContent): string {
  * sees something under the step.
  */
 function resolveActiveStepDetail(params: {
+  depositId?: string;
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
   ethConfirmationDetail?: RegistrationDepthProgress | null;
@@ -248,6 +252,7 @@ function resolveActiveStepDetail(params: {
 }): ReactNode {
   const {
     currentStep,
+    depositId,
     btcConfirmationDetail,
     ethConfirmationDetail,
     wotsApprovalHint,
@@ -339,7 +344,11 @@ function resolveActiveStepDetail(params: {
     currentStep !== DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
   return (
     <>
-      <ProviderWaitDetail step={currentStep} />
+      {currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION && depositId ? (
+        <ProviderWaitDetailContainer depositId={depositId} />
+      ) : (
+        <ProviderWaitDetail step={currentStep} />
+      )}
       {showLongWaitHint && (
         <LedgerHint>{COPY.deposit.ledger.longWait}</LedgerHint>
       )}
@@ -359,6 +368,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     payoutSigningProgress,
     peginSigningProgress,
     vaultCount = 1,
+    vaultIds,
     currentVaultIndex = null,
     perVaultSteps,
     onClose,
@@ -598,6 +608,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const continueHint = showContinuePrompt ? continuePrompt?.hint : null;
 
   const activeStepDetail = resolveActiveStepDetail({
+    depositId: vaultIds?.[0],
     currentStep,
     btcConfirmationDetail,
     ethConfirmationDetail,
@@ -611,9 +622,13 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // lanes each show their own). The single-vault path uses the
   // `activeStepDetail` resolved above.
   const renderStepDetail = useCallback(
-    (step: DepositFlowStep, opts?: { isActiveVault?: boolean }): ReactNode =>
+    (
+      step: DepositFlowStep,
+      opts?: { isActiveVault?: boolean; vaultIndex?: number },
+    ): ReactNode =>
       resolveActiveStepDetail({
         currentStep: step,
+        depositId: vaultIds?.[opts?.vaultIndex ?? 0],
         btcConfirmationDetail,
         ethConfirmationDetail,
         wotsApprovalHint,
@@ -622,6 +637,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         continueHint,
       }),
     [
+      vaultIds,
       btcConfirmationDetail,
       ethConfirmationDetail,
       wotsApprovalHint,

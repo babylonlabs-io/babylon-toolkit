@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import type { Address, Hex } from "viem";
@@ -13,6 +13,7 @@ import {
 import type { VaultActivity } from "@/types/activity";
 
 import { PostDepositContinuationView } from "../PostDepositContinuationView";
+import { ResumeSignContent } from "../ResumeDepositContent";
 
 const btcAction = vi.hoisted(() => ({
   btcConnected: true,
@@ -77,6 +78,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   DepositFlowStep: {
     AWAIT_BTC_CONFIRMATION: "AWAIT_BTC_CONFIRMATION",
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
+    AWAIT_VP_VERIFICATION: "AWAIT_VP_VERIFICATION",
     COMPLETED: "COMPLETED",
   },
 }));
@@ -340,11 +342,13 @@ function resumeMock(testId: string) {
     autoStart,
     onSuccess,
     onClose,
+    onSigningChange,
   }: {
     activity: VaultActivity;
     autoStart?: boolean;
     onSuccess: () => void;
     onClose: () => void;
+    onSigningChange?: (vaultId: string, signing: boolean) => void;
   }) => (
     <div
       data-testid={testId}
@@ -358,6 +362,20 @@ function resumeMock(testId: string) {
       >
         success
       </button>
+      <button
+        type="button"
+        data-testid={`${testId}-signing-start`}
+        onClick={() => onSigningChange?.(activity.id, true)}
+      >
+        start
+      </button>
+      <button
+        type="button"
+        data-testid={`${testId}-signing-settle`}
+        onClick={() => onSigningChange?.(activity.id, false)}
+      >
+        settle
+      </button>
       <button type="button" data-testid={`${testId}-close`} onClick={onClose}>
         close
       </button>
@@ -368,7 +386,7 @@ function resumeMock(testId: string) {
 vi.mock("../ResumeDepositContent", () => ({
   ResumeBroadcastContent: resumeMock("broadcast"),
   ResumeWotsContent: resumeMock("wots"),
-  ResumeSignContent: resumeMock("payout"),
+  ResumeSignContent: vi.fn(resumeMock("payout")),
   ResumeActivationContent: resumeMock("activate"),
 }));
 
@@ -522,6 +540,91 @@ describe("PostDepositContinuationView", () => {
       resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
     );
     expect(renderView().getByTestId("payout")).toBeTruthy();
+  });
+
+  it("keeps payout mounted when a poll clears readiness before submission settles", () => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
+    );
+    const props = {
+      vaultIds: ["0xvault0" as Hex],
+      activities: [activityWithId("0xvault0")],
+    };
+    const { getByTestId, queryByTestId, rerender } = renderView(props);
+    fireEvent.click(getByTestId("payout-signing-start"));
+    const payout = getByTestId("payout");
+
+    mockGetPollingResult.mockReturnValue(resultWith({ availableActions: [] }));
+    rerender(
+      <PostDepositContinuationView
+        {...props}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        autoStartAction={null}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(getByTestId("payout")).toBe(payout);
+    expect(queryByTestId("progress-view")).toBeNull();
+
+    mockGetPollingResult.mockReturnValue(
+      resultWith({ availableActions: [], localStatus: "payout_signed" }),
+    );
+    vi.mocked(getPeginProgressStep).mockReturnValue(
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
+    fireEvent.click(getByTestId("payout-signing-settle"));
+    expect(queryByTestId("payout")).toBeNull();
+    expect(getByTestId("step").textContent).toBe("AWAIT_VP_VERIFICATION");
+  });
+
+  it("keeps a newer vault signing when an older attempt settles", () => {
+    const states = new Map([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+    const props = {
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+      activities: [activityWithId("0xvault0"), activityWithId("0xvault1")],
+    };
+    const { getByTestId, rerender } = renderView(props);
+    fireEvent.click(getByTestId("payout-signing-start"));
+    const notify =
+      vi.mocked(ResumeSignContent).mock.calls[0][0].onSigningChange;
+    if (!notify) throw new Error("Missing signing callback");
+
+    states.set(
+      "0xvault0",
+      resultWith({ availableActions: [], contractStatus: 1 }),
+    );
+    const view = () => (
+      <PostDepositContinuationView
+        {...props}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        autoStartAction={null}
+        onClose={vi.fn()}
+      />
+    );
+    rerender(view());
+    expect(getByTestId("payout")).toHaveAttribute("data-vault", "0xvault1");
+    fireEvent.click(getByTestId("payout-signing-start"));
+    act(() => notify("0xvault0", false));
+
+    states.set("0xvault1", resultWith({ availableActions: [] }));
+    rerender(view());
+    expect(getByTestId("payout")).toHaveAttribute("data-vault", "0xvault1");
   });
 
   it("mounts payout signing without the wallet key so its Bitcoin prompt can render", () => {
@@ -1264,6 +1367,7 @@ describe("PostDepositContinuationView", () => {
     };
     const { getByTestId, queryByTestId, rerender } = renderView(props);
     expect(getByTestId("payout").getAttribute("data-vault")).toBe("0xvault1");
+    fireEvent.click(getByTestId("payout-signing-start"));
 
     states.set(
       "0xvault1",
@@ -1376,7 +1480,16 @@ describe("PostDepositContinuationView", () => {
     expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault0");
   });
 
-  it("surfaces a closeable error on a warning state with no signing popup", () => {
+  it("releases signing for a closeable warning state", () => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
+    );
+    const props = {
+      vaultIds: ["0xvault0" as Hex],
+      activities: [activityWithId("0xvault0")],
+    };
+    const { getByTestId, queryByTestId, rerender } = renderView(props);
+    fireEvent.click(getByTestId("payout-signing-start"));
     mockGetPollingResult.mockReturnValue(
       resultWith({
         availableActions: [PeginAction.NONE],
@@ -1384,7 +1497,15 @@ describe("PostDepositContinuationView", () => {
         message: "This deposit has expired.",
       }),
     );
-    const { getByTestId, queryByTestId } = renderView();
+    rerender(
+      <PostDepositContinuationView
+        {...props}
+        depositorEthAddress={ETH}
+        btcPublicKey="btcpub"
+        autoStartAction={null}
+        onClose={vi.fn()}
+      />,
+    );
     expect(getByTestId("error").textContent).toBe("This deposit has expired.");
     expect(queryByTestId("wots")).toBeNull();
     expect(queryByTestId("payout")).toBeNull();

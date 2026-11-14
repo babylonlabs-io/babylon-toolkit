@@ -24,7 +24,7 @@ import {
 import { primeVpTokenRegistry } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
@@ -99,6 +99,7 @@ export interface ResumeSignContentProps {
   siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
+  onSigningChange?: (vaultId: string, signing: boolean) => void;
 }
 
 export function ResumeSignContent(props: ResumeSignContentProps) {
@@ -135,6 +136,7 @@ function ResumeSignContentConnected({
   siblingVaultIds,
   onClose,
   onSuccess,
+  onSigningChange,
 }: ResumeSignContentProps & { btcPublicKey: string; walletKeyReady: boolean }) {
   const {
     signing,
@@ -153,6 +155,7 @@ function ResumeSignContentConnected({
     walletKeyReady,
     depositorEthAddress,
     onSuccess,
+    onSigningChange,
   });
   const error = signing ? null : signingError;
 
@@ -210,8 +213,12 @@ function ResumeSignContentConnected({
     error != null,
   );
 
+  const vaultIds = useMemo(
+    () => siblingVaultIds ?? [activity.id],
+    [siblingVaultIds, activity.id],
+  );
   const { vaultCount, currentVaultIndex, perVaultSteps } =
-    useSplitVaultProgress(siblingVaultIds, activity.id, renderStep);
+    useSplitVaultProgress(vaultIds, activity.id, renderStep);
 
   return (
     <DepositProgressView
@@ -236,6 +243,7 @@ function ResumeSignContentConnected({
       payoutSigningProgress={signing ? progress : null}
       peginSigningProgress={null}
       vaultCount={vaultCount}
+      vaultIds={vaultIds}
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
@@ -341,6 +349,7 @@ function ResumeBroadcastContentConnected({
       peginSigningProgress={null}
       ethConfirmationDetail={ethConfirmationDetail}
       vaultCount={vaultCount}
+      vaultIds={batchVaultIds}
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
@@ -674,6 +683,7 @@ function ResumeWotsContentConnected({
       payoutSigningProgress={null}
       peginSigningProgress={null}
       vaultCount={vaultCount}
+      vaultIds={siblingVaultIds}
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
@@ -942,6 +952,7 @@ function ResumeActivationContentConnected({
       payoutSigningProgress={null}
       peginSigningProgress={null}
       vaultCount={vaultCount}
+      vaultIds={siblingVaultIds}
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
