@@ -77,10 +77,15 @@ const mockedUseQuery = vi.mocked(useQuery);
 const mockFetchAppProviderMetadata = vi.mocked(fetchAppProviderMetadata);
 const mockFetchAppProviders = vi.mocked(fetchAppProviders);
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  disabledRef.current = new Set<string>();
+  allowlistRef.current = null;
+  adapterRef.current = "0xadapter";
+});
+
 describe("useVaultProviders query scope", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    disabledRef.current = new Set<string>();
     mockedUseQuery.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -117,11 +122,6 @@ describe("useVaultProviders query scope", () => {
 });
 
 describe("useVaultProviders ref stability", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    disabledRef.current = new Set<string>();
-  });
-
   it("returns a stable findProvider across re-renders when the providers query has no data", () => {
     mockedUseQuery.mockReturnValue({
       data: undefined,
@@ -161,9 +161,6 @@ describe("useVaultProviders disabled filtering", () => {
   const DISABLED_ID = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    disabledRef.current = new Set<string>();
-
     mockedUseQuery.mockReturnValue({
       data: {
         vaultProviders: [
@@ -226,12 +223,6 @@ describe("useVaultProviders disabled filtering", () => {
 });
 
 describe("useVaultProviders — empty-picker telemetry", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    disabledRef.current = new Set<string>();
-    adapterRef.current = "0xadapter";
-  });
-
   const provider = {
     id: "0xabcabcabcabcabcabcabcabcabcabcabcabcabca",
     btcPubKey: "0xdeadbeef",
@@ -321,10 +312,6 @@ describe("useVaultProviders allowlist filtering", () => {
   const VP_C = "0xcccccccccccccccccccccccccccccccccccccccc";
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    disabledRef.current = new Set<string>();
-    allowlistRef.current = null;
-
     mockedUseQuery.mockReturnValue({
       data: {
         vaultProviders: [
@@ -397,11 +384,6 @@ describe("useVaultProviders — allowlist telemetry", () => {
   const VP_C = "0xcccccccccccccccccccccccccccccccccccccccc";
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    disabledRef.current = new Set<string>();
-    allowlistRef.current = null;
-    adapterRef.current = "0xadapter";
-
     mockedUseQuery.mockReturnValue({
       data: {
         vaultProviders: [

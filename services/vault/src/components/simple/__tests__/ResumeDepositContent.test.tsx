@@ -93,6 +93,7 @@ const btcActionWallet = vi.hoisted(() => ({
 }));
 
 beforeEach(() => {
+  vi.mocked(useActivationState).mockReset();
   btcActionWallet.connected = true;
   btcActionWallet.confirmed = true;
   btcActionWallet.open.mockClear();
