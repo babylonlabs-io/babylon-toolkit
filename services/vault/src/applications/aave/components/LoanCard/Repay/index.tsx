@@ -288,7 +288,7 @@ export function Repay() {
     ? { variant: "warning", body: COPY.loans.repayingUnavailable }
     : hubBlockMessage
       ? { variant: "warning", body: hubBlockMessage }
-      : balanceKnown && errorMessage
+      : balanceKnown && errorMessage && !isSubmitting && !isProcessing
         ? { variant: "error", title: buttonText, body: errorMessage }
         : txError
           ? {
