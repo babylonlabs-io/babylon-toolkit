@@ -36,8 +36,8 @@ export function markUserConfirmation(): void {
 }
 
 /**
- * Use up the dialog's mark: whether the user confirmed this session, so the
- * mark can never label a later one.
+ * Use up the dialog's mark: whether the user confirmed this session, so a
+ * session that used the mark cannot pass it on.
  */
 function takeUserConfirmation(): boolean {
   const confirmedByUser = userConfirmationPending;
