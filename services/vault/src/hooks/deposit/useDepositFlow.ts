@@ -122,6 +122,7 @@ import { supportsCancelSigning } from "@/utils/cancelSigning";
 import {
   COMMISSION_UNAVAILABLE_ERROR,
   isResumableDepositError,
+  isTransientReceiptWaitError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
   PEGIN_FEE_UNAVAILABLE_ERROR,
@@ -148,11 +149,19 @@ import {
   waitForPayoutReadiness,
   waitForWotsReadiness,
   type DepositUtxo,
+  type RegistrationConfirmationWait,
 } from "./depositFlowSteps";
 import type { DepositWarning } from "./depositWarnings";
 import { useBtcWalletState } from "./useBtcWalletState";
 import { DEPOSIT_PEGIN_FEE_QUERY_KEY } from "./useDepositPeginFee";
 import { useVaultProviders } from "./useVaultProviders";
+
+/**
+ * How long a submitted ETH registration waits before the modal says it is
+ * taking longer than usual. Mainnet includes a fairly priced transaction
+ * within a few 12-second blocks.
+ */
+const REGISTRATION_SLOW_AFTER_MS = 2 * 60_000;
 
 // ============================================================================
 // Types
@@ -251,6 +260,11 @@ export interface UseDepositFlowReturn {
    * that window — the flow is only here for ~1.6 min per deposit.
    */
   ethConfirmationDetail: RegistrationDepthProgress | null;
+  /**
+   * The ETH registration after the wallet took it and before it confirmed.
+   * `null` outside that window.
+   */
+  registrationWait: RegistrationConfirmationWait | null;
   /**
    * True while a cancellable device signature (signPsbt/signPsbts/signMessage)
    * is in flight AND the provider that started it exposes `cancelSigning`
@@ -372,6 +386,8 @@ export function useDepositFlow(
   } | null>(null);
   const [ethConfirmationDetail, setEthConfirmationDetail] =
     useState<RegistrationDepthProgress | null>(null);
+  const [registrationWait, setRegistrationWait] =
+    useState<RegistrationConfirmationWait | null>(null);
 
   const payoutClaimersDoneRef = useRef(false);
 
@@ -520,6 +536,7 @@ export function useDepositFlow(
       setResumableVaultIds(null);
       setLastWarnings([]);
       setPeginSigningProgress(null);
+      setRegistrationWait(null);
       deviceCancelSettledRef.current = false;
       advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
       setPerVaultSteps(
@@ -537,6 +554,11 @@ export function useDepositFlow(
       // after-registration copy, a later device failure gets the in-modal resume.
       let registeredVaultIds: Hex[] | null = null;
       let registrationSendStarted = false;
+      // Set once the wallet returns the registration's hash (an EOA's broadcast
+      // or a Safe proposal): from then on a failed wait leaves a registration
+      // that can still confirm.
+      let registrationSubmitted = false;
+      let registrationSlowTimer: ReturnType<typeof setTimeout> | undefined;
       // Set when the post-gate UTXO re-check could not reach the mempool API:
       // nothing was signed, so the registered vaults can resume in the modal.
       let postGateUtxoFetchFailed = false;
@@ -748,7 +770,17 @@ export function useDepositFlow(
           sendTransaction: (request) => {
             assertDepositIdentity();
             registrationSendStarted = true;
-            return connectedWalletClient.sendTransaction(request);
+            return connectedWalletClient
+              .sendTransaction(request)
+              .then((hash) => {
+                registrationSubmitted = true;
+                setRegistrationWait("pending");
+                registrationSlowTimer = setTimeout(
+                  () => setRegistrationWait("slow"),
+                  REGISTRATION_SLOW_AFTER_MS,
+                );
+                return hash;
+              });
           },
         };
 
@@ -1111,37 +1143,47 @@ export function useDepositFlow(
         assertDepositIdentity();
         advanceStep(DepositFlowStep.SUBMIT_PEGIN);
         let batchRegistration;
-        for (;;) {
-          assertDepositIdentity();
-          await assertDepositorAllowListedNow();
-          await assertPositionAcceptsRegistration();
-          try {
-            batchRegistration = await registerPeginBatchAndWait({
-              btcWalletProvider: confirmedBtcWallet,
-              walletClient,
-              vaultProviderAddress: primaryProvider,
-              unsignedPrePeginTx: batchResult.fundedPrePeginTxHex,
-              requests: batchRequests,
-              popSignature,
-              quotedCommissionBps,
-              quotedPeginFeeWei,
-              expectedFingerprint,
-            });
-            break;
-          } catch (err) {
-            // A send can have an unknown result. Retry only before it starts.
-            if (
-              registrationSendStarted ||
-              mapDepositError(err).kind !== "insufficient-eth"
-            ) {
-              throw err;
+        // The registration wait deliberately takes no abort signal. When the
+        // depositor closes the modal and the registration confirms later, the
+        // flow still reaches the pending-record write below, whose build stamps
+        // a dashboard resume verifies; the depth gate's signal check then stops
+        // the flow before any wallet prompt.
+        try {
+          for (;;) {
+            assertDepositIdentity();
+            await assertDepositorAllowListedNow();
+            await assertPositionAcceptsRegistration();
+            try {
+              batchRegistration = await registerPeginBatchAndWait({
+                btcWalletProvider: confirmedBtcWallet,
+                walletClient,
+                vaultProviderAddress: primaryProvider,
+                unsignedPrePeginTx: batchResult.fundedPrePeginTxHex,
+                requests: batchRequests,
+                popSignature,
+                quotedCommissionBps,
+                quotedPeginFeeWei,
+                expectedFingerprint,
+              });
+              break;
+            } catch (err) {
+              // A send can have an unknown result. Retry only before it starts.
+              if (
+                registrationSendStarted ||
+                mapDepositError(err).kind !== "insufficient-eth"
+              ) {
+                throw err;
+              }
+              await waitForEthTopUp(err);
+              await assertUtxosAvailable(
+                batchResult.fundedPrePeginTxHex,
+                confirmedBtcAddress,
+              );
             }
-            await waitForEthTopUp(err);
-            await assertUtxosAvailable(
-              batchResult.fundedPrePeginTxHex,
-              confirmedBtcAddress,
-            );
           }
+        } finally {
+          clearTimeout(registrationSlowTimer);
+          setRegistrationWait(null);
         }
         registeredVaultIds = batchRegistration.vaults.map(
           (vault) => vault.vaultId,
@@ -2039,7 +2081,11 @@ export function useDepositFlow(
                 }
             : registeredVaultIds !== null
               ? mapDepositErrorAfterRegistration(err)
-              : mapDepositError(err);
+              : // Submitted, but the wait ended without an answer: it can
+                // still confirm, and a new deposit would register twice.
+                registrationSubmitted && isTransientReceiptWaitError(err)
+                ? COPY.deposit.errors.registrationUnconfirmed
+                : mapDepositError(err);
           if (content === COPY.deposit.errors.peginFeeChanged) {
             void queryClient.invalidateQueries({
               queryKey: [DEPOSIT_PEGIN_FEE_QUERY_KEY],
@@ -2167,6 +2213,7 @@ export function useDepositFlow(
     perVaultSteps,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait,
     canCancelDeviceSign,
     deviceCancelRequested,
     cancelDeviceSign,

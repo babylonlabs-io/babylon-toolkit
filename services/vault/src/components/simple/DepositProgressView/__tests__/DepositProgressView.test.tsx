@@ -1365,6 +1365,60 @@ describe("DepositProgressView", () => {
       ).toBeInTheDocument();
     });
 
+    it("replaces the Ethereum app hint with the confirmation wait once the registration is broadcast", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          registrationWait="pending"
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.registrationPending),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.ledger.ethAppHint),
+      ).not.toBeInTheDocument();
+    });
+
+    it("says a slow registration continues on its own", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          registrationWait="slow"
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.registrationSlow),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the registration wait in place of the Ethereum app hint on a split deposit", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          vaultCount={2}
+          registrationWait="pending"
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.registrationPending),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.ledger.ethAppHint),
+      ).not.toBeInTheDocument();
+    });
+
     it("shows no Ledger hint on the registration step for another wallet", () => {
       render(
         <DepositProgressView

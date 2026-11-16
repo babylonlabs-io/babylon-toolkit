@@ -308,6 +308,28 @@ describe("DepositSignContent", () => {
     expect(queryByTestId("retry")).toBeNull();
   });
 
+  it("shows an unconfirmed registration as a warning, not a failure", async () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    flowErrorState.error = COPY.deposit.errors.registrationUnconfirmed;
+
+    const { findByTestId, getByTestId } = renderContent();
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("progress");
+
+    expect(lastProgressProps.current.errorVariant).toBe("warning");
+  });
+
+  it("shows any other flow error as a failure", async () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    flowErrorState.error = COPY.deposit.errors.broadcastFailed;
+
+    const { findByTestId, getByTestId } = renderContent();
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("progress");
+
+    expect(lastProgressProps.current.errorVariant).toBe("error");
+  });
+
   it("keeps Close when there is no registered vault to resume", async () => {
     mockExecuteDeposit.mockResolvedValue(null);
     flowErrorState.error = COPY.deposit.errors.deviceLocked;

@@ -31,7 +31,10 @@ import {
 import { NotificationPermissionPrompt } from "@/components/shared/NotificationPermissionPrompt";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+import {
+  DepositFlowStep,
+  type RegistrationConfirmationWait,
+} from "@/hooks/deposit/depositFlowSteps/types";
 import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
 import { logger } from "@/infrastructure";
@@ -159,6 +162,12 @@ export interface DepositProgressViewProps {
    */
   ethConfirmationDetail?: RegistrationDepthProgress | null;
   /**
+   * The ETH registration after the wallet took it and before it confirmed,
+   * rendered under the active SUBMIT_PEGIN step in place of the wallet hint.
+   * `null`/omitted outside that window.
+   */
+  registrationWait?: RegistrationConfirmationWait | null;
+  /**
    * Hint rendered under the active SUBMIT_WOTS_KEYS step. Resume passes it
    * because its cold path fires a wallet approval the step copy doesn't
    * mention — and some extensions queue that approval without a popup.
@@ -234,6 +243,7 @@ function resolveActiveStepDetail(params: {
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
   ethConfirmationDetail?: RegistrationDepthProgress | null;
+  registrationWait?: RegistrationConfirmationWait | null;
   wotsApprovalHint?: string | null;
   /**
    * In split layouts, whether this lane is the vault the flow is currently
@@ -250,6 +260,7 @@ function resolveActiveStepDetail(params: {
     currentStep,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait,
     wotsApprovalHint,
     isActiveVault,
     ledger,
@@ -286,6 +297,17 @@ function resolveActiveStepDetail(params: {
           <LedgerHint>{COPY.deposit.ledger.switchBackHint}</LedgerHint>
         )}
       </>
+    );
+  }
+  // The wallet has taken the registration, so the Ethereum-app hint below no
+  // longer applies: the step now waits for the registration to confirm.
+  if (currentStep === DepositFlowStep.SUBMIT_PEGIN && registrationWait) {
+    return (
+      <Text as="p" variant="body2" className="mt-3 text-accent-secondary">
+        {registrationWait === "slow"
+          ? COPY.deposit.steps.registrationSlow
+          : COPY.deposit.steps.registrationPending}
+      </Text>
     );
   }
   // The registration's wallet popup: on a shared Ledger it needs the
@@ -367,6 +389,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     onRetry,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait = null,
     wotsApprovalHint,
     offchainParamsVersion,
     started = true,
@@ -601,6 +624,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     currentStep,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait,
     wotsApprovalHint,
     ledger: ledgerStepContext,
     continueHint,
@@ -616,6 +640,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         currentStep: step,
         btcConfirmationDetail,
         ethConfirmationDetail,
+        registrationWait,
         wotsApprovalHint,
         isActiveVault: opts?.isActiveVault,
         ledger: ledgerStepContext,
@@ -624,6 +649,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     [
       btcConfirmationDetail,
       ethConfirmationDetail,
+      registrationWait,
       wotsApprovalHint,
       ledgerStepContext,
       continueHint,

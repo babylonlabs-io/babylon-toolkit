@@ -2252,6 +2252,12 @@ optional receiptTimeoutMs: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
 
+How long to wait for the registration to confirm before rejecting with
+viem's `WaitForTransactionReceiptTimeoutError`, which leaves the outcome
+unknown: the registration can still confirm afterwards. A positive,
+finite number of milliseconds; default 30 minutes. A Safe proposal waits
+for its co-signers on its own budget.
+
 ##### requireQuotedCommissionBps
 
 ```ts
@@ -2404,6 +2410,12 @@ ethTxHash: `0x${string}`;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+Hash of the registration transaction. When a receipt confirmed it, this
+is that receipt's hash, which can differ from the hash the wallet
+returned: a Safe's execution transaction, or a speed-up of the same call
+that the receipt wait followed. When the registry shows every vault but no
+receipt arrived, it is the hash the wallet returned.
 
 ##### vaultId
 
@@ -2591,6 +2603,8 @@ ethTxHash: `0x${string}`;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+See [PeginRegistrationResult.ethTxHash](#ethtxhash).
 
 ##### vaults
 
