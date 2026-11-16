@@ -280,6 +280,24 @@ describe("AnalyticsTracker", () => {
     expect(getWalletAddress()).toBeNull();
   });
 
+  it("sends a later restored session as restored after the user's confirmation was used by a non-address", () => {
+    const view = render(trackerAt("/"));
+    markUserConfirmation();
+    wallets.eth = { address: "0xnot-an-address" };
+    wallets.session = { connected: true };
+    view.rerender(trackerAt("/"));
+    wallets.session = { connected: false };
+    view.rerender(trackerAt("/"));
+
+    wallets.eth = { address: ETH_ADDRESS };
+    wallets.session = { connected: true };
+    view.rerender(trackerAt("/"));
+
+    expect(connectedEvents().map(({ properties }) => properties)).toEqual([
+      { chain: "eth", restored: true },
+    ]);
+  });
+
   it("sends nothing for an address that follows a non-address while the session stays confirmed", () => {
     wallets.eth = { address: "0xnot-an-address" };
     wallets.session = { connected: true };
