@@ -231,7 +231,7 @@ describe("ClaimExpiredVaultModal — Ledger", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(COPY.deposit.ledger.activationPause.hint),
+        screen.getByText(COPY.deposit.ledger.recoveryActivationPause.hint),
       ).toBeInTheDocument();
     });
     expect(deriveHtlcSecretHex).toHaveBeenCalledOnce();
@@ -239,7 +239,7 @@ describe("ClaimExpiredVaultModal — Ledger", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: COPY.deposit.ledger.activationPause.continue,
+        name: "Continue",
       }),
     );
 

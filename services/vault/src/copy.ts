@@ -685,6 +685,10 @@ export const COPY = {
       longWait:
         "You can close this window and continue later. When you come back, plug in and unlock your Ledger and open the Babylon Vault app.",
       activationPause: {
+        hint: "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Sign Transaction.",
+        continue: SIGN_TRANSACTION_LABEL,
+      },
+      recoveryActivationPause: {
         hint: "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.",
         continue: "Continue",
       },
