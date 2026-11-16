@@ -2045,6 +2045,17 @@ export const COPY = {
       "Your wallet has a transaction that hasn't confirmed yet. Wait for it to confirm, or speed it up or cancel it in your wallet, then try again.",
   },
   wallet: {
+    waitlist: {
+      title: "This wallet doesn’t have access",
+      beforeLaunch: "We’re in a ",
+      launch: "closed mainnet launch",
+      afterLaunch: ". Only approved wallets can participate.",
+      switchWallet: "Select other Ethereum Wallet",
+      description:
+        "Complete the application form to request access. Submitting the form does not grant automatic access.",
+      openForm: "Open application form",
+      email: "Contact us by email",
+    },
     // Not-connected message thrown by the click-time wallet-client helper
     // (clients/eth-contract/walletChain.ts), used by the Aave position hooks
     // and the deposit flow.
