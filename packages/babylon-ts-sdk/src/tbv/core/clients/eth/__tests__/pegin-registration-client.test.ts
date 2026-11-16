@@ -1071,6 +1071,56 @@ describe("ViemPeginRegistrationClient", () => {
     expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps waiting while the registry shows only part of a batch", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    const send = vi
+      .spyOn(ethWallet, "sendTransaction")
+      .mockResolvedValueOnce(SENT_HASH);
+    publicClient.waitForTransactionReceipt.mockRejectedValueOnce(
+      new WaitForTransactionReceiptTimeoutError({ hash: SENT_HASH }),
+    );
+    const params = batchParams(ethWallet.account.address);
+    params.requests.push({
+      ...params.requests[0],
+      depositorSignedPeginTx: signedPeginTransaction(0xac),
+      htlcVout: 1,
+    });
+    params.quotedPeginFeeWei = 6n;
+    // Every vault is absent before the send; after it, only the first vault
+    // the client asked about shows as registered.
+    const vaultIdsBeforeSend: Hex[] = [];
+    publicClient.readContract.mockImplementation(
+      ({
+        functionName,
+        args,
+      }: {
+        functionName: string;
+        args?: readonly unknown[];
+      }) => {
+        if (functionName === "getPegInFee") return Promise.resolve(3n);
+        if (functionName === "getVaultProviderCommission")
+          return Promise.resolve(100);
+        const vaultId = args?.[0] as Hex;
+        if (send.mock.calls.length === 0) {
+          vaultIdsBeforeSend.push(vaultId);
+          return Promise.resolve({ depositor: zeroAddress as Address });
+        }
+        return Promise.resolve({
+          depositor:
+            vaultId === vaultIdsBeforeSend[0]
+              ? ethWallet.account.address
+              : (zeroAddress as Address),
+        });
+      },
+    );
+
+    const result = await client.registerPeginBatchOnChain(params);
+
+    expect(vaultIdsBeforeSend).toHaveLength(2);
+    expect(result.vaults).toHaveLength(2);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(2);
+  });
+
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
     "refuses a receiptTimeoutMs of %s when the client is built",
     (receiptTimeoutMs) => {
