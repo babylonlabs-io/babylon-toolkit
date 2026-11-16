@@ -330,6 +330,47 @@ jobs:
             services/vault/test-results
           overwrite: true
 
+  # The vault as a production bundle (vite build + vite preview). The dev
+  # server the job above uses hides production-only breakage, such as the
+  # polyfill plugin setting globalThis.Buffer on the dev server only. Its own
+  # job, so the build runs alongside the dev-server suite instead of adding to
+  # that job's time.
+  vault-prod-e2e:
+    name: Vault production bundle tests
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          built-packages-artifact: ${{ env.BUILT_PACKAGES_ARTIFACT }}
+
+      - name: Install Chromium
+        id: browsers
+        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
+
+      - name: Test Vault production bundle
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/vault:test:e2e:prod --exclude-task-dependencies
+
+      - name: Upload Vault production bundle results
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: vault-prod-bundle-results
+          path: |
+            services/vault/playwright-report-prod
+            services/vault/test-results-prod
+          overwrite: true
+
   staking-e2e:
     name: Staking browser tests
     needs: build
@@ -378,7 +419,7 @@ jobs:
   # passing required check, so without it a failure above would skip this job
   # and leave the PR mergeable.
   verify:
-    needs: [build, checks, unit, packages, wallet-e2e, vault-e2e, staking-e2e]
+    needs: [build, checks, unit, packages, wallet-e2e, vault-e2e, vault-prod-e2e, staking-e2e]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
