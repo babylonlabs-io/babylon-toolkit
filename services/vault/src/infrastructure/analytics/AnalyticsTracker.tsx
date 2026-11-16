@@ -10,7 +10,10 @@ import { ANALYTICS_EVENT } from "./analyticsEvents";
 import { setWalletAddress } from "./analyticsSession";
 import { routeTemplate } from "./routeTemplate";
 import { settleGeofence, trackEvent } from "./trackEvent";
-import { reportEthSessionConfirmed } from "./walletConnections";
+import {
+  reportEthSessionConfirmed,
+  skipEthSessionConfirmed,
+} from "./walletConnections";
 
 /**
  * Sends page views and the Ethereum session, and settles the geofence for
@@ -61,7 +64,10 @@ export function AnalyticsTracker() {
       // reported it, and nothing else checks it. It still counts as the
       // session's address below, so a later change is not a new session.
       const checked = toCheckedAddress(sessionAddress);
-      if (checked === undefined) return;
+      if (checked === undefined) {
+        skipEthSessionConfirmed();
+        return;
+      }
       setWalletAddress(checked);
       reportEthSessionConfirmed();
       return;

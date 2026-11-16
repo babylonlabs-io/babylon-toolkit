@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, useNavigate } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getWalletAddress, setWalletAddress } from "../analyticsSession";
@@ -75,6 +75,11 @@ beforeEach(() => {
   setWalletAddress(null);
 });
 
+function NavigateButton({ to }: { to: string }) {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(to)}>navigate</button>;
+}
+
 // A new element each time: React skips re-rendering an identical one.
 function trackerAt(path: string) {
   return (
@@ -94,6 +99,22 @@ describe("AnalyticsTracker", () => {
     expect(trackEvent).toHaveBeenCalledWith("$pageview", {
       $pathname: "/markets/:reserveId",
     });
+  });
+
+  it("sends a page view for each route the visitor navigates to", () => {
+    render(
+      <MemoryRouter initialEntries={["/markets/42"]}>
+        <AnalyticsTracker />
+        <NavigateButton to="/vaults" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "navigate" }));
+
+    expect(vi.mocked(trackEvent).mock.calls).toEqual([
+      ["$pageview", { $pathname: "/markets/:reserveId" }],
+      ["$pageview", { $pathname: "/vaults" }],
+    ]);
   });
 
   it("sends no page view for a section the router redirects because its flag is off", () => {
@@ -125,6 +146,9 @@ describe("AnalyticsTracker", () => {
     view.rerender(trackerAt("/markets/42"));
 
     expect(settleGeofence).toHaveBeenCalledExactlyOnceWith("passed");
+    expect(trackEvent).toHaveBeenCalledExactlyOnceWith("$pageview", {
+      $pathname: "/markets/:reserveId",
+    });
   });
 
   it("settles the geofence as failed for a geo-blocked visitor", () => {
@@ -254,6 +278,24 @@ describe("AnalyticsTracker", () => {
 
     expect(connectedEvents()).toEqual([]);
     expect(getWalletAddress()).toBeNull();
+  });
+
+  it("sends a later restored session as restored after the user's confirmation was used by a non-address", () => {
+    const view = render(trackerAt("/"));
+    markUserConfirmation();
+    wallets.eth = { address: "0xnot-an-address" };
+    wallets.session = { connected: true };
+    view.rerender(trackerAt("/"));
+    wallets.session = { connected: false };
+    view.rerender(trackerAt("/"));
+
+    wallets.eth = { address: ETH_ADDRESS };
+    wallets.session = { connected: true };
+    view.rerender(trackerAt("/"));
+
+    expect(connectedEvents().map(({ properties }) => properties)).toEqual([
+      { chain: "eth", restored: true },
+    ]);
   });
 
   it("sends nothing for an address that follows a non-address while the session stays confirmed", () => {
