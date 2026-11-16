@@ -36,11 +36,20 @@ const DEMO_SLOW_MO_MS =
   Number.parseInt(process.env.E2E_SLOW_MO_MS ?? "", 10) || 0;
 const DEMO_VIDEO = process.env.E2E_VIDEO === "on" ? "on" : "off";
 /**
+ * Specs that run against a production build, in `playwright.prod.config.ts`.
+ * Excluded here because this config's servers are dev servers.
+ */
+const PROD_BUNDLE_SPECS = "**/*.prod.spec.ts";
+/**
  * A project-level `testIgnore` replaces the top-level one rather than adding
  * to it, so the visual exclusion documented on `testIgnore` below has to be
  * repeated wherever a project narrows its own file set.
  */
-const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", ...GOD_MODE_SPECS];
+const BEHAVIOURAL_TEST_IGNORE = [
+  "**/visual/**",
+  PROD_BUNDLE_SPECS,
+  ...GOD_MODE_SPECS,
+];
 
 /**
  * Mock backend the e2e suite pins so no spec reaches a live host. The
@@ -84,7 +93,7 @@ export default defineConfig({
   // reducedMotion, no retries. Without this they also match `testMatch`
   // above and run inside the behavioural suite, where `waitForVisualStability`
   // chases live animations for its full timeout and then retries twice.
-  testIgnore: "**/visual/**",
+  testIgnore: ["**/visual/**", PROD_BUNDLE_SPECS],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 2,

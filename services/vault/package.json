@@ -28,6 +28,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
+    "test:e2e:prod": "playwright test --config=playwright.prod.config.ts",
     "e2e:env": "node scripts/e2e-env.mjs",
     "e2e:cli": "pnpm exec tsx e2e/real/cli.ts",
     "visual:capture": "playwright test --config=playwright.visual.config.ts"
