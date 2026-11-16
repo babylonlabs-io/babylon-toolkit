@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, useNavigate } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AnalyticsTracker } from "../AnalyticsTracker";
@@ -33,6 +33,11 @@ beforeEach(() => {
   };
 });
 
+function NavigateButton({ to }: { to: string }) {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(to)}>navigate</button>;
+}
+
 // A new element each time: React skips re-rendering an identical one.
 function trackerAt(path: string) {
   return (
@@ -52,6 +57,22 @@ describe("AnalyticsTracker", () => {
     expect(trackEvent).toHaveBeenCalledWith("$pageview", {
       $pathname: "/markets/:reserveId",
     });
+  });
+
+  it("sends a page view for each route the visitor navigates to", () => {
+    render(
+      <MemoryRouter initialEntries={["/markets/42"]}>
+        <AnalyticsTracker />
+        <NavigateButton to="/vaults" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "navigate" }));
+
+    expect(vi.mocked(trackEvent).mock.calls).toEqual([
+      ["$pageview", { $pathname: "/markets/:reserveId" }],
+      ["$pageview", { $pathname: "/vaults" }],
+    ]);
   });
 
   it("sends no page view for a section the router redirects because its flag is off", () => {
@@ -83,6 +104,9 @@ describe("AnalyticsTracker", () => {
     view.rerender(trackerAt("/markets/42"));
 
     expect(settleGeofence).toHaveBeenCalledExactlyOnceWith("passed");
+    expect(trackEvent).toHaveBeenCalledExactlyOnceWith("$pageview", {
+      $pathname: "/markets/:reserveId",
+    });
   });
 
   it("settles the geofence as failed for a geo-blocked visitor", () => {
