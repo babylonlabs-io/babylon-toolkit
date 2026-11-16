@@ -35,11 +35,28 @@ export function markUserConfirmation(): void {
   userConfirmationPending = true;
 }
 
+/**
+ * Use up the dialog's mark: whether the user confirmed this session, so the
+ * mark can never label a later one.
+ */
+function takeUserConfirmation(): boolean {
+  const confirmedByUser = userConfirmationPending;
+  userConfirmationPending = false;
+  return confirmedByUser;
+}
+
 /** The app's Ethereum session became confirmed. */
 export function reportEthSessionConfirmed(): void {
-  const restored = !userConfirmationPending;
-  userConfirmationPending = false;
+  const restored = !takeUserConfirmation();
   trackEvent(ANALYTICS_EVENT.WALLET_CONNECTED, { chain: "eth", restored });
+}
+
+/**
+ * The app's Ethereum session became confirmed with a value that is not an
+ * address: nothing is sent, but the session still uses up the dialog's mark.
+ */
+export function skipEthSessionConfirmed(): void {
+  takeUserConfirmation();
 }
 
 /**
