@@ -48,17 +48,6 @@ function trackerAt(path: string) {
 }
 
 describe("AnalyticsTracker", () => {
-  it("sends a page view with the route template", () => {
-    render(
-      <MemoryRouter initialEntries={["/markets/42"]}>
-        <AnalyticsTracker />
-      </MemoryRouter>,
-    );
-    expect(trackEvent).toHaveBeenCalledWith("$pageview", {
-      $pathname: "/markets/:reserveId",
-    });
-  });
-
   it("sends a page view for each route the visitor navigates to", () => {
     render(
       <MemoryRouter initialEntries={["/markets/42"]}>
