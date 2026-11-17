@@ -969,6 +969,14 @@ roles have different review requirements. Satisfy both.
   where its own publish role can write a newer version under the same key. That bucket is
   versioned with Object Lock, so an earlier version is kept, but a plain read returns the newest
   and no integrity checker watches this environment.
+  `vault-mainnet` builds the `mainnet` profile (`expected_kind` `production`) and publishes with
+  its own role in the prod account, which trusts this workflow only on `refs/tags/vault/v*` in the
+  `vault-mainnet` environment and may only put objects under `vault/vault-mainnet/` in the build
+  and checksum buckets; the shared roles are denied on those prefixes. The `setup` job keeps it
+  in the matrix only for a pushed final `vault/vX.Y.Z` tag, the pattern the deploy repository
+  accepts for `vault-mainnet`; a branch push, an `-rc` tag or a dispatch leaves it out (a notice
+  names it) or refuses it by name. It uploads checksums with the same role, has no immutable
+  per-sha release manifest, and no integrity checker watches it yet.
   Each matrix entry names the profile it builds (`network`) and its `expected_kind`; the job
   checks the profile before the build and the bundle after it (see "Environment
   configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
