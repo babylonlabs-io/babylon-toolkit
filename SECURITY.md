@@ -984,7 +984,8 @@ roles have different review requirements. Satisfy both.
   `vault-mainnet`, not `https://tbv.babylonlabs.io`. `vault-mainnet` also requires
   `NEXT_PUBLIC_TBV_ORDINALS_API_URL`: its depositors use hardware wallets, which keep no
   inscription index, so without it their UTXOs would be treated as inscription-free. The app
-  still treats every UTXO as available while that API errors or loads (`useUTXOs.ts`).
+  still treats every UTXO as available while that API errors; submission waits while it
+  loads (`useUTXOs.ts`).
   Re-running a tag run rebuilds with the environment's variables at that time and overwrites the
   same object keys; the buckets keep earlier versions, but the deploy reads the newest. The leg
   uploads checksums with the same role, has no immutable per-sha release manifest, and no
