@@ -979,8 +979,12 @@ roles have different review requirements. Satisfy both.
   (the pattern the deploy repository accepts for `vault-mainnet`) is defence in depth; a branch
   push, an `-rc` tag or a dispatch leaves it out (a notice names it) or refuses it by name.
   Before the build, every production-kind leg fails when the utils API, mempool, canonical,
-  Reown or bucket variable is empty, when the mempool base is not an https mainnet host, or when
-  the canonical origin is a testnet host or, for `vault-mainnet`, not `https://tbv.babylonlabs.io`.
+  Reown or bucket variable is empty, when the mempool, utils API or ordinals API base is not an
+  https host free of `signet`/`testnet`, or when the canonical origin is a testnet host or, for
+  `vault-mainnet`, not `https://tbv.babylonlabs.io`. `vault-mainnet` also requires
+  `NEXT_PUBLIC_TBV_ORDINALS_API_URL`: its depositors use hardware wallets, which keep no
+  inscription index, so without it their UTXOs would be treated as inscription-free. The app
+  still treats every UTXO as available while that API errors or loads (`useUTXOs.ts`).
   Re-running a tag run rebuilds with the environment's variables at that time and overwrites the
   same object keys; the buckets keep earlier versions, but the deploy reads the newest. The leg
   uploads checksums with the same role, has no immutable per-sha release manifest, and no
