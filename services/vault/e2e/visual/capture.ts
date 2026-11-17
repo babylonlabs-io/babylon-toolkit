@@ -51,6 +51,7 @@ import {
   LIQUIDATION_SMALL_POSITION_STOP,
   LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
   LIQUIDATION_TOUR_STOPS,
+  LOAN_NOTICE_STOPS,
   LOAN_PICKER_STOPS,
   PROVIDER_COLUMNS_STOP,
   RISK_PRICE_RAIL_STOPS,
@@ -450,6 +451,7 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ...Object.values(BORROW_HINT_STOPS),
       ACTIVE_LOAN_STOP,
+      ...Object.values(LOAN_NOTICE_STOPS).flatMap(Object.values),
       ...Object.values(LOAN_PICKER_STOPS).flatMap(Object.values),
       PROVIDER_COLUMNS_STOP,
       ...Object.values(RISK_PRICE_RAIL_STOPS),

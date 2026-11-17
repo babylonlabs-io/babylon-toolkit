@@ -194,6 +194,17 @@ export const DEPOSIT_PROGRESS_STOPS = {
  */
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
+export const LOAN_NOTICE_STOPS = {
+  light: {
+    1: "loans-notice-limit-1-light",
+    2: "loans-notice-limit-2-light",
+  },
+  dark: {
+    1: "loans-notice-limit-1-dark",
+    2: "loans-notice-limit-2-dark",
+  },
+} as const;
+
 const withdrawalCopy = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),
   "utf8",

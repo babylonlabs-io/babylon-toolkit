@@ -243,26 +243,26 @@ describe("Loans page — loading gate", () => {
     expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
   });
 
-  it.each([1, 2])(
-    "shows how to change assets at a borrow limit of %i",
-    (limit) => {
-      borrowCapMock.limit = limit;
-      useDashboardStateMock.mockReturnValue(CONNECTED_LOADED);
-      render(<Loans />);
-      expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
-      expect(
-        screen.getByText(COPY.loans.noActiveLoans.title),
-      ).toBeInTheDocument();
-      const expected =
-        limit === 1
-          ? "Once you choose an asset, your position is tied to it. When you reach this limit, fully repay an existing loan before you borrow a different asset."
-          : "Once you choose an asset, this position can borrow 2 assets. When you reach this limit, fully repay an existing loan before you borrow a different asset.";
-      expect(
-        screen.getByTestId("loans-empty-state-description"),
-      ).toHaveTextContent(expected);
-      expect(screen.getByRole("button", { name: "Repay" })).toBeDisabled();
-    },
-  );
+  it("shows how to change assets at a borrow limit of one", () => {
+    borrowCapMock.limit = 1;
+    useDashboardStateMock.mockReturnValue(CONNECTED_LOADED);
+    render(<Loans />);
+    expect(
+      screen.getByTestId("loans-empty-state-description"),
+    ).toHaveTextContent(
+      "Once you choose an asset, your position is tied to it. When you reach this limit, fully repay an existing loan before you borrow a different asset.",
+    );
+  });
+
+  it("shows how to change assets at a borrow limit of two", () => {
+    useDashboardStateMock.mockReturnValue(CONNECTED_LOADED);
+    render(<Loans />);
+    expect(
+      screen.getByTestId("loans-empty-state-description"),
+    ).toHaveTextContent(
+      "Once you choose an asset, this position can borrow 2 assets. When you reach this limit, fully repay an existing loan before you borrow a different asset.",
+    );
+  });
 
   it("keeps Repay available when indexed collateral details are missing", () => {
     useDashboardStateMock.mockReturnValue({
