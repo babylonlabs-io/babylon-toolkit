@@ -147,7 +147,7 @@ describe("RecoveryArtifactsCard — idle card", () => {
 
     expect(screen.getByText("Recovery artifacts")).toBeTruthy();
     expect(screen.getByText("Encrypted backup files")).toBeTruthy();
-    expect(screen.getByText("Up to ~1 GB")).toBeTruthy();
+    expect(screen.getByText("About 700 MB")).toBeTruthy();
   });
 
   it("starts the download for this deposit when the parent calls download", () => {

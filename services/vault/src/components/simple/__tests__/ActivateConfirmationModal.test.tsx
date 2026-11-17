@@ -186,11 +186,14 @@ function seedReceipt(peginTxid: string = COMMON_PROPS.peginTxid) {
   saveArtifactDownloadReceipt(VAULT_ID, {
     version: ARTIFACT_RECEIPT_VERSION,
     peginTxid: normalizePeginTxid(peginTxid),
-    filename: "babylon-vault-artifacts-pegin.json",
+    filename: "babylon-vault-pegin.tar",
     byteLength: 1024,
     sha256: "9".repeat(64),
     savedAt: 1_700_000_000_000,
     method: "file-system-access",
+    sessions: {
+      ["ab".repeat(32)]: { sha256: "b".repeat(64), byteLength: 32_768 },
+    },
   });
 }
 

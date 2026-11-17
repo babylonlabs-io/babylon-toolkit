@@ -6564,58 +6564,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 ***
 
-### BaBeSessionData
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-BaBe garbled-circuit session data for a single challenger.
-
-#### Properties
-
-##### decryptor\_artifacts\_hex
-
-```ts
-decryptor_artifacts_hex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-***
-
-### RequestDepositorClaimerArtifactsResponse
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-The depositor's recovery-artifact payload: graph, verifying key and one BaBe session per challenger.
-
-#### Properties
-
-##### tx\_graph\_json
-
-```ts
-tx_graph_json: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-##### verifying\_key\_hex
-
-```ts
-verifying_key_hex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-##### babe\_sessions
-
-```ts
-babe_sessions: Record<string, BaBeSessionData>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
-
-***
-
 ### ChallengerProgress
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
@@ -8206,28 +8154,6 @@ Whether a batch status entry's `error` reports a pegin status outside
 #### Returns
 
 `boolean`
-
-***
-
-### validateRequestDepositorClaimerArtifactsResponse()
-
-```ts
-function validateRequestDepositorClaimerArtifactsResponse(response): asserts response is RequestDepositorClaimerArtifactsResponse;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts)
-
-Validate a recovery-artifact payload (graph, verifying key, BaBe sessions).
-
-#### Parameters
-
-##### response
-
-`unknown`
-
-#### Returns
-
-`asserts response is RequestDepositorClaimerArtifactsResponse`
 
 ## Enumerations
 

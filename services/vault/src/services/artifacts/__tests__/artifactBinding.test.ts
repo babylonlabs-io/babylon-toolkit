@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   assertBundleBoundToVault,
   assertGraphMatchesPresign,
-  PresignFingerprintUnavailableError,
   PresignGraphMismatchError,
 } from "../artifactBinding";
 
@@ -17,10 +16,12 @@ const LOCAL_CHALLENGER = "a0".repeat(32);
 const UNIVERSAL_CHALLENGER = "47".repeat(32);
 const FOREIGN_TXID = "ff".repeat(32);
 
+// The bundle-binding checks never read the fingerprint.
+const UNUSED_FINGERPRINT = "00".repeat(32);
 const BINDING = {
   peginTxid: PEGIN_TXID,
   depositorPk: DEPOSITOR_PK,
-  signedGraphFingerprint: undefined,
+  signedGraphFingerprint: UNUSED_FINGERPRINT,
 };
 const SESSION_KEYS = [LOCAL_CHALLENGER, UNIVERSAL_CHALLENGER];
 
@@ -57,7 +58,7 @@ describe("assertBundleBoundToVault", () => {
       assertBundleBoundToVault(txGraph(), SESSION_KEYS, {
         peginTxid: `0x${PEGIN_TXID.toUpperCase()}`,
         depositorPk: `0x${DEPOSITOR_PK.toUpperCase()}`,
-        signedGraphFingerprint: undefined,
+        signedGraphFingerprint: UNUSED_FINGERPRINT,
       }),
     ).not.toThrow();
   });
@@ -191,7 +192,7 @@ describe("assertGraphMatchesPresign", () => {
     };
   }
 
-  const binding = (signedGraphFingerprint: string | undefined) => ({
+  const binding = (signedGraphFingerprint: string) => ({
     ...BINDING,
     signedGraphFingerprint,
   });
@@ -264,11 +265,5 @@ describe("assertGraphMatchesPresign", () => {
     expect(() => assertGraphMatchesPresign(narrowed, expected)).toThrow(
       PresignGraphMismatchError,
     );
-  });
-
-  it("reports absence separately from a mismatch", () => {
-    expect(() =>
-      assertGraphMatchesPresign(realGraph(), binding(undefined)),
-    ).toThrow(PresignFingerprintUnavailableError);
   });
 });
