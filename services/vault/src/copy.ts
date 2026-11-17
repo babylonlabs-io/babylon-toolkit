@@ -497,6 +497,10 @@ export const COPY = {
       signPeginBtc: "Sign the peg-in BTC transaction",
       signLinkProofs: "Sign proof to link your Bitcoin and ETH addresses",
       signAndBroadcastEth: "Sign and broadcast ETH registration",
+      registrationPending:
+        "Your ETH registration has been submitted. Waiting for it to confirm on Ethereum.",
+      registrationSlow:
+        "This is taking longer than usual. If your wallet still needs approvals, such as other Safe signers, complete them there. Keep this window open to continue here once the registration confirms. If it takes much longer, you can finish the deposit from your dashboard.",
       signAndBroadcastPrePegin: SIGN_AND_BROADCAST_PRE_PEGIN_STEP,
       confirmingDeposit:
         "Awaiting Pre-Pegin inclusion (1 Bitcoin block · ~10 min)",
@@ -1429,6 +1433,15 @@ export const COPY = {
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
         body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard. Otherwise the registration will expire on its own.",
+      },
+      // The wallet took the registration (an EOA's broadcast or a Safe
+      // proposal), but the flow stopped waiting before it confirmed: the wait
+      // timed out, or an inconclusive answer ended it. It can still confirm,
+      // and a second deposit would pay the registration fee again. No Bitcoin
+      // has moved: the Pre-PegIn follows the registration.
+      registrationUnconfirmed: {
+        title: "Registration not confirmed yet",
+        body: "Your ETH registration has been submitted but hasn't confirmed yet, and it may still confirm. Don't start another deposit for now. Once it confirms, continue this deposit from your dashboard. If it doesn't appear there, check the transaction in your wallet before you deposit again. No Bitcoin has been spent.",
       },
       // Also covers the integrity checks on the wallet's returned PSBT, so
       // the lock is offered as a possibility, not stated as the cause.
