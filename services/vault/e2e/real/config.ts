@@ -100,6 +100,10 @@ export interface NetworkConfig {
   ethChainId: number;
   /** Profile in services/vault/networks the app runs on for this network (the dev server is started with it). */
   profile: string;
+  /** BTC wallets this network's app hides through `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS`, so their connect option
+   *  never renders. Mirrors the `dev:testnet` script in services/vault/package.json, which matches the testnet
+   *  deployment. The runner refuses these wallets on this network. */
+  hiddenBtcWallets: readonly BtcWalletId[];
 }
 
 const SIGNET_MEMPOOL = "https://mempool.space/signet/api";
@@ -114,6 +118,7 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
     profile: "devnet",
+    hiddenBtcWallets: [],
   },
   testnet: {
     websiteUrl: "https://btc-vaults.testnet.babylonlabs.io/",
@@ -122,6 +127,7 @@ export const NETWORKS: Record<NetworkName, NetworkConfig> = {
     sepoliaRpcUrl: SEPOLIA_RPC,
     ethChainId: SEPOLIA_CHAIN_ID,
     profile: "testnet",
+    hiddenBtcWallets: ["onekey"],
   },
 };
 
@@ -136,9 +142,7 @@ export interface WalletOption<T extends string> {
 export const BTC_WALLETS: WalletOption<BtcWalletId>[] = [
   { id: "unisat", label: "UniSat", enabled: true },
   { id: "okx", label: "OKX", enabled: true },
-  // OneKey does not currently sign `signPsbts` correctly (batch payout/graph signing). Disabled until
-  // OneKey fixes it upstream; the importer + connector mapping remain so re-enabling is `enabled: true`.
-  { id: "onekey", label: "OneKey", enabled: false },
+  { id: "onekey", label: "OneKey", enabled: true },
 ];
 
 export const ETH_WALLETS: WalletOption<EthWalletId>[] = [

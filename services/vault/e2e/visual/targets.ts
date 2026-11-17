@@ -130,8 +130,16 @@ export const DEPOSIT_FLOW_STOPS = {
    * next click asks them to sign, and they never do.
    */
   signEntry: "deposit-sign-entry",
+  providerOptions: "deposit-provider-options",
   /** The reported low-ETH error, rendered by the real progress view. */
   insufficientEth: "deposit-insufficient-eth",
+} as const;
+
+export const BORROW_HINT_STOPS = {
+  "overview-light": "borrow-hint-overview-light",
+  "overview-dark": "borrow-hint-overview-dark",
+  "loans-light": "borrow-hint-loans-light",
+  "loans-dark": "borrow-hint-loans-dark",
 } as const;
 
 /**
@@ -142,6 +150,19 @@ export const DEPOSIT_FLOW_STOPS = {
  * wallet held. See `depositFlow.visual.spec.ts`.
  */
 export const DEPOSIT_SPLIT_MINIMUM_STOP = "deposit-split-minimum";
+
+export const PROVIDER_COLUMNS_STOP = "deposit-provider-columns";
+
+export const HAS_PROVIDER_COLUMN_GRID = readFileSync(
+  new URL(
+    "../../src/components/simple/VaultProviderSelectorV3.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+).includes("grid-cols-[minmax(0,1fr)_16px]");
+
+export const REQUIRE_PROVIDER_COLUMN_GRID =
+  !process.env.CAPTURE_ROOT?.endsWith("/baseline") || HAS_PROVIDER_COLUMN_GRID;
 
 /**
  * The deposit progress view's captured stops.
@@ -164,6 +185,13 @@ export const DEPOSIT_PROGRESS_STOPS = {
   pending: "vaults-pending",
   /** The stepper for a two-vault batch whose lanes sit on different steps. */
   split: "deposit-progress-split",
+  verificationCounts: "deposit-verification-counts",
+  verificationStuck: "deposit-verification-stuck",
+  verificationFallback: "deposit-verification-fallback",
+  verificationSplitFirst: "deposit-verification-split-first",
+  verificationSplitSecond: "deposit-verification-split-second",
+  verificationMixedFirst: "deposit-verification-mixed-first",
+  verificationMixedSecond: "deposit-verification-mixed-second",
 } as const;
 
 /**
@@ -173,10 +201,70 @@ export const DEPOSIT_PROGRESS_STOPS = {
  */
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
+const withdrawalCopy = readFileSync(
+  new URL("../../src/copy.ts", import.meta.url),
+  "utf8",
+);
+if (
+  !withdrawalCopy.includes(
+    'continueAnyway: "I understand the liquidation risk"',
+  ) &&
+  !withdrawalCopy.includes('continueAnyway: "Continue anyway"')
+) {
+  throw new Error("The withdrawal risk acknowledgement copy is unknown.");
+}
+export const WITHDRAW_RISK_ACKNOWLEDGEMENT =
+  process.env.CAPTURE_ROOT?.endsWith("/baseline") === true &&
+  withdrawalCopy.includes('continueAnyway: "Continue anyway"')
+    ? "Continue anyway"
+    : "I understand the liquidation risk";
+export const WITHDRAW_RISK_STOPS = ["light", "dark"].flatMap((theme) => [
+  `withdraw-risk-select-${theme}-unchecked`,
+  `withdraw-risk-select-${theme}-checked`,
+  `withdraw-risk-review-${theme}-unchecked`,
+  `withdraw-risk-review-${theme}-checked`,
+]);
+
 export const VAULT_REFUND_STOPS = {
   refunding: "vaults-refunding",
   refunded: "vaults-refunded",
 } as const;
+
+export const LOAN_PICKER_STOPS = {
+  light: {
+    assetRest: "loan-asset-rest-light",
+    assetHover: "loan-asset-hover-light",
+    assetDisabled: "loan-asset-disabled-light",
+    hubRest: "loan-hub-rest-light",
+    hubHover: "loan-hub-hover-light",
+    hubDisabled: "loan-hub-disabled-light",
+  },
+  dark: {
+    assetRest: "loan-asset-rest-dark",
+    assetHover: "loan-asset-hover-dark",
+    assetDisabled: "loan-asset-disabled-dark",
+    hubRest: "loan-hub-rest-dark",
+    hubHover: "loan-hub-hover-dark",
+    hubDisabled: "loan-hub-disabled-dark",
+  },
+} as const;
+
+export const LOAN_PICKER_USES_COLOR_HOVER = {
+  asset: readFileSync(
+    new URL(
+      "../../src/applications/aave/components/AssetSelectionPanel/AssetSelectionPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  ).includes("enabled:hover:bg-neutral-200"),
+  hub: readFileSync(
+    new URL(
+      "../../src/applications/aave/components/HubSelectionPanel/HubSelectionPanel.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  ).includes("hover:bg-neutral-200"),
+};
 
 export const HAS_ARTIFACT_DOWNLOAD_CONFIRMATION = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),
@@ -216,6 +304,11 @@ export const HAS_REFUND_TX_LINK = vaultsLifecycleSource.includes("refundTxId");
 export const HAS_CONFIRMED_REFUND = vaultsLifecycleSource.includes(
   "isRefundInFlightOrSettled",
 );
+
+export const RISK_PRICE_RAIL_STOPS = {
+  light: "risk-price-drop-light",
+  dark: "risk-price-drop-dark",
+} as const;
 
 /**
  * The liquidations chart, charted from the god-mode cascade simulator over

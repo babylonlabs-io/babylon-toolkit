@@ -4,8 +4,9 @@
  * Payload-shape rejections deliberately reuse the SDK's
  * `VpResponseValidationError` (it already carries a user-safe `.message` plus
  * a technical `.detail`), and JSON-RPC wire errors reuse `JsonRpcError`. Only
- * the failure modes with no existing home — cancellation, the file sink, and
- * the fallback size ceiling — get their own class here.
+ * the failure modes with no existing home — cancellation, the file sink, the
+ * size ceiling and a vault id that does not derive from the deposit — get
+ * their own class here.
  */
 
 /**
@@ -35,22 +36,36 @@ export class ArtifactFileAccessError extends Error {
 }
 
 /**
- * Thrown when the response exceeds what the active save target can hold.
+ * Thrown when the archive exceeds what the active save target can hold.
  *
- * Only reachable on the anchor-download fallback, which must buffer the whole
- * body in memory before it can hand a Blob to the browser. Failing loudly
- * beats an out-of-memory tab kill or a silently truncated recovery bundle.
+ * Raised pre-flight from the manifest's session lengths, before any session
+ * is requested, and guarded again on every write. Only the anchor-download
+ * fallback has a ceiling: it buffers the whole archive before it can hand
+ * the browser a Blob, so failing early beats an out-of-memory tab kill after
+ * the transfer.
  */
 export class ArtifactDownloadTooLargeError extends Error {
-  readonly receivedBytes: number;
+  readonly expectedBytes: number;
   readonly maxBytes: number;
 
-  constructor(receivedBytes: number, maxBytes: number) {
+  constructor(expectedBytes: number, maxBytes: number) {
     super(
-      `Artifact response exceeds the ${maxBytes}-byte limit of this browser's download path (received at least ${receivedBytes} bytes)`,
+      `Recovery kit of ${expectedBytes} bytes exceeds the ${maxBytes}-byte limit of this browser's download path`,
     );
     this.name = "ArtifactDownloadTooLargeError";
-    this.receivedBytes = receivedBytes;
+    this.expectedBytes = expectedBytes;
     this.maxBytes = maxBytes;
+  }
+}
+
+/**
+ * Thrown when the vault id the UI passed does not derive from the deposit's
+ * pegin txid and depositor address. The id comes from the indexer, so a
+ * mismatch is a stale- or compromised-indexer signal, never a retry case.
+ */
+export class ArtifactIdentityMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArtifactIdentityMismatchError";
   }
 }

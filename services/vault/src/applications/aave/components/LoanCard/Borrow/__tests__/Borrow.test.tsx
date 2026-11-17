@@ -64,6 +64,8 @@ vi.mock("@/applications/aave/utils", () => ({
 const mocks = vi.hoisted(() => ({
   executeBorrow: vi.fn(),
   clearError: vi.fn(),
+  useBorrowTransaction: vi.fn(),
+  validateBorrowAction: vi.fn(),
   useBorrowState: vi.fn(),
   useBorrowMetrics: vi.fn(),
   validateBorrowPreSign: vi.fn(),
@@ -75,15 +77,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../../hooks", () => ({
   useAaveReserveDrawHeadroom: () => ({ headroomByReserveId: {} }),
   useAaveReserveLiquidity: () => ({ liquidityByReserveId: {} }),
-  useBorrowTransaction: () => ({
-    executeBorrow: mocks.executeBorrow,
-    isProcessing: false,
-    isConfirming: false,
-    pendingWrite: null,
-    error: null,
-    notice: null,
-    clearError: mocks.clearError,
-  }),
+  useBorrowTransaction: mocks.useBorrowTransaction,
   useDebtReserves: () => [],
   useHubSpokeConfigs: () => ({}),
   useProjectedBorrowApr: mocks.useProjectedBorrowApr,
@@ -116,11 +110,7 @@ vi.mock("../hooks/useBorrowMetrics", () => ({
 }));
 vi.mock("../hooks/validateBorrowAction", () => ({
   getBorrowLimit: (max: number) => ({ max, limitedBy: "collateral" }),
-  validateBorrowAction: () => ({
-    isDisabled: false,
-    buttonText: "Borrow",
-    errorMessage: null,
-  }),
+  validateBorrowAction: mocks.validateBorrowAction,
 }));
 vi.mock("../hooks/validateBorrowPreSign", () => ({
   validateBorrowPreSign: mocks.validateBorrowPreSign,
@@ -166,6 +156,20 @@ function makeLoanContext(
 }
 
 beforeEach(() => {
+  mocks.useBorrowTransaction.mockReturnValue({
+    executeBorrow: mocks.executeBorrow,
+    isProcessing: false,
+    isConfirming: false,
+    pendingWrite: null,
+    error: null,
+    notice: null,
+    clearError: mocks.clearError,
+  });
+  mocks.validateBorrowAction.mockReturnValue({
+    isDisabled: false,
+    buttonText: "Borrow",
+    errorMessage: null,
+  });
   mocks.useBorrowState.mockReturnValue({
     borrowAmount: 10,
     setBorrowAmount: vi.fn(),
@@ -218,6 +222,43 @@ describe("Borrow", () => {
         }),
       ),
     );
+  });
+
+  it("hides the validation error while the borrow is processing", () => {
+    mocks.validateBorrowAction.mockReturnValue({
+      isDisabled: true,
+      buttonText: "Amount exceeds limit",
+      errorMessage: "You cannot borrow more than your limit.",
+    });
+    const loanContext = makeLoanContext();
+
+    const { rerender } = render(
+      <LoanProvider value={loanContext}>
+        <Borrow />
+      </LoanProvider>,
+    );
+    expect(
+      screen.getByText("You cannot borrow more than your limit."),
+    ).toBeTruthy();
+
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: true,
+      isConfirming: false,
+      pendingWrite: null,
+      error: null,
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    rerender(
+      <LoanProvider value={loanContext}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen.queryByText("You cannot borrow more than your limit."),
+    ).toBeNull();
   });
 
   it("shows current and projected Borrow APR with the premium and fee included", () => {

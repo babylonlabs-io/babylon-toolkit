@@ -9,11 +9,6 @@ import { getSignedGraphFingerprint } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import { getExpiredArtifactDownloadParams } from "@/utils/artifactDownloadParams";
 
-const featureFlagsMock = vi.hoisted(() => ({
-  isHttpArtifactDownloadsEnabled: true,
-}));
-vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
-
 vi.mock("@/storage/peginStorage", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/storage/peginStorage")>()),
   getSignedGraphFingerprint: vi.fn(),
@@ -38,7 +33,6 @@ const EXPIRED_ACTIVITY: VaultActivity = {
 
 describe("getExpiredArtifactDownloadParams", () => {
   beforeEach(() => {
-    featureFlagsMock.isHttpArtifactDownloadsEnabled = true;
     vi.mocked(getSignedGraphFingerprint).mockReturnValue({
       status: "found",
       fingerprint: "ee".repeat(32),
@@ -97,14 +91,6 @@ describe("getExpiredArtifactDownloadParams", () => {
         },
         ETH_ADDRESS,
       ),
-    ).toBeNull();
-  });
-
-  it("returns null when artifact downloads do not go over HTTP", () => {
-    featureFlagsMock.isHttpArtifactDownloadsEnabled = false;
-
-    expect(
-      getExpiredArtifactDownloadParams(EXPIRED_ACTIVITY, ETH_ADDRESS),
     ).toBeNull();
   });
 

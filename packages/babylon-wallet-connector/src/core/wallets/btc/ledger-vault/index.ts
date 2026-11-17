@@ -12,15 +12,24 @@ import { APP_NAME_BY_NETWORK, LedgerVaultProvider, WALLET_PROVIDER_NAME } from "
  */
 const LEDGER_WALLET_APP_PROVIDER = 4;
 
+/**
+ * The provider-4 install steps are for the Babylon Vault Testnet app only
+ * (`Network.SIGNET` and `Network.TESTNET`). `Network.MAINNET` shows no install
+ * steps.
+ */
 const connectGuide = ({ network }: BTCConfig): ConnectGuide => {
   const appName = APP_NAME_BY_NETWORK[network];
+  const steps = [
+    "Plug in your Ledger and unlock it with your PIN.",
+    `Open the ${appName} app on your Ledger.`,
+    "Close Ledger Wallet (formerly Ledger Live) if it is open. It can take over the connection to your Ledger.",
+    "Select Connect. If your browser asks, choose your Ledger.",
+  ];
+  if (network === Network.MAINNET) {
+    return { steps };
+  }
   return {
-    steps: [
-      "Plug in your Ledger and unlock it with your PIN.",
-      `Open the ${appName} app on your Ledger.`,
-      "Close Ledger Wallet (formerly Ledger Live) if it is open. It can take over the connection to your Ledger.",
-      "Select Connect. If your browser asks, choose your Ledger.",
-    ],
+    steps,
     installSteps: [
       `In Ledger Wallet, open Settings → Experimental features. Turn on My Ledger provider and set it to ${LEDGER_WALLET_APP_PROVIDER}.`,
       `Go to My Ledger and install the ${appName} app.`,

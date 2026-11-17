@@ -1,61 +1,36 @@
 /**
- * Service for fetching and saving BaBe Decryptor artifacts.
+ * Save a depositor's recovery kit as one deterministic ustar tar.
  *
- * These artifacts are what lets a depositor claim their vault funds without
- * the vault provider's cooperation, so a download that "succeeded" without
- * producing a valid, complete file on disk is a silent loss of that recovery
- * path. Two things follow from that:
+ * The kit is what lets a depositor claim without the vault provider, so a
+ * download that "succeeded" without a complete file on disk is a silent loss
+ * of that recovery path. The manifest is validated and bound to the deposit
+ * before any session is requested, each session is written only after its
+ * SHA-256 equals the provider's ETag, `claim.json` is the last entry, and
+ * success means the save target committed. `artifactBinding.ts` says what the
+ * binding does and does not prove.
  *
- * - **Validation is mandatory and covers the whole body.** The payload is
- *   ~1.3 GB and cannot be parsed with `JSON.parse`, so it is checked
- *   incrementally by {@link ArtifactStreamValidator} as it streams. Nothing
- *   is skipped on the basis of size.
- * - **Success means the bytes are durably saved**, not that a fetch resolved.
- *   The result span is piped into an {@link ArtifactSaveTarget} and only committed
- *   after the validator has seen the closing brace.
- *
- * Bytes are validated, hashed, and written chunk-by-chunk in a single pass,
- * so the full body is never held in memory on the File System Access path.
- *
- * What lands on disk is the envelope's `result` value alone, not the JSON-RPC
- * response around it. `jsonrpc` and `id` are transport framing with no meaning
- * in a saved file, and the receipt's digest then matches `sha256sum` of the
- * file. The validator reports the payload's byte range as it parses
- * (see `streamingArtifactValidator.ts`), so stripping the envelope costs no
- * extra pass and no buffering.
- *
- * The bundle is also bound to the deposit it was requested for: the envelope
- * names no vault, but the transaction graph inside it does, so its claim and
- * payout transactions are checked against the requested pegin txid and its
- * depositor key against the requested one. Its transaction set must also
- * reproduce the fingerprint this device recorded at presign. See
- * `artifactBinding.ts`.
- *
- * What this does NOT establish: that the artifact bytes decrypt correctly. No
- * client-side BaBe verifier exists, so the payload is proven well-formed and
+ * What this does NOT establish: that the session bytes decrypt correctly. No
+ * client-side BaBe verifier exists, so the kit is proven well-formed and
  * addressed to this deposit, never proven usable.
  */
 
+import { processPublicKeyToXOnly } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
-  processPublicKeyToXOnly,
-  stripHexPrefix,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import {
-  JsonRpcClient,
+  derivePeginVaultId,
   VpResponseValidationError,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 
-import featureFlags from "@/config/featureFlags";
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
-import { getVpArtifactsProxyUrl, getVpProxyUrl } from "@/utils/rpc";
+import { combineAbortSignals } from "@/utils/async";
+import { getVpArtifactsProxyUrl } from "@/utils/rpc";
 
 import {
   assertBundleBoundToVault,
   assertGraphMatchesPresign,
-  type VaultBindingContext,
 } from "./artifactBinding";
 import type {
   ArtifactSaveMethod,
@@ -63,259 +38,291 @@ import type {
   ArtifactSaveTarget,
 } from "./artifactSaveTarget";
 import {
+  buildClaimFile,
+  CLAIM_FILE_NAME,
+  claimFileByteLength,
+  type ClaimFileSession,
+  MAX_CLAIM_FILE_BYTES,
+  type RecoveryKitIdentity,
+  sessionEntryName,
+} from "./claimFile";
+import {
   ArtifactDownloadCancelledError,
   ArtifactDownloadTooLargeError,
+  ArtifactIdentityMismatchError,
 } from "./errors";
-import { fetchHttpArtifactsResponse } from "./httpArtifactDownload";
-import { ArtifactStreamValidator } from "./streamingArtifactValidator";
-
-/** Timeout for the artifact request RPC call (artifacts can be large). */
-const RPC_TIMEOUT_MS = 120 * 1000;
-
-/**
- * Fallback total used by the progress bar when the server omits
- * Content-Length — which the streaming proxy always does.
- *
- * A measured vault-devnet bundle is 1,410,824,702 bytes (8 challengers at
- * ~176 MB of hex each). The estimate sits above that so the displayed
- * percentage does not saturate before the transfer finishes; the card clamps
- * to 100% regardless, so an undershoot is cosmetic rather than harmful.
- */
-const ARTIFACT_TOTAL_FALLBACK_BYTES = 1_600_000_000;
+import {
+  downloadRecoveryKitSession,
+  type FetchLike,
+  fetchRecoveryKitManifest,
+} from "./httpArtifactDownload";
+import {
+  TAR_END_OF_ARCHIVE_BYTES,
+  tarEndOfArchive,
+  tarEntryBytes,
+  tarHeader,
+  tarPadding,
+} from "./tarWriter";
 
 export interface FetchArtifactsOptions {
   /**
-   * Invoked after each chunk read from the response body. `totalBytes`
-   * comes from Content-Length when present, otherwise falls back to a
-   * fixed estimate (the server does not always send a length header).
+   * Invoked with the bytes received so far and the exact archive size, which
+   * is computed from the manifest before any session is requested.
    */
   onProgress?: (receivedBytes: number, totalBytes: number) => void;
   /**
-   * Polled between chunk reads. Returning true cancels the in-flight
-   * stream — used so the modal's Cancel path actually releases the
-   * connection instead of pulling bytes in the background.
+   * Polled before the save target opens, before every write and before the
+   * commit. Returning true cancels the download and aborts its in-flight
+   * request, so the modal's Cancel releases the connection instead of
+   * pulling bytes in the background.
    */
   isCancelled?: () => boolean;
   /**
-   * Aborts the underlying request (threaded into `callRaw` → `fetch`).
-   * Unlike `isCancelled`, which is only polled *between* chunk reads, this
-   * unblocks a `reader.read()` stalled on a silent connection, so Cancel
-   * releases the socket immediately instead of hanging until the next byte,
-   * EOF, or the RPC timeout.
+   * Aborts the underlying requests (threaded into `fetch`). Unlike
+   * `isCancelled`, which is polled between reads, this unblocks a
+   * `reader.read()` stalled on a silent connection, so Cancel releases the
+   * socket immediately instead of hanging until the next byte or EOF.
    */
   signal?: AbortSignal;
 }
 
-/** Evidence that a validated bundle was written to disk. */
+/** Where the kit comes from: the proxy base URL, the bearer and the fetch. */
+export interface RecoveryKitSource {
+  /** `${VP_PROXY_URL}/artifacts/${vpAddress}`. */
+  artifactsBaseUrl: string;
+  /** The JSON-RPC-subject bearer, or null when none is cached. */
+  getToken: () => Promise<string | null>;
+  fetchImpl: FetchLike;
+}
+
+/** Evidence that a validated kit was written to disk. */
 export interface ArtifactDownloadOutcome {
   filename: string;
-  /** Size of the saved file, which excludes the JSON-RPC envelope. */
   byteLength: number;
   /**
-   * SHA-256 of the saved file, computed during the same streaming pass — so
-   * a user running `sha256sum` on the artifact file reproduces it.
+   * SHA-256 of the saved file, computed during the same streaming pass, so a
+   * user running `sha256sum` on the kit reproduces it.
    */
   sha256: string;
   method: ArtifactSaveMethod;
+  /** Each session's hash and length, as written to `claim.json`. */
+  sessions: Record<string, ClaimFileSession>;
 }
 
 /**
- * Fetch artifacts from the vault provider, validate them as they stream, and
- * save them to `target`.
+ * Fetch the kit from `source`, bind it to `identity`, and save it to `target`.
  *
- * Resolves only when the whole body has been validated and durably written.
- * Throws `JsonRpcError` for an error envelope, `VpResponseValidationError` for
- * a malformed or truncated payload, `ArtifactFileAccessError` when the save
- * fails, and `ArtifactDownloadCancelledError` when the caller cancels.
- *
- * @param providerAddress - Vault provider's Ethereum address.
- * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
- * @param depositorPk     - Depositor's Bitcoin public key.
- * @param signedGraphFingerprint - Presign fingerprint this device recorded,
- *                          or undefined when it holds none.
- * @param target          - Where to write; obtained from `openArtifactSaveTarget`.
+ * Resolves only when the whole archive has been written and committed.
+ * Throws `ArtifactIdentityMismatchError` when the vault id does not derive
+ * from the deposit, `JsonRpcError` when the provider rejects the bearer,
+ * `ArtifactsNotReadyError` while the provider does not serve the package yet,
+ * `VpResponseValidationError` for a malformed manifest or session,
+ * `PresignGraphMismatchError` for a graph other than the one signed,
+ * `ArtifactDownloadTooLargeError` for an archive the target cannot hold,
+ * `ArtifactFileAccessError` when the save fails,
+ * `ArtifactDownloadCancelledError` when the caller cancels, and a plain
+ * `Error` for a download quota, an unexpected HTTP status or exhausted
+ * transfer attempts.
  */
-export async function fetchAndDownloadArtifacts(
-  providerAddress: string,
-  peginTxid: string,
-  depositorPk: string,
-  signedGraphFingerprint: string | undefined,
+export async function downloadRecoveryKit(
+  source: RecoveryKitSource,
+  identity: RecoveryKitIdentity,
   target: ArtifactSaveTarget,
   options?: FetchArtifactsOptions,
 ): Promise<ArtifactDownloadOutcome> {
-  const normalizedPeginTxid = stripHexPrefix(peginTxid);
+  // Pure, and before any request: a manifest request charges one attempt of
+  // the depositor's download budget. `derivePeginVaultId` validates the
+  // address with viem's strict `isAddress`; EIP-55 wallet addresses pass.
+  const derivedVaultId = `0x${derivePeginVaultId(identity.peginTxid, identity.depositorEthAddress)}`;
+  if (identity.vaultId.toLowerCase() !== derivedVaultId) {
+    throw new ArtifactIdentityMismatchError(
+      COPY.deposit.recoveryArtifacts.vaultIdMismatch,
+    );
+  }
 
+  // `internal` aborts the in-flight request when `isCancelled` turns true.
+  // Composed with the app's helper: `AbortSignal.any` is missing on
+  // Safari < 17.4 and Chrome < 116.
+  const internal = new AbortController();
+  const composed = combineAbortSignals(
+    options?.signal ? [options.signal, internal.signal] : [internal.signal],
+  );
+  const signal = composed.signal;
+  const cancelIfRequested = () => {
+    if (options?.isCancelled?.()) {
+      internal.abort();
+      throw new ArtifactDownloadCancelledError();
+    }
+  };
+
+  let stream: ArtifactSaveStream | null = null;
+  try {
+    const manifest = await fetchRecoveryKitManifest(
+      source.artifactsBaseUrl,
+      identity.peginTxid,
+      source.getToken,
+      signal,
+      source.fetchImpl,
+    );
+    // Schema-valid is not the same as ours: the tx graph is what proves the
+    // kit belongs to this deposit, and the presign fingerprint is the one
+    // value the provider never saw.
+    const binding = {
+      peginTxid: identity.peginTxid,
+      depositorPk: identity.depositorPk,
+      signedGraphFingerprint: identity.signedGraphFingerprint,
+    };
+    assertBundleBoundToVault(
+      manifest.txGraph,
+      [...manifest.sessions.keys()],
+      binding,
+    );
+    assertGraphMatchesPresign(manifest.txGraph, binding);
+
+    // The exact archive size is known before any session is fetched: every
+    // session length is in the manifest and every hash is 64 characters.
+    const byteLengths = new Map<string, number>();
+    let total = TAR_END_OF_ARCHIVE_BYTES;
+    for (const session of manifest.sessions.values()) {
+      byteLengths.set(session.key, session.byteLength);
+      total += tarEntryBytes(session.byteLength);
+    }
+    const claimLength = claimFileByteLength(identity, manifest, byteLengths);
+    // A reader refuses a larger claim.json, so the kit would be unusable.
+    if (claimLength > MAX_CLAIM_FILE_BYTES) {
+      throw new VpResponseValidationError(
+        `Artifact manifest would make claim.json ${claimLength} bytes, above the ${MAX_CLAIM_FILE_BYTES}-byte reader limit`,
+      );
+    }
+    total += tarEntryBytes(claimLength);
+    if (total > target.maxBytes) {
+      throw new ArtifactDownloadTooLargeError(total, target.maxBytes);
+    }
+    options?.onProgress?.(0, total);
+
+    cancelIfRequested();
+    stream = await target.open();
+    const sink = stream;
+    const hasher = sha256.create();
+    let written = 0;
+    let reported = 0;
+    const report = (bytes: number) => {
+      reported = Math.max(reported, bytes);
+      options?.onProgress?.(reported, total);
+    };
+    const emit = async (bytes: Uint8Array<ArrayBuffer>) => {
+      cancelIfRequested();
+      if (written + bytes.byteLength > target.maxBytes) {
+        throw new ArtifactDownloadTooLargeError(total, target.maxBytes);
+      }
+      hasher.update(bytes);
+      await sink.write(bytes);
+      written += bytes.byteLength;
+    };
+
+    // Session N is verified and written before session N+1 is requested, so
+    // at most one session is in memory.
+    const recorded = new Map<string, ClaimFileSession>();
+    for (const session of manifest.sessions.values()) {
+      const doneBytes = written;
+      const { chunks, sha256: digest } = await downloadRecoveryKitSession(
+        session,
+        source.getToken,
+        signal,
+        source.fetchImpl,
+        (received) => {
+          cancelIfRequested();
+          report(doneBytes + received);
+        },
+      );
+      await emit(tarHeader(sessionEntryName(session.key), session.byteLength));
+      for (const chunk of chunks) await emit(chunk);
+      await emit(tarPadding(session.byteLength));
+      recorded.set(session.key, {
+        sha256: digest,
+        byteLength: session.byteLength,
+      });
+      report(written);
+    }
+
+    assertAssembled(
+      recorded.size === manifest.sessions.size &&
+        [...manifest.sessions.keys()].every((key) => recorded.has(key)),
+    );
+    const claim = buildClaimFile(identity, manifest, recorded);
+    assertAssembled(claim.byteLength === claimLength);
+    await emit(tarHeader(CLAIM_FILE_NAME, claim.byteLength));
+    await emit(claim);
+    await emit(tarPadding(claim.byteLength));
+    await emit(tarEndOfArchive());
+    assertAssembled(written === total);
+    report(total);
+
+    cancelIfRequested();
+    await sink.commit();
+    return {
+      filename: target.filename,
+      byteLength: written,
+      sha256: bytesToHex(hasher.digest()),
+      method: target.method,
+      sessions: Object.fromEntries(recorded),
+    };
+  } catch (err) {
+    // Also after a rejected commit: that leaves the writable un-aborted, so
+    // its temporary file can linger until the browser reclaims it.
+    if (stream) await discardQuietly(stream);
+    throw normalizeCancellation(err, options);
+  } finally {
+    composed.cleanup();
+  }
+}
+
+/**
+ * Download the kit for `identity` from its vault provider through the proxy,
+ * with the bearer the registry holds for this deposit.
+ */
+export async function fetchAndDownloadArtifacts(
+  identity: RecoveryKitIdentity,
+  target: ArtifactSaveTarget,
+  options?: FetchArtifactsOptions,
+): Promise<ArtifactDownloadOutcome> {
   // The caller (useArtifactDownload) primes the bearer before invoking
   // this service when the registry is cold, so peek() returns the active
   // provider only when its provider and depositor bindings match this request.
-  // The request then goes out with a valid Authorization header
-  // for this auth-gated RPC. `callRaw` does not reactively refresh when the
-  // server rejects the bearer, so a token that goes stale mid-download
-  // bubbles up as an error and the caller's auth-failure retry path handles
-  // re-priming.
+  // The HTTP transport never refreshes a bearer the server rejects, so a
+  // token that goes stale mid-download bubbles up as an error and the
+  // caller's auth-failure retry path handles re-priming.
   const tokenProvider = vpTokenRegistry.peek({
-    peginTxid: normalizedPeginTxid,
-    providerAddress,
-    expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(depositorPk),
+    peginTxid: identity.peginTxid,
+    providerAddress: identity.providerAddress,
+    expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(identity.depositorPk),
   });
-
-  let response: Response;
-  try {
-    response = featureFlags.isHttpArtifactDownloadsEnabled
-      ? await fetchHttpArtifactsResponse(
-          getVpArtifactsProxyUrl(providerAddress),
-          normalizedPeginTxid,
-          async () => (await tokenProvider?.getJsonRpcToken()) ?? null,
-          options?.signal,
-        )
-      : await new JsonRpcClient({
-          baseUrl: getVpProxyUrl(providerAddress),
-          timeout: RPC_TIMEOUT_MS,
-          // Artifact requests are idempotent reads — safe to retry on
-          // transient errors
-          retryableFor: () => true,
-          tokenProvider,
-        }).callRaw(
-          "vaultProvider_requestDepositorClaimerArtifacts",
-          {
-            pegin_txid: normalizedPeginTxid,
-            depositor_pk: stripHexPrefix(depositorPk),
-          },
-          options?.signal,
-        );
-  } catch (err) {
-    throw normalizeCancellation(err, options);
-  }
-
-  return downloadArtifactsFromResponse(response, target, options, {
-    peginTxid: normalizedPeginTxid,
-    depositorPk,
-    signedGraphFingerprint,
-  });
+  return downloadRecoveryKit(
+    {
+      artifactsBaseUrl: getVpArtifactsProxyUrl(identity.providerAddress),
+      getToken: async () => (await tokenProvider?.getJsonRpcToken()) ?? null,
+      // Resolved per request rather than captured at module load.
+      fetchImpl: (input, init) => globalThis.fetch(input, init),
+    },
+    identity,
+    target,
+    options,
+  );
 }
 
 /**
- * Read the body once, feeding every chunk through the validator, then the
- * chunk's result span through the digest and the save stream. Validating
- * before writing means a rejected chunk never reaches disk.
- *
- * Exported so the dev-only artifact mock can drive the real pipeline from a
- * synthetic response: a simulation that skipped validation and the file sink
- * would not exercise anything worth exercising.
+ * The pipeline's own invariants, unreachable while the pre-flight sizing and
+ * the per-session length check hold; a failure discards the sink.
  */
-export async function downloadArtifactsFromResponse(
-  response: Response,
-  target: ArtifactSaveTarget,
-  options: FetchArtifactsOptions | undefined,
-  binding: VaultBindingContext,
-): Promise<ArtifactDownloadOutcome> {
-  if (!response.body) {
-    // Every real transport gives a readable stream; without one we cannot
-    // validate incrementally, and silently buffering instead would reinstate
-    // the unbounded-memory path this service exists to remove.
-    throw new VpResponseValidationError(
-      "Artifact response body is not readable as a stream",
-    );
+function assertAssembled(condition: boolean): void {
+  if (!condition) {
+    throw new Error(COPY.deposit.recoveryArtifacts.kitLengthMismatch);
   }
-
-  const contentLengthHeader = response.headers.get("content-length");
-  const headerTotal = contentLengthHeader ? Number(contentLengthHeader) : NaN;
-  const totalBytes =
-    Number.isFinite(headerTotal) && headerTotal > 0
-      ? headerTotal
-      : ARTIFACT_TOTAL_FALLBACK_BYTES;
-
-  const stream = await target.open();
-  const validator = new ArtifactStreamValidator();
-  const hasher = sha256.create();
-  const reader = response.body.getReader();
-  /** Bytes read off the wire; bounds the transfer and drives progress. */
-  let received = 0;
-  /** Bytes actually written — the envelope-stripped payload. */
-  let written = 0;
-
-  options?.onProgress?.(0, totalBytes);
-
-  try {
-    while (true) {
-      if (options?.isCancelled?.()) {
-        await reader.cancel().catch(() => undefined);
-        throw new ArtifactDownloadCancelledError();
-      }
-
-      let chunk: ReadableStreamReadResult<Uint8Array<ArrayBuffer>>;
-      try {
-        chunk = await reader.read();
-      } catch (err) {
-        throw normalizeCancellation(err, options);
-      }
-      if (chunk.done) break;
-      if (!chunk.value) continue;
-
-      received += chunk.value.byteLength;
-      if (received > target.maxBytes) {
-        throw new ArtifactDownloadTooLargeError(received, target.maxBytes);
-      }
-
-      // Only the bytes inside the envelope's `result` are saved; the
-      // JSON-RPC framing is dropped. The validator still sees every byte.
-      const span = validator.update(chunk.value);
-      if (span) {
-        const payload = chunk.value.subarray(span.start, span.end);
-        hasher.update(payload);
-        await stream.write(payload);
-        written += payload.byteLength;
-      }
-
-      options?.onProgress?.(received, totalBytes);
-    }
-
-    // Rejects a truncated document — the proxy signals a mid-stream backend
-    // failure by destroying the connection, not by sending an error envelope.
-    const validated = validator.finish();
-
-    // Schema-valid is not the same as ours: nothing in the envelope names the
-    // deposit, so the tx graph is what proves the bundle belongs to it.
-    assertBundleBoundToVault(
-      validated.txGraph,
-      Object.keys(validated.result.babe_sessions),
-      binding,
-    );
-    // Bound to the deposit is not the same as the graph that was signed: the
-    // checks above use public values only. This one uses the depositor's own
-    // presign record, and runs before commit so a swapped bundle never lands.
-    assertGraphMatchesPresign(validated.txGraph, binding);
-  } catch (err) {
-    // Stop the source too: the HTTP path would otherwise keep downloading
-    // the next session and hold a VP download slot.
-    await reader.cancel().catch(() => undefined);
-    await discardQuietly(stream);
-    throw err;
-  } finally {
-    reader.releaseLock();
-  }
-
-  try {
-    await stream.commit();
-  } catch (err) {
-    // A rejected close leaves the writable un-aborted, so its temporary file
-    // can linger until the browser reclaims it. Abandon the transaction
-    // explicitly rather than relying on that.
-    await discardQuietly(stream);
-    throw err;
-  }
-
-  return {
-    filename: target.filename,
-    byteLength: written,
-    sha256: bytesToHex(hasher.digest()),
-    method: target.method,
-  };
 }
 
 /**
- * A cancellation can surface as our own sentinel, the RPC client's "Request
- * aborted", or a DOM AbortError. Normalize all of them so the caller's catch
+ * A cancellation can surface as our own sentinel or as the DOM AbortError
+ * `fetch` throws for an aborted signal. Normalize both so the caller's catch
  * swallows the cancel instead of rendering it as a download failure.
  */
 function normalizeCancellation(

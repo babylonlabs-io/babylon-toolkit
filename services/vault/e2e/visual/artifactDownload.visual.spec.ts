@@ -1,6 +1,5 @@
 import { expect, test } from "../fixtures";
 import {
-  ARTIFACT_LEGACY_QUOTA_MESSAGE,
   ARTIFACT_QUOTA_MESSAGE,
   artifactProgress,
   CANCEL_DOWNLOAD_TITLE,
@@ -48,9 +47,9 @@ for (const viewport of VISUAL_VIEWPORTS) {
         name: "Download Artifacts",
         exact: true,
       });
-      const quotaError = page
-        .getByText(ARTIFACT_QUOTA_MESSAGE, { exact: true })
-        .or(page.getByText(ARTIFACT_LEGACY_QUOTA_MESSAGE, { exact: true }));
+      const quotaError = page.getByText(ARTIFACT_QUOTA_MESSAGE, {
+        exact: true,
+      });
       await expect(download).toBeEnabled();
       await quotaError.scrollIntoViewIfNeeded();
       // Allow subpixel rounding in wrapped text.

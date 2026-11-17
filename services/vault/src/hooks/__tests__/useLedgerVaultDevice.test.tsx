@@ -1,4 +1,4 @@
-import type { DeviceAppState } from "@babylonlabs-io/wallet-connector";
+import type { DeviceAppState } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,7 +13,7 @@ const device = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useChainConnector: () => ({
     connectedWallet: { id: "ledger_btc_vault", provider: device.provider },
   }),

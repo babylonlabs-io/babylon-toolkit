@@ -11,7 +11,7 @@ import {
   filterInscriptionUtxos,
   inscriptionOutpointKey,
   type UTXO,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 

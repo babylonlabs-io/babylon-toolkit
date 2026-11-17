@@ -255,9 +255,10 @@ export interface VaultRegistryReader {
   /** {@link getVaultKeyEpochs} for many vaults in one multicall. */
   getVaultKeyEpochsBatch(vaultIds: readonly Hex[]): Promise<KeyEpochs[]>;
   /**
-   * Read a vault provider's *current* RFC-006 operation BTC key — the key its
-   * server uses for the JSON-RPC token subject. Falls back to the registration
-   * key when the provider has never rotated.
+   * Read a vault provider's *current* RFC-006 operation BTC key, for payout and
+   * refund participant checks. It is not a token-subject pin: those resolve
+   * through {@link getVaultProviderOperationBtcKeyAtEpoch}. Falls back to the
+   * registration key when the provider has never rotated.
    */
   getCurrentVaultProviderOperationBtcKey(
     vpAddress: Address,

@@ -21,7 +21,6 @@ import type {
   BatchGetPegoutStatusResponse,
   GetPeginStatusResponse,
   GetPegoutStatusResponse,
-  RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsResponse,
 } from "./types";
 import { DaemonStatus } from "./types";
@@ -376,67 +375,6 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
     if (!isNonEmptyHex(hash) || hash.length !== LABEL_HASH_HEX_LEN) {
       throw new VpResponseValidationError(
         `VP response validation failed: "${field}.output_label_hashes[${i}]" must be a ${LABEL_HASH_HEX_LEN}-char hex string, got ${preview(hash)}`,
-      );
-    }
-  }
-}
-
-/**
- * Validate a requestDepositorClaimerArtifacts response.
- */
-export function validateRequestDepositorClaimerArtifactsResponse(
-  response: unknown,
-): asserts response is RequestDepositorClaimerArtifactsResponse {
-  if (response === null || typeof response !== "object") {
-    throw new VpResponseValidationError(
-      `VP response validation failed: requestDepositorClaimerArtifacts response is not an object`,
-    );
-  }
-
-  const r = response as Record<string, unknown>;
-
-  if (!isNonEmptyString(r.tx_graph_json)) {
-    throw new VpResponseValidationError(
-      `VP response validation failed: "tx_graph_json" must be a non-empty string, got ${preview(r.tx_graph_json)}`,
-    );
-  }
-
-  if (!isNonEmptyHex(r.verifying_key_hex)) {
-    throw new VpResponseValidationError(
-      `VP response validation failed: "verifying_key_hex" must be a non-empty hex string, got ${preview(r.verifying_key_hex)}`,
-    );
-  }
-
-  if (
-    r.babe_sessions === null ||
-    typeof r.babe_sessions !== "object" ||
-    Array.isArray(r.babe_sessions)
-  ) {
-    throw new VpResponseValidationError(
-      `VP response validation failed: "babe_sessions" must be an object`,
-    );
-  }
-
-  const sessionEntries = Object.entries(
-    r.babe_sessions as Record<string, unknown>,
-  );
-  if (sessionEntries.length === 0) {
-    throw new VpResponseValidationError(
-      `VP response validation failed: "babe_sessions" must contain at least one challenger entry`,
-    );
-  }
-
-  for (const [key, session] of sessionEntries) {
-    assertBtcPubkey(key, `babe_sessions["${key}"]`);
-    if (session === null || typeof session !== "object") {
-      throw new VpResponseValidationError(
-        `VP response validation failed: "babe_sessions.${key}" must be an object`,
-      );
-    }
-    const s = session as Record<string, unknown>;
-    if (!isNonEmptyHex(s.decryptor_artifacts_hex)) {
-      throw new VpResponseValidationError(
-        `VP response validation failed: "babe_sessions.${key}.decryptor_artifacts_hex" must be a non-empty hex string, got ${preview(s.decryptor_artifacts_hex)}`,
       );
     }
   }

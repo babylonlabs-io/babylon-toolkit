@@ -1,6 +1,5 @@
 import { isHex, type Hex } from "viem";
 
-import featureFlags from "@/config/featureFlags";
 import { ContractStatus } from "@/models/peginStateMachine";
 import {
   getSignedGraphFingerprint,
@@ -87,14 +86,12 @@ export function getArtifactDownloadParams(
  * (btc-vault #3042, `retains_depositor_artifacts`). An expiry nobody has reported
  * counts: the provider moves to Expired only on `PeginExpired`, and serves the
  * package in the state before it too (btc-vault @ 56ca500a:
- * `crates/vaultd/src/depositor_artifacts/http.rs:84-88`). That provider serves
- * artifacts over HTTP only, so the download is offered only on that route.
+ * `crates/vaultd/src/depositor_artifacts/http.rs:84-88`).
  */
 export function getExpiredArtifactDownloadParams(
   activity: VaultActivity,
   ethAddress: string | undefined,
 ): ArtifactDownloadParams | null {
-  if (!featureFlags.isHttpArtifactDownloadsEnabled) return null;
   if (activity.expirationReason !== "activation_timeout") return null;
   if (
     activity.contractStatus !== ContractStatus.EXPIRED &&

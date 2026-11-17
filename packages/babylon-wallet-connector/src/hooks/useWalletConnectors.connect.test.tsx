@@ -218,6 +218,16 @@ describe("connect-time errors the user must see in the dialog", () => {
     expect(harness.displayChains).not.toHaveBeenCalled();
   });
 
+  it("shows the wrong-network message instead of returning to chain selection", async () => {
+    const message = "OneKey Wallet is still on Bitcoin Mainnet after switching to BTC signet.";
+    await fireError(new WalletError({ code: ERROR_CODES.UNSUPPORTED_NETWORK, message, wallet: "OneKey" }));
+
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Wrong Network", description: message }),
+    );
+    expect(harness.displayChains).not.toHaveBeenCalled();
+  });
+
   it("keeps the update title for an outdated wallet", async () => {
     await fireError(
       new WalletError({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, message: "Too old", wallet: "Unisat" }),

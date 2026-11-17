@@ -51,12 +51,13 @@ const VP_COMMISSION_BPS_EXCLUSIVE_MAX = 10_000;
 /**
  * Lowest VP commission (bps) the registry accepts: vault-contracts-aave-v4
  * `MIN_VP_COMMISSION_BPS` (`src/protocol/lib/types/Constants.sol:15` @
- * a20b5e0d), enforced on registration and on every commission update
- * (`VPKeyRegistryLogic.sol:90-91,449-450`). It is above the btc-vault
- * tx-graph builder's nonzero floor. Local literal for the same reason as the
- * bound above.
+ * d240ec03, lowered from 10 by #663), enforced on registration and on every
+ * commission update (`VPKeyRegistryLogic.sol:90-91,449-450`). The provider's
+ * tx-graph builder separately refuses a commission output below Bitcoin's dust
+ * limit, so this floor only rules out a zero commission. Local literal for the
+ * same reason as the bound above.
  */
-const MIN_VP_COMMISSION_BPS = 10;
+const MIN_VP_COMMISSION_BPS = 1;
 
 /**
  * Trust-boundary check on a VP commission read from chain — mirrors the

@@ -1,11 +1,22 @@
+import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   DaemonStatus,
   VP_TERMINAL_FAILURE_STATUSES,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { describe, expect, it } from "vitest";
+import { useQuery } from "@tanstack/react-query";
+import { renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
-import type { DepositToPoll } from "@/types/peginPolling";
+import {
+  ContractStatus,
+  PEGIN_DISPLAY_LABELS,
+} from "@/models/peginStateMachine";
+import type { VaultActivity } from "@/types/activity";
+import type {
+  DepositToPoll,
+  ProviderVerificationProgress,
+} from "@/types/peginPolling";
 import {
   TerminalPeginPollingError,
   UNRECOGNIZED_DAEMON_STATUS,
@@ -15,9 +26,232 @@ import {
   applyPerDepositError,
   applyPerDepositResult,
   applyPerDepositStatus,
+  usePeginPollingQuery,
 } from "../usePeginPollingQuery";
 
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQuery: vi.fn(() => ({ isLoading: false, refetch: vi.fn() })),
+}));
+
+describe("usePeginPollingQuery", () => {
+  it("keeps polling signed split lanes until all pending deposits have terminal errors", () => {
+    const activity: VaultActivity = {
+      id: "0xvault-1",
+      collateral: { amount: "1", symbol: "BTC" },
+      providers: [{ id: "0xprovider" }],
+      peginTxHash: "0xtxid",
+      applicationEntryPoint: "0xapp",
+      contractStatus: ContractStatus.PENDING,
+      displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+      unsignedPrePeginTx: "0x00",
+      depositorWotsPkHash: "0x00",
+    };
+    renderHook(
+      ({ activities }) =>
+        usePeginPollingQuery({
+          activities,
+          pendingPegins: [],
+          btcWalletAbsent: true,
+        }),
+      {
+        initialProps: {
+          activities: [activity, { ...activity, id: "0xvault-2" as const }],
+        },
+      },
+    );
+    const interval = vi.mocked(useQuery).mock.calls.at(-1)?.[0]
+      .refetchInterval as (query: {
+      state: {
+        data: {
+          pendingDepositorSignatures: Set<string>;
+          errors: Map<string, Error>;
+        };
+      };
+    }) => number | false;
+    const data = {
+      pendingDepositorSignatures: new Set(["0xvault-1", "0xvault-2"]),
+      errors: new Map<string, Error>(),
+    };
+    expect(interval({ state: { data } })).toBe(30_000);
+    data.pendingDepositorSignatures.delete("0xvault-1");
+    expect(interval({ state: { data } })).toBe(30_000);
+    data.errors.set(
+      "0xvault-1",
+      new TerminalPeginPollingError(DaemonStatus.EXPIRED, "Expired"),
+    );
+    expect(interval({ state: { data } })).toBe(30_000);
+    data.errors.set(
+      "0xvault-2",
+      new TerminalPeginPollingError(DaemonStatus.EXPIRED, "Expired"),
+    );
+    expect(interval({ state: { data } })).toBe(false);
+  });
+});
+
 describe("applyPerDepositStatus", () => {
+  it.each([
+    undefined,
+    null,
+    false,
+    "invalid",
+    [],
+    {},
+    { total_challengers: 3 },
+    { completed_challengers: 1 },
+    { completed_challengers: "1", total_challengers: 3 },
+    { completed_challengers: 1, total_challengers: "3" },
+    { completed_challengers: true, total_challengers: 3 },
+    { completed_challengers: 1, total_challengers: true },
+    {
+      completed_challengers: { toString: null, valueOf: null },
+      total_challengers: 3,
+    },
+    {
+      completed_challengers: 1,
+      total_challengers: { toString: null, valueOf: null },
+    },
+    { completed_challengers: -1, total_challengers: 3 },
+    { completed_challengers: 0, total_challengers: -1 },
+    { completed_challengers: 0.5, total_challengers: 3 },
+    { completed_challengers: 1, total_challengers: 3.5 },
+    { completed_challengers: NaN, total_challengers: 3 },
+    { completed_challengers: 1, total_challengers: NaN },
+    { completed_challengers: Infinity, total_challengers: 3 },
+    { completed_challengers: 1, total_challengers: Infinity },
+    {
+      completed_challengers: Number.MAX_SAFE_INTEGER + 1,
+      total_challengers: Number.MAX_SAFE_INTEGER + 1,
+    },
+    {
+      completed_challengers: 1,
+      total_challengers: Number.MAX_SAFE_INTEGER + 1,
+    },
+    { completed_challengers: 4, total_challengers: 3 },
+  ])(
+    "discards invalid ACK display data without changing readiness: %j",
+    (ackCollection) => {
+      const sets = {
+        errors: new Map<string, Error>(),
+        needsWotsKey: new Set<string>(),
+        pendingIngestion: new Set<string>(),
+        pendingDepositorSignatures: new Set<string>(),
+        verificationProgress: new Map<string, ProviderVerificationProgress>(),
+      };
+      applyPerDepositStatus(
+        {
+          pegin_txid: "ab".repeat(32),
+          vault_id: `0x${"cd".repeat(32)}`,
+          status: DaemonStatus.PENDING_ACKS,
+          progress: { ack_collection: ackCollection },
+          health_info: "stuck",
+        } as unknown as GetPeginStatusResponse,
+        "vault-1",
+        sets,
+      );
+      expect(sets.verificationProgress.get("vault-1")).toEqual({
+        ackCollection: undefined,
+        healthInfo: "stuck",
+      });
+      expect(sets.errors.size).toBe(0);
+      expect(sets.pendingDepositorSignatures.size).toBe(0);
+    },
+  );
+
+  it.each([
+    [0, 3],
+    [1, 3],
+    [3, 3],
+    [0, 0],
+  ])("keeps valid ACK counts %i of %i for display", (completed, total) => {
+    const sets = {
+      errors: new Map<string, Error>(),
+      needsWotsKey: new Set<string>(),
+      pendingIngestion: new Set<string>(),
+      pendingDepositorSignatures: new Set<string>(),
+      verificationProgress: new Map<string, ProviderVerificationProgress>(),
+    };
+    const ackCollection = {
+      completed_challengers: completed,
+      total_challengers: total,
+      completed_challenger_pubkeys: [],
+      pending_challenger_pubkeys: [],
+    };
+    applyPerDepositStatus(
+      {
+        pegin_txid: "ab".repeat(32),
+        vault_id: `0x${"cd".repeat(32)}`,
+        status: DaemonStatus.PENDING_ACKS,
+        progress: { ack_collection: ackCollection },
+        health_info: "normal",
+      },
+      "vault-1",
+      sets,
+    );
+    expect(sets.verificationProgress.get("vault-1")).toEqual({
+      ackCollection,
+      healthInfo: "normal",
+    });
+    expect(sets.pendingDepositorSignatures.size).toBe(0);
+  });
+
+  it("keeps ACK progress per deposit without advancing a full or stuck collection", () => {
+    const verificationProgress = new Map<
+      string,
+      ProviderVerificationProgress
+    >();
+    const sets = {
+      errors: new Map<string, Error>(),
+      needsWotsKey: new Set<string>(),
+      pendingIngestion: new Set<string>(),
+      pendingDepositorSignatures: new Set<string>(),
+      verificationProgress,
+    };
+    const response = {
+      pegin_txid: "ab".repeat(32),
+      vault_id: `0x${"cd".repeat(32)}`,
+      status: DaemonStatus.PENDING_ACKS,
+      progress: {
+        ack_collection: {
+          completed_challengers: 2,
+          total_challengers: 2,
+          completed_challenger_pubkeys: ["challenger-1", "challenger-2"],
+          pending_challenger_pubkeys: [],
+        },
+      },
+      health_info: "stuck",
+    };
+    applyPerDepositStatus(response, "vault-1", sets);
+    applyPerDepositStatus(
+      { ...response, progress: {}, health_info: "normal" },
+      "vault-2",
+      sets,
+    );
+    expect(verificationProgress.get("vault-1")).toEqual({
+      ackCollection: response.progress.ack_collection,
+      healthInfo: "stuck",
+    });
+    expect(verificationProgress.get("vault-2")).toEqual({
+      ackCollection: undefined,
+      healthInfo: "normal",
+    });
+    expect(sets.pendingDepositorSignatures.size).toBe(0);
+    expect(sets.errors.size).toBe(0);
+    applyPerDepositStatus(
+      { ...response, progress: {}, health_info: "normal" },
+      "vault-1",
+      sets,
+    );
+    expect(verificationProgress.get("vault-1")?.ackCollection).toBeUndefined();
+    applyPerDepositStatus(
+      { ...response, status: DaemonStatus.PENDING_DEPOSITOR_SIGNATURES },
+      "vault-1",
+      sets,
+    );
+    expect(verificationProgress.has("vault-1")).toBe(false);
+    expect(sets.pendingDepositorSignatures.has("vault-1")).toBe(true);
+  });
+
   it("treats IngestionRejected as terminal and clears WOTS readiness", () => {
     const depositId = "vault-1";
     const errors = new Map<string, Error>();
@@ -39,6 +273,7 @@ describe("applyPerDepositStatus", () => {
         needsWotsKey,
         pendingIngestion,
         pendingDepositorSignatures,
+        verificationProgress: new Map(),
       },
     );
 
@@ -71,6 +306,7 @@ describe("applyPerDepositStatus", () => {
           needsWotsKey: new Set<string>(),
           pendingIngestion: new Set<string>(),
           pendingDepositorSignatures: new Set<string>(),
+          verificationProgress: new Map<string, ProviderVerificationProgress>(),
         },
       );
 
@@ -100,6 +336,7 @@ describe("applyPerDepositStatus", () => {
         needsWotsKey,
         pendingIngestion: new Set<string>(),
         pendingDepositorSignatures: new Set<string>(),
+        verificationProgress: new Map<string, ProviderVerificationProgress>(),
       },
     );
 
@@ -182,6 +419,7 @@ describe("applyPerDepositResult", () => {
       needsWotsKey: new Set<string>(),
       pendingIngestion: new Set<string>(),
       pendingDepositorSignatures: new Set<string>(),
+      verificationProgress: new Map<string, ProviderVerificationProgress>(),
     };
   }
 

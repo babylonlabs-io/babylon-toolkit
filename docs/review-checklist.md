@@ -79,7 +79,10 @@ reinvention.
   evidence. New observable behavior makes it a feature or a fix.
 - **Feature**: every new option, flag and extension point has a current use in
   this change. Speculative flexibility is a finding.
-- **Dependency**: exact pin, matches `pnpm-lock.yaml`, audited.
+- **Dependency**: exact pin, matches `pnpm-lock.yaml`, audited. A bump of a
+  package published without npm provenance (`npm view <pkg>@<version>
+  dist.attestations` is empty) states in the PR that the tarball was diffed
+  against the upstream git tag; without that line the bump is a finding.
 - **Mixed**: the prefix names no single kind, so say which of the four above
   each part of the change is, and apply that one to it. A part that is none
   of the four (documentation, agent prompts, CI) gets no change-type check;

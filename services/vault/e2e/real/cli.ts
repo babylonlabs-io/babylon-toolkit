@@ -406,10 +406,9 @@ async function resolveConfig(
   // Valid values derived from config so the flag validator can't drift from the interactive menu.
   const TARGETS: readonly Target[] = ["website", "localhost"];
   const NETWORKS_LIST = Object.keys(NETWORKS) as NetworkName[];
-  // Only enabled wallets are selectable (disabled ones — e.g. OneKey — are hidden + rejected).
+  // Only enabled wallets are selectable (disabled ones are hidden + rejected).
   const enabledBtcWallets = BTC_WALLETS.filter((w) => w.enabled);
   const enabledEthWallets = ETH_WALLETS.filter((w) => w.enabled);
-  const BTC_IDS = enabledBtcWallets.map((w) => w.id);
   const ETH_IDS = enabledEthWallets.map((w) => w.id);
   const ACTION_IDS = ACTIONS.map((a) => a.id);
 
@@ -453,14 +452,25 @@ async function resolveConfig(
       "network",
     );
 
+    // A wallet the network's app hides never renders a connect option, so the run could only time out.
+    const { hiddenBtcWallets } = NETWORKS[network];
+    const hiddenBtcFlag = hiddenBtcWallets.find((id) => id === flags.btc);
+    if (hiddenBtcFlag) {
+      throw new Error(
+        `--btc=${hiddenBtcFlag} cannot run on --network=${network}: the ${network} app hides that wallet (NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS), so it has no connect option.`,
+      );
+    }
+    const networkBtcWallets = enabledBtcWallets.filter(
+      (w) => !hiddenBtcWallets.includes(w.id),
+    );
     const btcWallet = await pick<BtcWalletId>(
       flags.btc,
-      BTC_IDS,
+      networkBtcWallets.map((w) => w.id),
       () =>
         select<BtcWalletId>(
           rl,
           "3. BTC wallet",
-          enabledBtcWallets.map((w) => ({ value: w.id, label: w.label })),
+          networkBtcWallets.map((w) => ({ value: w.id, label: w.label })),
         ),
       "btc",
     );

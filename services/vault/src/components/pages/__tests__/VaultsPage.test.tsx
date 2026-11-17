@@ -73,7 +73,7 @@ const walletState = vi.hoisted(() => ({
   confirmed: true,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWalletConnect: () => ({ connected: walletState.confirmed }),
   useBTCWallet: () => ({ connected: walletState.btcConnected }),
   useETHWallet: () => ({
@@ -86,7 +86,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 // `isConnected` would not catch a change to the gate.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
-  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector/btc-eth"))
+    .useETHWallet,
 }));
 
 // Page-level data is exercised in the hook's own tests; the page test only

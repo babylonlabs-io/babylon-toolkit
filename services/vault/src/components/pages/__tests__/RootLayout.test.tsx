@@ -87,7 +87,7 @@ vi.mock("@/components/Wallet", () => ({
   Connect: () => <div data-testid="connect-stub" />,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),

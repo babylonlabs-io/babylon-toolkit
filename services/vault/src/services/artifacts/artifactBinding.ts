@@ -1,8 +1,8 @@
 /**
  * Binds a downloaded artifact bundle to the deposit it was requested for.
  *
- * The response envelope echoes neither the pegin txid nor the depositor key,
- * so on its own "schema-valid" only means "shaped like a bundle" — it could
+ * The manifest carries neither the pegin txid nor the depositor key, so on
+ * its own "schema-valid" only means "shaped like a bundle" — it could
  * belong to a different vault entirely. The transaction graph inside
  * `tx_graph_json` does carry that identity, and every expected value is
  * already in hand as a parameter of the request we just made, so no on-chain
@@ -49,10 +49,9 @@ export interface VaultBindingContext {
   depositorPk: string;
   /**
    * Fingerprint of the transaction set this device signed at presign, from
-   * local storage. Undefined when this device holds none; the download then
-   * fails closed.
+   * local storage. The hook refuses to start a download without one.
    */
-  signedGraphFingerprint: string | undefined;
+  signedGraphFingerprint: string;
 }
 
 /**
@@ -184,25 +183,6 @@ export function assertBundleBoundToVault(
 }
 
 /**
- * Raised when the depositor holds no presign fingerprint for this vault, so
- * check (a) cannot be evaluated either way.
- *
- * Distinct from a mismatch on purpose. A mismatch is evidence of a swapped
- * graph; this is absence of evidence — the deposit was presigned before the
- * fingerprint was recorded, on another device, or with since-cleared storage.
- * The download still fails closed: an unchecked bundle is never saved.
- */
-export class PresignFingerprintUnavailableError extends Error {
-  constructor(readonly peginTxid: string) {
-    super(
-      `No presign fingerprint recorded for pegin ${peginTxid}: this deposit's ` +
-        `recovery bundle cannot be checked against what was signed`,
-    );
-    this.name = "PresignFingerprintUnavailableError";
-  }
-}
-
-/**
  * Raised when the returned graph does not reproduce the presign fingerprint,
  * including a graph too malformed to fingerprint at all. Evidence that the VP
  * served a graph other than the one the depositor signed.
@@ -226,18 +206,12 @@ export class PresignGraphMismatchError extends Error {
  *
  * @param txGraph  Parsed `tx_graph_json` from the response.
  * @param expected The deposit, with the fingerprint persisted at presign.
- * @throws PresignFingerprintUnavailableError when nothing was persisted.
  * @throws PresignGraphMismatchError when the graph does not reproduce it.
  */
 export function assertGraphMatchesPresign(
   txGraph: Record<string, unknown>,
   expected: VaultBindingContext,
 ): void {
-  if (expected.signedGraphFingerprint === undefined) {
-    throw new PresignFingerprintUnavailableError(
-      normalizeHex(expected.peginTxid),
-    );
-  }
   // The SDK check also ties the declared roster in `challenger_pubkeys`, which
   // `assertBundleBoundToVault` reads, to the fingerprinted challengers.
   try {

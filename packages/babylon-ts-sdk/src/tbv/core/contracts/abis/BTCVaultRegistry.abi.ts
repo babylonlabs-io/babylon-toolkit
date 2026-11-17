@@ -669,7 +669,8 @@ export const BTCVaultRegistryABI = [
   { type: "error", name: "DuplicateHashlock", inputs: [] },
   { type: "error", name: "InvalidSecret", inputs: [] },
   { type: "error", name: "ActivationDeadlineExpired", inputs: [] },
-  { type: "error", name: "InsufficientGasForActivation", inputs: [] },
+  // A cap overflow at activation reverts and leaves the vault Verified.
+  { type: "error", name: "ActivationCapExceeded", inputs: [] },
   // Lower bound on activation: reverts while
   // `block.number < verifiedAt + peginActivationDelay`. Clears with time, so
   // unlike ActivationDeadlineExpired it is retryable, not terminal.

@@ -1,6 +1,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   createAuthenticatedVpClient,
+  derivePeginVaultId,
   JsonRpcError,
   VpResponseValidationError,
   vpTokenRegistry,
@@ -20,7 +21,7 @@ beforeEach(() => {
   btcActionWallet.open.mockClear();
 });
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
   useWalletConnect: () => ({
@@ -84,7 +85,7 @@ vi.mock("@/services/artifacts", async () => {
 });
 
 vi.mock("@/utils/artifactDownloadStorage", () => ({
-  ARTIFACT_RECEIPT_VERSION: 1,
+  ARTIFACT_RECEIPT_VERSION: 2,
   saveArtifactDownloadReceipt: vi.fn(),
   saveGraphMismatch: vi.fn(),
   hasArtifactsDownloaded: vi.fn(() => false),
@@ -117,6 +118,7 @@ import {
   type ArtifactDownloadOutcome,
   ArtifactDownloadTooLargeError,
   ArtifactFileAccessError,
+  ArtifactIdentityMismatchError,
   type ArtifactSaveTarget,
   ArtifactsNotReadyError,
   fetchAndDownloadArtifacts,
@@ -141,11 +143,13 @@ const saveReceiptMock = vi.mocked(saveArtifactDownloadReceipt);
 const hasDownloadedMock = vi.mocked(hasArtifactsDownloaded);
 
 /** A completed streaming save, as the service reports one. */
+const SESSION_PK = "ab".repeat(32);
 const OUTCOME: ArtifactDownloadOutcome = {
-  filename: "babylon-vault-artifacts-aaaaaaaa.json",
+  filename: "babylon-vault-aaaaaaaa.tar",
   byteLength: 1_048_576,
   sha256: "9".repeat(64),
   method: "file-system-access",
+  sessions: { [SESSION_PK]: { sha256: "b".repeat(64), byteLength: 32_768 } },
 };
 
 const FALLBACK_OUTCOME: ArtifactDownloadOutcome = {
@@ -165,7 +169,10 @@ const PEGIN_TXID =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DEPOSITOR_PK =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-const VAULT_ID = "0xdeadbeef" as const;
+const VAULT_ID =
+  `0x${derivePeginVaultId(PEGIN_TXID, DEPOSITOR_ETH_ADDRESS)}` as const;
+/** What telemetry scrubs VAULT_ID to: its first and last four hex characters. */
+const SCRUBBED_VAULT_ID = "0x36...95b4";
 const UNSIGNED_PRE_PEGIN_TX_HEX = "0xdeadbeef";
 
 const fakeWallet = {} as BitcoinWallet;
@@ -364,13 +371,14 @@ describe("useArtifactDownload — prime then fetch", () => {
 
     expect(saveReceiptMock).toHaveBeenCalledTimes(1);
     expect(saveReceiptMock).toHaveBeenCalledWith(VAULT_ID, {
-      version: 1,
+      version: 2,
       peginTxid: PEGIN_TXID,
       filename: OUTCOME.filename,
       byteLength: OUTCOME.byteLength,
       sha256: OUTCOME.sha256,
       savedAt: expect.any(Number),
       method: "file-system-access",
+      sessions: OUTCOME.sessions,
     });
   });
 
@@ -428,7 +436,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
-  it("hands the download this vault's stored presign fingerprint", async () => {
+  it("passes the identity block to the service", async () => {
     seedHotCache();
     fetchMock.mockResolvedValueOnce(OUTCOME);
 
@@ -445,10 +453,132 @@ describe("useArtifactDownload — prime then fetch", () => {
       VAULT_ID,
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      PROVIDER_ADDRESS,
-      PEGIN_TXID,
-      DEPOSITOR_PK,
-      SIGNED_GRAPH_FINGERPRINT,
+      {
+        vaultId: VAULT_ID,
+        peginTxid: PEGIN_TXID,
+        depositorPk: DEPOSITOR_PK,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        providerAddress: PROVIDER_ADDRESS,
+        signedGraphFingerprint: SIGNED_GRAPH_FINGERPRINT,
+      },
+      SAVE_TARGET,
+      expect.anything(),
+    );
+  });
+
+  it("treats an identity mismatch as terminal and reports it", async () => {
+    vi.useFakeTimers();
+    try {
+      seedHotCache();
+      mockLoggerError.mockReset();
+      fetchMock.mockRejectedValueOnce(new ArtifactIdentityMismatchError("x"));
+
+      const { result } = renderHook(() =>
+        useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+      );
+
+      await act(async () => {
+        await result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(result.current.error).toBe("x");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(saveReceiptMock).not.toHaveBeenCalled();
+      expect(mockLoggerError).toHaveBeenCalledTimes(1);
+      expect(mockLoggerError.mock.calls[0]![0]).toBeInstanceOf(
+        ArtifactIdentityMismatchError,
+      );
+      expect(mockLoggerError.mock.calls[0]![1].tags.site).toBe(
+        "vault_id_mismatch",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fails before the save dialog, the wallet prompt and the fetch when the vault id does not derive from the deposit", async () => {
+    mockLoggerError.mockReset();
+    const { result } = renderHook(() =>
+      useArtifactDownload({
+        vaultId: `0x${"00".repeat(32)}` as const,
+        primeContext,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.vaultIdMismatch,
+      ),
+    );
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockLoggerError.mock.calls[0]![0]).toBeInstanceOf(
+      ArtifactIdentityMismatchError,
+    );
+    expect(mockLoggerError.mock.calls[0]![1].tags.site).toBe(
+      "vault_id_mismatch",
+    );
+  });
+
+  it("shows the vault id error, not a silent rejection, when the pegin txid is malformed", async () => {
+    mockLoggerError.mockReset();
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(
+        PROVIDER_ADDRESS,
+        "not-a-txid",
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.vaultIdMismatch,
+      ),
+    );
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockLoggerError.mock.calls[0]![1].tags.site).toBe(
+      "vault_id_derivation",
+    );
+  });
+
+  it("hands the token binding and the service the x-only form of a 0x-prefixed compressed key", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        `0x02${DEPOSITOR_PK}`,
+      );
+    });
+
+    // The hot cache is keyed by the x-only audience, so a hit proves the
+    // binding was normalized too.
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ depositorPk: DEPOSITOR_PK }),
       SAVE_TARGET,
       expect.anything(),
     );
@@ -623,12 +753,41 @@ describe("useArtifactDownload — prime then fetch", () => {
       {
         peginTxid: PEGIN_TXID,
         depositorPk: DEPOSITOR_PK,
-        signedGraphFingerprint: SIGNED_GRAPH_FINGERPRINT,
+        providerAddress: PROVIDER_ADDRESS,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
       },
       expect.anything(),
     );
     expect(openTargetMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("runs the demo without an ETH wallet or vault id", async () => {
+    featureFlagsMock.isGodModePanelEnabled = true;
+    ethWallet.address = undefined;
+    const overrideFn = vi.fn().mockResolvedValueOnce(undefined);
+    setArtifactDownloadOverride(overrideFn);
+
+    const { result } = renderHook(() => useArtifactDownload({}));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(overrideFn).toHaveBeenCalledWith(
+      SAVE_TARGET,
+      {
+        peginTxid: PEGIN_TXID,
+        depositorPk: DEPOSITOR_PK,
+        providerAddress: PROVIDER_ADDRESS,
+        depositorEthAddress: undefined,
+      },
+      expect.anything(),
+    );
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
@@ -809,10 +968,8 @@ describe("useArtifactDownload — prime then fetch", () => {
     vi.useFakeTimers();
     try {
       seedHotCache();
-      // Flow #1: VP still pre-signatures — enters the 10s retry sleep.
-      fetchMock.mockRejectedValueOnce(
-        new Error("Invalid state: PendingBabeSetup"),
-      );
+      // Flow #1: VP artifacts not ready — enters the 10s retry sleep.
+      fetchMock.mockRejectedValueOnce(new ArtifactsNotReadyError(false));
       // Flow #2 (started after cancelling #1): succeeds.
       fetchMock.mockResolvedValueOnce(OUTCOME);
 
@@ -1005,7 +1162,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     // caller aborts the signal. This exercises both the abort wiring and the
     // hook's `instanceof ArtifactDownloadCancelledError` swallow path.
     fetchMock.mockImplementationOnce(
-      (_provider, _txid, _pk, _fingerprint, _target, options) =>
+      (_identity, _target, options) =>
         new Promise<ArtifactDownloadOutcome>((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () =>
             reject(new ArtifactDownloadCancelledError()),
@@ -1045,14 +1202,12 @@ describe("useArtifactDownload — prime then fetch", () => {
   it("propagates received/total bytes from the in-flight progress callback", async () => {
     seedHotCache();
     let resolveFetch: () => void = () => {};
-    fetchMock.mockImplementationOnce(
-      (_provider, _txid, _pk, _fingerprint, _target, options) => {
-        options?.onProgress?.(500, 1000);
-        return new Promise<ArtifactDownloadOutcome>((resolve) => {
-          resolveFetch = () => resolve(OUTCOME);
-        });
-      },
-    );
+    fetchMock.mockImplementationOnce((_identity, _target, options) => {
+      options?.onProgress?.(500, 1000);
+      return new Promise<ArtifactDownloadOutcome>((resolve) => {
+        resolveFetch = () => resolve(OUTCOME);
+      });
+    });
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -1113,7 +1268,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
     const [err, ctx] = mockLoggerError.mock.calls[0];
     expect(err).toBeInstanceOf(Error);
     expect(ctx.tags.funnelStage).toBe("activation.artifacts");
-    expect(ctx.tags.vaultId).toBe("0xde...beef");
+    expect(ctx.tags.vaultId).toBe(SCRUBBED_VAULT_ID);
     expect(ctx.tags.site).toBe("download");
     expect(result.current.error).toContain("401");
   });
@@ -1199,7 +1354,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
     expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
     const [name, ctx] = mockLoggerEvent.mock.calls[0];
     expect(name).toBe("activation.artifacts.downloaded");
-    expect(ctx.tags.vaultId).toBe("0xde...beef");
+    expect(ctx.tags.vaultId).toBe(SCRUBBED_VAULT_ID);
 
     // Re-download with the gate already satisfied: no second milestone.
     hasDownloadedMock.mockReturnValue(true);
@@ -1213,7 +1368,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
     vi.useFakeTimers();
     try {
       seedHotCache();
-      fetchMock.mockRejectedValue(new Error("Invalid state PendingIngestion"));
+      fetchMock.mockRejectedValue(new ArtifactsNotReadyError(false));
 
       const { result } = renderHook(() =>
         useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -1239,7 +1394,7 @@ describe("useArtifactDownload — funnel telemetry", () => {
       const [name, ctx] = mockLoggerEvent.mock.calls[0];
       expect(name).toBe("activation.artifacts.stalled");
       expect(ctx.level).toBe("warning");
-      expect(ctx.tags.vaultId).toBe("0xde...beef");
+      expect(ctx.tags.vaultId).toBe(SCRUBBED_VAULT_ID);
 
       // More retries past the threshold do not re-emit.
       for (let i = 0; i < 5; i++) {
@@ -1262,19 +1417,11 @@ describe("useArtifactDownload — funnel telemetry", () => {
   });
 
   it.each([
-    {
-      invalidState: true,
-      stops: true,
-      waiting: COPY.deposit.recoveryArtifacts.waitingForProvider,
-    },
-    {
-      invalidState: false,
-      stops: false,
-      waiting: COPY.deposit.recoveryArtifacts.waitingForSignatures,
-    },
+    { invalidState: true, stops: true },
+    { invalidState: false, stops: false },
   ])(
     "waits on ArtifactsNotReadyError(invalidState=$invalidState); stops after 2h: $stops",
-    async ({ invalidState, stops, waiting }) => {
+    async ({ invalidState, stops }) => {
       vi.useFakeTimers();
       try {
         seedHotCache();
@@ -1295,7 +1442,9 @@ describe("useArtifactDownload — funnel telemetry", () => {
         await act(async () => {
           await vi.advanceTimersByTimeAsync(0);
         });
-        expect(result.current.progress).toBe(waiting);
+        expect(result.current.progress).toBe(
+          COPY.deposit.recoveryArtifacts.waitingForProvider,
+        );
         expect(result.current.error).toBeNull();
 
         await act(async () => {

@@ -48,14 +48,11 @@ export function scriptPubKeyHexToBtcAddress(scriptPubKeyHex: string): string {
   if (!/^[0-9a-fA-F]+$/.test(cleanHex)) {
     throw new Error("Invalid scriptPubKey hex: contains non-hex characters");
   }
-  // Build the script bytes via `globalThis.Buffer.alloc(...)` rather than the
-  // npm "buffer" polyfill imported at the top of this file. Under the jsdom
-  // test environment `Buffer.from(hex, "hex")` (polyfill) silently returns
-  // zero bytes, and `Buffer.from(Uint8Array)` (polyfill) is rejected by
-  // `bitcoin.address.fromOutputScript` even when the bytes are correct.
-  // Reaching for the global Buffer sidesteps both issues. Safe across our
-  // runtimes: vite-plugin-node-polyfills exposes `globalThis.Buffer` in the
-  // browser bundle, and Node provides it natively in tests.
+  // Build the script bytes via `globalThis.Buffer.alloc(...)`, the Buffer that
+  // `bitcoin.address.fromOutputScript` accepts in every runtime. In the browser
+  // bundle `@/polyfills/globalBuffer` sets that global to the npm "buffer"
+  // package imported above, so the two are one class there; under Node it is
+  // Node's own Buffer.
   const GlobalBuffer = (globalThis as { Buffer: typeof Buffer }).Buffer;
   const bytes = GlobalBuffer.alloc(cleanHex.length / 2);
   for (let i = 0; i < bytes.length; i++) {

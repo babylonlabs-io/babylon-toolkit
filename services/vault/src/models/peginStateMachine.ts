@@ -6,7 +6,6 @@
  * concerns (isInUse, vpTerminalError, localStorage compat).
  */
 
-import { PRE_DEPOSITOR_SIGNATURES_STATES } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   ContractStatus,
   PeginAction as SdkPeginAction,
@@ -51,20 +50,6 @@ export enum OffChainTrackingStatus {
 
 export const LocalStorageStatus = OffChainTrackingStatus;
 export type LocalStorageStatus = OffChainTrackingStatus;
-
-/**
- * Check if an error indicates the vault provider is still processing
- * (before PendingDepositorSignatures state).
- */
-export function isPreDepositorSignaturesError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const msg = error.message;
-
-  return (
-    msg.includes("Invalid state") &&
-    PRE_DEPOSITOR_SIGNATURES_STATES.some((state) => msg.includes(state))
-  );
-}
 
 export enum PeginAction {
   SUBMIT_WOTS_KEY = "SUBMIT_WOTS_KEY",
