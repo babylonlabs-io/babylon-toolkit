@@ -972,11 +972,19 @@ roles have different review requirements. Satisfy both.
   `vault-mainnet` builds the `mainnet` profile (`expected_kind` `production`) and publishes with
   its own role in the prod account, which trusts this workflow only on `refs/tags/vault/v*` in the
   `vault-mainnet` environment and may only put objects under `vault/vault-mainnet/` in the build
-  and checksum buckets; the shared roles are denied on those prefixes. The `setup` job keeps it
-  in the matrix only for a pushed final `vault/vX.Y.Z` tag, the pattern the deploy repository
-  accepts for `vault-mainnet`; a branch push, an `-rc` tag or a dispatch leaves it out (a notice
-  names it) or refuses it by name. It uploads checksums with the same role, has no immutable
-  per-sha release manifest, and no integrity checker watches it yet.
+  and checksum buckets; the shared roles are denied on those prefixes. That trust covers any
+  `vault/v*` tag run, `-rc` tags included, with whatever this file says at the tagged commit, so
+  the boundary is who may create `vault/v*` tags (the tag rulesets) plus the environment's
+  required reviewers. The `setup` job keeping the leg only for a pushed final `vault/vX.Y.Z` tag
+  (the pattern the deploy repository accepts for `vault-mainnet`) is defence in depth; a branch
+  push, an `-rc` tag or a dispatch leaves it out (a notice names it) or refuses it by name.
+  Before the build, every production-kind leg fails when the utils API, mempool, canonical,
+  Reown or bucket variable is empty, when the mempool base is not an https mainnet host, or when
+  the canonical origin is a testnet host or, for `vault-mainnet`, not `https://tbv.babylonlabs.io`.
+  Re-running a tag run rebuilds with the environment's variables at that time and overwrites the
+  same object keys; the buckets keep earlier versions, but the deploy reads the newest. The leg
+  uploads checksums with the same role, has no immutable per-sha release manifest, and no
+  integrity checker watches it yet.
   Each matrix entry names the profile it builds (`network`) and its `expected_kind`; the job
   checks the profile before the build and the bundle after it (see "Environment
   configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
