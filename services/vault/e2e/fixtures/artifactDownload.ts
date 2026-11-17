@@ -9,6 +9,9 @@ export const CANCEL_DOWNLOAD_TITLE = "Cancel artifact download?";
 export const ARTIFACT_QUOTA_MESSAGE =
   "Too many artifact download requests. Wait and try again later.";
 
+/** Lead on the page clock so the pause target is still ahead when it lands. */
+const PAUSE_LEAD_MS = 1_000;
+
 /** Use the existing demo stream and the selected browser save path. */
 export async function openArtifactDownload(
   page: Page,
@@ -71,8 +74,12 @@ export async function openArtifactDownload(
       exact: true,
     }),
   ).toBeVisible();
+  // The clock keeps running until paused; a 10 ms lead lost the race on CI.
   await page.clock.pauseAt(
-    await page.evaluate(() => performance.timeOrigin + performance.now() + 10),
+    await page.evaluate(
+      (lead) => performance.timeOrigin + performance.now() + lead,
+      PAUSE_LEAD_MS,
+    ),
   );
   await page.clock.runFor(2_000);
   await expect(artifactProgress(page)).toBeVisible();
