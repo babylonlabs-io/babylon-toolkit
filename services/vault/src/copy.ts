@@ -1077,7 +1077,6 @@ export const COPY = {
       // A size or key-set assertion failed while the kit was being written.
       kitLengthMismatch:
         "The recovery kit could not be assembled. Try the download again.",
-      unknownRpcError: "Unknown RPC error",
       // Shown while the browser's save-location dialog is open. The picker is
       // opened before the wallet prompt, so this is the first status a user
       // sees after pressing Download.

@@ -532,6 +532,32 @@ describe("useArtifactDownload — prime then fetch", () => {
     );
   });
 
+  it("shows the vault id error, not a silent rejection, when the pegin txid is malformed", async () => {
+    mockLoggerError.mockReset();
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(
+        PROVIDER_ADDRESS,
+        "not-a-txid",
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.vaultIdMismatch,
+      ),
+    );
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockLoggerError.mock.calls[0]![1].tags.site).toBe(
+      "vault_id_derivation",
+    );
+  });
+
   it("hands the token binding and the service the x-only form of a 0x-prefixed compressed key", async () => {
     seedHotCache();
     fetchMock.mockResolvedValueOnce(OUTCOME);

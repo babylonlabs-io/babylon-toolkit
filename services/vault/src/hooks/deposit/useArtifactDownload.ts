@@ -169,10 +169,20 @@ export function useArtifactDownload(options?: {
       // Pure, and before the picker, the wallet prompt and any request. The
       // service repeats it as the trust boundary; this spares the depositor
       // a save dialog and a signature for a vault id that cannot be bound.
-      if (
-        vaultId.toLowerCase() !==
-        `0x${derivePeginVaultId(peginTxid, ethAddress)}`
-      ) {
+      let derivedVaultId: string;
+      try {
+        derivedVaultId = `0x${derivePeginVaultId(peginTxid, ethAddress)}`;
+      } catch (err) {
+        // Throws on a malformed txid or a non-checksummed address.
+        return {
+          ok: false as const,
+          error: new Error(COPY.deposit.recoveryArtifacts.vaultIdMismatch, {
+            cause: err,
+          }),
+          site: "vault_id_derivation",
+        };
+      }
+      if (vaultId.toLowerCase() !== derivedVaultId) {
         return {
           ok: false as const,
           error: new ArtifactIdentityMismatchError(

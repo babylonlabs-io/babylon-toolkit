@@ -593,10 +593,20 @@ describe("downloadRecoveryKitSession", () => {
     ).rejects.toThrow(VpResponseValidationError);
   });
 
-  it("rejects a session body longer than the manifest length", async () => {
-    const longer = new Uint8Array([...SESSION_A, 9]);
+  it("rejects a session body longer than the manifest length and cancels the stream", async () => {
+    const cancel = vi.fn();
+    // Keeps streaming past the declared length until cancelled.
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([...SESSION_A, 9]));
+      },
+      pull(controller) {
+        controller.enqueue(new Uint8Array([9]));
+      },
+      cancel,
+    });
     const fetchMock = fetchReturning(
-      new Response(longer, {
+      new Response(body, {
         status: 200,
         headers: {
           etag: etagOf(SESSION_A),
@@ -606,7 +616,10 @@ describe("downloadRecoveryKitSession", () => {
     );
     await expect(
       downloadRecoveryKitSession(sessionA, getToken, undefined, fetchMock),
-    ).rejects.toThrow(VpResponseValidationError);
+    ).rejects.toMatchObject({
+      detail: "Artifact session is longer than the manifest",
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a session Content-Length that does not match the manifest", async () => {
@@ -674,7 +687,9 @@ describe("downloadRecoveryKitSession", () => {
       );
       await expect(
         downloadRecoveryKitSession(sessionA, getToken, undefined, fetchMock),
-      ).rejects.toThrow(VpResponseValidationError);
+      ).rejects.toMatchObject({
+        detail: "Resumed artifact session does not match the first response",
+      });
     },
   );
 

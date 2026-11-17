@@ -531,13 +531,19 @@ async function* readChunks(
 ): AsyncGenerator<Uint8Array<ArrayBuffer>> {
   if (!response.body) return;
   const reader = response.body.getReader();
+  // True only while suspended at a yield, so a caller that stops early cancels
+  // the transfer. Cancelling an errored stream rejects (WHATWG ReadableStreamCancel).
+  let readable = false;
   try {
     while (true) {
+      readable = false;
       const { done, value } = await reader.read();
       if (done) return;
+      readable = true;
       if (value) yield value;
     }
   } finally {
+    if (readable) await reader.cancel();
     reader.releaseLock();
   }
 }
