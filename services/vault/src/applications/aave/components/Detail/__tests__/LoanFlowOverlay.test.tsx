@@ -132,10 +132,12 @@ vi.mock("../../RepaySelectionPanel", () => ({
 vi.mock("../ReserveDetailPanel", () => ({
   ReserveDetailPanel: ({
     reserveId,
+    tab,
     onProcessingChange,
     onSuccess,
   }: {
     reserveId: string;
+    tab: string;
     onProcessingChange: (isProcessing: boolean) => void;
     onSuccess: (state: { reserveId: string; variant: string }) => void;
   }) => (
@@ -146,7 +148,7 @@ vi.mock("../ReserveDetailPanel", () => ({
       <button
         data-testid="form"
         data-reserve-id={reserveId}
-        onClick={() => onSuccess({ reserveId, variant: "borrow" })}
+        onClick={() => onSuccess({ reserveId, variant: tab })}
       >
         settle
       </button>
@@ -641,21 +643,21 @@ describe("LoanFlowOverlay", () => {
     expect(screen.getByTestId("picker-borrow")).toBeInTheDocument();
   });
 
-  it("closes back to the base route, dropping the flow's query params", () => {
+  it.each([false, true])("closes repayment (settled: %s)", (settled) => {
     renderOverlay(
       <LoanFlowOverlay
-        picker={LOAN_TAB.BORROW}
+        picker={null}
         reserveId="2"
-        tab={LOAN_TAB.BORROW}
+        tab={LOAN_TAB.REPAY}
         asset={null}
       />,
-      "/loans?reserve=2&tab=borrow",
+      "/loans?reserve=2&tab=repay",
     );
 
+    if (settled) fireEvent.click(screen.getByTestId("form"));
     fireEvent.click(screen.getByText("close"));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/loans");
-    expect(screen.getByTestId("location")).not.toHaveTextContent("reserve=");
+    expect(screen.getByTestId("location").textContent).toBe("/loans");
   });
 
   it("locks every dismiss path while a transaction is in flight", () => {
@@ -689,7 +691,7 @@ describe("LoanFlowOverlay", () => {
     expect(screen.queryByText("close")).not.toBeInTheDocument();
   });
 
-  it("restores the close control on the success step after a tx settles", () => {
+  it("opens Overview when a completed borrow closes", () => {
     renderOverlay(
       <LoanFlowOverlay
         picker={null}
@@ -699,12 +701,10 @@ describe("LoanFlowOverlay", () => {
       />,
     );
 
-    // The form reports processing, then settles in the same interaction the
-    // real Borrow/Repay forms do — its unmount must not strand the lock on.
     fireEvent.click(screen.getByTestId("sign"));
     fireEvent.click(screen.getByTestId("form"));
 
-    expect(screen.getByTestId("success")).toBeInTheDocument();
-    expect(screen.getByText("close")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("close"));
+    expect(screen.getByTestId("location").textContent).toBe("/");
   });
 });
