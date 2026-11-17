@@ -7,7 +7,7 @@ import { COPY } from "@/copy";
 import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
 
 // Decimal (SI) units, matching the design's "742 MB / 1.00 GB" presentation
-// and the "~1 GB" card copy.
+// and the "~700 MB" card copy.
 const DECIMAL_UNIT_STEP = 1000;
 const BYTES_PER_KB = DECIMAL_UNIT_STEP;
 const BYTES_PER_MB = BYTES_PER_KB * DECIMAL_UNIT_STEP;
@@ -93,8 +93,8 @@ export function ArtifactDownloadContent({
   totalBytes,
   status,
 }: ArtifactDownloadContentProps) {
-  // Clamp to total so a gzip'd Content-Length or an underestimated fallback
-  // can't render "1.40 GB / 1.30 GB" or overshoot the bar.
+  // Keep the ratio within [0, 1] whatever pair is reported, so the bar can
+  // never overshoot or render "1.40 GB / 1.30 GB".
   const percent = totalBytes > 0 ? Math.min(1, receivedBytes / totalBytes) : 0;
   // The download authenticates with the vault provider through a device
   // derive on a token-cache miss, which a Ledger can hold for its app.

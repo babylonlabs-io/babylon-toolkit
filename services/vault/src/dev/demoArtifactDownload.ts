@@ -3,13 +3,12 @@
  * NEXT_PUBLIC_FF_GOD_MODE_PANEL and opted into per session via the god-mode
  * panel's "Mock artifact download" toggle).
  *
- * Synthesizes a vault-provider response and feeds it through the *real*
- * download pipeline — the same streaming validator, digest, and file sink the
- * production path uses. Only the network and the bearer-auth prime are
- * skipped. A mock that stubbed out validation and the save target would
- * exercise nothing worth exercising, so instead the scenario selector lets a
- * developer reproduce a hostile or broken provider on demand: a truncated
- * stream, junk in a success envelope, a padded error, a corrupt hex payload.
+ * Stands up an in-memory vault provider and runs the *real* download pipeline
+ * against it: the same manifest checks, ETag verification, tar writer and file
+ * sink the production path uses. Only the network and the bearer-auth prime
+ * are replaced. The scenario selector reproduces a hostile or broken provider
+ * on demand: a dropped connection, a manifest that is not JSON, a quota
+ * refusal, a session that does not match its ETag, a kit for another deposit.
  *
  * What it deliberately does NOT do is produce a download outcome. The
  * activation gate is satisfied only by a receipt, and a receipt is written
@@ -22,28 +21,30 @@
  * service — zero behavioural change.
  */
 
+import { derivePeginVaultId } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { useSyncExternalStore } from "react";
 
 import featureFlags from "@/config/featureFlags";
+import type { DemoArtifactRequest } from "@/overrides/artifactDownload";
 import {
-  ArtifactDownloadCancelledError,
   type ArtifactSaveTarget,
-  downloadArtifactsFromResponse,
+  downloadRecoveryKit,
   type FetchArtifactsOptions,
-  MAX_ERROR_VALUE_BYTES,
-  type VaultBindingContext,
 } from "@/services/artifacts";
 
 /**
- * Size of the synthetic decryptor payload, in hex characters.
- *
- * Large enough that the body spans many chunks (so chunk-boundary handling,
- * progress, and backpressure are genuinely exercised) but far below the real
- * ~1.3 GB, which would make every dev iteration a multi-minute wait. Use a
- * real devnet download to test true full-size behaviour.
+ * Size of the synthetic session. Large enough that the transfer spans many
+ * chunks (so progress and backpressure are genuinely exercised) but far below
+ * a real session, which would make every dev iteration a long wait. Use a real
+ * devnet download to test full-size behaviour.
  */
-const DEMO_HEX_CHARS = 8 * 1024 * 1024;
+const DEMO_SESSION_BYTES = 8 * 1024 * 1024;
+
+/** Byte value the synthetic session is filled with. */
+const DEMO_SESSION_FILL = 0xab;
 
 /** Bytes emitted per stream chunk, roughly matching a network read. */
 const DEMO_CHUNK_BYTES = 64 * 1024;
@@ -55,56 +56,49 @@ const DEMO_CHUNK_BYTES = 64 * 1024;
  */
 const DEMO_CHUNK_DELAY_MS = 90;
 
-/** Pre-byte pause so the indeterminate "Fetching artifacts..." chip shows. */
+/** Pause before the manifest answers, so the "Fetching artifacts" chip shows. */
 const DEMO_PRE_BYTE_DELAY_MS = 1_200;
 
-/** Fraction of the body emitted before the `truncated` scenario cuts off. */
+/** Fraction of the session emitted before the `truncated` scenario cuts off. */
 const DEMO_TRUNCATION_FRACTION = 0.4;
 
-/** Padding for the scenarios that must exceed any plausible prefix window. */
-const DEMO_PADDING_CHARS = 500_000;
-
-/**
- * Padding for the error envelope. Must stay well past any prefix window but
- * comfortably UNDER the validator's error-value cap: above that cap the
- * capture buffer fails closed with a VpResponseValidationError, so the
- * scenario would exercise the cap instead of the padded-error handling it
- * exists to demonstrate. Derived from the cap so the two cannot drift.
- */
-const DEMO_ERROR_PADDING_CHARS = Math.floor(MAX_ERROR_VALUE_BYTES / 4);
-
-/** A syntactically valid x-only challenger pubkey for the synthetic sessions. */
+/** A syntactically valid x-only challenger pubkey for the synthetic session. */
 const DEMO_CHALLENGER_PUBKEY = "ab".repeat(32);
 
-/** Stands in for a bundle built against somebody else's deposit. */
+/** Stands in for a kit built against somebody else's deposit. */
 const DEMO_FOREIGN_TXID = "ff".repeat(32);
 
 /** Funding outpoints for the synthetic graph's transactions that do not spend the pegin. */
 const DEMO_FUNDING_TXID = "cd".repeat(32);
 
+const DEMO_VERIFYING_KEY_HEX = "abcdef01";
+
+/** The in-memory provider's base URL; nothing ever leaves the page. */
+const DEMO_ARTIFACTS_BASE_URL = "https://demo-vault-provider.invalid/artifacts";
+
+const DEMO_TOKEN = "demo-token";
+
+/** Used for the vault id when no Ethereum wallet is connected. */
+const DEMO_DEPOSITOR_ETH_ADDRESS = "0x" + "00".repeat(19) + "01";
+
+/** What the VP's quota refusal carries (`Retry-After` past the busy budget). */
+const DEMO_QUOTA_RETRY_AFTER_SECONDS = "900";
+
+const HTTP_OK = 200;
+const HTTP_TOO_MANY_REQUESTS = 429;
+const HTTP_RANGE_NOT_SATISFIABLE = 416;
+const HTTP_NOT_FOUND = 404;
+
 export const DEMO_ARTIFACT_SCENARIOS = [
   "valid",
   "truncated",
-  "garbage",
-  "error-envelope",
-  "non-hex",
+  "bad-manifest",
+  "provider-error",
+  "corrupt-session",
   "wrong-vault",
 ] as const;
 
 export type DemoArtifactScenario = (typeof DEMO_ARTIFACT_SCENARIOS)[number];
-
-/** Human-readable labels for the god-mode selector. */
-export const DEMO_ARTIFACT_SCENARIO_LABELS: Record<
-  DemoArtifactScenario,
-  string
-> = {
-  valid: "Valid bundle",
-  truncated: "Truncated stream (connection dropped)",
-  garbage: "Junk inside a success envelope",
-  "error-envelope": "Padded JSON-RPC error",
-  "non-hex": "Corrupt hex payload",
-  "wrong-vault": "Valid bundle for a different deposit",
-};
 
 // The mock starts OFF: merely enabling the god-mode panel must not change
 // how downloads behave. The panel's "Mock artifact download" toggle opts in
@@ -172,20 +166,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Build the wire text for a scenario. The `valid` body is a faithful
- * JSON-RPC envelope: the small fields first, then one oversized
- * `decryptor_artifacts_hex` value, mirroring what the proxy emits.
- */
 function demoTxGraph(
-  binding: VaultBindingContext,
+  request: DemoArtifactRequest,
   scenario: DemoArtifactScenario,
 ) {
   // `wrong-vault` keeps everything else intact and only swaps the funding
   // transaction, which is the shape of a provider serving another
-  // depositor's bundle.
+  // depositor's kit.
   const peginTxid =
-    scenario === "wrong-vault" ? DEMO_FOREIGN_TXID : binding.peginTxid;
+    scenario === "wrong-vault" ? DEMO_FOREIGN_TXID : request.peginTxid;
   // Complete serde transactions, so the presign fingerprint check can hash
   // them like a real graph.
   const spend = (previousOutput: string) => ({
@@ -215,92 +204,130 @@ function demoTxGraph(
         output_label_hashes: [],
       },
     },
-    depositor_pubkey: binding.depositorPk,
+    depositor_pubkey: request.depositorPk,
     challenger_pubkeys: { local: [DEMO_CHALLENGER_PUBKEY], universal: [] },
   };
 }
 
-function demoBodyFor(
-  scenario: DemoArtifactScenario,
-  binding: VaultBindingContext,
-): string {
-  if (scenario === "garbage") {
-    return JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      result: { junk: "x".repeat(DEMO_PADDING_CHARS) },
-    });
-  }
-
-  if (scenario === "error-envelope") {
-    return JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      error: {
-        code: -32011,
-        message: `Vault provider rejected the request ${"x".repeat(DEMO_ERROR_PADDING_CHARS)}`,
-      },
-    });
-  }
-
-  const hex =
-    scenario === "non-hex"
-      ? // A single invalid character deep inside an otherwise valid payload,
-        // which only a validator that reads the whole body can catch.
-        `${"ab".repeat(DEMO_HEX_CHARS / 4)}zz${"ab".repeat(DEMO_HEX_CHARS / 4)}`
-      : "ab".repeat(DEMO_HEX_CHARS / 2);
-
-  return JSON.stringify({
-    jsonrpc: "2.0",
-    id: 1,
-    result: {
-      tx_graph_json: JSON.stringify(demoTxGraph(binding, scenario)),
-      verifying_key_hex: "abcdef01",
-      babe_sessions: {
-        [DEMO_CHALLENGER_PUBKEY]: { decryptor_artifacts_hex: hex },
-      },
+function jsonResponse(body: unknown, status: number, headers = {}): Response {
+  const text = JSON.stringify(body);
+  return new Response(text, {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "content-length": String(new TextEncoder().encode(text).byteLength),
+      ...headers,
     },
   });
 }
 
 /**
- * Wrap the synthetic body in a Response that streams in chunks, so the
- * consumer sees the same shape as a real transfer. The `truncated` scenario
- * closes the stream partway through, which is how a destroyed upstream
- * connection presents to the reader.
+ * Streams `bytes` in paced chunks, stopping at `limit` and then failing like a
+ * dropped connection when `limit` is short of the end. Errors the stream when
+ * `signal` aborts, as a real fetch body does.
  */
-function demoResponse(
-  scenario: DemoArtifactScenario,
-  binding: VaultBindingContext,
-): Response {
-  const bytes = new TextEncoder().encode(demoBodyFor(scenario, binding));
-  const emitBytes =
-    scenario === "truncated"
-      ? Math.floor(bytes.byteLength * DEMO_TRUNCATION_FRACTION)
-      : bytes.byteLength;
-
+function pacedBody(
+  bytes: Uint8Array<ArrayBuffer>,
+  limit: number,
+  signal: AbortSignal | null | undefined,
+): ReadableStream<Uint8Array> {
   let offset = 0;
-  const stream = new ReadableStream<Uint8Array>({
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      signal?.addEventListener("abort", () => controller.error(signal.reason));
+    },
     async pull(controller) {
-      if (offset >= emitBytes) {
-        controller.close();
+      await sleep(DEMO_CHUNK_DELAY_MS);
+      if (signal?.aborted) return;
+      if (offset >= limit) {
+        if (limit < bytes.byteLength) {
+          controller.error(new TypeError("network error"));
+        } else {
+          controller.close();
+        }
         return;
       }
-      await sleep(DEMO_CHUNK_DELAY_MS);
-      const end = Math.min(offset + DEMO_CHUNK_BYTES, emitBytes);
+      const end = Math.min(offset + DEMO_CHUNK_BYTES, limit);
       controller.enqueue(bytes.slice(offset, end));
       offset = end;
     },
   });
+}
 
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      // No Content-Length on purpose: the HTTP transport always sets one, so
-      // this is the only response that exercises the progress bar's fallback.
-    },
-  });
+/** The in-memory vault provider: answers the manifest and session URLs. */
+function demoFetch(
+  scenario: DemoArtifactScenario,
+  request: DemoArtifactRequest,
+): typeof fetch {
+  const depositUrl = `${DEMO_ARTIFACTS_BASE_URL}/${request.peginTxid.toLowerCase()}`;
+  const session = new Uint8Array(DEMO_SESSION_BYTES).fill(DEMO_SESSION_FILL);
+  const etag = `"${bytesToHex(sha256(session))}"`;
+
+  return async (input, init) => {
+    const url = String(input);
+    const signal = init?.signal;
+
+    if (url === `${depositUrl}/manifest`) {
+      await sleep(DEMO_PRE_BYTE_DELAY_MS);
+      signal?.throwIfAborted();
+      if (scenario === "bad-manifest") {
+        const text = "<!doctype html>";
+        return new Response(text, {
+          status: HTTP_OK,
+          headers: { "content-length": String(text.length) },
+        });
+      }
+      if (scenario === "provider-error") {
+        return jsonResponse(
+          { error_name: "DOWNLOAD_QUOTA_EXHAUSTED" },
+          HTTP_TOO_MANY_REQUESTS,
+          { "retry-after": DEMO_QUOTA_RETRY_AFTER_SECONDS },
+        );
+      }
+      return jsonResponse(
+        {
+          tx_graph_json: JSON.stringify(demoTxGraph(request, scenario)),
+          verifying_key_hex: DEMO_VERIFYING_KEY_HEX,
+          babe_sessions: {
+            [DEMO_CHALLENGER_PUBKEY]: {
+              download_path: `/v1/depositor-artifacts/${request.peginTxid.toLowerCase()}/sessions/${DEMO_CHALLENGER_PUBKEY}`,
+              byte_length: DEMO_SESSION_BYTES,
+            },
+          },
+        },
+        HTTP_OK,
+      );
+    }
+
+    if (url === `${depositUrl}/sessions/${DEMO_CHALLENGER_PUBKEY}`) {
+      signal?.throwIfAborted();
+      // Only the truncated scenario breaks a transfer, so only it is resumed;
+      // its provider has since dropped the file.
+      if (new Headers(init?.headers).has("range")) {
+        return new Response(null, { status: HTTP_RANGE_NOT_SATISFIABLE });
+      }
+      const served =
+        scenario === "corrupt-session" ? corruptLastByte(session) : session;
+      const limit =
+        scenario === "truncated"
+          ? Math.floor(DEMO_SESSION_BYTES * DEMO_TRUNCATION_FRACTION)
+          : DEMO_SESSION_BYTES;
+      return new Response(pacedBody(served, limit, signal), {
+        status: HTTP_OK,
+        headers: { etag, "content-length": String(DEMO_SESSION_BYTES) },
+      });
+    }
+
+    return new Response(null, { status: HTTP_NOT_FOUND });
+  };
+}
+
+function corruptLastByte(
+  bytes: Uint8Array<ArrayBuffer>,
+): Uint8Array<ArrayBuffer> {
+  const corrupt = bytes.slice();
+  corrupt[corrupt.length - 1]! ^= 0xff;
+  return corrupt;
 }
 
 /**
@@ -312,33 +339,33 @@ function demoResponse(
  */
 export async function demoFetchAndDownloadArtifacts(
   target: ArtifactSaveTarget,
-  binding: VaultBindingContext,
+  request: DemoArtifactRequest,
   options?: FetchArtifactsOptions,
 ): Promise<void> {
-  if (options?.signal?.aborted || options?.isCancelled?.()) {
-    throw new ArtifactDownloadCancelledError();
-  }
-
-  await sleep(DEMO_PRE_BYTE_DELAY_MS);
-
-  if (options?.signal?.aborted || options?.isCancelled?.()) {
-    throw new ArtifactDownloadCancelledError();
-  }
-
-  // No presign ran for a synthetic bundle, so the demo stands in the
-  // fingerprint of its own valid graph for the one this device recorded.
-  const demoBinding: VaultBindingContext = {
-    ...binding,
+  const depositorEthAddress =
+    request.depositorEthAddress ?? DEMO_DEPOSITOR_ETH_ADDRESS;
+  const identity = {
+    vaultId: "0x" + derivePeginVaultId(request.peginTxid, depositorEthAddress),
+    peginTxid: request.peginTxid,
+    depositorPk: request.depositorPk,
+    depositorEthAddress,
+    providerAddress: request.providerAddress,
+    // No presign ran for a synthetic kit, so the demo stands in the
+    // fingerprint of its own valid graph for the one this device recorded.
     signedGraphFingerprint: fingerprintReturnedGraph(
-      demoTxGraph(binding, "valid"),
+      demoTxGraph(request, "valid"),
     ),
   };
 
   // The outcome is deliberately discarded rather than returned.
-  await downloadArtifactsFromResponse(
-    demoResponse(storeScenario, demoBinding),
+  await downloadRecoveryKit(
+    {
+      artifactsBaseUrl: DEMO_ARTIFACTS_BASE_URL,
+      getToken: async () => DEMO_TOKEN,
+      fetchImpl: demoFetch(storeScenario, request),
+    },
+    identity,
     target,
     options,
-    demoBinding,
   );
 }

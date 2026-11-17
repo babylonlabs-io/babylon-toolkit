@@ -1024,10 +1024,9 @@ export const COPY = {
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
       cardSubtitle: "Encrypted backup files",
-      cardSize: "Up to ~1 GB",
-      // Size variant rendered once the download has completed — the
-      // "Up to" hedge no longer applies because the file is on disk.
-      cardSizeDownloaded: "~1 GB",
+      cardSize: "About 700 MB",
+      // Size variant rendered once the download has completed.
+      cardSizeDownloaded: "~700 MB",
       downloadingButton: "Downloading...",
       cancelConfirmation: {
         title: "Cancel artifact download?",
@@ -1041,7 +1040,7 @@ export const COPY = {
         "Cannot authenticate with the vault provider. Please refresh and try again.",
       phoneReminder: {
         title: "Save your recovery artifacts",
-        subtitle: "Computer required ~1 GB",
+        subtitle: "Computer required ~700 MB",
         body: "Open this app on a computer, connect the same wallet, and download artifacts from the Vaults page. Keep them in a secure place.",
       },
       // The deposit's vault provider address could not be turned into a
@@ -1066,7 +1065,22 @@ export const COPY = {
       downloadFailed: "Download failed",
       downloadLimitReached:
         "Too many artifact download requests. Wait and try again later.",
-      unknownRpcError: "Unknown RPC error",
+      // An HTTP status the download does not handle; `name` is the vault
+      // provider's error_name when its body carried one, else empty.
+      downloadFailedHttp: (status: number, name: string) =>
+        `Download failed: HTTP ${status}${name ? ` ${name}` : ""}`,
+      // Every transfer attempt for one request, the manifest or a session,
+      // failed on the network.
+      transferRetriesExhausted: (attempts: number) =>
+        `The download failed after ${attempts} attempts. Check your connection and try again.`,
+      // The vault id the indexer gave the card does not derive from the
+      // deposit's pegin txid and depositor address. Retrying the download
+      // cannot help; a refresh re-reads the vault id.
+      vaultIdMismatch:
+        "This BTCVault's identity does not match the deposit it was requested for. Refresh and try again; contact support if it persists.",
+      // A size or key-set assertion failed while the kit was being written.
+      kitLengthMismatch:
+        "The recovery kit could not be assembled. Try the download again.",
       // Shown while the browser's save-location dialog is open. The picker is
       // opened before the wallet prompt, so this is the first status a user
       // sees after pressing Download.
@@ -1082,7 +1096,7 @@ export const COPY = {
         "This browser cannot save a file this large. Please use a Chromium-based browser, such as Chrome or Brave, to download your artifacts.",
       // Rendered on those same browsers before the download starts, so the
       // limits are not a surprise partway through a long transfer. This path
-      // must hold the whole ~1 GB file in memory, and the browser reports
+      // must hold the whole ~700 MB file in memory, and the browser reports
       // nothing back about whether it was saved.
       fallbackSaveHint:
         "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved, so your BTCVault will keep showing the artifact warning. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
@@ -3377,6 +3391,17 @@ export const COPY = {
         `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible. Adjust CF, THF, or LB.`,
       causeGeneric: (fractionPct: string) =>
         `Seizure fraction computed as ${fractionPct}%, outside the valid range. Adjust CF, THF, or LB.`,
+    },
+  },
+  // God-mode panel labels (dev builds only).
+  dev: {
+    artifactScenarios: {
+      valid: "Valid kit",
+      truncated: "Truncated session (connection dropped)",
+      "bad-manifest": "Manifest is not JSON",
+      "provider-error": "Provider quota exhausted (429)",
+      "corrupt-session": "Session bytes do not match the ETag",
+      "wrong-vault": "Valid kit for a different deposit",
     },
   },
 } as const;

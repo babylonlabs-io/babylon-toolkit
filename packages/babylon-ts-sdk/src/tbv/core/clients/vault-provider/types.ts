@@ -248,18 +248,6 @@ export interface RequestDepositorPresignTransactionsResponse {
   depositor_graph: DepositorGraphTransactions;
 }
 
-/** BaBe garbled-circuit session data for a single challenger. */
-export interface BaBeSessionData {
-  decryptor_artifacts_hex: string;
-}
-
-/** The depositor's recovery-artifact payload: graph, verifying key and one BaBe session per challenger. */
-export interface RequestDepositorClaimerArtifactsResponse {
-  tx_graph_json: string;
-  verifying_key_hex: string;
-  babe_sessions: Record<string, BaBeSessionData>;
-}
-
 /** Progress tracker for a multi-challenger operation. */
 export interface ChallengerProgress {
   total_challengers: number;
