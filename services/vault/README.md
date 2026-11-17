@@ -160,7 +160,7 @@ To add an environment:
    `NEXT_PUBLIC_TBV_UTILS_API`, `NEXT_PUBLIC_MEMPOOL_API`, `S3_PUBLIC_BUCKET_NEW` and
    `S3_CHECKSUM_BUCKET_NEW` (from the environment or organisation variables), as https mainnet
    hosts where they are URLs, or the workflow refuses the build; a matrix entry that pins
-   `canonical`, `utils_api` or `ordinals_api` needs those exact values.
+   `canonical`, `mempool_api`, `utils_api` or `ordinals_api` needs those exact values.
 4. Add a matrix entry to `service-release-vault.yml` with `"network":"<name>"` and
    `"expected_kind":"<kind>"`, plus the AWS account and, for a main-only environment, its role.
 

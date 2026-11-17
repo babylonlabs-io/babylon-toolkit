@@ -985,8 +985,9 @@ roles have different review requirements. Satisfy both.
   https URL with a host and free of `signet`/`testnet`, or when the canonical origin is a testnet
   host. `vault-mainnet` also pins its canonical origin to `https://tbv.babylonlabs.io` and both
   `NEXT_PUBLIC_TBV_UTILS_API` and `NEXT_PUBLIC_TBV_ORDINALS_API_URL` to exactly
-  `https://utils-api.mainnet.babylonlabs.io`, so values inherited from organisation variables
-  fail. The ordinals API is the only inscription check for a wallet that keeps no inscription
+  `https://utils-api.mainnet.babylonlabs.io`, and its mempool API to exactly
+  `https://mempool.babylonlabs.io`, so a value copied from another environment fails. The
+  ordinals API is the only inscription check for a wallet that keeps no inscription
   index or whose own lookup fails or times out; without it those UTXOs would be treated as
   inscription-free. The app still treats every UTXO as available while that API errors;
   submission waits while it loads (`useUTXOs.ts`).
@@ -998,8 +999,8 @@ roles have different review requirements. Satisfy both.
   checks the profile before the build and the bundle after it (see "Environment
   configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
   prefix via the deploy repository, except for `vault-mainnet`, which the deploy repository
-  deploys only from a final `vault/vX.Y.Z` tag, so its rollback is redeploying the previous final
-  tag.
+  deploys only from a final `vault/vX.Y.Z` tag, so its rollback is the deploy repository's
+  snapshot rollback or redeploying the previous final tag.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
   no longer exist, and reports them to a tracker issue. Paths registered ahead of their code sit in a
   `pending` list that is exempt from the existence check and reported separately once the files land.
