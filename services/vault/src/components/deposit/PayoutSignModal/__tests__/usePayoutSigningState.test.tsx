@@ -635,21 +635,24 @@ describe("usePayoutSigningState", () => {
   });
 
   describe("reentrancy guard", () => {
-    it("ignores a second handleSign call while signing is in flight", async () => {
+    it("keeps one signing notification active until the submission settles", async () => {
       let resolveSdk: () => void;
       mockSignAndSubmitPayouts.mockImplementation(
         () => new Promise<void>((resolve) => (resolveSdk = resolve)),
       );
 
-      const { result } = renderHookWithProps();
+      const onSigningChange = vi.fn();
+      const { result } = renderHookWithProps({ onSigningChange });
 
       const calls = await act(async () => {
         const first = result.current.handleSign();
+        expect(onSigningChange.mock.calls).toEqual([[ACTIVITY.id, true]]);
         const second = result.current.handleSign();
         return [first, second];
       });
 
       expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+      expect(onSigningChange.mock.calls).toEqual([[ACTIVITY.id, true]]);
 
       await act(async () => {
         resolveSdk!();
@@ -657,6 +660,10 @@ describe("usePayoutSigningState", () => {
       });
 
       expect(result.current.isComplete).toBe(true);
+      expect(onSigningChange.mock.calls).toEqual([
+        [ACTIVITY.id, true],
+        [ACTIVITY.id, false],
+      ]);
     });
   });
 
@@ -666,7 +673,8 @@ describe("usePayoutSigningState", () => {
         new Error("VP unreachable"),
       );
 
-      const { result } = renderHookWithProps();
+      const onSigningChange = vi.fn();
+      const { result } = renderHookWithProps({ onSigningChange });
 
       await act(async () => {
         await result.current.handleSign();
@@ -680,6 +688,10 @@ describe("usePayoutSigningState", () => {
       expect(result.current.isComplete).toBe(false);
       expect(onSuccess).not.toHaveBeenCalled();
       expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
+      expect(onSigningChange.mock.calls).toEqual([
+        [ACTIVITY.id, true],
+        [ACTIVITY.id, false],
+      ]);
     });
   });
 
@@ -812,7 +824,8 @@ describe("usePayoutSigningState", () => {
     it("cancels the original device and signal when the hook unmounts", async () => {
       const { cancelSigning } = connectCancellableWallet();
       const pending = armPendingSdkCall();
-      const { result, unmount } = renderHookWithProps();
+      const onSigningChange = vi.fn();
+      const { result, unmount } = renderHookWithProps({ onSigningChange });
       let signPromise!: Promise<void>;
       act(() => {
         signPromise = result.current.handleSign();
@@ -821,12 +834,17 @@ describe("usePayoutSigningState", () => {
       unmount();
       await waitFor(() => expect(cancelSigning).toHaveBeenCalledOnce());
       expect(pending.signal?.aborted).toBe(true);
+      expect(onSigningChange.mock.calls).toEqual([[ACTIVITY.id, true]]);
       await act(async () => {
         pending.resolve();
         await signPromise;
       });
       expect(onSuccess).not.toHaveBeenCalled();
       expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
+      expect(onSigningChange.mock.calls).toEqual([
+        [ACTIVITY.id, true],
+        [ACTIVITY.id, false],
+      ]);
     });
 
     // What the Ledger provider rejects with when a requested cancel settles

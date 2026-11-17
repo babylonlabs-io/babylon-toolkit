@@ -63,6 +63,7 @@ export interface UsePayoutSigningStateProps {
   walletKeyReady?: boolean;
   depositorEthAddress: Hex;
   onSuccess: () => void;
+  onSigningChange?: (vaultId: string, signing: boolean) => void;
 }
 
 export interface UsePayoutSigningStateResult {
@@ -98,6 +99,7 @@ export function usePayoutSigningState({
   walletKeyReady = true,
   depositorEthAddress,
   onSuccess,
+  onSigningChange,
 }: UsePayoutSigningStateProps): UsePayoutSigningStateResult {
   const [signing, setSigning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -172,6 +174,7 @@ export function usePayoutSigningState({
 
     // Release the lock on guard failures as well as SDK failures.
     try {
+      onSigningChange?.(activity.id, true);
       // Local storage can lack the payout address. Fetch it by vault ID.
       let registeredPayoutScriptPubKey = activity.depositorPayoutBtcAddress;
       if (!registeredPayoutScriptPubKey) {
@@ -442,6 +445,7 @@ export function usePayoutSigningState({
       // Clear the request after every settle path.
       cancelRequestedRef.current = false;
       setCancelRequested(false);
+      onSigningChange?.(activity.id, false);
     }
   }, [
     requireBtcWallet,
@@ -464,6 +468,7 @@ export function usePayoutSigningState({
     depositorEthAddress,
     setOptimisticStatus,
     onSuccess,
+    onSigningChange,
   ]);
 
   // Show device cancellation only while the original provider can act on it.

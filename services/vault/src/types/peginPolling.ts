@@ -2,6 +2,7 @@
  * Types for Peg-In Polling Context
  */
 
+import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { PropsWithChildren } from "react";
 
 import type { DepositFlowStep } from "../hooks/deposit/depositFlowSteps/types";
@@ -12,6 +13,11 @@ import type {
 import type { ActivationRedeemReason } from "../services/vault/activationRedeemReason";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import type { VaultActivity } from "../types/activity";
+
+export interface ProviderVerificationProgress {
+  ackCollection?: GetPeginStatusResponse["progress"]["ack_collection"];
+  healthInfo: string;
+}
 
 /** Result of polling for a single deposit */
 export interface DepositPollingResult {
@@ -25,6 +31,8 @@ export interface DepositPollingResult {
   peginState: PeginState;
   /** Broadcast refund hash, from Bitcoin or the current refund record. */
   refundTxId?: string;
+  /** Display data only. It does not control deposit actions. */
+  providerVerification?: ProviderVerificationProgress;
   /** Whether the vault is owned by the currently connected BTC wallet */
   isOwnedByCurrentWallet: boolean;
   /**

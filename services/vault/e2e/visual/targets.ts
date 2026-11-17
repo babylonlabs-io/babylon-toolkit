@@ -185,6 +185,13 @@ export const DEPOSIT_PROGRESS_STOPS = {
   pending: "vaults-pending",
   /** The stepper for a two-vault batch whose lanes sit on different steps. */
   split: "deposit-progress-split",
+  verificationCounts: "deposit-verification-counts",
+  verificationStuck: "deposit-verification-stuck",
+  verificationFallback: "deposit-verification-fallback",
+  verificationSplitFirst: "deposit-verification-split-first",
+  verificationSplitSecond: "deposit-verification-split-second",
+  verificationMixedFirst: "deposit-verification-mixed-first",
+  verificationMixedSecond: "deposit-verification-mixed-second",
 } as const;
 
 /**
