@@ -94,6 +94,10 @@ export default defineConfig({
       TBV_NETWORK_PROFILE: JSON.stringify(
         readResolvedNetworkProfile("e2e-replay"),
       ),
+      // Analytics off: Nx loads a developer's .env.local into this task, and a
+      // test that renders the router would send page views to a real project.
+      NEXT_PUBLIC_POSTHOG_HOST: "",
+      NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
     },
     exclude: [
       "**/node_modules/**",

@@ -1,0 +1,1 @@
+export { reportAnalyticsConfigError } from "./trackEvent";

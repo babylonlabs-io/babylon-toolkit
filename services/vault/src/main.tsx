@@ -15,6 +15,7 @@ import { BrowserRouter } from "react-router";
 import GlobalError from "@/components/pages/global-error";
 import { initSpeculosTransportForE2E } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
+import { reportAnalyticsConfigError } from "@/infrastructure/analytics";
 import Providers from "@/providers";
 import { Router } from "@/router";
 import { reloadForStaleDeploy } from "@/utils/lazyWithRetry";
@@ -25,6 +26,9 @@ import "../sentry.client.config";
 // Initialize ECC library for bitcoinjs-lib (required by p2tr, Taproot operations).
 // Must run before any code that touches Bitcoin addresses or PSBTs.
 initEccLib(ecc);
+
+// After Sentry starts: env.ts runs too early to report this itself.
+reportAnalyticsConfigError();
 
 // Vite fires this on a dynamic-import preload failure (stale chunk 404 after a
 // redeploy) — trigger the bounded one-shot reload. No preventDefault: letting

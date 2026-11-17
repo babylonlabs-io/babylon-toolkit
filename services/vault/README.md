@@ -96,15 +96,16 @@ is wrong; each override states a reason and `sync-env` keeps it across regenerat
 overrides. Every name the app reads is listed with its class in `env-manifest.json`;
 `pnpm check:env-manifest` fails when source, the release workflow and that list disagree.
 
-| Variable                                                                                                                                   | Class      | Meaning                                                                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_TBV_NETWORK`                                                                                                                  | required   | Profile name. Unset locally means `devnet`; CI builds must set it. An unknown name fails the build. |
-| `NEXT_PUBLIC_REOWN_PROJECT_ID`                                                                                                             | required   | Reown (WalletConnect) project id.                                                                   |
-| `NEXT_PUBLIC_ETH_RPC_URL`                                                                                                                  | optional   | Overrides the profile's RPC.                                                                        |
-| `NEXT_PUBLIC_MEMPOOL_API`                                                                                                                  | optional   | Mempool host (no `/signet`, no `/api`). Default `https://mempool.space`.                            |
-| `NEXT_PUBLIC_TBV_UTILS_API`, `NEXT_PUBLIC_TBV_SIDECAR_API_URL`, `NEXT_PUBLIC_TBV_VP_EXPLORER_URL`, `NEXT_PUBLIC_TBV_ORDINALS_API_URL`      | optional   | Auxiliary services; each feature degrades when unset.                                               |
-| `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE`, `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS`, `NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS`, `NEXT_PUBLIC_FF_*` | optional   | Operator switches; see `src/config/featureFlags.ts`.                                                |
-| `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                       | build-only | Set by the release workflow.                                                                        |
+| Variable                                                                                                                                   | Class      | Meaning                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_TBV_NETWORK`                                                                                                                  | required   | Profile name. Unset locally means `devnet`; CI builds must set it. An unknown name fails the build.                                   |
+| `NEXT_PUBLIC_REOWN_PROJECT_ID`                                                                                                             | required   | Reown (WalletConnect) project id.                                                                                                     |
+| `NEXT_PUBLIC_ETH_RPC_URL`                                                                                                                  | optional   | Overrides the profile's RPC.                                                                                                          |
+| `NEXT_PUBLIC_MEMPOOL_API`                                                                                                                  | optional   | Mempool host (no `/signet`, no `/api`). Default `https://mempool.space`.                                                              |
+| `NEXT_PUBLIC_TBV_UTILS_API`, `NEXT_PUBLIC_TBV_SIDECAR_API_URL`, `NEXT_PUBLIC_TBV_VP_EXPLORER_URL`, `NEXT_PUBLIC_TBV_ORDINALS_API_URL`      | optional   | Auxiliary services; each feature degrades when unset.                                                                                 |
+| `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE`, `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS`, `NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS`, `NEXT_PUBLIC_FF_*` | optional   | Operator switches; see `src/config/featureFlags.ts`.                                                                                  |
+| `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_POSTHOG_PROJECT_KEY`                                                                              | optional   | Product analytics; set both or neither. The PostHog project must discard client IPs; see `SECURITY.md` "Product analytics (PostHog)". |
+| `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                       | build-only | Set by the release workflow.                                                                                                          |
 
 See [Vault allowlists](../../docs/vault-allowlists.md) for how to limit the vault providers
 offered and the wallets allowed to deposit.
@@ -154,7 +155,8 @@ To add an environment:
 2. `pnpm sync-env <name> --kind test|internal|production`, review `networks/<name>.json`,
    add an `overrides` block only if the registry entry is wrong, and open a PR.
 3. Create the GitHub Environment with the override variables it needs (`NEXT_PUBLIC_REOWN_PROJECT_ID`,
-   Sentry, `NEXT_PUBLIC_CANONICAL`, flags). Never add a contract address or endpoint there.
+   Sentry, `NEXT_PUBLIC_CANONICAL`, flags, and the PostHog pair if the environment sends analytics).
+   Never add a contract address or endpoint there.
 4. Add a matrix entry to `service-release-vault.yml` with `"network":"<name>"` and
    `"expected_kind":"<kind>"`, plus the AWS account and, for a main-only environment, its role.
 
