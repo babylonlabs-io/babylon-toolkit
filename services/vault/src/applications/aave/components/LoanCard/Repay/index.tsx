@@ -276,7 +276,9 @@ export function Repay() {
   // A single status callout, rendered once below the action button. Highest
   // priority first: why repaying is unavailable (so it matches the button),
   // then a current input/validation error (only once the balance is known, so
-  // we never surface a misleading verdict computed against a still-loading 0),
+  // we never surface a misleading verdict computed against a still-loading 0,
+  // and not while a repay is in flight: the debt refreshes before the amount
+  // clears, so the verdict is stale),
   // then the last failed transaction or the last outcome that is not a
   // failure, the submit-time refetch failure, a
   // balance-load failure, and finally the standing shortfall warning.
@@ -288,7 +290,7 @@ export function Repay() {
     ? { variant: "warning", body: COPY.loans.repayingUnavailable }
     : hubBlockMessage
       ? { variant: "warning", body: hubBlockMessage }
-      : balanceKnown && errorMessage
+      : balanceKnown && errorMessage && !isSubmitting && !isProcessing
         ? { variant: "error", title: buttonText, body: errorMessage }
         : txError
           ? {
