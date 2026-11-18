@@ -44,8 +44,18 @@ vi.mock("@/clients/eth-contract/client", () => ({
 // the suggestion sub-box, and the action pills (label + onClick + disabled),
 // and surface variant/severity as data-attributes.
 vi.mock("@babylonlabs-io/core-ui", () => ({
-  Callout: ({ children }: { children?: ReactNode }) => (
-    <div role="note">{children}</div>
+  Callout: ({
+    children,
+    variant,
+    title,
+  }: {
+    children?: ReactNode;
+    variant?: string;
+    title?: string;
+  }) => (
+    <div role="note" data-variant={variant} aria-label={title}>
+      {children}
+    </div>
   ),
   InfoIcon: () => <span data-testid="suggestion-info-icon" />,
   Text: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -73,6 +83,7 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
         data-testid={props["data-testid"] as string}
         data-severity={props["data-severity"] as string}
         data-variant={props.variant as string}
+        data-actions-placement={props.actionsPlacement as string}
       >
         <div>{props.title as ReactNode}</div>
         <div>{props.children as ReactNode}</div>
@@ -274,6 +285,56 @@ describe("PositionNotificationBanner", () => {
       reorderVerificationContext: mockReorderVerificationContext,
     });
     gateMock.value = { protocol: null, aave: null };
+  });
+
+  it("shows the exact WBTC notice with warning severity", () => {
+    renderBanner(
+      makeBaseResult({
+        warnings: [{ type: "wbtc-debt", ...COPY.liquidationWarnings.wbtcDebt }],
+        optimalVaultOrder: OPTIMAL_ORDER,
+      }),
+    );
+    expect(
+      screen.getByText(COPY.liquidationWarnings.wbtcDebt.detail),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: COPY.banner.applyOptimalOrder }),
+    ).toBeVisible();
+    expect(screen.getByTestId("position-notification-banner")).toHaveAttribute(
+      "data-actions-placement",
+      "below",
+    );
+    expect(screen.getByTestId("position-notification-banner")).toHaveAttribute(
+      "data-severity",
+      "yellow",
+    );
+  });
+
+  it("keeps the WBTC notice beside an urgent warning", () => {
+    renderBanner(
+      makeBaseResult({
+        warnings: [
+          {
+            type: "urgent",
+            title: COPY.liquidationWarnings.urgent.liquidatableTitle,
+            detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+          },
+          { type: "wbtc-debt", ...COPY.liquidationWarnings.wbtcDebt },
+        ],
+      }),
+    );
+    expect(
+      screen.getByText(COPY.liquidationWarnings.wbtcDebt.detail),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("note", {
+        name: COPY.liquidationWarnings.wbtcDebt.title,
+      }),
+    ).toHaveAttribute("data-variant", "warning");
+    expect(screen.getByTestId("position-notification-banner")).toHaveAttribute(
+      "data-severity",
+      "red",
+    );
   });
 
   it("renders nothing when result is null", () => {

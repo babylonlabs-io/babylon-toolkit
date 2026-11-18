@@ -63,6 +63,7 @@ import {
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
   WAITLIST_DIALOG_STOPS,
+  WBTC_NOTICE_STOPS,
   WITHDRAW_RISK_STOPS,
 } from "./targets";
 
@@ -473,6 +474,7 @@ export async function ensureOutputDir(): Promise<void> {
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
       DEPOSIT_SPLIT_MINIMUM_STOP,
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
+      ...Object.values(WBTC_NOTICE_STOPS),
       LIQUIDATION_CHART_STOP,
       LIQUIDATION_SMALL_POSITION_STOP,
       LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,

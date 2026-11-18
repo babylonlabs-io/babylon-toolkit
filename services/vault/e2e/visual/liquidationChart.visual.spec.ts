@@ -20,13 +20,20 @@
  * photographed identically on both sides of the comparison.
  */
 
+import { readFileSync } from "node:fs";
+
 import { expect, test } from "../fixtures";
+import {
+  connectInjectedWallets,
+  injectPageWallets,
+} from "../fixtures/pageWallets";
 
 import {
   assertRecordingCovered,
   capture,
   ensureOutputDir,
   preparePage,
+  recordedPageWallets,
   writeCaptures,
 } from "./capture";
 import {
@@ -35,6 +42,7 @@ import {
   LIQUIDATION_SMALL_POSITION_STOP,
   LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
   VISUAL_VIEWPORTS,
+  WBTC_NOTICE_STOPS,
 } from "./targets";
 
 /**
@@ -159,3 +167,87 @@ for (const viewport of VISUAL_VIEWPORTS) {
 }
 
 test.beforeAll(ensureOutputDir);
+
+const HAS_WBTC_NOTICE = readFileSync(
+  new URL("../../src/copy.ts", import.meta.url),
+  "utf8",
+).includes("wbtcDebt:");
+
+for (const viewport of VISUAL_VIEWPORTS) {
+  test(`capture the WBTC notice at ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const backend = await preparePage(page);
+    await page.addInitScript(() =>
+      localStorage.setItem("tbv-liquidation-tour-seen", "true"),
+    );
+    await injectPageWallets(page, recordedPageWallets());
+    const shots = [];
+    for (const [name, path] of [
+      ["overview", "/"],
+      ["liquidations", "/liquidations"],
+    ] as const) {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      if (name === "overview") await connectInjectedWallets(page);
+      await expect(page.getByTestId("wallet-menu-trigger")).toBeVisible();
+      await page
+        .getByRole("button", { name: PANEL.launcher, exact: true })
+        .click();
+      const [popup] = await Promise.all([
+        page.waitForEvent("popup"),
+        page.getByRole("button", { name: PANEL.popOut }).click(),
+      ]);
+      expect(popup.isClosed()).toBe(false);
+      await page.evaluate(async (modulePath) => {
+        const { DEBUG_PRESETS, setDebugManualParams, setDebugManualMode } =
+          await import(/* @vite-ignore */ modulePath);
+        const { params } = DEBUG_PRESETS.find(
+          (preset: { label: string }) => preset.label === "Reorder",
+        )!;
+        setDebugManualParams({
+          ...params,
+          hasWbtcDebt: true,
+        });
+        setDebugManualMode(true);
+      }, "/src/dev/debugPositionStore.ts");
+      if (name === "liquidations") {
+        await expect(page.getByTestId(CANDLE_TESTID).first()).toBeVisible();
+      }
+      const notice = page.getByText(
+        /^Your position uses BTC as collateral and WBTC/,
+      );
+      if (HAS_WBTC_NOTICE) {
+        await expect(notice).toBeVisible();
+        await expect(
+          page.getByTestId("position-notification-banner"),
+        ).toHaveAttribute("data-severity", "yellow");
+        const action = page
+          .getByTestId("position-notification-banner")
+          .getByRole("button", { name: "Apply Optimal Order", exact: true });
+        await expect(action).toBeVisible();
+        const noticeBottom = await notice.evaluate(
+          (element) => element.getBoundingClientRect().bottom,
+        );
+        const actionTop = await action.evaluate(
+          (element) => element.getBoundingClientRect().top,
+        );
+        expect(actionTop).toBeGreaterThanOrEqual(noticeBottom);
+      } else {
+        await expect(notice).toHaveCount(0);
+      }
+      shots.push(
+        await capture(
+          page,
+          flowScreenshotFileName(WBTC_NOTICE_STOPS[name], viewport),
+        ),
+      );
+      await popup.close();
+    }
+    assertRecordingCovered(backend, `WBTC notice at ${viewport.name}`, [
+      "eth-rpc",
+      "graphql",
+      "vp-health",
+      "mempool",
+    ]);
+    await writeCaptures(shots);
+  });
+}

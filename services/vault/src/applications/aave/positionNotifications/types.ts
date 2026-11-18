@@ -43,6 +43,7 @@ export interface LiquidationGroup {
 
 export type WarningType =
   | "urgent"
+  | "wbtc-debt"
   | "cliff"
   | "reorder"
   | "dust"
@@ -68,6 +69,7 @@ export interface CalculatorParams {
    */
   btcPrice: number;
   totalDebtUsd: number;
+  hasWbtcDebt?: boolean;
   vaults: Vault[];
   CF: number;
   /** Split target health factor (`VaultSplitParams.THF`) */
