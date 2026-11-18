@@ -25,7 +25,12 @@ describe("StepRow — failed step", () => {
   });
 
   it("keeps the label muted while the step is still pending", () => {
-    render(<StepRow state="pending" number={1} label="Submit WOTS key" />);
+    const { container } = render(
+      <StepRow state="pending" number={1} label="Submit WOTS key" />,
+    );
+
+    expect(container.querySelector(".bbn-loader")).toBeNull();
+    expect(container.querySelector("p")).toBeNull();
 
     expect(screen.getByText("Submit WOTS key").className).toContain(
       "text-accent-secondary",

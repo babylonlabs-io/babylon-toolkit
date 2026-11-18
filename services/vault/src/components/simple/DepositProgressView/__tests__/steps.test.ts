@@ -115,6 +115,7 @@ describe("buildStepItems payout-signing counters", () => {
       COPY.deposit.steps.signingCounter(2, 5),
     );
     expect(signRecovery(items).description).toBeUndefined();
+    expect(signPayouts(items).help).toBe(COPY.deposit.stepHelp[9]);
   });
 
   it("puts the counter on the recovery step during the graph phase", () => {
@@ -123,6 +124,7 @@ describe("buildStepItems payout-signing counters", () => {
       COPY.deposit.steps.signingCounter(3, 9),
     );
     expect(signPayouts(items).description).toBeUndefined();
+    expect(signRecovery(items).help).toBe(COPY.deposit.stepHelp[10]);
   });
 });
 
@@ -130,6 +132,7 @@ describe("buildStepItems Ethereum registration step", () => {
   it("has no description — the confirmation count lives only in the detail panel", () => {
     const items = buildStepItems(null);
     const ethStep = items[getVisualStep(DepositFlowStep.SUBMIT_PEGIN) - 1];
+    expect(items).toHaveLength(COPY.deposit.stepHelp.length);
     expect(ethStep.label).toBe(COPY.deposit.steps.signAndBroadcastEth);
     expect(ethStep.description).toBeUndefined();
   });

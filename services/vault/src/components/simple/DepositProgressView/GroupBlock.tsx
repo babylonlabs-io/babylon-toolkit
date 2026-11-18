@@ -26,7 +26,7 @@ interface GroupBlockProps {
   group: StepGroupView;
   /** 1-based group number shown in the circle (original group position). */
   number: number;
-  steps: StepperItem[];
+  steps: (StepperItem & { help?: string })[];
   /** Current visual step for this lane (shared trunk or per-vault lane). */
   currentStep: number;
   /** When true, this lane's current step failed — render it as an error. */
@@ -108,6 +108,7 @@ export function GroupBlock({
                 number={PRE_PEGIN_VISUAL_STEP - group.startStep + 1}
                 ariaNumber={PRE_PEGIN_VISUAL_STEP}
                 label={steps[PRE_PEGIN_VISUAL_STEP - 1]?.label ?? ""}
+                help={steps[PRE_PEGIN_VISUAL_STEP - 1]?.help}
               />
               {preSignDetail}
             </>
@@ -135,6 +136,7 @@ export function GroupBlock({
                   ariaNumber={globalStepNum}
                   label={step.label}
                   description={step.description}
+                  help={step.help}
                   detail={activeStepDetail}
                 />
               );

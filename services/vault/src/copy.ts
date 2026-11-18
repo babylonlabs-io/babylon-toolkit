@@ -99,6 +99,8 @@ const WRONG_WALLET_BODY =
 // Shared by formatPayoutSignatureError's Error and non-Error fallbacks so the
 // generic payout-signing title can't drift between the two.
 const PAYOUT_SIGNING_ERROR_TITLE = "Payout signing error";
+const PAYOUT_SIGNING_EXPLANATION =
+  "Approve future Bitcoin payouts under the BTCVault rules, to your payout address or a vault keeper. Also sign your own payout and the transactions that block it and pay a challenger if a challenge succeeds. Signing these payout and challenge transactions does not broadcast them.";
 // Device-state copy shared by deposit.errors and payoutSignatureErrors so the
 // two can't drift; wording warns that retry re-runs the device approval screens.
 const DEVICE_CEREMONY_INVALID_TITLE = "Device approval needed again";
@@ -520,6 +522,23 @@ export const COPY = {
       signingCounter: (completed: number, total: number) =>
         `(${completed} of ${total})`,
     },
+    stepHelp: [
+      "Your Bitcoin wallet derives a secret for this deposit. The secret links the Bitcoin deposit to its activation on Ethereum.",
+      "Sign the transaction that will move your Bitcoin into the BTCVault after activation. This step signs the transaction without broadcasting it.",
+      "Sign a proof that links your Bitcoin and Ethereum addresses. This proof does not transfer funds.",
+      "Register the BTCVault and its deposit terms on Ethereum. Your Ethereum wallet sends this transaction and pays its network fee.",
+      "Lock your Bitcoin with a timed refund path. Your wallet signs this transaction. The app then broadcasts it.",
+      "Wait for the Bitcoin network to include the deposit transaction in a block. A confirmation records that inclusion.",
+      "Set up the one-time signatures needed to support a Bitcoin claim. Your wallet may first ask to derive the required key.",
+      "Wait for the required Bitcoin confirmations and for the vault provider to prepare the claim transactions. No wallet signature is needed during this wait.",
+      "Your wallet authenticates with the vault provider. This proves access to this deposit without transferring Bitcoin.",
+      "Provider payouts send BTC to your payout address; keeper payouts send BTC to the keeper's address. These signatures prepare future payouts under the BTCVault rules without broadcasting them.",
+      "Prepare your Bitcoin payout and the transactions that stop it and pay a challenger if a challenge succeeds. This batch is signed without broadcast and is separate from the timed deposit refund.",
+      "Wait for the vault provider to verify your signatures. Verification must finish before you can activate the BTCVault.",
+      "Retrieve the deposit secret. The next Ethereum transaction reveals it to activate the BTCVault.",
+      "Reveal the deposit secret on Ethereum to activate the BTCVault. Your Ethereum wallet sends this transaction and pays its network fee.",
+      "Wait for the activation status to update. Once the BTCVault is active, you can use its Bitcoin as collateral.",
+    ],
     // Browser (desktop) notifications fired when a deposit needs the depositor
     // to sign or act while the tab is in the background. `title` is the bold
     // heading; `body` is the line beneath it. Titles reuse the same constants as
@@ -607,7 +626,8 @@ export const COPY = {
       summary: {
         estimate: (duration: string) => `~${duration}`,
         description:
-          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once your BTCVault is activated, and you will be able to borrow assets from that point.",
+          "Your wallets will ask for Bitcoin deposit, address-linking and Ethereum signatures. " +
+          PAYOUT_SIGNING_EXPLANATION,
       },
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
@@ -1273,8 +1293,6 @@ export const COPY = {
       // mention, and some extensions queue it without surfacing a popup.
       wotsWalletApprovalHint:
         "You may be asked to approve a request in your BTC wallet. If no approval window appears, open your wallet extension.",
-      // The card a resumed deposit shows before its wallet prompt, unless the
-      // depositor opened it from the row button naming this same action.
       start: {
         broadcast: {
           heading: SIGN_AND_BROADCAST_PRE_PEGIN_STEP,
@@ -1288,7 +1306,9 @@ export const COPY = {
         },
         payout: {
           heading: SIGN_PAYOUTS_STEP,
-          body: "Your wallet may first ask to derive a key that signs you in with the vault provider, then ask you to sign the Payout and NoPayout transactions. No signature is sent to the vault provider until all of them are signed.",
+          body:
+            "Your wallet may first authenticate with the vault provider. " +
+            PAYOUT_SIGNING_EXPLANATION,
           button: SIGN_PAYOUTS_ACTION,
         },
       },
