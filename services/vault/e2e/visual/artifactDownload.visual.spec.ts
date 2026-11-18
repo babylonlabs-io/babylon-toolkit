@@ -23,6 +23,7 @@ import {
   ACTIVATION_WARNING_STOPS,
   ARTIFACT_DOWNLOAD_STOPS,
   ARTIFACT_QUOTA_STOPS,
+  ARTIFACT_SAVED_STOP,
   flowScreenshotFileName,
   HAS_ARTIFACT_DOWNLOAD_CONFIRMATION,
   VISUAL_VIEWPORTS,
@@ -110,6 +111,37 @@ for (const viewport of VISUAL_VIEWPORTS) {
       await writeCaptures([shot]);
     });
   }
+}
+
+for (const viewport of VISUAL_VIEWPORTS) {
+  test(`capture the saved vault artifacts dialog at ${viewport.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.install({ time: VISUAL_FIXED_TIME });
+    const backend = await preparePage(page);
+    await injectPageWallets(page, recordedPageWallets());
+    await page.goto("/e2e/fixtures/artifactDownload.html?saved", {
+      waitUntil: "domcontentloaded",
+    });
+    await connectInjectedWallets(page);
+    await page.getByTestId("open-artifact-download").click();
+    await expect(
+      page.getByRole("heading", { name: "Artifacts downloaded", exact: true }),
+    ).toBeVisible();
+    const shot = await capture(
+      page,
+      flowScreenshotFileName(ARTIFACT_SAVED_STOP, viewport),
+      { fullPage: false },
+    );
+    assertRecordingCovered(backend, "saved vault artifacts dialog", [
+      "eth-rpc",
+      "graphql",
+      "vp-health",
+      "mempool",
+    ]);
+    await writeCaptures([shot]);
+  });
 }
 
 test.describe("activation risk warning", () => {

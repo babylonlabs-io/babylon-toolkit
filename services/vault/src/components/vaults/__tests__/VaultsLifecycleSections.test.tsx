@@ -1583,7 +1583,7 @@ describe("VaultsLifecycleSections expired artifact download", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the download once this pegin's artifacts are saved", () => {
+  it("offers the download again once this pegin's artifacts are saved", () => {
     saveArtifactDownloadReceipt(EXPIRED_ID, {
       version: 1,
       peginTxid: PEGIN_TXID,
@@ -1594,12 +1594,21 @@ describe("VaultsLifecycleSections expired artifact download", () => {
       method: "browser-download",
     });
 
-    renderExpiredRow();
+    const onDownloadArtifacts = renderExpiredRow();
 
     expect(
       screen.queryByRole("button", {
         name: COPY.vaults.actions.downloadArtifacts,
       }),
     ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.actions.downloadArtifactsAgain,
+      }),
+    );
+
+    expect(onDownloadArtifacts).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultId: EXPIRED_ID }),
+    );
   });
 });

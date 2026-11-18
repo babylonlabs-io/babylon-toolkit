@@ -143,6 +143,8 @@ const TWO_VAULT_SPLIT_NAME = "Two-vault split";
 // artifact-download and activate-confirmation dialog footers so the two
 // can't drift.
 const CANCEL_DOWNLOAD_LABEL = "Cancel download";
+// A vault row and the download dialog both offer a repeat after a saved kit.
+const DOWNLOAD_AGAIN_LABEL = "Download again";
 // Wallet-signature action/status label, shared by the deposit-stepper button
 // and the recovery-artifacts card status so the two can't drift.
 const SIGN_TRANSACTION_LABEL = "Sign Transaction";
@@ -984,6 +986,9 @@ export const COPY = {
       // confirms the artifacts are on disk (collateral list); it doesn't
       // perform activation, so the label simply dismisses it.
       doneButton: "Done",
+      // Left footer button in the downloaded state: the saved file may since
+      // be lost, so the dialog can fetch it again.
+      downloadAgainButton: DOWNLOAD_AGAIN_LABEL,
       // Variants of the recoveryArtifacts messages that speak about
       // activation, the risk acknowledgement, or the artifact warning, for a
       // vault that is active or expired after Verified, where those clauses
@@ -3053,6 +3058,8 @@ export const COPY = {
     actions: {
       reorder: "Reorder",
       downloadArtifacts: "Download artifacts",
+      // Shown in place of downloadArtifacts once this browser saved the kit.
+      downloadArtifactsAgain: DOWNLOAD_AGAIN_LABEL,
       withdraw: "Withdraw",
       redeem: "Redeem",
       viewDetails: "View Details",

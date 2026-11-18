@@ -57,6 +57,7 @@ import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgres
 import { getStepFillPercent } from "@/components/simple/DepositProgressView/steps";
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
+import { ArtifactDownloadRowButton } from "@/components/vaults/ArtifactDownloadRowButton";
 import {
   DismissPendingDepositDialog,
   type DismissPendingDepositError,
@@ -93,7 +94,6 @@ import {
   getExpiredArtifactDownloadParams,
   type ArtifactDownloadParams,
 } from "@/utils/artifactDownloadParams";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 import { getBatchSiblings } from "@/utils/batchedPegin";
 import { scriptPubKeyHexToBtcAddress } from "@/utils/btc";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -434,15 +434,6 @@ function PendingRow({
   );
 }
 
-function unsavedDownloadParams(
-  params: ArtifactDownloadParams | undefined,
-): ArtifactDownloadParams | null {
-  if (!params) return null;
-  return hasArtifactsDownloaded(params.vaultId, params.peginTxid)
-    ? null
-    : params;
-}
-
 function InactiveRow({
   activity,
   vaultProviders,
@@ -462,7 +453,7 @@ function InactiveRow({
   reclaimAction: ReclaimRowAction | undefined;
   /** The vault provider's BTC claim of a redeemed vault, once broadcast. */
   claimTxid: string | undefined;
-  /** Set while an expired vault's artifacts are downloadable and unsaved. */
+  /** Set while an expired vault's artifacts are downloadable, saved or not. */
   downloadParams: ArtifactDownloadParams | null;
   onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
 }) {
@@ -660,13 +651,10 @@ function InactiveRow({
           </div>
         )}
         {visibleDownloadParams && (
-          <button
-            type="button"
-            onClick={() => onDownloadArtifacts(visibleDownloadParams)}
-            className={PHONE_FULL_PRIMARY_ROW_BUTTON_CLASS}
-          >
-            {COPY.vaults.actions.downloadArtifacts}
-          </button>
+          <ArtifactDownloadRowButton
+            params={visibleDownloadParams}
+            onDownload={onDownloadArtifacts}
+          />
         )}
         {isRefundAvailable && (
           <button
@@ -840,7 +828,7 @@ export function VaultsLifecycleSections({
   const rows = [...pendingActivities, ...inactiveActivities];
 
   // One pass over pending storage per list change, as in Active Vaults; the
-  // saved-receipt check stays per render so a row drops its button on save.
+  // row button reads the receipt per render so its label changes on save.
   const expiredDownloadParams = useMemo(() => {
     const byId = new Map<string, ArtifactDownloadParams>();
     for (const activity of inactiveActivities) {
@@ -1112,9 +1100,7 @@ export function VaultsLifecycleSections({
                 onReclaim={handleReclaim}
                 reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
                 claimTxid={claimTxids.get(activity.id)}
-                downloadParams={unsavedDownloadParams(
-                  expiredDownloadParams.get(activity.id),
-                )}
+                downloadParams={expiredDownloadParams.get(activity.id) ?? null}
                 onDownloadArtifacts={onDownloadArtifacts}
               />
             ))}

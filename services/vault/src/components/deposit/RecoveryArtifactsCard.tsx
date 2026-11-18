@@ -197,6 +197,10 @@ export const RecoveryArtifactsCard = forwardRef<
       ? COPY.deposit.recoveryArtifacts.signedGraphMismatch
       : null);
 
+  // A repeat download can fail, or find a mismatch, while an earlier receipt
+  // stands. The card must not look saved over that error.
+  const showSaved = isDownloaded && !error;
+
   const message = (text: string) =>
     context === "vault" ? (VAULT_MESSAGES.get(text) ?? text) : text;
 
@@ -256,7 +260,7 @@ export const RecoveryArtifactsCard = forwardRef<
       <div className="flex items-center gap-4">
         <div
           className={`flex h-11 w-[47px] shrink-0 items-center justify-center rounded-lg text-white ${
-            isDownloaded ? "bg-success-main" : "bg-secondary-main"
+            showSaved ? "bg-success-main" : "bg-secondary-main"
           }`}
         >
           <RecoveryArtifactsIcon />
@@ -270,7 +274,7 @@ export const RecoveryArtifactsCard = forwardRef<
               {COPY.deposit.recoveryArtifacts.cardSubtitle}
             </span>
             <span className="shrink-0 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
-              {isDownloaded
+              {showSaved
                 ? COPY.deposit.recoveryArtifacts.cardSizeDownloaded
                 : COPY.deposit.recoveryArtifacts.cardSize}
             </span>

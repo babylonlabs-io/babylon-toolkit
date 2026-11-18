@@ -16,6 +16,10 @@ import {
 } from "@/overrides/artifactDownload";
 import Providers from "@/providers";
 import { Router } from "@/router";
+import {
+  normalizePeginTxid,
+  saveArtifactDownloadReceipt,
+} from "@/utils/artifactDownloadStorage";
 
 initEccLib(ecc);
 // The recording has no active vault. Mount its production download component
@@ -33,6 +37,18 @@ const activity = buildDepositsDemo(
   true,
 ).pendingActivities[0];
 const params = new URLSearchParams(window.location.search);
+// `?saved` opens the dialog on a vault whose artifacts this browser saved.
+if (params.has("saved")) {
+  saveArtifactDownloadReceipt(activity.id, {
+    version: 1,
+    peginTxid: normalizePeginTxid(activity.peginTxHash!),
+    filename: "artifacts.tar",
+    byteLength: 1,
+    sha256: "00".repeat(32),
+    savedAt: 1,
+    method: "file-system-access",
+  });
+}
 const DownloadModal =
   params.get("surface") === "activation"
     ? ActivateConfirmationModal

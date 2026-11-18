@@ -302,6 +302,9 @@ export const ARTIFACT_QUOTA_STOPS = {
   vault: "artifact-download-vault-quota",
 } as const;
 
+/** The vault download dialog opened on a vault whose artifacts are saved. */
+export const ARTIFACT_SAVED_STOP = "artifact-download-vault-saved";
+
 // CI runs this test harness against the earlier UI too.
 const vaultsLifecycleSource = readFileSync(
   new URL(

@@ -1,9 +1,19 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { VaultsActiveSection } from "@/components/vaults/VaultsActiveSection";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { saveArtifactDownloadReceipt } from "@/utils/artifactDownloadStorage";
+
+// The row offers a download only when this device holds the presign record.
+vi.mock("@/storage/peginStorage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/storage/peginStorage")>()),
+  getSignedGraphFingerprint: () => ({
+    status: "found",
+    fingerprint: "ee".repeat(32),
+  }),
+}));
 
 const activeVault: CollateralVaultEntry = {
   id: "vault-1",
@@ -118,5 +128,48 @@ describe("VaultsActiveSection", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("keeps the download on a row whose artifacts are saved, as Download again", () => {
+    const vaultId = `0x${"aa".repeat(32)}`;
+    const peginTxid = "bb".repeat(32);
+    saveArtifactDownloadReceipt(vaultId, {
+      version: 1,
+      peginTxid,
+      filename: "artifacts.json",
+      byteLength: 1,
+      sha256: "cc".repeat(32),
+      savedAt: 1,
+      method: "browser-download",
+    });
+    const onDownloadArtifacts = vi.fn();
+
+    render(
+      <VaultsActiveSection
+        vaults={[
+          {
+            ...activeVault,
+            vaultId,
+            peginTxHash: `0x${peginTxid}`,
+            depositorBtcPubkey: "dd".repeat(32),
+            unsignedPrePeginTx: "0200",
+          },
+        ]}
+        ethAddress="0x1111111111111111111111111111111111111111"
+        onWithdraw={vi.fn()}
+        onDownloadArtifacts={onDownloadArtifacts}
+        isWithdrawDisabled={false}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.actions.downloadArtifactsAgain,
+      }),
+    );
+
+    expect(onDownloadArtifacts).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultId }),
+    );
+    window.localStorage.clear();
   });
 });
