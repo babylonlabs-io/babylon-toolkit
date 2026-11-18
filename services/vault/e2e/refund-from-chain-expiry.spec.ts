@@ -103,8 +103,8 @@ const EXPIRED_LABEL = "Expired";
 const REDEEM_IN_PROGRESS_LABEL = "Redeem in progress";
 /** `COPY.pegin.labels.REFUNDING`. */
 const REFUNDING_LABEL = "Refunding";
-/** The head of `COPY.pegin.messages.refundMaturing`. */
-const REFUND_COUNTDOWN = "Your refund will be claimable in";
+/** The head of `COPY.pegin.messages.refundAvailableIn`. */
+const REFUND_COUNTDOWN = "Refund available in";
 /** The head of `COPY.pegin.messages.refundUnsettled`. */
 const REFUND_UNSETTLED_MESSAGE = "A refund was broadcast from this device";
 /** `COPY.pegin.messages.peginSweptExpiryUnreportedSubtext`. */

@@ -56,6 +56,7 @@ import {
   RISK_PRICE_RAIL_STOPS,
   screenshotFileName,
   VAULT_REFUND_STOPS,
+  VAULT_WAIT_STOPS,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
   WITHDRAW_RISK_STOPS,
@@ -455,6 +456,7 @@ export async function ensureOutputDir(): Promise<void> {
       ...Object.values(RISK_PRICE_RAIL_STOPS),
       ...Object.values(ACTIVATION_WARNING_STOPS).flat(),
       ...Object.values(VAULT_REFUND_STOPS),
+      ...Object.values(VAULT_WAIT_STOPS),
       ...WITHDRAW_RISK_STOPS,
       ...(HAS_ARTIFACT_DOWNLOAD_CONFIRMATION
         ? [
