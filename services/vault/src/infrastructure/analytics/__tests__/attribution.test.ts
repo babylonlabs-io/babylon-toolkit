@@ -448,6 +448,16 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("ref_[BTC_ADDR]");
   });
 
+  it("scrubs the whole of a legacy Bitcoin address that contains bc1", () => {
+    const result = deriveAttribution({
+      search: "?utm_term=-1QwertyuBC1abcdefghijkmnopqrstuvwxy-",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("-[BTC_ADDR]-");
+  });
+
   it("scrubs a 25-character legacy Bitcoin address", () => {
     const result = deriveAttribution({
       search: `?utm_term=ref_1${"A".repeat(24)}`,

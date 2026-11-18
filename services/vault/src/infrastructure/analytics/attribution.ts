@@ -74,8 +74,12 @@ const PREFIXED_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
  * A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35
  * characters) has no distinctive prefix, so it is matched only between
  * non-alphanumeric characters: unanchored, the pattern would eat ordinary
- * campaign words. It runs after the prefixed patterns, on their output, so a
- * replacement label's bracket counts as a boundary. Even so a campaign word of
+ * campaign words. It runs twice. On the original value its spans merge with
+ * the prefixed ones, because `b`, `c`, `t` and `1` are base58 characters: a
+ * legacy address that contains `bc1` or `tb1` would otherwise lose its tail to
+ * that pattern and its start, now too short, would be sent. It runs again on
+ * the scrubbed output, where a replacement label's bracket counts as a
+ * boundary. Even so a campaign word of
  * that shape is replaced; scrubbing too much is the accepted direction. The
  * leading boundary is captured and put back in place of a lookbehind, which
  * Safari before 16.4 rejects: this module runs at startup, so an unsupported
@@ -84,15 +88,20 @@ const PREFIXED_SCRUB_PATTERNS: readonly (readonly [RegExp, string])[] = [
 const LEGACY_BTC_ADDRESS =
   /(^|[^A-Za-z0-9])[13mn2][a-km-zA-HJ-NP-Z1-9]{24,34}(?![A-Za-z0-9])/g;
 
+const LEGACY_BTC_LABEL = "[BTC_ADDR]";
+
 interface ScrubSpan {
   start: number;
   end: number;
   label: string;
 }
 
-/** Replace every span a prefixed pattern matches, overlaps merged. */
+/**
+ * Replace every span a prefixed pattern or the legacy address pattern
+ * matches in the original value, overlaps merged.
+ */
 function scrubPrefixed(value: string): string {
-  const spans: ScrubSpan[] = PREFIXED_SCRUB_PATTERNS.flatMap(
+  const prefixedSpans: ScrubSpan[] = PREFIXED_SCRUB_PATTERNS.flatMap(
     ([pattern, label]) =>
       Array.from(value.matchAll(pattern), (match) => ({
         start: match.index,
@@ -100,6 +109,16 @@ function scrubPrefixed(value: string): string {
         label,
       })),
   );
+  // The captured leading boundary is not part of the address.
+  const legacySpans: ScrubSpan[] = Array.from(
+    value.matchAll(LEGACY_BTC_ADDRESS),
+    (match) => ({
+      start: match.index + match[1].length,
+      end: match.index + match[0].length,
+      label: LEGACY_BTC_LABEL,
+    }),
+  );
+  const spans = [...prefixedSpans, ...legacySpans];
   // Stable, so a tie keeps the pattern order.
   spans.sort((a, b) => a.start - b.start);
   const merged: ScrubSpan[] = [];
@@ -165,7 +184,7 @@ function isClickIdKey(key: AttributionKey): key is ClickIdKey {
 function cleanUtmValue(value: string): string {
   const scrubbed = scrubPrefixed(value).replace(
     LEGACY_BTC_ADDRESS,
-    "$1[BTC_ADDR]",
+    `$1${LEGACY_BTC_LABEL}`,
   );
   return truncate(scrubbed);
 }
