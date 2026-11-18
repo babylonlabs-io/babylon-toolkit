@@ -15,15 +15,16 @@ const MILLISECONDS_PER_SECOND = 1000;
 
 /**
  * Blocks that must remain before the activation deadline for a
- * secret-bearing activation to be worth sending.
+ * secret-bearing reveal to be worth sending: an activation, or a Withdraw
+ * whose PegIn is not proven to have spent the HTLC.
  *
- * Activation reveals the HTLC secret in calldata. If the transaction is mined
+ * The reveal puts the HTLC secret in calldata. If the transaction is mined
  * after `createdAt + pegInActivationTimeout` the contract reverts
  * `ActivationDeadlineExpired`, but `s` is public by then: the vault expires
- * with `ActivationTimeout`, and the vault provider, which holds the rest of
- * the HTLC signature set, can broadcast the PegIn with that secret. Refusing close to the deadline costs the depositor an activation
- * they were unlikely to land; sending it and losing the race costs them the
- * secret. The asymmetry is the whole reason this margin exists.
+ * with `ActivationTimeout`, and the PegIn can be broadcast with that secret.
+ * Refusing close to the deadline costs the depositor a reveal they were
+ * unlikely to land; sending it and losing the race costs them the secret.
+ * The asymmetry is the whole reason this margin exists.
  *
  * The margin is checked right before the write, but the activation's gas
  * search (a few simulations) and the wallet's signing prompt come after that

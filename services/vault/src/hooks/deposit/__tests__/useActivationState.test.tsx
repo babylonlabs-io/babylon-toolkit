@@ -5,11 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivationRedeemReason } from "@/services/vault/activationRedeemReason";
 import type { VaultActivity } from "@/types/activity";
+import type { ActivationFailureKind } from "@/utils/errors";
 
 let mockCollateralAdded = true;
 let mockRedeemed = false;
 let mockReason: ActivationRedeemReason | null = null;
 let mockActivationOutcomeUnknown = false;
+let mockActivationFailureKind: ActivationFailureKind | null = null;
 const mockHandleActivation = vi.fn(
   async ({
     onShowSuccessModal,
@@ -37,16 +39,19 @@ vi.mock("../useVaultActions", () => ({
     activationError: null,
     activationErrorTerminal: false,
     activationOutcomeUnknown: mockActivationOutcomeUnknown,
+    activationFailureKind: mockActivationFailureKind,
     handleActivation: mockHandleActivation,
   }),
 }));
 
 const mockSetOptimisticStatus = vi.fn();
 const mockMarkActivationReturned = vi.fn();
+const mockMarkVaultWithdrawn = vi.fn();
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   usePeginPolling: () => ({
     setOptimisticStatus: mockSetOptimisticStatus,
     markActivationReturned: mockMarkActivationReturned,
+    markVaultWithdrawn: mockMarkVaultWithdrawn,
   }),
 }));
 
@@ -107,6 +112,7 @@ beforeEach(() => {
   mockRedeemed = false;
   mockReason = null;
   mockActivationOutcomeUnknown = false;
+  mockActivationFailureKind = null;
 });
 
 describe("useActivationState", () => {
@@ -116,6 +122,14 @@ describe("useActivationState", () => {
     const { result } = setup();
 
     expect(result.current.errorOutcomeUnknown).toBe(true);
+  });
+
+  it("exposes the failure kind the reveal reported", () => {
+    mockActivationFailureKind = "mined-revert";
+
+    const { result } = setup();
+
+    expect(result.current.errorKind).toBe("mined-revert");
   });
 
   it("invalidates the vault and position queries once activation succeeds", async () => {
@@ -291,7 +305,7 @@ describe("useActivationState", () => {
     expect(mockMarkActivationReturned).not.toHaveBeenCalled();
   });
 
-  it("does not mark the escape hatch as returned, since it has its own success screen", async () => {
+  it("reports the withdrawn outcome and marks the vault withdrawn, never returned, for a Withdraw", async () => {
     mockCollateralAdded = false;
     mockRedeemed = true;
     const { result } = setup(true);
@@ -300,7 +314,35 @@ describe("useActivationState", () => {
       await result.current.handleActivation("0xsecret");
     });
 
-    expect(result.current.outcome).toBe("returned");
+    expect(result.current.outcome).toBe("withdrawn");
+    expect(mockMarkVaultWithdrawn).toHaveBeenCalledWith(VAULT_ID);
     expect(mockMarkActivationReturned).not.toHaveBeenCalled();
+  });
+
+  it("marks a Withdraw withdrawn before recording the optimistic CONFIRMED status", async () => {
+    // CONFIRMED without the mark reads as activated.
+    mockCollateralAdded = false;
+    mockRedeemed = true;
+    const { result } = setup(true);
+
+    await act(async () => {
+      await result.current.handleActivation("0xsecret");
+    });
+
+    expect(mockMarkVaultWithdrawn.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSetOptimisticStatus.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not mark a normal activation withdrawn", async () => {
+    mockCollateralAdded = false;
+    mockRedeemed = true;
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.handleActivation("0xsecret");
+    });
+
+    expect(mockMarkVaultWithdrawn).not.toHaveBeenCalled();
   });
 });

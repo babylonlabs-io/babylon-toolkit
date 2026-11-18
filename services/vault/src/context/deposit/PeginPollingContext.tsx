@@ -39,6 +39,7 @@ import {
   ContractStatus,
   getPeginProgressStep,
   isRefundInFlightOrSettled,
+  isVaultWithdrawnByDepositor,
   LocalStorageStatus,
 } from "../../models/peginStateMachine";
 import {
@@ -71,6 +72,7 @@ import {
 import {
   getOptimisticDepositState,
   markActivationReturned,
+  markVaultWithdrawn,
   setOptimisticDepositStatus,
   subscribeToOptimisticDepositState,
 } from "./optimisticDepositState";
@@ -218,6 +220,7 @@ export function PeginPollingProvider({
     wotsSubmittedAt,
     activationReturnedIds,
     activationReturnedReasons,
+    withdrawnIds,
   } = useSyncExternalStore(
     subscribeToOptimisticDepositState,
     getOptimisticDepositState,
@@ -234,6 +237,9 @@ export function PeginPollingProvider({
     for (const pegin of pendingPegins) {
       if (pegin.activationOutcome === "returned") {
         markActivationReturned(pegin.id, null);
+      }
+      if (pegin.activationOutcome === "withdrawn") {
+        markVaultWithdrawn(pegin.id);
       }
     }
   }, [pendingPegins]);
@@ -622,6 +628,7 @@ export function PeginPollingProvider({
         optimisticConfirmingAt,
         wotsSubmittedAt,
         activationReturnedIds,
+        withdrawnIds,
         btcPublicKey,
       });
       return {
@@ -655,6 +662,7 @@ export function PeginPollingProvider({
       optimisticConfirmingAt,
       wotsSubmittedAt,
       activationReturnedIds,
+      withdrawnIds,
       btcPublicKey,
     ],
   );
@@ -673,7 +681,11 @@ export function PeginPollingProvider({
     // every other deposit.
     const inFlow = pending.filter((activity) => {
       const result = getPollingResult(activity.id);
-      return !(result && isRefundInFlightOrSettled(result.peginState));
+      return !(
+        result &&
+        (isRefundInFlightOrSettled(result.peginState) ||
+          isVaultWithdrawnByDepositor(result.peginState))
+      );
     });
     const fills = inFlow.map((activity) => {
       const result = getPollingResult(activity.id);
@@ -710,6 +722,7 @@ export function PeginPollingProvider({
       // and the returned vault would read as activated again.
       markActivationReturned,
       activationReturnedReasons,
+      markVaultWithdrawn,
       refreshHtlcSpends,
     }),
     [

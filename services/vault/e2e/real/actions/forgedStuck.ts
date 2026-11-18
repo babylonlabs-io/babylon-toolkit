@@ -2,8 +2,10 @@
  * The "forged-stuck" action: a lying mempool API must not turn a healthy Verified vault "stuck".
  *
  * The dashboard calls a Verified vault stuck — its PegIn swept the deposit on Bitcoin but the vault never
- * activated — and then hides Activate and offers only the irreversible activate-and-redeem ("Withdraw").
- * The sweep is reported by the mempool API's `outspend`, and the PegIn txid it has to name is public, so
+ * activated — and then hides Activate and makes the irreversible activate-and-redeem ("Withdraw") the
+ * row's action. Only that proof does this, and only it lets Withdraw's confirm skip the activation-deadline
+ * margin; Withdraw offered after a failed activation keeps the margin. The sweep is reported by the
+ * mempool API's `outspend`, and the PegIn txid it has to name is public, so
  * the app checks the PegIn itself: fetched by the on-chain signed PegIn's txid, it must spend
  * the HTLC with a witness Bitcoin would accept — the preimage of the on-chain hashlock and every
  * participant's signature (`verifyPeginHashlockSpend`). This run plays the hostile API against the real app,
@@ -14,6 +16,10 @@
  *   - `GET /tx/<pegin>/hex` → the depositor-signed PegIn the registry publishes: the right txid and
  *     outpoint, but only the depositor's signature in its witness. (A forger can do more — the other
  *     signatures are public too, so only the preimage would be wrong; the SDK's verifier tests cover that.)
+ *
+ * The invariant: a forged spend report never makes Withdraw the row's primary action, never shows
+ * "Activation incomplete", and never lets the confirm skip the deadline margin. This run checks the row;
+ * the margin follows from the same proof, which the handler re-runs, and is covered by its unit tests.
  *
  * Default (sends nothing): forge, open /vaults and watch the deposit's row for two poll cycles. The run
  * fails the moment the row reads "Activation incomplete" / "Withdraw required" or its CTA reads Withdraw.
@@ -216,7 +222,7 @@ async function readRows(rows: Locator): Promise<RowObservation[]> {
 }
 
 /**
- * Watch the rows, failing the moment one offers the escape hatch. Returns once the window has passed —
+ * Watch the rows, failing the moment one reads stuck. Returns once the window has passed —
  * the stuck-vault poll runs on mount and every 60s, so it spans two of its cycles —
  * and the deposit offers Activate: on one row, with any split sibling waiting for the earlier vault. A
  * row still waiting for its activation window offers no Activate yet, so the watch goes on, under the
@@ -250,7 +256,7 @@ async function watchRows(
     );
     if (stuck)
       throw new Error(
-        `The forged outspend made the app offer activate-and-redeem ("${stuck.rowText}", CTA "${stuck.ctaText ?? "none"}"). A mempool API's spend report alone must never offer it.`,
+        `The forged outspend made the row read stuck ("${stuck.rowText}", CTA "${stuck.ctaText ?? "none"}"). A mempool API's spend report alone must never make Withdraw the row's action.`,
       );
     if (Date.now() >= watchUntil && rowsOfferActivation(observations))
       return observations;
@@ -425,7 +431,7 @@ export const forgedStuckAction: Action = {
       finalRows = await watchRows(page, rows, log);
       assertForgeryConsumed(forgery);
       log(
-        "✅ The forged outspend did not make the app offer activate-and-redeem: the PegIn it served is not a valid spend of the HTLC, and the row still offers Activate.",
+        "✅ The forged outspend did not make the row read stuck: the PegIn it served is not a valid spend of the HTLC, and the row still offers Activate.",
       );
 
       if (!activate) return;

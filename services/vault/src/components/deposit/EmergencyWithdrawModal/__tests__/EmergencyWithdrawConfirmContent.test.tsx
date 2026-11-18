@@ -1,15 +1,9 @@
 /**
- * Tests for the escape-hatch confirm screen's gating.
- *
- * Confirming reveals the HTLC secret irreversibly, so the two directions of
- * the application-status read are asymmetric on purpose: a CONFIRMED inactive
- * application withholds the action (the registry would reject it), while an
- * UNKNOWN status must not — over-blocking strands a depositor whose peg-in is
- * already swept, and the pre-broadcast simulation still refuses to sign.
+ * Tests for the escape-hatch confirm screen: which body it shows for the
+ * caller's stuck proof, when it adds the split warning, and its gating.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gateMock = vi.hoisted(() => ({
@@ -22,23 +16,19 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
-const applicationActiveMock = vi.hoisted(() => ({
-  value: undefined as boolean | undefined,
-}));
-vi.mock("@/hooks/useVaultApplicationActive", () => ({
-  useVaultApplicationActive: () => applicationActiveMock.value,
-}));
-
 import { COPY } from "@/copy";
 
 import { EmergencyWithdrawConfirmContent } from "../EmergencyWithdrawConfirmContent";
+import type { WithdrawStuckProof } from "../stuckProof";
 
-const VAULT_ID = `0x${"11".repeat(32)}` as Hex;
-
-function renderConfirm() {
+function renderConfirm(
+  stuckProof: WithdrawStuckProof = "proven",
+  splitProtectionLost = false,
+) {
   return render(
     <EmergencyWithdrawConfirmContent
-      vaultId={VAULT_ID}
+      stuckProof={stuckProof}
+      splitProtectionLost={splitProtectionLost}
       withdrawing={false}
       error={null}
       errorTerminal={false}
@@ -56,68 +46,85 @@ function acknowledge() {
 
 beforeEach(() => {
   gateMock.value = { protocol: null, aave: null };
-  applicationActiveMock.value = true;
 });
 
-describe("EmergencyWithdrawConfirmContent — application-status gate", () => {
-  it("allows withdrawing once acknowledged and the application is active", () => {
+describe("EmergencyWithdrawConfirmContent — body per stuck proof", () => {
+  it("shows the stuck body for a vault proven stuck", () => {
+    renderConfirm("proven");
+
+    expect(
+      screen.getByText(COPY.deposit.emergencyWithdraw.bodyStuck),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.emergencyWithdraw.bodyNotProven),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the not-proven body, never the stuck one, for a failed activation", () => {
+    renderConfirm("not-proven");
+
+    expect(
+      screen.getByText(COPY.deposit.emergencyWithdraw.bodyNotProven),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.emergencyWithdraw.bodyStuck),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns about the lost split protection for a not-proven withdraw that removes it", () => {
+    renderConfirm("not-proven", true);
+
+    expect(
+      screen.getByText(COPY.deposit.emergencyWithdraw.splitProtectionWarning),
+    ).toBeInTheDocument();
+  });
+
+  it("does not warn about split protection when the withdraw keeps it", () => {
+    renderConfirm("not-proven", false);
+
+    expect(
+      screen.queryByText(COPY.deposit.emergencyWithdraw.splitProtectionWarning),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not warn about split protection for a vault proven stuck", () => {
+    renderConfirm("proven", true);
+
+    expect(
+      screen.queryByText(COPY.deposit.emergencyWithdraw.splitProtectionWarning),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("EmergencyWithdrawConfirmContent — gating", () => {
+  it("allows withdrawing once acknowledged", () => {
     renderConfirm();
     acknowledge();
 
     expect(screen.getByTestId("emergency-withdraw-button")).toBeEnabled();
-    expect(
-      screen.queryByText(COPY.deposit.emergencyWithdraw.applicationInactive),
-    ).not.toBeInTheDocument();
   });
 
-  it("withholds the action and explains why when the application is inactive", () => {
-    applicationActiveMock.value = false;
+  it("withholds the action until the risk is acknowledged", () => {
     renderConfirm();
-    acknowledge();
-
-    expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
-    expect(
-      screen.getByText(COPY.deposit.emergencyWithdraw.applicationInactive),
-    ).toBeInTheDocument();
-  });
-
-  it("still allows withdrawing while the application status is unknown", () => {
-    // Loading or a failed read. Fail OPEN: this is the only recovery left for
-    // a swept peg-in, so an RPC blip must not take it away.
-    applicationActiveMock.value = undefined;
-    renderConfirm();
-    acknowledge();
-
-    expect(screen.getByTestId("emergency-withdraw-button")).toBeEnabled();
-    expect(
-      screen.queryByText(COPY.deposit.emergencyWithdraw.applicationInactive),
-    ).not.toBeInTheDocument();
-  });
-
-  it("keeps the action withheld under a protocol-scope pause", () => {
-    // The pre-existing governance gate must survive the new one.
-    gateMock.value = { protocol: "paused", aave: null };
-    renderConfirm();
-    acknowledge();
 
     expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
   });
 
-  it("explains the withheld action under a protocol-scope pause", () => {
-    // The disabled button used to be the whole story: the copy existed but was
-    // only set by the click handler behind the button the pause had already
-    // disabled, so a depositor who believes their BTC is stuck saw a dead
-    // control with no reason given.
-    gateMock.value = { protocol: "paused", aave: null };
-    renderConfirm();
+  it.each<WithdrawStuckProof>(["proven", "not-proven"])(
+    "keeps the action withheld and explains why under a protocol-scope pause (%s)",
+    (stuckProof) => {
+      gateMock.value = { protocol: "paused", aave: null };
+      renderConfirm(stuckProof);
+      acknowledge();
 
-    expect(
-      screen.getByText(COPY.pegin.activateAndRedeemPaused),
-    ).toBeInTheDocument();
-  });
+      expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
+      expect(
+        screen.getByText(COPY.pegin.activateAndRedeemPaused),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("does not show the pause explanation when nothing is paused", () => {
-    gateMock.value = { protocol: null, aave: null };
     renderConfirm();
 
     expect(
@@ -128,7 +135,8 @@ describe("EmergencyWithdrawConfirmContent — application-status gate", () => {
   it("shows a withdraw that may have been broadcast as a status-unknown warning with the action disabled and no Retry", () => {
     render(
       <EmergencyWithdrawConfirmContent
-        vaultId={VAULT_ID}
+        stuckProof="proven"
+        splitProtectionLost={false}
         withdrawing={false}
         error={COPY.common.classifiedErrors.sendOutcomeUnknown}
         errorTerminal={false}
@@ -157,7 +165,8 @@ describe("EmergencyWithdrawConfirmContent — application-status gate", () => {
   it("offers Retry after a withdraw that failed", () => {
     render(
       <EmergencyWithdrawConfirmContent
-        vaultId={VAULT_ID}
+        stuckProof="proven"
+        splitProtectionLost={false}
         withdrawing={false}
         error="Transaction reverted"
         errorTerminal={false}

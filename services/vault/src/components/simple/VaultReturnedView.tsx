@@ -10,6 +10,9 @@
  * `full` says the BTC is being returned, when every BTCVault of the deposit
  * was; `partial` says only part of the deposit is, when only some were, and
  * says nothing about what became of the others.
+ *
+ * `outcome` picks the wording: `returned` when the registry redeemed the
+ * BTCVault, `withdrawn` when the depositor's own Withdraw did.
  */
 
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
@@ -23,6 +26,7 @@ import {
 import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./DepositProgressView/layout";
 
 interface VaultReturnedViewProps {
+  outcome: "returned" | "withdrawn";
   variant: "full" | "partial";
   /** Why the activation was returned; its sentence is shown under the body when known. */
   reason?: ActivationRedeemReason | null;
@@ -30,11 +34,16 @@ interface VaultReturnedViewProps {
 }
 
 export function VaultReturnedView({
+  outcome,
   variant,
   reason,
   onGoToDashboard,
 }: VaultReturnedViewProps) {
-  const copy = COPY.deposit.vaultReturnedSuccess[variant];
+  const copy = (
+    outcome === "withdrawn"
+      ? COPY.deposit.vaultWithdrawnSuccess
+      : COPY.deposit.vaultReturnedSuccess
+  )[variant];
   const reasonText = reason ? activationRedeemReasonText(reason) : null;
   return (
     <div

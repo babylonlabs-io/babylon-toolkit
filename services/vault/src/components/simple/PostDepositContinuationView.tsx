@@ -25,6 +25,7 @@ import {
   isVaultActivated,
   isVaultActivationReturned,
   isVaultPastActivation,
+  isVaultWithdrawnByDepositor,
   PeginAction,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
@@ -68,6 +69,10 @@ interface PostDepositContinuationViewProps {
    */
   autoStartAction: PeginAction | "any" | null;
   onClose: () => void;
+  /** Opens the host's Withdraw dialog for a vault whose activation failed. */
+  onWithdraw: (activity: VaultActivity) => void;
+  /** That dialog is open: the failure screen holds its buttons meanwhile. */
+  withdrawOpen: boolean;
 }
 
 function StatusView({
@@ -129,6 +134,8 @@ export function PostDepositContinuationView({
   demoVaultIds,
   autoStartAction,
   onClose,
+  onWithdraw,
+  withdrawOpen,
 }: PostDepositContinuationViewProps) {
   const { connected, btcConnected, sessionConfirmed, locked } = useBtcAction();
   // The named row click is the consent, so a wallet that is merely locked at
@@ -387,12 +394,32 @@ export function PostDepositContinuationView({
           : sessionReason;
       return (
         <VaultReturnedView
+          outcome="returned"
           variant={
             states.every((state) => isVaultActivationReturned(state))
               ? "full"
               : "partial"
           }
           reason={returnedReason}
+          onGoToDashboard={handleGoToDashboard}
+        />
+      );
+    }
+    // The depositor's own Withdraw is terminal in the same way, with its own
+    // wording. A sibling still to activate keeps the batch out of this block.
+    const showWithdrawn =
+      settled &&
+      states.some((state) => isVaultWithdrawnByDepositor(state)) &&
+      states.every((state) => isVaultPastActivation(state));
+    if (showWithdrawn) {
+      return (
+        <VaultReturnedView
+          outcome="withdrawn"
+          variant={
+            states.every((state) => isVaultWithdrawnByDepositor(state))
+              ? "full"
+              : "partial"
+          }
           onGoToDashboard={handleGoToDashboard}
         />
       );
@@ -541,6 +568,8 @@ export function PostDepositContinuationView({
           siblingVaultIds={siblingVaultIds}
           onClose={onClose}
           onGoToDashboard={handleGoToDashboard}
+          onWithdraw={onWithdraw}
+          withdrawOpen={withdrawOpen}
         />
       </ActivationGate>
     );

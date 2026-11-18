@@ -126,13 +126,19 @@ vi.mock("@/components/simple/PostDepositContinuationContent", () => ({
     vaultIds,
     autoStartAction,
     onClose,
+    onWithdraw,
   }: {
     vaultIds: readonly string[];
     autoStartAction: string | null;
     onClose: () => void;
+    onWithdraw: (activity: { id: string }) => void;
   }) => (
     <>
       <div data-testid="continuation-vault-ids">{vaultIds.join(",")}</div>
+      <button
+        data-testid="continuation-withdraw"
+        onClick={() => onWithdraw({ id: vaultIds[0] })}
+      />
       <div data-testid="continuation-auto-start-action">
         {String(autoStartAction)}
       </div>
@@ -246,6 +252,7 @@ function makeDeposits(
     },
     emergencyWithdrawModal: {
       withdrawing: null,
+      splitProtectionLost: false,
       handleWithdrawClick: vi.fn(),
       handleClose: vi.fn(),
       handleSuccess: vi.fn(),
@@ -419,6 +426,42 @@ describe("VaultsLifecycleSections pending row", () => {
       screen.getByText(COPY.pegin.messages.activationReturned),
     ).toBeInTheDocument();
     expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
+  });
+
+  it("shows the withdrawn message, not an activation estimate, on a vault the depositor withdrew", () => {
+    const WITHDRAWN_STATE: PeginState = {
+      contractStatus: ContractStatus.VERIFIED,
+      displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+      displayVariant: "pending",
+      availableActions: [PeginAction.NONE],
+      message: COPY.pegin.messages.withdrawSubmitted,
+      withdrawnByDepositor: true,
+    };
+    renderPendingRow(
+      pollingResult(WITHDRAWN_STATE, { prePeginConfirmations: 6 }),
+    );
+
+    expect(
+      screen.getByText(COPY.pegin.messages.withdrawSubmitted),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
+  });
+
+  it("opens the row's Withdraw with the found activity as proven stuck", () => {
+    const STUCK_STATE: PeginState = {
+      contractStatus: ContractStatus.VERIFIED,
+      displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+      displayVariant: "pending",
+      availableActions: [PeginAction.ACTIVATE_AND_REDEEM],
+      message: COPY.pegin.messages.activationIncomplete,
+    };
+    const { deposits } = renderPendingRow(pollingResult(STUCK_STATE));
+
+    fireEvent.click(screen.getByTestId("pending-deposit-resume-cta"));
+
+    expect(
+      deposits.emergencyWithdrawModal.handleWithdrawClick,
+    ).toHaveBeenCalledExactlyOnceWith(ACTIVITY, "proven");
   });
 });
 
@@ -735,6 +778,19 @@ describe("VaultsLifecycleSections deposit view", () => {
     expect(screen.getByTestId("continuation-vault-ids").textContent).toBe(
       `${BATCH_A.id},${BATCH_B.id}`,
     );
+  });
+
+  it("opens Withdraw from the deposit view's failure screen as not proven stuck", () => {
+    const { deposits } = renderPendingRow(pollingResult(PROCESSING_STATE));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.vaults.actions.viewDetails }),
+    );
+    fireEvent.click(screen.getByTestId("continuation-withdraw"));
+
+    expect(
+      deposits.emergencyWithdrawModal.handleWithdrawClick,
+    ).toHaveBeenCalledExactlyOnceWith({ id: ACTIVITY_ID }, "not-proven");
   });
 
   it("keeps a vault in the batch it shows while a refetch drops that vault", () => {

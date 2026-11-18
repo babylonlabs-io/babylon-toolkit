@@ -716,6 +716,164 @@ describe("DepositProgressView", () => {
     });
   });
 
+  describe("error secondary action", () => {
+    const SECONDARY_TEST_ID = "deposit-progress-secondary-action-button";
+    const secondary = (overrides: { disabled?: boolean } = {}) => ({
+      label: "Withdraw",
+      explanation: "Withdrawing cancels this deposit.",
+      onClick: vi.fn(),
+      disabled: overrides.disabled ?? false,
+    });
+
+    it("renders only Retry when no secondary action is given", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={{ title: "Activation failed", body: "boom" }}
+          onRetry={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: COPY.deposit.progress.buttons.retry,
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("places the secondary action before Retry, with its explanation describing it", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={{ title: "Activation failed", body: "boom" }}
+          onRetry={vi.fn()}
+          errorSecondaryAction={secondary()}
+        />,
+      );
+
+      const secondaryButton = screen.getByTestId(SECONDARY_TEST_ID);
+      const retry = screen.getByRole("button", {
+        name: COPY.deposit.progress.buttons.retry,
+      });
+      expect(secondaryButton).toHaveTextContent("Withdraw");
+      expect(
+        secondaryButton.compareDocumentPosition(retry) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(secondaryButton).toHaveAccessibleDescription(
+        "Withdrawing cancels this deposit.",
+      );
+    });
+
+    it("runs only the secondary handler when the secondary action is clicked", () => {
+      const onRetry = vi.fn();
+      const onClose = vi.fn();
+      const action = secondary();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={{ title: "Activation failed", body: "boom" }}
+          onRetry={onRetry}
+          onClose={onClose}
+          errorSecondaryAction={action}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId(SECONDARY_TEST_ID));
+
+      expect(action.onClick).toHaveBeenCalledTimes(1);
+      expect(onRetry).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("disables both the secondary action and Retry while either is in flight", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={{ title: "Activation failed", body: "boom" }}
+          onRetry={vi.fn()}
+          errorSecondaryAction={secondary({ disabled: true })}
+        />,
+      );
+
+      expect(screen.getByTestId(SECONDARY_TEST_ID)).toBeDisabled();
+      expect(
+        screen.getByRole("button", {
+          name: COPY.deposit.progress.buttons.retry,
+        }),
+      ).toBeDisabled();
+    });
+
+    it("ignores the secondary action without an error", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          onRetry={vi.fn()}
+          errorSecondaryAction={secondary()}
+        />,
+      );
+
+      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Withdrawing cancels this deposit."),
+      ).not.toBeInTheDocument();
+    });
+
+    it("ignores the secondary action when the error has no retry", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={{ title: "Activation failed", body: "boom" }}
+          errorSecondaryAction={secondary()}
+        />,
+      );
+
+      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+    });
+
+    it("ignores the secondary action on a device-disconnected error, which offers Reconnect", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={COPY.deposit.errors.deviceDisconnected}
+          onRetry={vi.fn()}
+          errorSecondaryAction={secondary()}
+        />,
+      );
+
+      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.reconnectButton,
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("ignores the secondary action before the flow has started", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          started={false}
+          onSign={vi.fn()}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          error={{ title: "Activation failed", body: "boom" }}
+          onRetry={vi.fn()}
+          errorSecondaryAction={secondary()}
+        />,
+      );
+
+      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+    });
+  });
+
   describe("complete state", () => {
     it("hides all groups and fills the progress bar on completion", () => {
       render(

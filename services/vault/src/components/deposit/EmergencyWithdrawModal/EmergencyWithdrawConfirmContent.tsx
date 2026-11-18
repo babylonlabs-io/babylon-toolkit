@@ -7,18 +7,20 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-import type { Hex } from "viem";
 
 import { isActivateAndRedeemBlocked } from "@/components/shared/protocolStatus";
 import { DeviceAppWaitDetail } from "@/components/simple/DepositProgressView/DeviceAppWaitDetail";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
-import { useVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 import type { LedgerDeviceStep } from "@/types/ledgerDeviceStep";
 
+import type { WithdrawStuckProof } from "./stuckProof";
+
 interface EmergencyWithdrawConfirmContentProps {
-  /** Vault whose application registration gates this exit. */
-  vaultId: Hex;
+  /** Selects the body: proven stuck, or a deposit that may still be refundable. */
+  stuckProof: WithdrawStuckProof;
+  /** Adds the split warning to the not-proven body; a proven-stuck vault has no other exit. */
+  splitProtectionLost: boolean;
   /** Reveal + redeem in flight (wallet popup or on-chain submission). */
   withdrawing: boolean;
   error: string | null;
@@ -50,7 +52,8 @@ interface EmergencyWithdrawConfirmContentProps {
  * see `isActivateAndRedeemBlocked`).
  */
 export function EmergencyWithdrawConfirmContent({
-  vaultId,
+  stuckProof,
+  splitProtectionLost,
   withdrawing,
   error,
   errorTerminal,
@@ -62,25 +65,12 @@ export function EmergencyWithdrawConfirmContent({
   const [acknowledged, setAcknowledged] = useState(false);
 
   const gate = useProtocolGateState();
-  // Withheld only on a CONFIRMED non-Active application: the registry rejects
-  // the redeem in that state, so offering it would spend the user's
-  // acknowledgement on a transaction that cannot succeed. `undefined` (loading
-  // or a failed read) does NOT block — over-blocking strands a depositor whose
-  // peg-in is already swept, and the pre-broadcast simulation still refuses to
-  // sign into a genuinely inactive application.
-  //
-  // This is CTA suppression, not the gate: it reads the cache as of paint, so
-  // a click inside the first round-trip would slip through. The confirm handler
-  // re-reads and awaits before deriving the secret (`EmergencyWithdrawModal`).
-  const applicationActive = useVaultApplicationActive(vaultId);
-  const applicationInactive = applicationActive === false;
   const activateAndRedeemPaused = isActivateAndRedeemBlocked(gate);
   const canWithdraw =
     acknowledged &&
     !withdrawing &&
     !errorTerminal &&
     !errorOutcomeUnknown &&
-    !applicationInactive &&
     !activateAndRedeemPaused;
 
   return (
@@ -107,7 +97,9 @@ export function EmergencyWithdrawConfirmContent({
             {COPY.deposit.emergencyWithdraw.title}
           </Heading>
           <Text variant="body1" className="text-accent-secondary">
-            {COPY.deposit.emergencyWithdraw.bodyStuck}
+            {stuckProof === "proven"
+              ? COPY.deposit.emergencyWithdraw.bodyStuck
+              : COPY.deposit.emergencyWithdraw.bodyNotProven}
           </Text>
         </div>
       </div>
@@ -125,10 +117,13 @@ export function EmergencyWithdrawConfirmContent({
       </label>
 
       <div className="flex flex-col gap-4">
+        {stuckProof === "not-proven" && splitProtectionLost && (
+          <Callout variant="warning">
+            {COPY.deposit.emergencyWithdraw.splitProtectionWarning}
+          </Callout>
+        )}
         {/* Explains the withheld confirm button. Ordered before `error` so a
             live blocker outranks a stale message from an earlier attempt.
-            Protocol pause first: it is protocol-scope, so it outranks the
-            application-scope registration check below.
 
             The pause needs its own callout because `canWithdraw` gates on it
             but nothing else surfaces it — `COPY.pegin.activateAndRedeemPaused`
@@ -139,11 +134,6 @@ export function EmergencyWithdrawConfirmContent({
         {activateAndRedeemPaused && (
           <Callout variant="warning">
             {COPY.pegin.activateAndRedeemPaused}
-          </Callout>
-        )}
-        {applicationInactive && (
-          <Callout variant="warning">
-            {COPY.deposit.emergencyWithdraw.applicationInactive}
           </Callout>
         )}
         {error &&

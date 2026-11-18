@@ -64,6 +64,11 @@ export interface OptimisticDepositState {
   activationReturnedIds: ReadonlySet<string>;
   /** Why the registry returned each marked deposit, when the receipt said. */
   activationReturnedReasons: ReadonlyMap<string, ActivationRedeemReason>;
+  /**
+   * Deposits whose Withdraw (activate-and-redeem) receipt this session saw, or
+   * whose deposit record stores that outcome. Same rules as the returned mark.
+   */
+  withdrawnIds: ReadonlySet<string>;
 }
 
 /**
@@ -106,6 +111,7 @@ const EMPTY_STATE: OptimisticDepositState = {
   payoutSignCanceledIds: new Set(),
   activationReturnedIds: new Set(),
   activationReturnedReasons: new Map(),
+  withdrawnIds: new Set(),
 };
 
 let currentState: OptimisticDepositState = EMPTY_STATE;
@@ -173,6 +179,7 @@ export function setOptimisticDepositStatus(
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
     activationReturnedIds: currentState.activationReturnedIds,
     activationReturnedReasons: currentState.activationReturnedReasons,
+    withdrawnIds: currentState.withdrawnIds,
   });
 }
 
@@ -199,6 +206,7 @@ export function markWotsSubmitted(depositId: string): void {
     payoutSignCanceledIds: currentState.payoutSignCanceledIds,
     activationReturnedIds: currentState.activationReturnedIds,
     activationReturnedReasons: currentState.activationReturnedReasons,
+    withdrawnIds: currentState.withdrawnIds,
   });
 }
 
@@ -223,6 +231,7 @@ export function markPayoutSignCanceled(depositId: string): void {
     ),
     activationReturnedIds: currentState.activationReturnedIds,
     activationReturnedReasons: currentState.activationReturnedReasons,
+    withdrawnIds: currentState.withdrawnIds,
   });
 }
 
@@ -261,6 +270,22 @@ export function markActivationReturned(
             depositId,
             reason,
           ),
+    withdrawnIds: currentState.withdrawnIds,
+  });
+}
+
+/**
+ * Record that the depositor's own Withdraw landed for this deposit, so it
+ * reads as withdrawn, not as activated. Written like the returned mark.
+ */
+export function markVaultWithdrawn(depositId: string): void {
+  // Repeat writes must not publish — same discipline as the setters above.
+  if (currentState.withdrawnIds.has(depositId)) {
+    return;
+  }
+  publish({
+    ...currentState,
+    withdrawnIds: new Set(currentState.withdrawnIds).add(depositId),
   });
 }
 
