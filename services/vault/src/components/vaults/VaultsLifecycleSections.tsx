@@ -295,11 +295,12 @@ function PendingRow({
           </span>
           <span
             title={subLine}
-            className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
+            className={`${peginState?.inlineSubtext ? "break-words" : "truncate"} text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary`}
           >
             {/* Subtext wins when a state sets one: it is state-specific (e.g.
                 an activation-window countdown) and therefore sharper than the
-                block-depth estimate, which only models the common wait. */}
+                block-depth estimate, which only models the common wait. It is
+                short, so it wraps; the full-sentence fallback is cut. */}
             {subLine}
           </span>
         </div>
@@ -570,7 +571,7 @@ function InactiveRow({
           </span>
           <span
             title={subtextTitle}
-            className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
+            className="break-words text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
           >
             {subtext}
           </span>

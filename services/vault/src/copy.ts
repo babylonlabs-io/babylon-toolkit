@@ -292,7 +292,7 @@ export const COPY = {
       },
       // Activation floor. Blocks lead because they are the fact the contract
       // checks; the minutes figure is an estimate derived from slot time, so it
-      // is bracketed as approximate. Mirrors the refundMaturing shape.
+      // is bracketed as approximate.
       activationWindowOpening: (blocks: number, minutes: number) =>
         `Your BTCVault is verified. Activation opens in ${blocks} Ethereum ${
           blocks === 1 ? "block" : "blocks"
@@ -301,8 +301,7 @@ export const COPY = {
         "Activation opens a short time after verification. This is a protocol requirement.",
       // Compact form for the always-visible slot under the amount. The full
       // sentence stays in `message`, which the /vaults pending row no longer
-      // surfaces, so this is the only form a depositor sees there and it must
-      // survive `truncate`.
+      // surfaces, so this is the only form a depositor sees there.
       activationWindowSubtext: (blocks: number, minutes: number) =>
         `Opens in ${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
       activationWindowSubtextUnknown: "Waiting for the activation window",
@@ -362,11 +361,13 @@ export const COPY = {
         "A refund was broadcast from this device, and it has not confirmed on Bitcoin.",
       refundComplete:
         "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
-      // Longest sub-line the lifecycle rows render. It exceeds
-      // LIST_ROW_LEADING_COLUMN_CLASS's basis (components/shared/ListRow.tsx),
-      // so that cell truncates it rather than widening.
-      refundMaturing: (blocks: number, hours: number) =>
-        `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
+      // Sub-line under the amount. "Available": the depositor still has to
+      // press Withdraw.
+      refundAvailableIn: (duration: string) =>
+        `Refund available in ~${duration}`,
+      // Appended to the expired tooltip: the block count the label rounds.
+      refundOpensInBlocks: (blocks: number) =>
+        `Your refund opens in ${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"}.`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
       prePeginNotFound:
         "Pre-Pegin transaction not found on this Bitcoin network.",

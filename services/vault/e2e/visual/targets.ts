@@ -230,6 +230,16 @@ export const VAULT_REFUND_STOPS = {
   refunded: "vaults-refunded",
 } as const;
 
+/**
+ * A lifecycle row whose sub-line is a countdown, keyed by the demo scenario
+ * that seeds it. The sub-line wraps where it used to be cut off. See
+ * `vaultRowWait.visual.spec.ts`.
+ */
+export const VAULT_WAIT_STOPS = {
+  "expired-maturing": "vaults-refund-maturing",
+  "activation-window-waiting": "vaults-activation-window",
+} as const;
+
 export const LOAN_PICKER_STOPS = {
   light: {
     assetRest: "loan-asset-rest-light",
