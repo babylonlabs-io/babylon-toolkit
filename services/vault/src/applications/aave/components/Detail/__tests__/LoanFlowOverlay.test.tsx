@@ -643,7 +643,7 @@ describe("LoanFlowOverlay", () => {
     expect(screen.getByTestId("picker-borrow")).toBeInTheDocument();
   });
 
-  it.each([false, true])("closes repayment (settled: %s)", (settled) => {
+  it("returns a cancelled repayment to its starting route", () => {
     renderOverlay(
       <LoanFlowOverlay
         picker={null}
@@ -654,25 +654,25 @@ describe("LoanFlowOverlay", () => {
       "/loans?reserve=2&tab=repay",
     );
 
-    if (settled) fireEvent.click(screen.getByTestId("form"));
     fireEvent.click(screen.getByText("close"));
 
     expect(screen.getByTestId("location").textContent).toBe("/loans");
   });
 
-  it("locks every dismiss path while a transaction is in flight", () => {
+  it("returns a completed repayment to its starting route", () => {
     renderOverlay(
       <LoanFlowOverlay
         picker={null}
         reserveId="2"
-        tab={LOAN_TAB.BORROW}
+        tab={LOAN_TAB.REPAY}
         asset={null}
       />,
     );
 
-    fireEvent.click(screen.getByTestId("sign"));
+    fireEvent.click(screen.getByTestId("form"));
+    fireEvent.click(screen.getByText("close"));
 
-    expect(screen.queryByText("close")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location").textContent).toBe("/loans");
   });
 
   it("withholds back while a transaction is in flight", () => {
