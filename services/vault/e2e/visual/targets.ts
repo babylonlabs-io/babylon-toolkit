@@ -368,6 +368,20 @@ export const HAS_CONNECT_GUIDE = existsSync(
  */
 export const CONNECT_GUIDE_STOP = "connect-guide-ledger-vault";
 
+// CI uses this harness with older app source that has no waitlist dialog.
+export const HAS_WAITLIST_DIALOG = existsSync(
+  new URL("../../src/components/Wallet/WaitlistDialog.tsx", import.meta.url),
+);
+
+/**
+ * The waitlist dialog an Ethereum account not on the depositor allow-list sees
+ * once connected, in both themes. See `waitlistDialog.visual.spec.ts`.
+ */
+export const WAITLIST_DIALOG_STOPS = {
+  light: "waitlist-dialog-light",
+  dark: "waitlist-dialog-dark",
+} as const;
+
 export const LIQUIDATION_TOUR_STOPS = {
   welcome: "liquidation-tour-welcome",
   position: "liquidation-tour-position",
