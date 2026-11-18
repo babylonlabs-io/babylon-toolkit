@@ -865,8 +865,9 @@ export function updatePendingPeginStatus(
  * entry write throws and stops the flow rather than let the VP hold signatures
  * the depositor has no fingerprint for. The per-vault record is best effort.
  *
- * @returns false when the per-vault record could not be written, so the
- * activation gate later reports the fingerprint as unavailable.
+ * @returns false when the per-vault record could not be written, so a later
+ * artifact download on this device has nothing to compare with and stays
+ * unchecked.
  * @throws when the fingerprint is malformed, the stored entries cannot be
  * read, or the entry write fails.
  */

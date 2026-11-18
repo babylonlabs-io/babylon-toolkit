@@ -6,15 +6,6 @@ import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { saveArtifactDownloadReceipt } from "@/utils/artifactDownloadStorage";
 
-// The row offers a download only when this device holds the presign record.
-vi.mock("@/storage/peginStorage", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/storage/peginStorage")>()),
-  getSignedGraphFingerprint: () => ({
-    status: "found",
-    fingerprint: "ee".repeat(32),
-  }),
-}));
-
 const activeVault: CollateralVaultEntry = {
   id: "vault-1",
   lifecycle: "active",

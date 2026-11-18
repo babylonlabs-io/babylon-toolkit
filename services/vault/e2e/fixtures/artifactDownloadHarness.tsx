@@ -7,8 +7,14 @@ import { MemoryRouter } from "react-router";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { ActivateConfirmationModal } from "@/components/simple/ActivateConfirmationModal";
+import { VaultsActiveSection } from "@/components/vaults/VaultsActiveSection";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { buildDepositsDemo } from "@/dev/demoDeposit";
+import {
+  buildCollateralsDemo,
+  buildDepositsDemo,
+  COLLATERAL_SCENARIOS,
+} from "@/dev/demoDeposit";
 import "@/globals.css";
 import {
   getArtifactDownloadOverride,
@@ -49,6 +55,38 @@ if (params.has("saved")) {
     method: "file-system-access",
   });
 }
+// `?savedRow` shows an active vault row whose artifacts this browser saved. The
+// demo entry is display-only and has no Pre-PegIn tx, which hides the action,
+// so the row gets the inputs a real vault carries.
+const savedRowVault = {
+  ...buildCollateralsDemo(
+    [
+      {
+        key: 2,
+        type: "collateral",
+        stateIndex: COLLATERAL_SCENARIOS.findIndex(
+          (scenario) => scenario.key === "col-in-use",
+        ),
+        amount: "0.0375",
+        batched: false,
+      },
+    ],
+    true,
+  ).vaults[0],
+  displayOnly: false,
+  unsignedPrePeginTx: `0x${"bc".repeat(32)}`,
+};
+if (params.has("savedRow")) {
+  saveArtifactDownloadReceipt(savedRowVault.vaultId, {
+    version: 1,
+    peginTxid: normalizePeginTxid(savedRowVault.peginTxHash!),
+    filename: "artifacts.tar",
+    byteLength: 1,
+    sha256: "00".repeat(32),
+    savedAt: 1,
+    method: "file-system-access",
+  });
+}
 const DownloadModal =
   params.get("surface") === "activation"
     ? ActivateConfirmationModal
@@ -56,6 +94,24 @@ const DownloadModal =
 
 function ArtifactDownloadHarness() {
   const [open, setOpen] = useState(false);
+  const { address } = useETHWallet();
+  if (params.has("savedRow")) {
+    // Under the app shell, which the capture guards require.
+    return (
+      <>
+        <Router />
+        <div className="mx-auto w-full max-w-[1200px] p-4">
+          <VaultsActiveSection
+            vaults={[savedRowVault]}
+            onWithdraw={() => {}}
+            onDownloadArtifacts={() => {}}
+            isWithdrawDisabled={false}
+            ethAddress={address}
+          />
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <Router />

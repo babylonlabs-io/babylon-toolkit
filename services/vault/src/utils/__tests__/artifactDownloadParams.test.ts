@@ -1,18 +1,12 @@
 import type { Hex } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   ContractStatus,
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
-import { getSignedGraphFingerprint } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import { getExpiredArtifactDownloadParams } from "@/utils/artifactDownloadParams";
-
-vi.mock("@/storage/peginStorage", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/storage/peginStorage")>()),
-  getSignedGraphFingerprint: vi.fn(),
-}));
 
 const ETH_ADDRESS = "0x1111111111111111111111111111111111111111";
 const VAULT_ID = `0x${"aa".repeat(32)}` as Hex;
@@ -32,13 +26,6 @@ const EXPIRED_ACTIVITY: VaultActivity = {
 };
 
 describe("getExpiredArtifactDownloadParams", () => {
-  beforeEach(() => {
-    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
-      status: "found",
-      fingerprint: "ee".repeat(32),
-    });
-  });
-
   it("returns the download inputs of a vault that expired at activation timeout", () => {
     expect(
       getExpiredArtifactDownloadParams(EXPIRED_ACTIVITY, ETH_ADDRESS),
@@ -91,16 +78,6 @@ describe("getExpiredArtifactDownloadParams", () => {
         },
         ETH_ADDRESS,
       ),
-    ).toBeNull();
-  });
-
-  it("returns null when this device holds no presign fingerprint for the vault", () => {
-    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
-      status: "no-entry",
-    });
-
-    expect(
-      getExpiredArtifactDownloadParams(EXPIRED_ACTIVITY, ETH_ADDRESS),
     ).toBeNull();
   });
 });

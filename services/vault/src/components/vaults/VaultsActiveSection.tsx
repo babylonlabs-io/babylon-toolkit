@@ -47,8 +47,8 @@ interface VaultsActiveSectionProps {
   onWithdraw: (vaultId: string) => void;
   onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
   isWithdrawDisabled: boolean;
-  /** The connected Ethereum account; the presign fingerprints that gate
-   *  Download artifacts are stored under it. */
+  /** The connected Ethereum account; Download artifacts binds the kit's
+   *  vault id to it. */
   ethAddress?: string;
   /** Shown under a plain "Vaults" heading while no vault is active yet —
    *  the page reaches this section with pending deposits only. */
@@ -218,9 +218,9 @@ export function VaultsActiveSection({
   emptyState,
 }: VaultsActiveSectionProps) {
   const isTouchFirst = useIsTouchFirst();
-  // One pass over pending storage per vault-list change, not one per row per
-  // render. The row button reads the receipt per render, so its label changes
-  // as soon as the modal saves the artifacts.
+  // Derived once per vault-list change, so each row's params keep their
+  // identity across renders. The row button reads the receipt per render, so
+  // its label changes as soon as the modal saves the artifacts.
   const artifactParamsById = useMemo(() => {
     const byId = new Map<string, ArtifactDownloadParams>();
     for (const vault of vaults) {

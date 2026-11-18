@@ -827,8 +827,8 @@ export function VaultsLifecycleSections({
 
   const rows = [...pendingActivities, ...inactiveActivities];
 
-  // One pass over pending storage per list change, as in Active Vaults; the
-  // row button reads the receipt per render so its label changes on save.
+  // Derived once per list change, as in Active Vaults; the row button reads
+  // the receipt per render so its label changes on save.
   const expiredDownloadParams = useMemo(() => {
     const byId = new Map<string, ArtifactDownloadParams>();
     for (const activity of inactiveActivities) {

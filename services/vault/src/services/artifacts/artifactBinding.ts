@@ -25,7 +25,9 @@
  * `assertGraphMatchesPresign` below closes part of that gap. It is check (a)
  * of the activation gate in `btc-vault/docs/specifications/pegin.md` §5.9, and unlike the
  * checks above it compares the bundle against a value the VP does not
- * control: the fingerprint the depositor recorded when it signed.
+ * control: the fingerprint the depositor recorded when it signed. A browser
+ * that holds no such record runs `fingerprintServedGraph` instead, which
+ * compares nothing, so that download is saved without counting as checked.
  *
  * Check (b) of that gate — the verifying key against a release-pinned key —
  * needs a source for the pinned key, which the app does not have yet.
@@ -39,7 +41,10 @@
 
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { assertReturnedGraphMatchesFingerprint } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import {
+  assertReturnedGraphMatchesFingerprint,
+  fingerprintReturnedGraph,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
 /** The deposit a bundle must belong to. */
 export interface VaultBindingContext {
@@ -47,11 +52,6 @@ export interface VaultBindingContext {
   peginTxid: string;
   /** From the request parameters. */
   depositorPk: string;
-  /**
-   * Fingerprint of the transaction set this device signed at presign, from
-   * local storage. The hook refuses to start a download without one.
-   */
-  signedGraphFingerprint: string;
 }
 
 /**
@@ -204,23 +204,57 @@ export class PresignGraphMismatchError extends Error {
  * value the VP never saw. Everything else compares public inputs the VP also
  * holds, which is why a VP can satisfy them with a fabricated graph.
  *
- * @param txGraph  Parsed `tx_graph_json` from the response.
- * @param expected The deposit, with the fingerprint persisted at presign.
+ * @param txGraph                Parsed `tx_graph_json` from the response.
+ * @param signedGraphFingerprint The fingerprint this browser recorded at presign.
  * @throws PresignGraphMismatchError when the graph does not reproduce it.
  */
 export function assertGraphMatchesPresign(
   txGraph: Record<string, unknown>,
-  expected: VaultBindingContext,
+  signedGraphFingerprint: string,
 ): void {
   // The SDK check also ties the declared roster in `challenger_pubkeys`, which
   // `assertBundleBoundToVault` reads, to the fingerprinted challengers.
   try {
-    assertReturnedGraphMatchesFingerprint(
-      txGraph,
-      expected.signedGraphFingerprint,
-    );
+    assertReturnedGraphMatchesFingerprint(txGraph, signedGraphFingerprint);
   } catch (err) {
     throw new PresignGraphMismatchError(
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+/**
+ * Raised when a graph served to a browser with no presign record cannot be
+ * fingerprinted, or declares a roster other than its subgraphs. A malformed
+ * response, not a mismatch: there is no record for it to contradict.
+ */
+export class ServedGraphUnreadableError extends VpResponseValidationError {
+  constructor(detail: string) {
+    super(`Artifact tx graph cannot be fingerprinted: ${detail}`);
+    this.name = "ServedGraphUnreadableError";
+  }
+}
+
+/**
+ * The fingerprint of the graph as served, for a browser that holds no presign
+ * record. This is NOT check (a): nothing the VP did not choose is compared.
+ * It still refuses a graph that cannot be fingerprinted or whose declared
+ * roster differs from its subgraphs, as the compared path does.
+ *
+ * @param txGraph Parsed `tx_graph_json` from the response.
+ * @throws ServedGraphUnreadableError for a malformed or inconsistent graph.
+ */
+export function fingerprintServedGraph(
+  txGraph: Record<string, unknown>,
+): string {
+  try {
+    const fingerprint = fingerprintReturnedGraph(txGraph);
+    // The SDK exports its roster check only inside this comparison, so it is
+    // run against the graph's own fingerprint, where the equality always holds.
+    assertReturnedGraphMatchesFingerprint(txGraph, fingerprint);
+    return fingerprint;
+  } catch (err) {
+    throw new ServedGraphUnreadableError(
       err instanceof Error ? err.message : String(err),
     );
   }

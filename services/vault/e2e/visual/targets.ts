@@ -304,6 +304,15 @@ export const ARTIFACT_QUOTA_STOPS = {
 
 /** The vault download dialog opened on a vault whose artifacts are saved. */
 export const ARTIFACT_SAVED_STOP = "artifact-download-vault-saved";
+/** An active vault row whose artifacts are saved. */
+export const ARTIFACT_SAVED_ROW_STOP = "artifact-download-vault-saved-row";
+// The merge-base hides a saved vault's row download instead of relabelling it.
+export const HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW = existsSync(
+  new URL(
+    "../../src/components/vaults/ArtifactDownloadRowButton.tsx",
+    import.meta.url,
+  ),
+);
 
 // CI runs this test harness against the earlier UI too.
 const vaultsLifecycleSource = readFileSync(

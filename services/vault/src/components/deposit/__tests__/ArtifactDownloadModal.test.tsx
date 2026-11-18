@@ -3,7 +3,10 @@ import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
-import { saveArtifactDownloadReceipt } from "@/utils/artifactDownloadStorage";
+import {
+  saveArtifactDownloadReceipt,
+  saveGraphMismatch,
+} from "@/utils/artifactDownloadStorage";
 
 import { ArtifactDownloadModal } from "../ArtifactDownloadModal";
 
@@ -13,6 +16,7 @@ const IDLE_HOOK_STATE = {
   error: null as string | null,
   downloaded: false,
   delivered: false,
+  graphUnchecked: false,
   graphMismatch: false,
   receivedBytes: 0,
   totalBytes: 0,
@@ -97,5 +101,42 @@ describe("ArtifactDownloadModal with saved artifacts", () => {
     expect(
       screen.getByText("The vault provider could not be reached."),
     ).toBeInTheDocument();
+  });
+
+  it("never paints the saved state over a stored graph mismatch, not even before the card reports it", () => {
+    // Receipt first: saving one clears a stored mismatch.
+    saveReceipt();
+    saveGraphMismatch(VAULT_ID, PARAMS.peginTxid);
+    // The card reports its error from an effect, so the final DOM alone would
+    // hide a first paint that showed the saved state; record every text.
+    const painted: string[] = [];
+    const record = (records: MutationRecord[]) => {
+      for (const { addedNodes, removedNodes, oldValue } of records) {
+        for (const node of [...addedNodes, ...removedNodes]) {
+          painted.push(node.textContent ?? "");
+        }
+        if (oldValue !== null) painted.push(oldValue);
+      }
+    };
+    const observer = new MutationObserver(record);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      characterDataOldValue: true,
+    });
+
+    render(<ArtifactDownloadModal {...PARAMS} onClose={vi.fn()} />);
+    record(observer.takeRecords());
+    observer.disconnect();
+
+    expect(
+      screen.getByText(COPY.deposit.artifactDownload.title),
+    ).toBeInTheDocument();
+    expect(
+      painted.some((text) =>
+        text.includes(COPY.deposit.artifactDownload.downloadAgainButton),
+      ),
+    ).toBe(false);
   });
 });

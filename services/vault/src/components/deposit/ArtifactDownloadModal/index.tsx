@@ -19,7 +19,10 @@ import {
 } from "@/components/deposit/RecoveryArtifactsCard";
 import { COPY } from "@/copy";
 import type { ArtifactDownloadParams } from "@/utils/artifactDownloadParams";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  hasArtifactsDownloaded,
+  hasGraphMismatch,
+} from "@/utils/artifactDownloadStorage";
 
 const IDLE_DOWNLOAD_STATE: ArtifactDownloadProgress = {
   loading: false,
@@ -49,8 +52,10 @@ export function ArtifactDownloadModal({
     useState<ArtifactDownloadProgress>(IDLE_DOWNLOAD_STATE);
   const isDownloading = downloadState.loading;
   // A receipt outlives a failed or mismatched repeat; the dialog must not
-  // present that error as a saved download.
-  const showDownloaded = downloaded && !downloadState.error;
+  // present that error as a saved download. The stored mismatch is read here
+  // because the card reports its error only after the first paint.
+  const showDownloaded =
+    downloaded && !downloadState.error && !hasGraphMismatch(vaultId, peginTxid);
   const [cancelAction, setCancelAction] = useState<"close" | "cancel" | null>(
     null,
   );

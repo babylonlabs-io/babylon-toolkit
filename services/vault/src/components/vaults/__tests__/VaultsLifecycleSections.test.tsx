@@ -20,10 +20,7 @@ import {
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
-import {
-  getSignedGraphFingerprint,
-  type RemovePendingPeginsResult,
-} from "@/storage/peginStorage";
+import type { RemovePendingPeginsResult } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import { truncateHash } from "@/utils/addressUtils";
@@ -109,13 +106,6 @@ vi.mock("@/hooks/useReclaimVaultChainData", () => ({
 // resolves is driven per test.
 vi.mock("@/hooks/useRedeemClaimTxids", () => ({
   useRedeemClaimTxids: vi.fn(() => new Map<string, string>()),
-}));
-
-// No presign fingerprint by default, so no row offers a download unless a
-// test opts in.
-vi.mock("@/storage/peginStorage", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/storage/peginStorage")>()),
-  getSignedGraphFingerprint: vi.fn(() => ({ status: "no-entry" })),
 }));
 
 // The decode itself is covered in utils/btc; here only the row's use of it.
@@ -1499,17 +1489,7 @@ describe("VaultsLifecycleSections expired artifact download", () => {
     expirationReason: "activation_timeout",
   };
 
-  beforeEach(() => {
-    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
-      status: "found",
-      fingerprint: "ee".repeat(32),
-    });
-  });
-
   afterEach(() => {
-    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
-      status: "no-entry",
-    });
     window.localStorage.clear();
   });
 

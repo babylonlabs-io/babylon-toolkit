@@ -23,8 +23,10 @@ import {
   ACTIVATION_WARNING_STOPS,
   ARTIFACT_DOWNLOAD_STOPS,
   ARTIFACT_QUOTA_STOPS,
+  ARTIFACT_SAVED_ROW_STOP,
   ARTIFACT_SAVED_STOP,
   flowScreenshotFileName,
+  HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW,
   HAS_ARTIFACT_DOWNLOAD_CONFIRMATION,
   VISUAL_VIEWPORTS,
 } from "./targets";
@@ -140,6 +142,41 @@ for (const viewport of VISUAL_VIEWPORTS) {
       "vp-health",
       "mempool",
     ]);
+    await writeCaptures([shot]);
+  });
+
+  test(`capture the saved vault row at ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.install({ time: VISUAL_FIXED_TIME });
+    const backend = await preparePage(page);
+    await injectPageWallets(page, recordedPageWallets());
+    await page.goto("/e2e/fixtures/artifactDownload.html?savedRow", {
+      waitUntil: "domcontentloaded",
+    });
+    await connectInjectedWallets(page);
+    // The query devtools launcher would cover the row's leading icon.
+    await page.addStyleTag({
+      content: ".tsqd-parent-container { display: none !important; }",
+    });
+    await expect(page.locator(".tsqd-parent-container")).toBeHidden();
+    const row = page.locator('[data-testid^="vault-row-"]');
+    await row.scrollIntoViewIfNeeded();
+    await expect(row).toBeInViewport();
+    await expect(
+      row.getByRole("button", { name: "Withdraw", exact: true }),
+    ).toBeVisible();
+    // The merge-base hides the action on a saved vault, so the label is only
+    // asserted where the source has it.
+    if (HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW)
+      await expect(
+        row.getByRole("button", { name: "Download again", exact: true }),
+      ).toBeVisible();
+    const shot = await capture(
+      page,
+      flowScreenshotFileName(ARTIFACT_SAVED_ROW_STOP, viewport),
+      { fullPage: false },
+    );
+    assertRecordingCovered(backend, "saved vault row");
     await writeCaptures([shot]);
   });
 }
