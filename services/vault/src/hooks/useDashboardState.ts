@@ -35,6 +35,14 @@ import {
 export type { CollateralVaultEntry };
 
 export function useDashboardState(connectedAddress: string | undefined) {
+  const { activatingVaults, clearActivatingVault } = useActivatingVaults();
+  const isActivationPending =
+    !!connectedAddress &&
+    Array.from(activatingVaults.values()).some(
+      (entry) =>
+        entry.depositorEthAddress?.toLowerCase() ===
+        connectedAddress.toLowerCase(),
+    );
   const {
     position,
     collateralBtc,
@@ -47,7 +55,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     error: positionError,
     isPositionUnavailable,
     refetch: refetchPosition,
-  } = useAaveUserPosition(connectedAddress);
+  } = useAaveUserPosition(connectedAddress, isActivationPending);
 
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
     position,
@@ -81,7 +89,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     requireCompleteKeeperRoster: false,
   });
   const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
-  const { activatingVaults, clearActivatingVault } = useActivatingVaults();
 
   const { pendingVaults } = usePendingVaults();
   const pendingWithdrawVaultIds = useMemo(() => {
@@ -118,11 +125,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     [rawCollateralVaults],
   );
 
-  // Optimistic "Activating…" rows: just-activated vaults the indexer hasn't
-  // ingested yet. Excludes any vault already present in the indexer entries so
-  // we never duplicate a row once it lands, and any entry that belongs to a
-  // different depositor address so switching wallets during the optimistic
-  // window can't leak one account's activating vault onto another's dashboard.
+  // Show only this account's activations that the indexer has not returned.
   const activatingEntries = useMemo((): CollateralVaultEntry[] => {
     if (activatingVaults.size === 0) return [];
     const connected = connectedAddress?.toLowerCase();
@@ -153,12 +156,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
       });
   }, [activatingVaults, rawCollateralVaults, findProvider, connectedAddress]);
 
-  // Displayed entries. Normally in chain order; right after a reorder,
-  // `reorderedOrder` holds the submitted order so the new order (and each row's
-  // ordinal) shows immediately. Falls back to the chain order once the
-  // override no longer matches the vault set, which covers the active rows
-  // alone. Withdrawing rows, then optimistic activating rows, are appended
-  // after, until the indexer reflects them.
+  // Apply the submitted order. Keep withdrawals and new activations last.
   const collateralVaults = useMemo(
     (): CollateralVaultEntry[] => [
       ...sortByReorderedOverride(activeCollateralVaults, reorderedOrder),
