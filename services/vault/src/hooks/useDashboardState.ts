@@ -36,13 +36,15 @@ export type { CollateralVaultEntry };
 
 export function useDashboardState(connectedAddress: string | undefined) {
   const { activatingVaults, clearActivatingVault } = useActivatingVaults();
-  const isActivationPending =
-    !!connectedAddress &&
-    Array.from(activatingVaults.values()).some(
-      (entry) =>
-        entry.depositorEthAddress?.toLowerCase() ===
-        connectedAddress.toLowerCase(),
+  const isActivationPending = useMemo(() => {
+    const connected = connectedAddress?.toLowerCase();
+    return (
+      !!connected &&
+      Array.from(activatingVaults.values()).some(
+        (entry) => entry.depositorEthAddress?.toLowerCase() === connected,
+      )
     );
+  }, [activatingVaults, connectedAddress]);
   const {
     position,
     collateralBtc,
