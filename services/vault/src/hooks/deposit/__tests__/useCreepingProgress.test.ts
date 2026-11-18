@@ -34,6 +34,10 @@ describe("useCreepingProgress", () => {
 
     rerender({ received: 500 });
     expect(result.current).toBe(500);
+
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(result.current).toBeGreaterThan(500);
+    expect(result.current).toBeLessThanOrEqual(600);
   });
 
   it("never shows the download as finished before it is", () => {
@@ -57,5 +61,54 @@ describe("useCreepingProgress", () => {
 
     rerender({ received: 0 });
     expect(result.current).toBe(0);
+  });
+
+  it("drops the old creep when a retry resets the total before any byte arrives", () => {
+    const { result, rerender } = renderHook(
+      ({ total }) => useCreepingProgress(0, total),
+      { initialProps: { total: TOTAL } },
+    );
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(result.current).toBeGreaterThan(0);
+
+    rerender({ total: 0 });
+    rerender({ total: TOTAL });
+    expect(result.current).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("stops its timer on unmount", () => {
+    const { unmount } = renderHook(() => useCreepingProgress(250, TOTAL));
+    expect(vi.getTimerCount()).toBe(1);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("starts no timer while the total is unknown", () => {
+    renderHook(() => useCreepingProgress(0, 0));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("shows the real value and starts no timer under reduced motion", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    try {
+      const { result } = renderHook(() => useCreepingProgress(250, TOTAL));
+      act(() => vi.advanceTimersByTime(60_000));
+
+      expect(result.current).toBe(250);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 });

@@ -1,3 +1,4 @@
+import { useReducedMotion } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 
 const CREEP_TICK_MS = 250;
@@ -13,9 +14,11 @@ const CREEP_STEP = 1 - 2 ** (-CREEP_TICK_MS / CREEP_HALF_LIFE_MS);
  * Bytes to show for a download whose bytes arrive in bursts: the provider
  * sends nothing while it prepares each session. Never behind the real value,
  * never more than CREEP_MAX_LEAD ahead of it, and never decreasing unless the
- * real value restarts.
+ * real value restarts or the total changes. Under reduced motion it is the
+ * real value.
  */
 export function useCreepingProgress(received: number, total: number): number {
+  const reduced = useReducedMotion();
   const [shown, setShown] = useState(received);
   const lastReceived = useRef(received);
 
@@ -26,7 +29,9 @@ export function useCreepingProgress(received: number, total: number): number {
   }, [received]);
 
   useEffect(() => {
-    if (total <= 0) return;
+    // A retry resets the total before any byte arrives, so drop the old creep.
+    setShown(lastReceived.current);
+    if (reduced || total <= 0) return;
     const timer = setInterval(() => {
       setShown((prev) => {
         const ceiling = Math.min(
@@ -37,7 +42,7 @@ export function useCreepingProgress(received: number, total: number): number {
       });
     }, CREEP_TICK_MS);
     return () => clearInterval(timer);
-  }, [total]);
+  }, [total, reduced]);
 
-  return Math.max(shown, received);
+  return reduced ? received : Math.max(shown, received);
 }
