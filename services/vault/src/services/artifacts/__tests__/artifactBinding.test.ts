@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertBundleBoundToVault,
   assertGraphMatchesPresign,
+  fingerprintServedGraph,
   PresignGraphMismatchError,
+  ServedGraphUnreadableError,
 } from "../artifactBinding";
 
 const PEGIN_TXID =
@@ -16,12 +18,9 @@ const LOCAL_CHALLENGER = "a0".repeat(32);
 const UNIVERSAL_CHALLENGER = "47".repeat(32);
 const FOREIGN_TXID = "ff".repeat(32);
 
-// The bundle-binding checks never read the fingerprint.
-const UNUSED_FINGERPRINT = "00".repeat(32);
 const BINDING = {
   peginTxid: PEGIN_TXID,
   depositorPk: DEPOSITOR_PK,
-  signedGraphFingerprint: UNUSED_FINGERPRINT,
 };
 const SESSION_KEYS = [LOCAL_CHALLENGER, UNIVERSAL_CHALLENGER];
 
@@ -58,7 +57,6 @@ describe("assertBundleBoundToVault", () => {
       assertBundleBoundToVault(txGraph(), SESSION_KEYS, {
         peginTxid: `0x${PEGIN_TXID.toUpperCase()}`,
         depositorPk: `0x${DEPOSITOR_PK.toUpperCase()}`,
-        signedGraphFingerprint: UNUSED_FINGERPRINT,
       }),
     ).not.toThrow();
   });
@@ -160,9 +158,9 @@ describe("assertBundleBoundToVault", () => {
   });
 });
 
-describe("assertGraphMatchesPresign", () => {
-  /** A graph in the shape `fingerprintReturnedGraph` consumes. */
-  const realGraph = () => ({
+/** A graph in the shape `fingerprintReturnedGraph` consumes. */
+function realGraph() {
+  return {
     pegin_tx: { tx: tx("aa") },
     claim_tx: { tx: tx("bb") },
     assert_tx: { tx: tx("cc") },
@@ -174,42 +172,36 @@ describe("assertGraphMatchesPresign", () => {
       },
     },
     challenger_pubkeys: { local: [LOCAL_CHALLENGER], universal: [] },
-  });
+  };
+}
 
-  function tx(marker: string) {
-    return {
-      version: 2,
-      lock_time: 0,
-      input: [
-        {
-          previous_output: `${marker.repeat(32)}:0`,
-          script_sig: "",
-          sequence: 4294967295,
-          witness: [],
-        },
-      ],
-      output: [{ value: 1000, script_pubkey: `0014${"11".repeat(20)}` }],
-    };
-  }
+function tx(marker: string) {
+  return {
+    version: 2,
+    lock_time: 0,
+    input: [
+      {
+        previous_output: `${marker.repeat(32)}:0`,
+        script_sig: "",
+        sequence: 4294967295,
+        witness: [],
+      },
+    ],
+    output: [{ value: 1000, script_pubkey: `0014${"11".repeat(20)}` }],
+  };
+}
 
-  const binding = (signedGraphFingerprint: string) => ({
-    ...BINDING,
-    signedGraphFingerprint,
-  });
-
+describe("assertGraphMatchesPresign", () => {
   it("accepts a graph that reproduces the persisted fingerprint", () => {
     const graph = realGraph();
     expect(() =>
-      assertGraphMatchesPresign(
-        graph,
-        binding(fingerprintReturnedGraph(graph)),
-      ),
+      assertGraphMatchesPresign(graph, fingerprintReturnedGraph(graph)),
     ).not.toThrow();
   });
 
   it("rejects a graph whose transactions were swapped after presign", () => {
     const graph = realGraph();
-    const expected = binding(fingerprintReturnedGraph(graph));
+    const expected = fingerprintReturnedGraph(graph);
     const swapped = { ...graph, payout_tx: { tx: tx("ff") } };
     expect(() => assertGraphMatchesPresign(swapped, expected)).toThrow(
       PresignGraphMismatchError,
@@ -218,7 +210,7 @@ describe("assertGraphMatchesPresign", () => {
 
   it("rejects a graph whose challenger roster was swapped after presign", () => {
     const graph = realGraph();
-    const expected = binding(fingerprintReturnedGraph(graph));
+    const expected = fingerprintReturnedGraph(graph);
     const swapped = {
       ...graph,
       challenger_subgraphs: {
@@ -232,7 +224,7 @@ describe("assertGraphMatchesPresign", () => {
 
   it("reports a graph too malformed to fingerprint as a mismatch", () => {
     const graph = realGraph();
-    const expected = binding(fingerprintReturnedGraph(graph));
+    const expected = fingerprintReturnedGraph(graph);
     const withoutAssert: Record<string, unknown> = { ...graph };
     delete withoutAssert.assert_tx;
     expect(() => assertGraphMatchesPresign(withoutAssert, expected)).toThrow(
@@ -242,7 +234,7 @@ describe("assertGraphMatchesPresign", () => {
 
   it("rejects a declared roster that adds a challenger the fingerprint does not cover", () => {
     const graph = realGraph();
-    const expected = binding(fingerprintReturnedGraph(graph));
+    const expected = fingerprintReturnedGraph(graph);
     const widened = {
       ...graph,
       challenger_pubkeys: {
@@ -257,13 +249,41 @@ describe("assertGraphMatchesPresign", () => {
 
   it("rejects a declared roster that drops a fingerprinted challenger", () => {
     const graph = realGraph();
-    const expected = binding(fingerprintReturnedGraph(graph));
+    const expected = fingerprintReturnedGraph(graph);
     const narrowed = {
       ...graph,
       challenger_pubkeys: { local: [], universal: [] },
     };
     expect(() => assertGraphMatchesPresign(narrowed, expected)).toThrow(
       PresignGraphMismatchError,
+    );
+  });
+});
+
+describe("fingerprintServedGraph", () => {
+  it("returns the SDK fingerprint of a well-formed graph", () => {
+    const graph = realGraph();
+    expect(fingerprintServedGraph(graph)).toBe(fingerprintReturnedGraph(graph));
+  });
+
+  it("rejects a declared roster naming a challenger with no subgraph", () => {
+    const widened = {
+      ...realGraph(),
+      challenger_pubkeys: {
+        local: [LOCAL_CHALLENGER],
+        universal: [UNIVERSAL_CHALLENGER],
+      },
+    };
+    expect(() => fingerprintServedGraph(widened)).toThrow(
+      ServedGraphUnreadableError,
+    );
+  });
+
+  it("reports a graph too malformed to fingerprint as unreadable", () => {
+    const withoutAssert: Record<string, unknown> = { ...realGraph() };
+    delete withoutAssert.assert_tx;
+    expect(() => fingerprintServedGraph(withoutAssert)).toThrow(
+      ServedGraphUnreadableError,
     );
   });
 });

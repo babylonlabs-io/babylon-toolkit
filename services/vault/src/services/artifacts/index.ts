@@ -1,9 +1,13 @@
-export { PresignGraphMismatchError } from "./artifactBinding";
+export {
+  PresignGraphMismatchError,
+  ServedGraphUnreadableError,
+} from "./artifactBinding";
 export {
   downloadRecoveryKit,
   fetchAndDownloadArtifacts,
   type ArtifactDownloadOutcome,
   type FetchArtifactsOptions,
+  type RecoveryKitDownloadIdentity,
 } from "./artifactDownloadService";
 export {
   isFileSystemAccessSupported,
@@ -11,7 +15,6 @@ export {
   type ArtifactSaveMethod,
   type ArtifactSaveTarget,
 } from "./artifactSaveTarget";
-export { type RecoveryKitIdentity } from "./claimFile";
 export {
   ArtifactDownloadCancelledError,
   ArtifactDownloadTooLargeError,

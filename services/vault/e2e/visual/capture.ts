@@ -36,6 +36,8 @@ import {
   ACTIVE_LOAN_STOP,
   ARTIFACT_DOWNLOAD_STOPS,
   ARTIFACT_QUOTA_STOPS,
+  ARTIFACT_SAVED_ROW_STOP,
+  ARTIFACT_SAVED_STOP,
   BORROW_HINT_STOPS,
   CONNECT_GUIDE_STOP,
   DEPOSIT_FLOW_STEPS,
@@ -462,6 +464,8 @@ export async function ensureOutputDir(): Promise<void> {
         ? [
             ...Object.values(ARTIFACT_DOWNLOAD_STOPS),
             ...Object.values(ARTIFACT_QUOTA_STOPS),
+            ARTIFACT_SAVED_STOP,
+            ARTIFACT_SAVED_ROW_STOP,
           ]
         : []),
       ...Object.values(DEPOSIT_PROGRESS_STOPS),

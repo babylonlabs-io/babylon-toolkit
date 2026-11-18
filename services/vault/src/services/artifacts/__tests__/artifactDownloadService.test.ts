@@ -429,6 +429,7 @@ describe("downloadRecoveryKit", () => {
           byteLength: B.byteLength,
         },
       },
+      comparedWithPresignRecord: true,
     });
     expect(commit).toHaveBeenCalledTimes(1);
     expect(progress[0]).toEqual([0, TWO_TOTAL]);
@@ -593,6 +594,44 @@ describe("downloadRecoveryKit", () => {
     await expect(
       downloadRecoveryKit(source(vp), IDENTITY, target),
     ).rejects.toBeInstanceOf(PresignGraphMismatchError);
+    expect(target.open).not.toHaveBeenCalled();
+    expect(vp.requests).toEqual([MANIFEST_URL]);
+  });
+
+  it("saves a kit with no presign record, reporting it uncompared and writing the served graph's fingerprint", async () => {
+    const vp = fakeVp({ [CHALLENGER_PUBKEY]: A });
+    const { target, commit, savedBytes } = fakeSaveTarget();
+
+    const outcome = await downloadRecoveryKit(
+      source(vp),
+      { ...IDENTITY, signedGraphFingerprint: null },
+      target,
+    );
+
+    const claim = JSON.parse(
+      new TextDecoder().decode(parseTar(savedBytes())[1]!.data),
+    );
+    expect(claim.signed_graph_fingerprint).toBe(
+      fingerprintReturnedGraph(txGraph()),
+    );
+    expect(outcome.comparedWithPresignRecord).toBe(false);
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a graph that cannot be fingerprinted when there is no presign record, before any session request", async () => {
+    const vp = fakeVp(
+      { [CHALLENGER_PUBKEY]: A },
+      txGraphJson({ assert_tx: undefined }),
+    );
+    const { target } = fakeSaveTarget();
+
+    await expect(
+      downloadRecoveryKit(
+        source(vp),
+        { ...IDENTITY, signedGraphFingerprint: null },
+        target,
+      ),
+    ).rejects.toBeInstanceOf(VpResponseValidationError);
     expect(target.open).not.toHaveBeenCalled();
     expect(vp.requests).toEqual([MANIFEST_URL]);
   });
