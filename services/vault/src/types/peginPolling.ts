@@ -105,6 +105,11 @@ export interface PeginPollingContextValue {
   /** Why the registry returned each marked deposit, when its receipt said. */
   activationReturnedReasons: ReadonlyMap<string, ActivationRedeemReason>;
   /**
+   * Record that the depositor's own Withdraw landed: the poll result then
+   * reports the vault as withdrawn (see `isVaultWithdrawnByDepositor`).
+   */
+  markVaultWithdrawn: (depositId: string) => void;
+  /**
    * Re-probe the HTLC spends now rather than on the next poll tick — after a
    * refund attempt learns the PegIn swept the deposit, so the row trades its
    * Withdraw for the redeem without waiting a minute.

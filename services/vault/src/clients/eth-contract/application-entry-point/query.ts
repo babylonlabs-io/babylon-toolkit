@@ -10,7 +10,7 @@
  * so reading it before a deposit's registration and before its Pre-PegIn
  * broadcast predicts the activation-time size check.
  *
- * Self-contained ABI fragment, same as the `application-status` sibling: the
+ * Self-contained ABI fragment, same as the `pause-state` sibling: the
  * SDK's bundled adapter ABI does not expose this view.
  */
 

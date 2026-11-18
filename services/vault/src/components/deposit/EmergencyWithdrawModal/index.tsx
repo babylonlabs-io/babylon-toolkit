@@ -2,25 +2,21 @@
  * EmergencyWithdrawModal — the activate-and-redeem escape hatch as a single
  * self-contained modal (RefundModal pattern): confirmation with an explicit
  * risk acknowledgment, in-place progress on the confirm button, then a
- * terminal success screen. Opened directly from a deposit row's Withdraw CTA
- * (stuck state) — never through the deposit multistepper.
+ * terminal success screen. Never opened through the deposit multistepper.
+ * Two cases (`stuckProof`): a row proven stuck, where the PegIn spent the
+ * HTLC, and a failed activation, where it is not proven and may be refundable.
  *
  * The reveal path is identical to normal activation: the secret is derived
  * from the BTC wallet (`deriveHtlcSecretHex`, on-chain inputs only, buffers
  * zero-wiped) and submitted via the activation state machine in
  * `redeemImmediately` mode, which re-validates `sha256(secret) === hashlock`
- * against the on-chain registry before any calldata is assembled, and refuses
- * unless the PegIn on Bitcoin validly spends the HTLC.
+ * against the on-chain registry before any calldata is assembled. That mode
+ * runs its own PegIn-spend proof; without it, the deadline margin applies.
  *
  * On a Ledger the derivation and the submission are two clicks: the
  * secret is retrieved on the Babylon Vault app and held
  * (`useStagedHtlcSecret`) until the depositor, having opened the Ethereum app
  * if their Ethereum account is on the same device, selects Continue.
- *
- * Ahead of the derivation, the confirm handler awaits the vault's application
- * registration status — the one registry precondition the confirm screen's
- * render-time gate cannot guarantee, because it reads the cache as it stood at
- * paint. See `useEnsureVaultApplicationActive`.
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -34,7 +30,6 @@ import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useStagedHtlcSecret } from "@/hooks/deposit/useStagedHtlcSecret";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
-import { useEnsureVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 import { logger } from "@/infrastructure";
 import {
   captureFunnelFailure,
@@ -48,10 +43,15 @@ import { isDeviceDisconnectedError } from "@/utils/errors/deviceErrors";
 
 import { EmergencyWithdrawConfirmContent } from "./EmergencyWithdrawConfirmContent";
 import { EmergencyWithdrawSuccessContent } from "./EmergencyWithdrawSuccessContent";
+import type { WithdrawStuckProof } from "./stuckProof";
 
 interface EmergencyWithdrawModalProps {
   open: boolean;
   activity: VaultActivity;
+  /** `"proven"` only when the caller holds the PegIn-spend proof for this vault. */
+  stuckProof: WithdrawStuckProof;
+  /** Withdrawing this vault leaves a later split sibling to queue first. */
+  splitProtectionLost: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -59,6 +59,8 @@ interface EmergencyWithdrawModalProps {
 export function EmergencyWithdrawModal({
   open,
   activity,
+  stuckProof,
+  splitProtectionLost,
   onClose,
   onSuccess,
 }: EmergencyWithdrawModalProps) {
@@ -69,7 +71,6 @@ export function EmergencyWithdrawModal({
     null;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
   const { address: depositorEthAddress } = useETHWallet();
-  const ensureApplicationActive = useEnsureVaultApplicationActive();
   const ledgerDevice = useLedgerVaultDevice();
   const btcWalletId = btcConnector?.connectedWallet?.id;
   const {
@@ -116,7 +117,7 @@ export function EmergencyWithdrawModal({
 
   // Second click of the Ledger split: the same hand-off as the one-click path,
   // behind the same pre-flight checks — Continue can come long after the
-  // derive, and the Ethereum wallet or the application may have changed. The
+  // derive, and the Ethereum wallet may have changed. The
   // ref guards a second click (of either button) that lands before the
   // re-render disables it: Continue would find the secret already taken, and
   // Confirm would start a second derive and hand-off.
@@ -133,8 +134,6 @@ export function EmergencyWithdrawModal({
     setDeriving(true);
     setLocalError(null);
     try {
-      // Same bare return as handleConfirm: the confirm screen's gate shows why.
-      if ((await ensureApplicationActive(activity.id)) === false) return;
       await handleActivation(takeStagedSecret());
     } catch (err) {
       captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_SECRET, err, activity.id);
@@ -152,7 +151,6 @@ export function EmergencyWithdrawModal({
   }, [
     withdrawing,
     depositorEthAddress,
-    ensureApplicationActive,
     handleActivation,
     takeStagedSecret,
     activity.id,
@@ -189,18 +187,6 @@ export function EmergencyWithdrawModal({
         }
         setDeviceDisconnected(false);
       }
-      // Resolve the application registration BEFORE the wallet popup. The
-      // confirm screen's own check reads whatever was cached at paint, which is
-      // `undefined` for the whole first round-trip after the modal mounts — so
-      // on its own it lets a fast click derive the secret for a redeem the
-      // registry would reject. Fail-open is unchanged: only a CONFIRMED
-      // non-Active status stops here, and `executeWrite`'s mandatory
-      // pre-broadcast simulation remains the backstop for every other case.
-      //
-      // A bare return suffices: resolving populates the same cache entry the
-      // confirm screen reads, so that gate re-renders with the explanation and
-      // the button disabled. Setting `localError` would print it twice.
-      if ((await ensureApplicationActive(activity.id)) === false) return;
       if (!requireBtcWallet()) {
         setLocalError(COPY.wallet.btcAction.error);
         return;
@@ -257,7 +243,6 @@ export function EmergencyWithdrawModal({
     connectedBtcAddress,
     depositorEthAddress,
     btcWalletId,
-    ensureApplicationActive,
     handleActivation,
     ledgerDevice,
     deviceDisconnected,
@@ -324,7 +309,8 @@ export function EmergencyWithdrawModal({
   return (
     <V3ModalShell open={open} onClose={withdrawing ? undefined : handleClose}>
       <EmergencyWithdrawConfirmContent
-        vaultId={activity.id}
+        stuckProof={stuckProof}
+        splitProtectionLost={splitProtectionLost}
         withdrawing={withdrawing}
         error={error}
         errorTerminal={isTerminal}

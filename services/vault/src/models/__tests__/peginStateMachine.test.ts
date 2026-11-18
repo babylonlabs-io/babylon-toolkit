@@ -16,6 +16,7 @@ import {
   isVaultActivated,
   isVaultActivationReturned,
   isVaultPastActivation,
+  isVaultWithdrawnByDepositor,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
@@ -1451,6 +1452,76 @@ describe("peginStateMachine", () => {
 
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PROCESSING);
       expect(state.message).toBe(COPY.pegin.messages.activationSubmitted);
+    });
+  });
+
+  describe("a VERIFIED vault the depositor withdrew", () => {
+    it("reads as a redemption with the withdraw message, not an activation confirming", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.CONFIRMED,
+        withdrawnByDepositor: true,
+      });
+
+      expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS);
+      expect(state.message).toBe(COPY.pegin.messages.withdrawSubmitted);
+    });
+
+    it("is not activated despite its CONFIRMED status", () => {
+      expect(
+        isVaultActivated(
+          getPeginState(ContractStatus.VERIFIED, {
+            localStatus: LocalStorageStatus.CONFIRMED,
+            withdrawnByDepositor: true,
+          }),
+        ),
+      ).toBe(false);
+    });
+
+    it("has no deposit flow step", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        localStatus: LocalStorageStatus.CONFIRMED,
+        withdrawnByDepositor: true,
+      });
+
+      expect(getPeginDisplayStep(state)).toBeNull();
+    });
+
+    it("offers neither activation when its CONFIRMED status is missing", () => {
+      const state = getPeginState(ContractStatus.VERIFIED, {
+        htlcSpentByPeginTx: true,
+        withdrawnByDepositor: true,
+      });
+
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
+    });
+
+    it("is past activation when its CONFIRMED status is missing", () => {
+      expect(
+        isVaultPastActivation(
+          getPeginState(ContractStatus.VERIFIED, {
+            withdrawnByDepositor: true,
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("stays withdrawn once the indexer reports it REDEEMED", () => {
+      expect(
+        isVaultWithdrawnByDepositor(
+          getPeginState(ContractStatus.REDEEMED, {
+            withdrawnByDepositor: true,
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it("loses the mark when the chain reports the vault ACTIVE", () => {
+      const state = getPeginState(ContractStatus.ACTIVE, {
+        withdrawnByDepositor: true,
+      });
+
+      expect(isVaultWithdrawnByDepositor(state)).toBe(false);
+      expect(isVaultActivated(state)).toBe(true);
     });
   });
 });

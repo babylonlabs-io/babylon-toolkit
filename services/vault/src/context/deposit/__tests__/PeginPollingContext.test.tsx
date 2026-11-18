@@ -26,6 +26,7 @@ import {
   ContractStatus,
   isVaultActivated,
   isVaultActivationReturned,
+  isVaultWithdrawnByDepositor,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
@@ -428,6 +429,26 @@ describe("PeginPollingContext", () => {
       polling.current.setOptimisticStatus(
         refundedId,
         LocalStorageStatus.REFUND_BROADCAST,
+      );
+    });
+
+    expect(result.current.count).toBe(2);
+    expect(result.current.progress).not.toBeNull();
+  });
+
+  it("counts a withdrawn deposit without blanking the others' progress", () => {
+    const withdrawnId = "0xpeginOther" as Hex;
+    const { result: polling } = renderProvider(true, [
+      ACTIVITY,
+      { ...ACTIVITY, id: withdrawnId, contractStatus: ContractStatus.VERIFIED },
+    ]);
+    const { result } = renderHook(usePendingDepositSummary);
+
+    act(() => {
+      polling.current.markVaultWithdrawn(withdrawnId);
+      polling.current.setOptimisticStatus(
+        withdrawnId,
+        LocalStorageStatus.CONFIRMED,
       );
     });
 
@@ -854,6 +875,69 @@ describe("PeginPollingContext", () => {
     const state = result.current.getPollingResult(STORED_VAULT_ID)?.peginState;
     expect(isVaultActivationReturned(state)).toBe(true);
     expect(isVaultActivated(state)).toBe(false);
+  });
+
+  it("keeps a withdrawn vault read from the record after cleanup deletes that record once the vault reads REDEEMED", async () => {
+    const ETH_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
+    const storageKey = getPendingPeginsStorageKey(ETH_ADDRESS);
+    const STORED_VAULT_ID = `0x${"9".repeat(64)}` as Hex;
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          id: STORED_VAULT_ID,
+          peginTxHash: `0x${"a".repeat(64)}`,
+          timestamp: 1_700_000_000_000,
+          status: LocalStorageStatus.CONFIRMED,
+          activationOutcome: "withdrawn",
+          unsignedTxHex: "0xdeadbeef",
+          buildOffchainParamsVersion: 1,
+          buildAppVaultKeepersVersion: 1,
+          buildUniversalChallengersVersion: 1,
+          buildVaultCoreVersion: 1,
+        },
+      ]),
+    );
+    let contractStatus = ContractStatus.VERIFIED;
+    function StorageBackedProvider({ children }: PropsWithChildren) {
+      const activity: VaultActivity = {
+        ...ACTIVITY,
+        id: STORED_VAULT_ID,
+        contractStatus,
+      };
+      const { pendingPegins } = usePeginStorage({
+        ethAddress: ETH_ADDRESS,
+        confirmedPegins: [activity],
+      });
+      return (
+        <PeginPollingProvider
+          activities={[activity]}
+          pendingPegins={pendingPegins}
+          btcPublicKey={BTC_PUBKEY}
+        >
+          {children}
+        </PeginPollingProvider>
+      );
+    }
+    const { result, rerender } = renderHook(() => usePeginPolling(), {
+      wrapper: StorageBackedProvider,
+    });
+    expect(
+      isVaultWithdrawnByDepositor(
+        result.current.getPollingResult(STORED_VAULT_ID)?.peginState,
+      ),
+    ).toBe(true);
+
+    contractStatus = ContractStatus.REDEEMED;
+    rerender();
+
+    await waitFor(() => {
+      expect(localStorage.getItem(storageKey)).toBeNull();
+    });
+    rerender();
+    const state = result.current.getPollingResult(STORED_VAULT_ID)?.peginState;
+    expect(isVaultWithdrawnByDepositor(state)).toBe(true);
+    expect(isVaultActivationReturned(state)).toBe(false);
   });
 
   it("keeps a returned activation across a provider remount", () => {

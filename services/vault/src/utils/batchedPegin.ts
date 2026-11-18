@@ -110,3 +110,36 @@ export function isActivationBlockedByEarlierSibling(
         )),
   );
 }
+
+/**
+ * True when `activity` is the first vault of its split still able to lead the
+ * liquidation queue and a later sibling can still activate: withdrawing it
+ * leaves that sibling to queue first. UX only, read from the same statuses as
+ * {@link isActivationBlockedByEarlierSibling}.
+ */
+export function isWithdrawRemovingSplitProtection(
+  activities: VaultActivity[],
+  activity: VaultActivity,
+): boolean {
+  const index = activity.constructionIndex;
+  if (index === undefined) return false;
+  const canStillActivate = (sibling: VaultActivity) =>
+    CAN_STILL_ACTIVATE.has(sibling.contractStatus ?? ContractStatus.PENDING);
+  let laterSiblingCanActivate = false;
+  for (const sibling of getBatchSiblings(activities, activity)) {
+    const siblingIndex = sibling.constructionIndex;
+    if (siblingIndex === undefined || siblingIndex === index) continue;
+    if (siblingIndex > index) {
+      laterSiblingCanActivate ||= canStillActivate(sibling);
+      continue;
+    }
+    // An earlier sibling queued, or still able to queue, leads instead.
+    if (
+      sibling.contractStatus === ContractStatus.ACTIVE ||
+      canStillActivate(sibling)
+    ) {
+      return false;
+    }
+  }
+  return laterSiblingCanActivate;
+}
