@@ -5,7 +5,7 @@
  * The run first asks the chain itself (allowListParams.ts) whether the registry would take a deposit
  * from the connected Ethereum account, then watches the app ask the same question on its own RPC
  * (`checkAllowed`, answered truthfully — nothing is injected). Then:
- *   - not on the list: the CTA must read "Ethereum wallet not on the allow list" and stay disabled
+ *   - not on the list: the waitlist dialog must show once connected (the run then closes it), and the CTA must read "Ethereum wallet not on the allow list" and stay disabled
  *     through a hold longer than the form's refetch interval, across at least one new answered read;
  *   - on the list (or the gate removed): the CTA must reach the enabled "Deposit".
  * Either way the app must have asked about this account and this application and been told the chain's
@@ -45,7 +45,11 @@ import { installPopupApprover } from "./approver";
 import { parseJsonRpcCall } from "./jsonRpcRoute";
 import { DEPOSIT_CTA_LABEL, openDepositForm, waitForDepositCta } from "./pegin";
 import { startRecording } from "./recording";
-import { ALLOW_LIST_CTA_LABEL, FLUID_CTA_SELECTOR } from "./selectors";
+import {
+  ALLOW_LIST_CTA_LABEL,
+  FLUID_CTA_SELECTOR,
+  WAITLIST_DIALOG_TITLE,
+} from "./selectors";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -195,6 +199,25 @@ async function assertAppAsked(
   return assertAppHeardChain(reads, verdict);
 }
 
+/** An account not on the list must see the waitlist dialog once connected; it is closed so the form can open. */
+async function dismissWaitlistDialog(
+  page: Page,
+  log: ActionContext["log"],
+): Promise<void> {
+  const dialog = page.getByRole("dialog", { name: WAITLIST_DIALOG_TITLE });
+  await dialog
+    .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
+    .catch((error: unknown) => {
+      throw new Error(
+        `allow-list: the waitlist dialog "${WAITLIST_DIALOG_TITLE}" did not open within ${STEP_TIMEOUT_MS}ms for an account not on the list. Either the target build predates the dialog (run with --target=localhost until the deployed site has it), or the app's own checkAllowed read never answered (the app then fails open).`,
+        { cause: error },
+      );
+    });
+  log(`Waitlist dialog "${WAITLIST_DIALOG_TITLE}" shown; closing it`);
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden", timeout: STEP_TIMEOUT_MS });
+}
+
 export const allowListAction: Action = {
   id: "allow-list",
   async run(ctx: ActionContext): Promise<void> {
@@ -223,6 +246,7 @@ export const allowListAction: Action = {
         config.network,
         ctx.eth.address,
       );
+      if (!verdict.allowed) await dismissWaitlistDialog(page, log);
 
       // From the overview: the gate under test lives in the deposit modal, whichever page opens it,
       // and /vaults shows no deposit button while its indexed vault list cannot load.

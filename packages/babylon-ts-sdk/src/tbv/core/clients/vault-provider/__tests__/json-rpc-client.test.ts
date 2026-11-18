@@ -1,5 +1,3 @@
-import { getEventListeners } from "node:events";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { VaultProviderRpcClient } from "../api";
@@ -307,21 +305,6 @@ describe("JsonRpcClient", () => {
     ).rejects.toThrow('missing "result" field');
   });
 
-  it("callRaw returns the raw Response object", async () => {
-    const rawResponse = createSuccessResponse({ status: "Activated" });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawResponse));
-
-    const client = createClient();
-    const response = await client.callRaw(
-      "vaultProvider_getPeginStatusByVaultId",
-      {
-        vault_id: "abc",
-      },
-    );
-
-    expect(response).toBe(rawResponse);
-  });
-
   it("times out a typed call when the response body stalls after the headers", async () => {
     vi.stubGlobal(
       "fetch",
@@ -365,97 +348,6 @@ describe("JsonRpcClient", () => {
     const error = await resultPromise;
 
     expect((error as Error).message).toBe("Request aborted");
-  });
-
-  it("callRaw keeps the caller signal attached to the response body", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_url: string, init: RequestInit) =>
-        createStalledBodyResponse(init.signal!),
-      ),
-    );
-    const controller = new AbortController();
-
-    const client = createClient();
-    const response = await client.callRaw(
-      "vaultProvider_requestDepositorClaimerArtifacts",
-      { pegin_txid: "abc" },
-      controller.signal,
-    );
-    const bodyPromise = response.text().catch((e: Error) => e);
-
-    await vi.advanceTimersByTimeAsync(TEST_TIMEOUT_MS);
-    expect(vi.mocked(fetch).mock.calls[0][1]?.signal?.aborted).toBe(false);
-    controller.abort();
-    const error = await bodyPromise;
-
-    expect((error as Error).name).toBe("AbortError");
-  });
-
-  it("rejects a raw body read when the caller cancels before reading", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async (_url: string, init: RequestInit) =>
-          new Response(
-            new ReadableStream<Uint8Array>({
-              start(controller) {
-                controller.enqueue(new TextEncoder().encode("{}"));
-                controller.close();
-                init.signal!.addEventListener(
-                  "abort",
-                  () =>
-                    controller.error(new DOMException("Aborted", "AbortError")),
-                  { once: true },
-                );
-              },
-            }),
-          ),
-      ),
-    );
-    const controller = new AbortController();
-    const response = await createClient().callRaw(
-      "vaultProvider_requestDepositorClaimerArtifacts",
-      {},
-      controller.signal,
-    );
-
-    await vi.advanceTimersByTimeAsync(0);
-    controller.abort();
-
-    await expect(response.text()).rejects.toMatchObject({ name: "AbortError" });
-  });
-
-  it("returns an empty raw response and releases caller listeners", async () => {
-    const rawResponse = new Response(null, { status: 204 });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawResponse));
-    const controller = new AbortController();
-    const response = await createClient().callRaw(
-      "vaultProvider_requestDepositorClaimerArtifacts",
-      {},
-      controller.signal,
-    );
-
-    expect(response).toBe(rawResponse);
-    expect(await response.text()).toBe("");
-    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
-  });
-
-  it("releases caller abort listeners when a raw response body ends", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(createSuccessResponse("ok")),
-    );
-    const controller = new AbortController();
-    const response = await createClient().callRaw(
-      "vaultProvider_requestDepositorClaimerArtifacts",
-      { pegin_txid: "abc" },
-      controller.signal,
-    );
-
-    await response.text();
-
-    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
   });
 
   it("rejects typed calls before reading when Content-Length exceeds the response cap", async () => {
@@ -575,39 +467,6 @@ describe("JsonRpcClient", () => {
     });
 
     expect(response.results[0].result?.claimer?.status).toBe("PayoutConfirmed");
-  });
-
-  it("temporarily exempts depositor claimer artifact downloads from the typed response cap", async () => {
-    const artifactResponse = {
-      tx_graph_json: "x".repeat(80),
-      verifying_key_hex: "aabb",
-      babe_sessions: {
-        ["d".repeat(64)]: { decryptor_artifacts_hex: "ccdd" },
-      },
-    };
-
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          createJsonResponse(
-            { jsonrpc: "2.0", result: artifactResponse, id: 1 },
-            { headers: { "Content-Length": "512" } },
-          ),
-        ),
-    );
-
-    const client = new VaultProviderRpcClient(TEST_BASE_URL, {
-      maxResponseBytes: 64,
-    });
-
-    await expect(
-      client.requestDepositorClaimerArtifacts({
-        pegin_txid: "abc",
-        depositor_pk: "def",
-      }),
-    ).resolves.toEqual(artifactResponse);
   });
 
   it("throws timeout error after max retries on AbortError for retryable methods", async () => {
@@ -996,42 +855,5 @@ describe("JsonRpcClient", () => {
     // Both calls saw the rejection and both invalidated.
     expect(tokenProvider.invalidate).toHaveBeenCalledTimes(2);
     expect(mockFetch).toHaveBeenCalledTimes(4);
-  });
-
-  it("callRaw injects Authorization but does NOT reactively refresh", async () => {
-    const expiredRaw = new Response(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        error: { code: -32001, message: "invalid token signature" },
-        id: 1,
-      }),
-      { status: HTTP_OK, headers: { "Content-Type": "application/json" } },
-    );
-
-    const mockFetch = vi.fn().mockResolvedValue(expiredRaw);
-    vi.stubGlobal("fetch", mockFetch);
-
-    const tokenProvider = {
-      getToken: vi.fn().mockResolvedValue("tok"),
-      invalidate: vi.fn(),
-    };
-
-    const client = createClient({ tokenProvider });
-    const raw = await client.callRaw(
-      "vaultProvider_requestDepositorClaimerArtifacts",
-      {},
-    );
-
-    // callRaw succeeds regardless of body content — it does not inspect
-    // the body, so there's no reactive refresh.
-    expect(raw).toBeInstanceOf(Response);
-    expect(tokenProvider.invalidate).not.toHaveBeenCalled();
-    expect(mockFetch).toHaveBeenCalledOnce();
-
-    const headers = mockFetch.mock.calls[0][1].headers as Record<
-      string,
-      string
-    >;
-    expect(headers.Authorization).toBe("Bearer tok");
   });
 });

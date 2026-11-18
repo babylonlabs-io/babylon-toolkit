@@ -27,14 +27,16 @@ export interface AuthenticatedVpClientConfig {
   authAnchorHex: string;
   /** Stable vault-provider address used to scope the registry entry. */
   providerAddress: string;
-  /** On-chain VP pubkey, branded so it can only come from the registry reader. */
+  /**
+   * Frozen-epoch VP pubkey used by the JSON-RPC-subject bootstrap: the
+   * operation key at the vault's VP epoch, branded so it can only come from
+   * the registry reader. A live key that has since rotated is rejected.
+   */
   pinnedServerPubkey: OnChainBtcPubkey;
   /** Frozen-epoch VP pubkey used by the gRPC-subject bootstrap. */
   grpcPinnedServerPubkey: OnChainBtcPubkey;
   /** Vault's frozen VP epoch, paired with `grpcPinnedServerPubkey`. */
   grpcKeyEpoch: bigint;
-  /** Re-read the current operation key after a JSON-RPC identity mismatch. */
-  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /**
    * Depositor BTC pubkey (x-only or compressed hex). Normalized to
    * x-only and asserted against every issued token's CWT `aud` claim.
@@ -60,7 +62,6 @@ export function createAuthenticatedVpClient(
     pinnedServerPubkey: config.pinnedServerPubkey,
     grpcPinnedServerPubkey: config.grpcPinnedServerPubkey,
     grpcKeyEpoch: config.grpcKeyEpoch,
-    refreshJsonRpcPinnedServerPubkey: config.refreshJsonRpcPinnedServerPubkey,
     expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(
       config.depositorBtcPubkey,
     ),

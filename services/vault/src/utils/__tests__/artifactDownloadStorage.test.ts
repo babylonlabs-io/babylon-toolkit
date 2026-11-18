@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  ARTIFACT_RECEIPT_VERSION,
-  type ArtifactDownloadReceipt,
+  type ArtifactDownloadReceiptV2,
   clearArtifactDownloadReceipts,
   hasArtifactsDownloaded,
   hasGraphMismatch,
@@ -14,20 +13,27 @@ const VAULT_ID = "0xABC123";
 const PEGIN_TXID = "ab".repeat(32);
 const OTHER_PEGIN_TXID = "cd".repeat(32);
 const STORAGE_KEY = `tbv:artifacts-downloaded:${VAULT_ID.toLowerCase()}`;
+const PK = "ab".repeat(32);
 
 function receipt(
-  overrides: Partial<ArtifactDownloadReceipt> = {},
-): ArtifactDownloadReceipt {
+  overrides: Partial<ArtifactDownloadReceiptV2> = {},
+): ArtifactDownloadReceiptV2 {
   return {
-    version: ARTIFACT_RECEIPT_VERSION,
+    version: 2,
     peginTxid: PEGIN_TXID,
-    filename: "babylon-vault-artifacts-abababab.json",
+    filename: "babylon-vault-abababab.tar",
     byteLength: 1_048_576,
     sha256: "9".repeat(64),
     savedAt: 1_700_000_000_000,
     method: "file-system-access",
+    sessions: { [PK]: { sha256: "b".repeat(64), byteLength: 32_768 } },
     ...overrides,
   };
+}
+
+/** Writes a raw record, bypassing the typed save path. */
+function storeRaw(record: unknown): void {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
 }
 
 describe("artifactDownloadStorage", () => {
@@ -96,12 +102,79 @@ describe("artifactDownloadStorage", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("rejects a receipt written by a different schema version", () => {
-    saveArtifactDownloadReceipt(
-      VAULT_ID,
-      receipt({ version: ARTIFACT_RECEIPT_VERSION + 1 }),
-    );
+  it("still accepts a version-1 receipt", () => {
+    storeRaw({
+      version: 1,
+      peginTxid: PEGIN_TXID,
+      filename: "babylon-vault-artifacts-abababab.json",
+      byteLength: 1,
+      sha256: "a".repeat(64),
+      savedAt: 1,
+      method: "file-system-access",
+    });
+    expect(hasArtifactsDownloaded(VAULT_ID, PEGIN_TXID)).toBe(true);
+  });
+
+  it("rejects a receipt written by version 3", () => {
+    storeRaw(receipt({ version: 3 as never }));
     expect(hasArtifactsDownloaded(VAULT_ID, PEGIN_TXID)).toBe(false);
+  });
+
+  it.each([
+    ["missing sessions", { sessions: undefined }],
+    ["sessions null", { sessions: null }],
+    ["sessions as an array", { sessions: [] }],
+    ["an empty sessions map", { sessions: {} }],
+    [
+      "an upper-case session key",
+      {
+        sessions: {
+          ["AB".repeat(32)]: { sha256: "b".repeat(64), byteLength: 1 },
+        },
+      },
+    ],
+    ["a short hash", { sessions: { [PK]: { sha256: "abc", byteLength: 1 } } }],
+    [
+      "an upper-case hash",
+      { sessions: { [PK]: { sha256: "B".repeat(64), byteLength: 1 } } },
+    ],
+    [
+      "a zero length",
+      { sessions: { [PK]: { sha256: "b".repeat(64), byteLength: 0 } } },
+    ],
+    [
+      "a fractional length",
+      { sessions: { [PK]: { sha256: "b".repeat(64), byteLength: 1.5 } } },
+    ],
+    ["a session entry that is not an object", { sessions: { [PK]: null } }],
+    [
+      "more than 1024 sessions",
+      {
+        sessions: Object.fromEntries(
+          Array.from({ length: 1025 }, (_, i) => [
+            i.toString(16).padStart(64, "0"),
+            { sha256: "b".repeat(64), byteLength: 1 },
+          ]),
+        ),
+      },
+    ],
+  ])("rejects a version-2 receipt with %s", (_, overrides) => {
+    storeRaw({ ...receipt(), ...overrides });
+    expect(hasArtifactsDownloaded(VAULT_ID, PEGIN_TXID)).toBe(false);
+  });
+
+  it("accepts a version-2 receipt with exactly 1024 sessions", () => {
+    storeRaw(
+      receipt({
+        sessions: Object.fromEntries(
+          Array.from({ length: 1024 }, (_, i) => [
+            i.toString(16).padStart(64, "0"),
+            { sha256: "b".repeat(64), byteLength: 1 },
+          ]),
+        ),
+      }),
+    );
+    expect(hasArtifactsDownloaded(VAULT_ID, PEGIN_TXID)).toBe(true);
   });
 
   it("rejects a receipt whose digest is not a 64-character hex string", () => {

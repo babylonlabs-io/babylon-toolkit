@@ -167,11 +167,14 @@ const TEST_PUBLIC_CLIENT = {
     maxFeePerGas: 3n,
     maxPriorityFeePerGas: 1n,
   }),
-  getBalance: vi.fn().mockResolvedValue(100000n * 3n),
+  getBlock: vi.fn().mockResolvedValue({ baseFeePerGas: 1n }),
+  // Covers the fee cap the registration sends: twice the base fee plus the
+  // 0.1 gwei minimum tip, for 100,000 gas.
+  getBalance: vi.fn().mockResolvedValue(100000n * (2n * 1n + 100_000_000n)),
   // Empty bytecode marks the connected wallet as an Externally Owned Account
   // (EOA — controlled by a single private key, e.g. MetaMask), so the
-  // smart-account-aware receipt wait delegates directly to
-  // waitForTransactionReceipt.
+  // registration waits on waitForTransactionReceipt rather than the Safe
+  // Transaction Service.
   getCode: vi.fn().mockResolvedValue("0x"),
   waitForTransactionReceipt: vi.fn().mockResolvedValue({
     status: "success",

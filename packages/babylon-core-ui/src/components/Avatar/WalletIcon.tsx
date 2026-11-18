@@ -10,8 +10,8 @@ export interface WalletIconProps {
   alt?: string;
   /**
    * Brand fill for wallets whose mark is a single-colour glyph with no
-   * background of its own (OKX, Ledger, Keystone, OneKey). Leave undefined for
-   * logos that already carry their own colour, such as MetaMask or UniSat.
+   * background of its own (OKX, Ledger, Keystone). Leave undefined for logos
+   * that already carry their own colour, such as MetaMask, UniSat or OneKey.
    */
   background?: string;
   size?: AvatarProps["size"];

@@ -284,6 +284,15 @@ export async function runE2E(config: RunConfig): Promise<void> {
       }
     });
 
+    // Analytics off for every target, including a reused dev server and the public website:
+    // trackEvent sends nothing while Global Privacy Control is on, so no run sends test wallets
+    // to a real PostHog project.
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "globalPrivacyControl", {
+        get: () => true,
+      });
+    });
+
     artifacts.log(`Opening ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
 

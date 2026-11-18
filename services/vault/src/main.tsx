@@ -1,6 +1,8 @@
-// Must come first — env validation initializes the network config
-// runtime (`@/config/network`) at module load, before any other module
-// reads from it.
+// Sets `globalThis.Buffer` before any module can read it; it reads no config.
+import "@/polyfills/globalBuffer";
+// Must come before every other app module — env validation initializes the
+// network config runtime (`@/config/network`) at module load, before any
+// other module reads from it.
 import "@/config/env";
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
@@ -13,6 +15,7 @@ import { BrowserRouter } from "react-router";
 import GlobalError from "@/components/pages/global-error";
 import { initSpeculosTransportForE2E } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
+import { reportAnalyticsConfigError } from "@/infrastructure/analytics";
 import Providers from "@/providers";
 import { Router } from "@/router";
 import { reloadForStaleDeploy } from "@/utils/lazyWithRetry";
@@ -23,6 +26,9 @@ import "../sentry.client.config";
 // Initialize ECC library for bitcoinjs-lib (required by p2tr, Taproot operations).
 // Must run before any code that touches Bitcoin addresses or PSBTs.
 initEccLib(ecc);
+
+// After Sentry starts: env.ts runs too early to report this itself.
+reportAnalyticsConfigError();
 
 // Vite fires this on a dynamic-import preload failure (stale chunk 404 after a
 // redeploy) — trigger the bounded one-shot reload. No preventDefault: letting

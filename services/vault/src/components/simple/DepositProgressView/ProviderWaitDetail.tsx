@@ -3,9 +3,11 @@ import { Loader, Text } from "@babylonlabs-io/core-ui";
 import { DETAIL_PANEL_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+import type { ProviderVerificationProgress } from "@/types/peginPolling";
 
 interface ProviderWaitDetailProps {
   step: DepositFlowStep;
+  verification?: ProviderVerificationProgress;
 }
 
 function getWaitStatus(step: DepositFlowStep): string {
@@ -23,9 +25,15 @@ function getWaitStatus(step: DepositFlowStep): string {
   }
 }
 
-export function ProviderWaitDetail({ step }: ProviderWaitDetailProps) {
+export function ProviderWaitDetail({
+  step,
+  verification,
+}: ProviderWaitDetailProps) {
   const copy = COPY.deposit.waitDetails;
-  const status = getWaitStatus(step);
+  const verifying = step === DepositFlowStep.AWAIT_VP_VERIFICATION;
+  const stuck = verifying && verification?.healthInfo === "stuck";
+  const ackCollection = verifying ? verification?.ackCollection : undefined;
+  const status = stuck ? copy.providerStuck : getWaitStatus(step);
 
   return (
     <div className={`mt-3 ${DETAIL_PANEL_CLASS}`}>
@@ -34,12 +42,20 @@ export function ProviderWaitDetail({ step }: ProviderWaitDetailProps) {
           {copy.status}:
         </Text>
         <span className="flex items-center gap-2">
-          <Loader size={14} className="text-accent-primary" />
+          {!stuck && <Loader size={14} className="text-accent-primary" />}
           <Text as="span" variant="body2" className="text-accent-primary">
             {status}
           </Text>
         </span>
       </div>
+      {!stuck && ackCollection && (
+        <Text as="p" variant="body2" className="mt-2 text-accent-secondary">
+          {copy.collectingAcknowledgments(
+            ackCollection.completed_challengers,
+            ackCollection.total_challengers,
+          )}
+        </Text>
+      )}
     </div>
   );
 }

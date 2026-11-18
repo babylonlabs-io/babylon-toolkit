@@ -3,11 +3,13 @@ import {
   InsufficientFundsError,
   isAddress,
   isAddressEqual,
+  WaitForTransactionReceiptTimeoutError,
   zeroAddress,
   type Address,
   type Chain,
   type Hex,
   type PublicClient,
+  type TransactionReceipt,
   type WalletClient,
 } from "viem";
 
@@ -26,8 +28,38 @@ import { ViemVaultRegistryReader } from "./vault-registry-reader";
 /** Referral code sent with peg-in registration. Zero means no referral. */
 export const NO_REFERRAL_CODE = 0;
 const UINT8_MAX = 255;
-// Match the prior vault-service timeout. A dropped transaction must not wait forever.
-const RECEIPT_TIMEOUT_MS = 120_000;
+/**
+ * How long a registration is waited for before its outcome is reported
+ * unknown. A dropped transaction must not wait forever, but a registration
+ * that confirms late is not a failed one: a hardware wallet over WalletConnect
+ * can take minutes from fee preparation to broadcast.
+ */
+const REGISTRATION_CONFIRMATION_TIMEOUT_MS = 30 * 60_000;
+/**
+ * One receipt wait. Between rounds the registry is read for the vaults, which
+ * also confirms a registration the wallet re-sent under another hash.
+ */
+const REGISTRATION_RECEIPT_ROUND_MS = 60_000;
+/**
+ * Pause after a receipt wait that failed rather than timed out: about one
+ * Ethereum block, so an RPC that keeps failing is not polled in a tight loop.
+ */
+const REGISTRATION_RETRY_DELAY_MS = 12_000;
+/**
+ * The EIP-1559 fee cap covers this multiple of the latest base fee. A full
+ * block raises the base fee by 12.5%, so 2x stays includable through about six
+ * full blocks in a row (1.125^6 ≈ 2.03). The depositor pays only the base fee
+ * and tip actually charged, so unused headroom costs nothing. viem's default
+ * of 1.2x lasted under two blocks for a registration approved on a hardware
+ * wallet, which then could not be mined for five minutes.
+ */
+const REGISTRATION_BASE_FEE_MULTIPLIER = 2n;
+/**
+ * Lowest priority fee the registration offers: 0.1 gwei. A node's tip
+ * suggestion can be close to zero (50,971 wei on mainnet), which puts the
+ * registration behind nearly every other transaction in a block.
+ */
+const MIN_REGISTRATION_PRIORITY_FEE_WEI = 100_000_000n;
 const EIP_7702_DELEGATION_CODE = /^0xef0100[0-9a-f]{40}$/i;
 
 function ensureHex(value: string, label: string): Hex {
@@ -40,6 +72,19 @@ function ensureHex(value: string, label: string): Hex {
     throw new Error(`${label} must be non-empty, even-length hex`);
   }
   return prefixed as Hex;
+}
+
+/**
+ * A failed wait round, for the console: the error's name and viem's
+ * `shortMessage`. The full message is left out because viem puts the RPC URL,
+ * which can carry an API key, and the request body in it.
+ */
+function describeRoundError(error: unknown): string {
+  if (!(error instanceof Error)) return typeof error;
+  const { shortMessage } = error as { shortMessage?: unknown };
+  return typeof shortMessage === "string"
+    ? `${error.name}: ${shortMessage}`
+    : error.name;
 }
 
 function assertBytes32(value: Hex, label: string): void {
@@ -92,6 +137,13 @@ export interface ViemPeginRegistrationClientConfig {
   ethChain: Chain;
   publicClient: PublicClient;
   btcVaultRegistry: Address;
+  /**
+   * How long to wait for the registration to confirm before rejecting with
+   * viem's `WaitForTransactionReceiptTimeoutError`, which leaves the outcome
+   * unknown: the registration can still confirm afterwards. A positive,
+   * finite number of milliseconds; default 30 minutes. A Safe proposal waits
+   * for its co-signers on its own budget.
+   */
   receiptTimeoutMs?: number;
   /**
    * Refuse to register without a `quotedCommissionBps`. Set it to `true` when
@@ -140,6 +192,13 @@ export interface RegisterPeginOnChainParams {
 }
 
 export interface PeginRegistrationResult {
+  /**
+   * Hash of the registration transaction. When a receipt confirmed it, this
+   * is that receipt's hash, which can differ from the hash the wallet
+   * returned: a Safe's execution transaction, or a speed-up of the same call
+   * that the receipt wait followed. When the registry shows every vault but no
+   * receipt arrived, it is the hash the wallet returned.
+   */
   ethTxHash: Hex;
   vaultId: Hex;
   peginTxHash: Hex;
@@ -181,6 +240,7 @@ export interface BatchPeginRegistrationResultItem {
 }
 
 export interface PeginBatchRegistrationResult {
+  /** See {@link PeginRegistrationResult.ethTxHash}. */
   ethTxHash: Hex;
   vaults: BatchPeginRegistrationResultItem[];
 }
@@ -192,7 +252,19 @@ export interface PeginBatchRegistrationResult {
  * wallet and imports neither Bitcoin libraries nor the Rust/WASM package.
  */
 export class ViemPeginRegistrationClient {
-  constructor(private readonly config: ViemPeginRegistrationClientConfig) {}
+  constructor(private readonly config: ViemPeginRegistrationClientConfig) {
+    const { receiptTimeoutMs } = config;
+    // Zero or less would end the wait before any receipt check, and NaN or
+    // Infinity would leave it with no bound.
+    if (
+      receiptTimeoutMs !== undefined &&
+      !(Number.isFinite(receiptTimeoutMs) && receiptTimeoutMs > 0)
+    ) {
+      throw new Error(
+        `receiptTimeoutMs must be a positive, finite number of milliseconds; received ${receiptTimeoutMs}.`,
+      );
+    }
+  }
 
   async registerPeginOnChain(
     params: RegisterPeginOnChainParams,
@@ -256,6 +328,7 @@ export class ViemPeginRegistrationClient {
       peginFeeTotal,
       false,
       depositor,
+      [normalized.vaultId],
     );
     return {
       ethTxHash,
@@ -353,6 +426,7 @@ export class ViemPeginRegistrationClient {
       peginFeeTotal,
       true,
       depositor,
+      vaults.map((vault) => vault.vaultId),
     );
     return { ethTxHash, vaults };
   }
@@ -432,17 +506,21 @@ export class ViemPeginRegistrationClient {
     };
   }
 
-  private async assertVaultDoesNotExist(
-    vaultId: Hex,
-    peginTxHash: Hex,
-  ): Promise<void> {
+  private async isVaultRegistered(vaultId: Hex): Promise<boolean> {
     const result = (await this.config.publicClient.readContract({
       address: this.config.btcVaultRegistry,
       abi: BTCVaultRegistryABI,
       functionName: "getBtcVaultBasicInfo",
       args: [vaultId],
     })) as { depositor: Address };
-    if (result.depositor !== zeroAddress) {
+    return result.depositor !== zeroAddress;
+  }
+
+  private async assertVaultDoesNotExist(
+    vaultId: Hex,
+    peginTxHash: Hex,
+  ): Promise<void> {
+    if (await this.isVaultRegistered(vaultId)) {
       throw new Error(
         `Vault already exists (ID: ${vaultId}, peginTxHash: ${peginTxHash}). ` +
           `Vault IDs are derived from the pegin transaction hash and depositor address. ` +
@@ -524,6 +602,7 @@ export class ViemPeginRegistrationClient {
     value: bigint,
     batch: boolean,
     depositor: Address,
+    vaultIds: readonly Hex[],
   ): Promise<Hex> {
     let account = this.assertEthAccount(depositor);
     const code = await this.config.publicClient.getCode({ address: account });
@@ -592,9 +671,14 @@ export class ViemPeginRegistrationClient {
       if (!fees) {
         throw new Error("Failed to prepare registration fees. Try again.");
       }
-      gasAndFees = { gas, ...fees };
+      // Legacy transactions pay the whole gas price, so headroom there is spent.
+      const sentFees =
+        fees.type === "eip1559"
+          ? await this.eip1559RegistrationFees(fees.maxPriorityFeePerGas)
+          : fees;
+      gasAndFees = { gas, ...sentFees };
       const feeCap =
-        fees.type === "eip1559" ? fees.maxFeePerGas : fees.gasPrice;
+        sentFees.type === "eip1559" ? sentFees.maxFeePerGas : sentFees.gasPrice;
       if (balance < value + gas * feeCap) {
         throw Object.assign(new InsufficientFundsError(), {
           required: value + gas * feeCap,
@@ -630,12 +714,17 @@ export class ViemPeginRegistrationClient {
     } catch (error) {
       handleContractError(error);
     }
-    const receipt = await waitForTransactionReceiptSmartAware({
-      publicClient: this.config.publicClient,
-      walletAddress: depositor,
-      hash: submittedHash,
-      timeout: this.config.receiptTimeoutMs ?? RECEIPT_TIMEOUT_MS,
-    });
+    const receipt = isSmartAccount
+      ? await waitForTransactionReceiptSmartAware({
+          publicClient: this.config.publicClient,
+          walletAddress: depositor,
+          hash: submittedHash,
+          timeout:
+            this.config.receiptTimeoutMs ??
+            REGISTRATION_CONFIRMATION_TIMEOUT_MS,
+        })
+      : await this.waitForEoaRegistration(submittedHash, vaultIds);
+    if (receipt === null) return submittedHash;
     if (receipt.status === "reverted") {
       handleContractError(
         new Error(
@@ -645,5 +734,123 @@ export class ViemPeginRegistrationClient {
       );
     }
     return receipt.transactionHash;
+  }
+
+  /**
+   * EIP-1559 fees the registration is sent with: a cap of
+   * {@link REGISTRATION_BASE_FEE_MULTIPLIER} times the latest base fee plus the
+   * tip, and a tip of at least {@link MIN_REGISTRATION_PRIORITY_FEE_WEI}. The
+   * fees are fixed here, before the wallet prompt, and the base fee can rise
+   * while the depositor reviews and approves the transaction.
+   */
+  private async eip1559RegistrationFees(suggestedPriorityFeePerGas: bigint) {
+    const { baseFeePerGas } = await this.config.publicClient.getBlock({
+      blockTag: "latest",
+    });
+    if (typeof baseFeePerGas !== "bigint" || baseFeePerGas <= 0n) {
+      throw new Error("Failed to read the Ethereum base fee. Try again.");
+    }
+    const maxPriorityFeePerGas =
+      suggestedPriorityFeePerGas > MIN_REGISTRATION_PRIORITY_FEE_WEI
+        ? suggestedPriorityFeePerGas
+        : MIN_REGISTRATION_PRIORITY_FEE_WEI;
+    return {
+      type: "eip1559" as const,
+      maxFeePerGas:
+        baseFeePerGas * REGISTRATION_BASE_FEE_MULTIPLIER + maxPriorityFeePerGas,
+      maxPriorityFeePerGas,
+    };
+  }
+
+  /**
+   * Waits for an EOA's registration in rounds, so a registration that confirms
+   * late is not reported as failed. After each round without a receipt, the
+   * registry is read for the vaults. That also confirms a registration the
+   * wallet re-sent under another hash when the receipt wait did not follow
+   * the replacement, and one the RPC did not show while it was pending.
+   *
+   * When the receipt wait follows a replacement of this transaction, its
+   * receipt counts only if the replacement repeats the same call (viem's
+   * `repriced`, a speed-up). A cancel, or a different transaction on the same
+   * nonce, means nothing was registered, so the wait ends with an error.
+   *
+   * A failed round is inconclusive, not an answer: a reverted registration
+   * comes back as a receipt, so neither the receipt wait nor the registry read
+   * reports a revert by throwing. One RPC error therefore ends a round, never
+   * the wait. It is logged; after a failed receipt wait the next round starts
+   * after {@link REGISTRATION_RETRY_DELAY_MS}, and after a failed registry
+   * read it starts at once.
+   *
+   * @returns the receipt, or `null` when the registry holds every vault but no
+   *   receipt for this hash arrived.
+   * @throws {WaitForTransactionReceiptTimeoutError} once the confirmation
+   *   timeout passes.
+   * @throws if the wallet cancelled or replaced the registration.
+   */
+  private async waitForEoaRegistration(
+    hash: Hex,
+    vaultIds: readonly Hex[],
+  ): Promise<TransactionReceipt | null> {
+    const deadline =
+      Date.now() +
+      (this.config.receiptTimeoutMs ?? REGISTRATION_CONFIRMATION_TIMEOUT_MS);
+    for (;;) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        throw new WaitForTransactionReceiptTimeoutError({ hash });
+      }
+      let replacementReason: string | undefined;
+      let receipt: TransactionReceipt | undefined;
+      try {
+        receipt = await this.config.publicClient.waitForTransactionReceipt({
+          hash,
+          timeout: Math.min(REGISTRATION_RECEIPT_ROUND_MS, remainingMs),
+          // viem reports the reason here and then resolves with the
+          // replacement's receipt, whatever the reason.
+          onReplaced: ({ reason }) => {
+            replacementReason = reason;
+          },
+        });
+      } catch (error) {
+        // By name: the public client may come from another copy of viem.
+        const timedOut =
+          error instanceof Error &&
+          error.name === "WaitForTransactionReceiptTimeoutError";
+        if (!timedOut) {
+          console.warn(
+            `Registration receipt wait failed; retrying until the confirmation timeout: ${describeRoundError(error)}`,
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, REGISTRATION_RETRY_DELAY_MS),
+          );
+        }
+      }
+      if (receipt) {
+        if (replacementReason !== undefined && replacementReason !== "repriced") {
+          throw new Error(
+            `The registration transaction was ${
+              replacementReason === "cancelled"
+                ? "cancelled"
+                : "replaced by a different transaction"
+            } in the wallet, so nothing was registered. Start the registration again.`,
+          );
+        }
+        return receipt;
+      }
+      try {
+        if (await this.areVaultsRegistered(vaultIds)) return null;
+      } catch (error) {
+        console.warn(
+          `Registry read for the registration failed; retrying until the confirmation timeout: ${describeRoundError(error)}`,
+        );
+      }
+    }
+  }
+
+  private async areVaultsRegistered(vaultIds: readonly Hex[]): Promise<boolean> {
+    for (const vaultId of vaultIds) {
+      if (!(await this.isVaultRegistered(vaultId))) return false;
+    }
+    return true;
   }
 }

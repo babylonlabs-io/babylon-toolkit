@@ -36,11 +36,20 @@ const DEMO_SLOW_MO_MS =
   Number.parseInt(process.env.E2E_SLOW_MO_MS ?? "", 10) || 0;
 const DEMO_VIDEO = process.env.E2E_VIDEO === "on" ? "on" : "off";
 /**
+ * Specs that run against a production build, in `playwright.prod.config.ts`.
+ * Excluded here because this config's servers are dev servers.
+ */
+const PROD_BUNDLE_SPECS = "**/*.prod.spec.ts";
+/**
  * A project-level `testIgnore` replaces the top-level one rather than adding
  * to it, so the visual exclusion documented on `testIgnore` below has to be
  * repeated wherever a project narrows its own file set.
  */
-const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", ...GOD_MODE_SPECS];
+const BEHAVIOURAL_TEST_IGNORE = [
+  "**/visual/**",
+  PROD_BUNDLE_SPECS,
+  ...GOD_MODE_SPECS,
+];
 
 /**
  * Mock backend the e2e suite pins so no spec reaches a live host. The
@@ -62,6 +71,9 @@ export const MOCK_ENV_VARS = {
   // captures them. The DSN alone enables Sentry; this only changes where events are POSTed.
   NEXT_PUBLIC_SENTRY_TUNNEL_URL: "http://localhost:8092/sentry-tunnel",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "e2e-test",
+  // Analytics off: no spec may send test wallets to a real PostHog project.
+  NEXT_PUBLIC_POSTHOG_HOST: "",
+  NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
   // Gate that the page-side `getInjectedWallets()` helper reads to
   // decide whether to surface `window.__BABYLON_E2E_WALLETS__`.
   NEXT_PUBLIC_E2E_MODE: "1",
@@ -84,7 +96,7 @@ export default defineConfig({
   // reducedMotion, no retries. Without this they also match `testMatch`
   // above and run inside the behavioural suite, where `waitForVisualStability`
   // chases live animations for its full timeout and then retries twice.
-  testIgnore: "**/visual/**",
+  testIgnore: ["**/visual/**", PROD_BUNDLE_SPECS],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 2,
@@ -146,6 +158,8 @@ export default defineConfig({
       env: {
         NEXT_PUBLIC_TBV_NETWORK: MISSING_PROFILE_NAME,
         NEXT_PUBLIC_SENTRY_DSN: "",
+        NEXT_PUBLIC_POSTHOG_HOST: "",
+        NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-missing",
       },
     },

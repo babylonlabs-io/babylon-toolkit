@@ -71,6 +71,7 @@ export function DepositSignContent({
     perVaultSteps,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait,
     canCancelDeviceSign,
     deviceCancelRequested,
     cancelDeviceSign,
@@ -241,6 +242,12 @@ export function DepositSignContent({
       <DepositProgressView
         currentStep={currentStep}
         error={error}
+        // A submitted registration that has not confirmed is not a failure.
+        errorVariant={
+          error === COPY.deposit.errors.registrationUnconfirmed
+            ? "warning"
+            : "error"
+        }
         isComplete={isComplete}
         isProcessing={isProcessing}
         canClose={canClose}
@@ -254,8 +261,10 @@ export function DepositSignContent({
         onRetry={retryDeposit ?? (canResume ? handleResume : undefined)}
         started={started}
         onSign={handleSign}
+        vaultIds={btcConfirmationDetail?.depositIds}
         btcConfirmationDetail={btcConfirmationDetail}
         ethConfirmationDetail={ethConfirmationDetail}
+        registrationWait={registrationWait}
         canCancelSigning={canCancelDeviceSign}
         cancelSigningRequested={deviceCancelRequested}
         onCancelSigning={cancelDeviceSign}

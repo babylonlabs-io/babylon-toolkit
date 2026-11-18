@@ -35,6 +35,8 @@ export function closeCtaButton(page: Page): Locator {
 export const ALLOW_LIST_CTA_LABEL = "Ethereum wallet not on the allow list";
 /** The deposit flow's refusal of an account not on the allow-list (COPY.deposit.errors.depositorNotAllowListed.title). */
 export const ALLOW_LIST_REFUSED_TITLE = "Wallet not on the allow list";
+/** The waitlist dialog shown to an account not on the allow-list (COPY.wallet.waitlist.title). */
+export const WAITLIST_DIALOG_TITLE = "This wallet doesn’t have access";
 /** The deposit flow's refusal when the position has no room (COPY.deposit.errors.positionCapacityExceeded.title). */
 export const POSITION_CAPACITY_EXCEEDED_TITLE =
   "Not enough room in your position";

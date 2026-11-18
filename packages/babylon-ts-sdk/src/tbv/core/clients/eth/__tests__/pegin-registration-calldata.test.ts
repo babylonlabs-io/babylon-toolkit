@@ -27,6 +27,10 @@ const WOTS_B = `0x${"f0".repeat(32)}` as Hex;
 // Distinct from every other bytes32 in this file, so an assertion that reads
 // the wrong argument slot fails rather than matching a neighbour by accident.
 const FINGERPRINT = `0x${"7c".repeat(32)}` as Hex;
+// EIP-1559 fees sent for setup's base fee of 1 wei and suggested tip of 1 wei:
+// the tip is raised to the 0.1 gwei floor and the cap covers twice the base fee.
+const SENT_PRIORITY_FEE = 100_000_000n;
+const SENT_MAX_FEE = 2n * 1n + SENT_PRIORITY_FEE;
 
 function peginTransaction(seed: number): string {
   const transaction = new Transaction();
@@ -59,7 +63,8 @@ function setup() {
       maxFeePerGas: 3n,
       maxPriorityFeePerGas: 1n,
     }),
-    getBalance: vi.fn().mockResolvedValue(250_000n * 3n + 6n),
+    getBlock: vi.fn().mockResolvedValue({ baseFeePerGas: 1n }),
+    getBalance: vi.fn().mockResolvedValue(250_000n * SENT_MAX_FEE + 6n),
     getCode: vi.fn().mockResolvedValue("0x"),
     waitForTransactionReceipt: vi.fn(({ hash }: { hash: Hex }) =>
       Promise.resolve({ status: "success", transactionHash: hash }),
@@ -156,8 +161,8 @@ describe("ViemPeginRegistrationClient calldata", () => {
         value: 3n,
         gas: 250_000n,
         type: "eip1559",
-        maxFeePerGas: 3n,
-        maxPriorityFeePerGas: 1n,
+        maxFeePerGas: SENT_MAX_FEE,
+        maxPriorityFeePerGas: SENT_PRIORITY_FEE,
         account: DEPOSITOR,
         chain: sepolia,
       }),
@@ -257,8 +262,8 @@ describe("ViemPeginRegistrationClient calldata", () => {
         value: 6n,
         gas: 250_000n,
         type: "eip1559",
-        maxFeePerGas: 3n,
-        maxPriorityFeePerGas: 1n,
+        maxFeePerGas: SENT_MAX_FEE,
+        maxPriorityFeePerGas: SENT_PRIORITY_FEE,
         account: DEPOSITOR,
         chain: sepolia,
       }),

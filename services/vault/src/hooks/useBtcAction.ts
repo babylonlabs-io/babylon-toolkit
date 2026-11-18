@@ -2,7 +2,7 @@ import {
   useBTCWallet,
   useWalletConnect,
   WALLET_MODAL_OPEN_EVENT,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useCallback } from "react";
 
 import { useDesktopOnly } from "@/context/desktopOnly";

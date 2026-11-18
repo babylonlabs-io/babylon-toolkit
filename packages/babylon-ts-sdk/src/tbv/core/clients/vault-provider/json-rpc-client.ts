@@ -59,7 +59,7 @@ export interface BearerTokenProvider {
 export interface JsonRpcClientConfig {
   /** Base URL of the RPC service */
   baseUrl: string;
-  /** Timeout per attempt in ms. Covers `call` bodies and `callRaw` headers. */
+  /** Timeout per attempt in ms. Covers response headers and body. */
   timeout: number;
   /** Optional custom headers */
   headers?: Record<string, string>;
@@ -68,8 +68,7 @@ export interface JsonRpcClientConfig {
   /** Initial retry delay in milliseconds (default: 1000) */
   retryDelay?: number;
   /**
-   * Maximum response body size, in bytes, for typed JSON-RPC calls.
-   * `callRaw` intentionally returns the unparsed Response and is not capped here.
+   * Maximum response body size, in bytes, for JSON-RPC calls.
    * Default: 2 MiB.
    */
   maxResponseBytes?: number;
@@ -86,7 +85,6 @@ export interface JsonRpcClientConfig {
    * `Authorization: Bearer <token>`; `null` skips auth. `call`
    * additionally retries once when the server rejects the bearer
    * (invalidate + refetch + retry) — see {@link isAuthRejectedError}.
-   * `callRaw` skips reactive refresh.
    */
   tokenProvider?: BearerTokenProvider;
 }
@@ -130,16 +128,8 @@ const DEFAULT_RETRY_ATTEMPTS = 3;
 /** Default initial retry delay in milliseconds */
 const DEFAULT_RETRY_DELAY_MS = 1000;
 
-/** Default maximum JSON-RPC response size for typed calls (2 MiB) */
+/** Default maximum JSON-RPC response size (2 MiB) */
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-
-/**
- * TODO: Temporary typed-call exceptions for methods that currently return large
- * artifact payloads as JSON-RPC results.
- */
-const UNCAPPED_TYPED_RESPONSE_METHODS: ReadonlySet<string> = new Set([
-  "vaultProvider_requestDepositorClaimerArtifacts",
-]);
 
 /** HTTP status codes that indicate transient server errors and are safe to retry */
 const RETRYABLE_HTTP_STATUS_CODES: ReadonlySet<number> = new Set([
@@ -329,10 +319,6 @@ export class JsonRpcClient {
       params,
       signal,
       authState,
-      (response) =>
-        UNCAPPED_TYPED_RESPONSE_METHODS.has(method)
-          ? response.text()
-          : readResponseTextWithLimit(response, this.maxResponseBytes),
     );
 
     let jsonResponse: unknown;
@@ -385,42 +371,12 @@ export class JsonRpcClient {
     return rpcResponse.result as TResult;
   }
 
-  /**
-   * Make a JSON-RPC request returning the raw Response (unparsed body).
-   *
-   * Bearer tokens are injected identically to `call`. **Reactive refresh
-   * is NOT performed here** — the response body may be unbounded (e.g.
-   * claimer-artifact downloads), so the client refuses to parse it to
-   * detect auth errors. Callers relying on token-expired retries for
-   * large downloads must read the body themselves and re-invoke
-   * `callRaw` after `tokenProvider.invalidate()`.
-   * The timeout ends at the headers. `signal` can abort the body read.
-   * With `signal`, the response wraps the body and keeps the status and
-   * headers. Fetch metadata, such as `url`, is not retained.
-   */
-  async callRaw<TParams>(
+  private async fetchWithRetry<TParams>(
     method: string,
     params: TParams,
-    signal?: AbortSignal,
-  ): Promise<Response> {
-    return this.fetchWithRetry(
-      method,
-      params,
-      signal,
-      undefined,
-      async (response) => response,
-      true,
-    );
-  }
-
-  private async fetchWithRetry<TParams, TOutput>(
-    method: string,
-    params: TParams,
-    callerSignal: AbortSignal | undefined,
-    authState: AttemptAuthState | undefined,
-    consume: (response: Response) => Promise<TOutput>,
-    callerReadsBody = false,
-  ): Promise<TOutput> {
+    callerSignal?: AbortSignal,
+    authState?: AttemptAuthState,
+  ): Promise<string> {
     const requestId = ++this.requestId;
     const maxRetries = this.retryableFor(method) ? this.retries : 0;
 
@@ -479,30 +435,13 @@ export class JsonRpcClient {
           );
         }
 
-        const output = await consume(response);
+        const responseText = await readResponseTextWithLimit(
+          response,
+          this.maxResponseBytes,
+        );
         clearTimeout(timeoutId);
-        if (callerReadsBody && merged && response.body) {
-          const reader = response.body.getReader();
-          void reader.closed.then(merged.cleanup, merged.cleanup);
-          return new Response(
-            new ReadableStream<Uint8Array>(
-              {
-                async pull(controller) {
-                  const { done, value } = await reader.read();
-                  if (done) {
-                    reader.releaseLock();
-                    controller.close();
-                  } else controller.enqueue(value);
-                },
-                cancel: (reason) => reader.cancel(reason),
-              },
-              { highWaterMark: 0 },
-            ),
-            response,
-          ) as TOutput;
-        }
         merged?.cleanup();
-        return output;
+        return responseText;
       } catch (error) {
         clearTimeout(timeoutId);
         merged?.cleanup();

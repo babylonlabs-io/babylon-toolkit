@@ -3,6 +3,7 @@ import { Buffer } from "buffer";
 import {
   decodeFunctionData,
   InsufficientFundsError,
+  WaitForTransactionReceiptTimeoutError,
   zeroAddress,
   type Address,
   type Hex,
@@ -33,6 +34,11 @@ const WOTS_PK_HASH = `0x${"ef".repeat(32)}` as Hex;
 // Distinct from the other bytes32 fixtures, so an assertion on the wrong
 // argument slot fails instead of matching a neighbour.
 const FINGERPRINT = `0x${"7c".repeat(32)}` as Hex;
+const SENT_HASH = `0x${"5e".repeat(32)}` as Hex;
+// EIP-1559 fees sent for setup's base fee of 1 wei and suggested tip of 1 wei:
+// the tip is raised to the 0.1 gwei floor and the cap covers twice the base fee.
+const SENT_PRIORITY_FEE = 100_000_000n;
+const SENT_MAX_FEE = 2n * 1n + SENT_PRIORITY_FEE;
 
 function signedPeginTransaction(seed = 0xab): string {
   const transaction = new Transaction();
@@ -43,7 +49,10 @@ function signedPeginTransaction(seed = 0xab): string {
   return transaction.toHex();
 }
 
-function setup(requireQuotedCommissionBps = false) {
+function setup(
+  requireQuotedCommissionBps = false,
+  receiptTimeoutMs?: number,
+) {
   const ethWallet = new MockEthereumWallet();
   const getAddresses = vi.fn(async () => [ethWallet.account.address]);
   Object.assign(ethWallet, { getAddresses });
@@ -61,7 +70,8 @@ function setup(requireQuotedCommissionBps = false) {
       maxFeePerGas: 3n,
       maxPriorityFeePerGas: 1n,
     }),
-    getBalance: vi.fn().mockResolvedValue(250_000n * 3n + 6n),
+    getBlock: vi.fn().mockResolvedValue({ baseFeePerGas: 1n }),
+    getBalance: vi.fn().mockResolvedValue(250_000n * SENT_MAX_FEE + 6n),
     getCode: vi.fn().mockResolvedValue("0x"),
     waitForTransactionReceipt: vi.fn(({ hash }: { hash: `0x${string}` }) =>
       Promise.resolve({ status: "success", transactionHash: hash }),
@@ -73,6 +83,7 @@ function setup(requireQuotedCommissionBps = false) {
     publicClient: publicClient as never,
     btcVaultRegistry: REGISTRY,
     requireQuotedCommissionBps,
+    receiptTimeoutMs,
   });
   return { client, ethWallet, publicClient, getAddresses };
 }
@@ -161,7 +172,10 @@ const INVALID_SINGLE_PARAMS: Array<
 ];
 
 describe("ViemPeginRegistrationClient", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
   it("registers prepared Bitcoin artifacts without a BTC wallet", async () => {
     const { client, ethWallet } = setup();
     const send = vi.spyOn(ethWallet, "sendTransaction");
@@ -219,18 +233,29 @@ describe("ViemPeginRegistrationClient", () => {
     ).rejects.toThrow(EMPTY_REVERT_MESSAGE);
   });
 
-  it.each(["eip1559", "legacy"] as const)(
-    "submits at the exact total cost with the prepared %s fee cap",
-    async (type) => {
+  it.each([
+    {
+      prepared: { type: "eip1559", maxFeePerGas: 3n, maxPriorityFeePerGas: 1n },
+      sent: {
+        type: "eip1559",
+        maxFeePerGas: SENT_MAX_FEE,
+        maxPriorityFeePerGas: SENT_PRIORITY_FEE,
+      },
+      feeCap: SENT_MAX_FEE,
+    },
+    {
+      prepared: { type: "legacy", gasPrice: 3n },
+      sent: { type: "legacy", gasPrice: 3n },
+      feeCap: 3n,
+    },
+  ] as const)(
+    "submits $sent.type fees at the exact total cost of their cap",
+    async ({ prepared, sent, feeCap }) => {
       for (const code of ["0x", DELEGATED_EOA_CODE]) {
         const { client, ethWallet, publicClient } = setup();
         publicClient.getCode.mockResolvedValue(code);
-        const fees =
-          type === "eip1559"
-            ? { type, maxFeePerGas: 3n, maxPriorityFeePerGas: 1n }
-            : { type, gasPrice: 3n };
-        publicClient.prepareTransactionRequest.mockResolvedValueOnce(fees);
-        publicClient.getBalance.mockResolvedValueOnce(250_000n * 3n + 3n);
+        publicClient.prepareTransactionRequest.mockResolvedValueOnce(prepared);
+        publicClient.getBalance.mockResolvedValueOnce(250_000n * feeCap + 3n);
         const send = vi.spyOn(ethWallet, "sendTransaction");
 
         await client.registerPeginOnChain(
@@ -241,36 +266,101 @@ describe("ViemPeginRegistrationClient", () => {
           address: ethWallet.account.address,
         });
         expect(send).toHaveBeenCalledWith(
-          expect.objectContaining({ gas: 250_000n, ...fees }),
+          expect.objectContaining({ gas: 250_000n, ...sent }),
         );
         expect(send.mock.calls[0][0]).not.toHaveProperty("nonce");
       }
     },
   );
 
-  it.each(["eip1559", "legacy"] as const)(
-    "refuses one wei below the total %s cost before the wallet prompt",
-    async (type) => {
+  it.each([
+    {
+      prepared: { type: "eip1559", maxFeePerGas: 3n, maxPriorityFeePerGas: 1n },
+      feeCap: SENT_MAX_FEE,
+    },
+    { prepared: { type: "legacy", gasPrice: 3n }, feeCap: 3n },
+  ] as const)(
+    "refuses one wei below the total $prepared.type cost before the wallet prompt",
+    async ({ prepared, feeCap }) => {
       for (const code of ["0x", DELEGATED_EOA_CODE]) {
         const { client, ethWallet, publicClient } = setup();
         publicClient.getCode.mockResolvedValue(code);
-        publicClient.prepareTransactionRequest.mockResolvedValueOnce(
-          type === "eip1559"
-            ? { type, maxFeePerGas: 3n, maxPriorityFeePerGas: 1n }
-            : { type, gasPrice: 3n },
+        publicClient.prepareTransactionRequest.mockResolvedValueOnce(prepared);
+        publicClient.getBalance.mockResolvedValueOnce(
+          250_000n * feeCap + 3n - 1n,
         );
-        publicClient.getBalance.mockResolvedValueOnce(250_000n * 3n + 3n - 1n);
         const send = vi.spyOn(ethWallet, "sendTransaction");
 
         await expect(
           client.registerPeginOnChain(singleParams(ethWallet.account.address)),
         ).rejects.toMatchObject({
           name: "InsufficientFundsError",
-          required: 750_003n,
-          balance: 750_002n,
+          required: 250_000n * feeCap + 3n,
+          balance: 250_000n * feeCap + 2n,
         });
         expect(send).not.toHaveBeenCalled();
       }
+    },
+  );
+
+  it("sends an EIP-1559 cap of twice the latest base fee and a tip of at least 0.1 gwei", async () => {
+    // Mainnet fees of a registration that could not be mined for five minutes:
+    // viem's cap of 1.2x the base fee (509,888,161 wei) fell below the base fee
+    // two blocks later, which then peaked at 584,174,000 wei.
+    const { client, ethWallet, publicClient } = setup();
+    publicClient.prepareTransactionRequest.mockResolvedValueOnce({
+      type: "eip1559",
+      maxFeePerGas: 509_888_161n,
+      maxPriorityFeePerGas: 50_971n,
+    });
+    publicClient.getBlock.mockResolvedValueOnce({
+      baseFeePerGas: 424_864_325n,
+    });
+    publicClient.getBalance.mockResolvedValueOnce(10n ** 18n);
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await client.registerPeginOnChain(singleParams(ethWallet.account.address));
+
+    expect(publicClient.getBlock).toHaveBeenCalledWith({ blockTag: "latest" });
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxFeePerGas: 949_728_650n,
+        maxPriorityFeePerGas: 100_000_000n,
+      }),
+    );
+  });
+
+  it("keeps a suggested tip above the 0.1 gwei floor", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    publicClient.prepareTransactionRequest.mockResolvedValueOnce({
+      type: "eip1559",
+      maxFeePerGas: 2_000_000_003n,
+      maxPriorityFeePerGas: 2_000_000_000n,
+    });
+    publicClient.getBalance.mockResolvedValueOnce(10n ** 18n);
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+
+    await client.registerPeginOnChain(singleParams(ethWallet.account.address));
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxFeePerGas: 2_000_000_002n,
+        maxPriorityFeePerGas: 2_000_000_000n,
+      }),
+    );
+  });
+
+  it.each([null, 0n])(
+    "refuses a latest block with base fee %s before the wallet prompt",
+    async (baseFeePerGas) => {
+      const { client, ethWallet, publicClient } = setup();
+      publicClient.getBlock.mockResolvedValueOnce({ baseFeePerGas } as never);
+      const send = vi.spyOn(ethWallet, "sendTransaction");
+
+      await expect(
+        client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+      ).rejects.toThrow(/Failed to read the Ethereum base fee/);
+      expect(send).not.toHaveBeenCalled();
     },
   );
 
@@ -373,7 +463,7 @@ describe("ViemPeginRegistrationClient", () => {
       htlcVout: 1,
     });
     params.quotedPeginFeeWei = 6n;
-    publicClient.getBalance.mockResolvedValueOnce(250_000n * 3n + 3n);
+    publicClient.getBalance.mockResolvedValueOnce(250_000n * SENT_MAX_FEE + 3n);
     const send = vi.spyOn(ethWallet, "sendTransaction");
 
     await expect(
@@ -422,6 +512,7 @@ describe("ViemPeginRegistrationClient", () => {
     "getCode",
     "estimateGas",
     "prepareTransactionRequest",
+    "getBlock",
     "getBalance",
   ] as const)(
     "stops before the wallet prompt when %s fails",
@@ -672,7 +763,7 @@ describe("ViemPeginRegistrationClient", () => {
       ethWallet.updateConfig({ address: OTHER_ACCOUNT });
       pending.resolve(
         method === "getBalance"
-          ? 250_000n * 3n + 6n
+          ? 250_000n * SENT_MAX_FEE + 6n
           : method === "estimateGas"
             ? 250_000n
             : { type: "eip1559", maxFeePerGas: 3n, maxPriorityFeePerGas: 1n },
@@ -792,4 +883,287 @@ describe("ViemPeginRegistrationClient", () => {
       expect(send).not.toHaveBeenCalled();
     },
   );
+
+  it("keeps waiting past a receipt timeout and returns the receipt that follows", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    vi.spyOn(ethWallet, "sendTransaction").mockResolvedValueOnce(SENT_HASH);
+    publicClient.waitForTransactionReceipt.mockRejectedValueOnce(
+      new WaitForTransactionReceiptTimeoutError({ hash: SENT_HASH }),
+    );
+
+    const result = await client.registerPeginBatchOnChain(
+      batchParams(ethWallet.account.address),
+    );
+
+    expect(result.ethTxHash).toBe(SENT_HASH);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(2);
+  });
+
+  it("confirms a registration the registry holds when its hash never gets a receipt", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    const send = vi
+      .spyOn(ethWallet, "sendTransaction")
+      .mockResolvedValueOnce(SENT_HASH);
+    publicClient.waitForTransactionReceipt.mockRejectedValue(
+      new WaitForTransactionReceiptTimeoutError({ hash: SENT_HASH }),
+    );
+    // The vault is absent before the send and present once the wallet's
+    // replacement of the transaction mined.
+    publicClient.readContract.mockImplementation(({ functionName }) => {
+      if (functionName === "getPegInFee") return Promise.resolve(3n);
+      if (functionName === "getVaultProviderCommission")
+        return Promise.resolve(100);
+      return Promise.resolve({
+        depositor:
+          send.mock.calls.length > 0 ? ethWallet.account.address : zeroAddress,
+      });
+    });
+
+    const result = await client.registerPeginBatchOnChain(
+      batchParams(ethWallet.account.address),
+    );
+
+    expect(result.ethTxHash).toBe(SENT_HASH);
+    expect(result.vaults).toHaveLength(1);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(1);
+    expect(publicClient.readContract).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        functionName: "getBtcVaultBasicInfo",
+        args: [result.vaults[0].vaultId],
+      }),
+    );
+  });
+
+  it("keeps waiting after an RPC error ends a round, without logging the RPC URL", async () => {
+    vi.useFakeTimers();
+    const { client, ethWallet, publicClient } = setup();
+    vi.spyOn(ethWallet, "sendTransaction").mockResolvedValueOnce(SENT_HASH);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    publicClient.waitForTransactionReceipt.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          "HTTP request failed.\n\nURL: https://rpc.example/secret-api-key",
+        ),
+        { name: "HttpRequestError", shortMessage: "HTTP request failed." },
+      ),
+    );
+
+    const registration = client.registerPeginBatchOnChain(
+      batchParams(ethWallet.account.address),
+    );
+    // The next round waits 12 s after a failed one, so a failing RPC is not
+    // polled in a tight loop.
+    await vi.advanceTimersByTimeAsync(11_999);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(registration).resolves.toMatchObject({
+      ethTxHash: SENT_HASH,
+    });
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("HttpRequestError: HTTP request failed."),
+    );
+    expect(warn.mock.calls[0][0]).not.toContain("secret-api-key");
+  });
+
+  it("logs only the error name for a failed round without a short message", async () => {
+    vi.useFakeTimers();
+    const { client, ethWallet, publicClient } = setup();
+    vi.spyOn(ethWallet, "sendTransaction").mockResolvedValueOnce(SENT_HASH);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    publicClient.waitForTransactionReceipt.mockRejectedValueOnce(
+      new Error("request to https://rpc.example/secret-api-key failed"),
+    );
+
+    const registration = client.registerPeginBatchOnChain(
+      batchParams(ethWallet.account.address),
+    );
+    await vi.advanceTimersByTimeAsync(12_000);
+
+    await expect(registration).resolves.toBeDefined();
+    expect(warn.mock.calls[0][0]).toMatch(/: Error$/);
+    expect(warn.mock.calls[0][0]).not.toContain("secret-api-key");
+  });
+
+  it.each([
+    ["cancelled", /was cancelled in the wallet, so nothing was registered/],
+    [
+      "replaced",
+      /was replaced by a different transaction in the wallet, so nothing was registered/,
+    ],
+  ] as const)(
+    "refuses a registration the wallet %s, though its replacement succeeded",
+    async (reason, message) => {
+      const { client, ethWallet, publicClient } = setup();
+      vi.spyOn(ethWallet, "sendTransaction").mockResolvedValueOnce(SENT_HASH);
+      publicClient.waitForTransactionReceipt.mockImplementationOnce(
+        ({
+          onReplaced,
+        }: {
+          hash: Hex;
+          onReplaced?: (replacement: { reason: string }) => void;
+        }) => {
+          onReplaced?.({ reason });
+          return Promise.resolve({
+            status: "success",
+            transactionHash: `0x${"9a".repeat(32)}` as Hex,
+          });
+        },
+      );
+
+      await expect(
+        client.registerPeginBatchOnChain(
+          batchParams(ethWallet.account.address),
+        ),
+      ).rejects.toThrow(message);
+    },
+  );
+
+  it("accepts a speed-up of the same registration and returns its hash", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    vi.spyOn(ethWallet, "sendTransaction").mockResolvedValueOnce(SENT_HASH);
+    const speedUpHash = `0x${"9b".repeat(32)}` as Hex;
+    publicClient.waitForTransactionReceipt.mockImplementationOnce(
+      ({
+        onReplaced,
+      }: {
+        hash: Hex;
+        onReplaced?: (replacement: { reason: string }) => void;
+      }) => {
+        onReplaced?.({ reason: "repriced" });
+        return Promise.resolve({
+          status: "success",
+          transactionHash: speedUpHash,
+        });
+      },
+    );
+
+    const result = await client.registerPeginBatchOnChain(
+      batchParams(ethWallet.account.address),
+    );
+
+    expect(result.ethTxHash).toBe(speedUpHash);
+  });
+
+  it("keeps waiting after the registry read between rounds fails", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    const send = vi
+      .spyOn(ethWallet, "sendTransaction")
+      .mockResolvedValueOnce(SENT_HASH);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    publicClient.waitForTransactionReceipt.mockRejectedValueOnce(
+      new WaitForTransactionReceiptTimeoutError({ hash: SENT_HASH }),
+    );
+    publicClient.readContract.mockImplementation(({ functionName }) => {
+      if (functionName === "getPegInFee") return Promise.resolve(3n);
+      if (functionName === "getVaultProviderCommission")
+        return Promise.resolve(100);
+      if (send.mock.calls.length > 0) throw new Error("registry read failed");
+      return Promise.resolve({ depositor: zeroAddress });
+    });
+
+    const result = await client.registerPeginBatchOnChain(
+      batchParams(ethWallet.account.address),
+    );
+
+    expect(result.ethTxHash).toBe(SENT_HASH);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps waiting while the registry shows only part of a batch", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    const send = vi
+      .spyOn(ethWallet, "sendTransaction")
+      .mockResolvedValueOnce(SENT_HASH);
+    publicClient.waitForTransactionReceipt.mockRejectedValueOnce(
+      new WaitForTransactionReceiptTimeoutError({ hash: SENT_HASH }),
+    );
+    const params = batchParams(ethWallet.account.address);
+    params.requests.push({
+      ...params.requests[0],
+      depositorSignedPeginTx: signedPeginTransaction(0xac),
+      htlcVout: 1,
+    });
+    params.quotedPeginFeeWei = 6n;
+    // Every vault is absent before the send; after it, only the first vault
+    // the client asked about shows as registered.
+    const vaultIdsBeforeSend: Hex[] = [];
+    publicClient.readContract.mockImplementation(
+      ({
+        functionName,
+        args,
+      }: {
+        functionName: string;
+        args?: readonly unknown[];
+      }) => {
+        if (functionName === "getPegInFee") return Promise.resolve(3n);
+        if (functionName === "getVaultProviderCommission")
+          return Promise.resolve(100);
+        const vaultId = args?.[0] as Hex;
+        if (send.mock.calls.length === 0) {
+          vaultIdsBeforeSend.push(vaultId);
+          return Promise.resolve({ depositor: zeroAddress as Address });
+        }
+        return Promise.resolve({
+          depositor:
+            vaultId === vaultIdsBeforeSend[0]
+              ? ethWallet.account.address
+              : (zeroAddress as Address),
+        });
+      },
+    );
+
+    const result = await client.registerPeginBatchOnChain(params);
+
+    expect(vaultIdsBeforeSend).toHaveLength(2);
+    expect(result.vaults).toHaveLength(2);
+    expect(publicClient.waitForTransactionReceipt).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "refuses a receiptTimeoutMs of %s when the client is built",
+    (receiptTimeoutMs) => {
+      expect(() => setup(false, receiptTimeoutMs)).toThrow(
+        /receiptTimeoutMs must be a positive, finite number/,
+      );
+    },
+  );
+
+  it("reports the receipt timeout once the confirmation timeout passes", async () => {
+    vi.useFakeTimers();
+    const { client, ethWallet, publicClient } = setup(false, 90_000);
+    vi.spyOn(ethWallet, "sendTransaction").mockResolvedValueOnce(SENT_HASH);
+    publicClient.waitForTransactionReceipt.mockImplementation(
+      ({ timeout }: { hash: Hex; timeout?: number }) => {
+        vi.setSystemTime(Date.now() + (timeout ?? 0));
+        return Promise.reject(
+          new WaitForTransactionReceiptTimeoutError({ hash: SENT_HASH }),
+        );
+      },
+    );
+
+    await expect(
+      client.registerPeginBatchOnChain(batchParams(ethWallet.account.address)),
+    ).rejects.toMatchObject({ name: "WaitForTransactionReceiptTimeoutError" });
+    expect(
+      publicClient.waitForTransactionReceipt.mock.calls.map(
+        ([request]) => (request as { timeout?: number }).timeout,
+      ),
+    ).toEqual([60_000, 30_000]);
+  });
+
+  it("reports a registration that reverts after a receipt timeout", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    vi.spyOn(ethWallet, "sendTransaction").mockResolvedValueOnce(SENT_HASH);
+    publicClient.waitForTransactionReceipt
+      .mockRejectedValueOnce(
+        new WaitForTransactionReceiptTimeoutError({ hash: SENT_HASH }),
+      )
+      .mockResolvedValueOnce({ status: "reverted", transactionHash: SENT_HASH });
+
+    await expect(
+      client.registerPeginBatchOnChain(batchParams(ethWallet.account.address)),
+    ).rejects.toThrow(/reverted/);
+  });
 });

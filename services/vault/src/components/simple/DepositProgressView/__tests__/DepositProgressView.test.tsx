@@ -15,6 +15,12 @@ vi.mock("../BtcConfirmationDetailContainer", () => ({
   ),
 }));
 
+vi.mock("../ProviderWaitDetailContainer", () => ({
+  ProviderWaitDetailContainer: ({ depositId }: { depositId: string }) => (
+    <div data-testid="provider-verification-id">{depositId}</div>
+  ),
+}));
+
 // DepositCardShell derives the header estimate from the on-chain confirmation
 // depth; the estimate itself is covered in DepositCardShell.test.tsx.
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -76,6 +82,27 @@ const baseProps = {
 };
 
 describe("DepositProgressView", () => {
+  it("uses each lane's vault id for provider verification progress", () => {
+    render(
+      <DepositProgressView
+        {...baseProps}
+        currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+        vaultCount={2}
+        vaultIds={["vault-1", "vault-2"]}
+        currentVaultIndex={1}
+        perVaultSteps={[
+          DepositFlowStep.AWAIT_VP_VERIFICATION,
+          DepositFlowStep.AWAIT_VP_VERIFICATION,
+        ]}
+      />,
+    );
+    expect(
+      screen
+        .getAllByTestId("provider-verification-id")
+        .map((node) => node.textContent),
+    ).toEqual(["vault-1", "vault-2"]);
+  });
+
   describe("grouped sections", () => {
     it("renders only the group holding the current step", () => {
       render(
@@ -1365,6 +1392,60 @@ describe("DepositProgressView", () => {
       ).toBeInTheDocument();
     });
 
+    it("replaces the Ethereum app hint with the confirmation wait once the registration is broadcast", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          registrationWait="pending"
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.registrationPending),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.ledger.ethAppHint),
+      ).not.toBeInTheDocument();
+    });
+
+    it("says a slow registration continues on its own", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          registrationWait="slow"
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.registrationSlow),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the registration wait in place of the Ethereum app hint on a split deposit", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          vaultCount={2}
+          registrationWait="pending"
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.steps.registrationPending),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.ledger.ethAppHint),
+      ).not.toBeInTheDocument();
+    });
+
     it("shows no Ledger hint on the registration step for another wallet", () => {
       render(
         <DepositProgressView
@@ -1644,7 +1725,7 @@ describe("DepositProgressView", () => {
       expect(mockLedgerDevice.reconnect).toHaveBeenCalledTimes(1);
     });
 
-    it("renders a continue prompt as the step hint and the enabled footer action", () => {
+    it("labels the activation signature and names the action in its hint", () => {
       const onContinue = vi.fn();
       render(
         <DepositProgressView
@@ -1660,11 +1741,13 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByText(COPY.deposit.ledger.activationPause.hint),
+        screen.getByText(
+          "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Sign Transaction.",
+        ),
       ).toBeInTheDocument();
       fireEvent.click(
         screen.getByRole("button", {
-          name: COPY.deposit.ledger.activationPause.continue,
+          name: "Sign Transaction",
         }),
       );
       expect(onContinue).toHaveBeenCalledTimes(1);

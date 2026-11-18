@@ -63,18 +63,6 @@ export enum DaemonStatus {
 // Status Groups
 // ============================================================================
 
-/**
- * States where the VP is still processing (no depositor action needed).
- * Excludes PENDING_DEPOSITOR_WOTS_PK (requires depositor action).
- */
-export const PRE_DEPOSITOR_SIGNATURES_STATES: readonly DaemonStatus[] = [
-  DaemonStatus.PENDING_INGESTION,
-  DaemonStatus.PENDING_BABE_SETUP,
-  DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
-  DaemonStatus.PENDING_PEGIN_SIGS_AVAILABILITY,
-  DaemonStatus.PENDING_PRE_PEGIN_CONFIRMATIONS,
-];
-
 /** States after PendingDepositorSignatures where the depositor has no action. */
 const POST_PAYOUT_SIGNATURE_STATUSES: readonly DaemonStatus[] = [
   DaemonStatus.PENDING_ACKS,
@@ -199,12 +187,6 @@ export interface ClaimerSignatures {
   payout_signature: string;
 }
 
-/** Params for requesting BaBe DecryptorArtifacts from the VP. */
-export interface RequestDepositorClaimerArtifactsParams {
-  pegin_txid: string;
-  depositor_pk: string;
-}
-
 /**
  * Params for `getPeginStatusByVaultId`. A vault is addressed by its
  * depositor-bound `vault_id` (`keccak256(abi.encode(peginTxHash, depositor))`),
@@ -264,18 +246,6 @@ export interface DepositorGraphTransactions {
 export interface RequestDepositorPresignTransactionsResponse {
   txs: ClaimerTransactions[];
   depositor_graph: DepositorGraphTransactions;
-}
-
-/** BaBe garbled-circuit session data for a single challenger. */
-export interface BaBeSessionData {
-  decryptor_artifacts_hex: string;
-}
-
-/** Response from `requestDepositorClaimerArtifacts`. */
-export interface RequestDepositorClaimerArtifactsResponse {
-  tx_graph_json: string;
-  verifying_key_hex: string;
-  babe_sessions: Record<string, BaBeSessionData>;
 }
 
 /** Progress tracker for a multi-challenger operation. */

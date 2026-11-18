@@ -30,7 +30,7 @@ describe("Ledger Vault connect guide", () => {
     expect(wallet.connectGuide?.steps).toContain("Open the Babylon Vault Testnet app on your Ledger.");
   });
 
-  it("tells a user without the app how to install it and when to come back", async () => {
+  it("tells a signet user without the app how to install it and when to come back", async () => {
     const wallet = await createWallet({ metadata, context: {}, config: configFor(Network.SIGNET) });
 
     expect(wallet.connectGuide?.installSteps).toEqual([
@@ -38,5 +38,17 @@ describe("Ledger Vault connect guide", () => {
       "Go to My Ledger and install the Babylon Vault Testnet app.",
       "Then close Ledger Wallet and follow the steps at the top.",
     ]);
+  });
+
+  it("tells a testnet user how to install the Babylon Vault Testnet app", async () => {
+    const wallet = await createWallet({ metadata, context: {}, config: configFor(Network.TESTNET) });
+
+    expect(wallet.connectGuide?.installSteps).toContain("Go to My Ledger and install the Babylon Vault Testnet app.");
+  });
+
+  it("shows a mainnet user no install steps", async () => {
+    const wallet = await createWallet({ metadata, context: {}, config: configFor(Network.MAINNET) });
+
+    expect(wallet.connectGuide?.installSteps).toBeUndefined();
   });
 });

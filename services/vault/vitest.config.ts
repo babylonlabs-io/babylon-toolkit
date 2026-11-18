@@ -94,6 +94,10 @@ export default defineConfig({
       TBV_NETWORK_PROFILE: JSON.stringify(
         readResolvedNetworkProfile("e2e-replay"),
       ),
+      // Analytics off: Nx loads a developer's .env.local into this task, and a
+      // test that renders the router would send page views to a real project.
+      NEXT_PUBLIC_POSTHOG_HOST: "",
+      NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
     },
     exclude: [
       "**/node_modules/**",
@@ -128,8 +132,8 @@ export default defineConfig({
         // not in the Vite 6 line this package uses. The `inline` string entry
         // below never matches the pnpm-realpathed id, so this regex is the one
         // entry that decides how the bundle loads.
-        external: [/\/babylon-wallet-connector\/dist\/index\.es\.js$/],
-        inline: ["@babylonlabs-io/wallet-connector", "@noble/hashes"],
+        external: [/\/babylon-wallet-connector\/dist\/btc-eth\.es\.js$/],
+        inline: ["@babylonlabs-io/wallet-connector/btc-eth", "@noble/hashes"],
       },
     },
     projects: [

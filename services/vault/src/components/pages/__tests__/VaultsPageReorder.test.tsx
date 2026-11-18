@@ -28,7 +28,7 @@ const walletState = vi.hoisted(() => ({
 // fourth member this page reaches: the real useVaultsPageEmptiness resolves
 // reclaim candidates through useReclaimRowAction, which asks for the BTC
 // connector. No component here renders a reclaim row; that renderer is stubbed.
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWalletConnect: () => ({ connected: walletState.confirmed }),
   useBTCWallet: () => ({ connected: walletState.btcConnected }),
   useETHWallet: () => ({
@@ -47,8 +47,10 @@ vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
 // `isConnected` would not catch a change to the gate.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
-  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
-  useBTCWallet: (await import("@babylonlabs-io/wallet-connector")).useBTCWallet,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector/btc-eth"))
+    .useETHWallet,
+  useBTCWallet: (await import("@babylonlabs-io/wallet-connector/btc-eth"))
+    .useBTCWallet,
 }));
 
 // Both data hooks answer from the address they are given — useVaultsPageData

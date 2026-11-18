@@ -19,7 +19,10 @@ import {
 } from "@/components/deposit/RecoveryArtifactsCard";
 import { COPY } from "@/copy";
 import type { ArtifactDownloadParams } from "@/utils/artifactDownloadParams";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  hasArtifactsDownloaded,
+  hasGraphMismatch,
+} from "@/utils/artifactDownloadStorage";
 
 const IDLE_DOWNLOAD_STATE: ArtifactDownloadProgress = {
   loading: false,
@@ -48,6 +51,11 @@ export function ArtifactDownloadModal({
   const [downloadState, setDownloadState] =
     useState<ArtifactDownloadProgress>(IDLE_DOWNLOAD_STATE);
   const isDownloading = downloadState.loading;
+  // A receipt outlives a failed or mismatched repeat; the dialog must not
+  // present that error as a saved download. The stored mismatch is read here
+  // because the card reports its error only after the first paint.
+  const showDownloaded =
+    downloaded && !downloadState.error && !hasGraphMismatch(vaultId, peginTxid);
   const [cancelAction, setCancelAction] = useState<"close" | "cancel" | null>(
     null,
   );
@@ -112,16 +120,16 @@ export function ArtifactDownloadModal({
         ) : (
           <div className="flex flex-col items-center gap-6">
             <ArtifactModalIcon
-              variant={downloaded ? "downloaded" : "pending"}
+              variant={showDownloaded ? "downloaded" : "pending"}
             />
             <div className="flex w-full flex-col items-center gap-6">
               <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
-                {downloaded
+                {showDownloaded
                   ? COPY.deposit.artifactDownload.titleDownloaded
                   : COPY.deposit.artifactDownload.title}
               </h2>
               <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-                {downloaded
+                {showDownloaded
                   ? COPY.deposit.artifactDownload.bodyDownloaded
                   : COPY.deposit.artifactDownload.body}
               </p>
@@ -160,15 +168,16 @@ export function ArtifactDownloadModal({
           >
             {COPY.deposit.artifactDownload.cancelDownloadButton}
           </Button>
-        ) : downloaded ? (
+        ) : showDownloaded ? (
           <>
+            {/* Started from the click: the save picker needs a user gesture. */}
             <Button
               variant="outlined"
               size="medium"
               className="h-10 flex-1 rounded-lg"
-              onClick={handleClose}
+              onClick={() => cardRef.current?.download()}
             >
-              {COPY.deposit.artifactDownload.cancelButton}
+              {COPY.deposit.artifactDownload.downloadAgainButton}
             </Button>
             <Button
               variant="contained"

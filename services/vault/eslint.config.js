@@ -54,6 +54,9 @@ export default tseslint.config(
       "e2e/helpers/**",
       "test-results",
       "playwright-report",
+      // Written by playwright.prod.config.ts.
+      "test-results-prod",
+      "playwright-report-prod",
       "blob-report",
       "playwright/.cache",
       "out",
