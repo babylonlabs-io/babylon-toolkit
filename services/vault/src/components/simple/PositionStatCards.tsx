@@ -210,6 +210,7 @@ export function buildBorrowCapacityCards({
   return [
     {
       label: COPY.overview.availableToBorrowLabel,
+      tooltip: COPY.overview.availableToBorrowTooltip,
       value: availableValue,
       actionLabel: COPY.overview.borrowAction,
       onAction: onBorrow,

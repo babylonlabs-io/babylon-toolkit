@@ -47,6 +47,9 @@
           "env": "NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS"
         },
         {
+          "env": "NEXT_PUBLIC_TBV_WAITLIST_FORM_URL"
+        },
+        {
           "env": "NEXT_PUBLIC_NOTICE_BANNER_MESSAGE"
         },
         {
@@ -72,9 +75,6 @@
         },
         {
           "env": "NEXT_PUBLIC_FF_ENABLE_EXPLORE"
-        },
-        {
-          "env": "NEXT_PUBLIC_FF_HTTP_ARTIFACT_DOWNLOADS"
         },
         {
           "env": "NEXT_PUBLIC_SENTRY_DSN"

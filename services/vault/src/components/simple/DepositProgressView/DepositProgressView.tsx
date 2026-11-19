@@ -31,7 +31,10 @@ import {
 import { NotificationPermissionPrompt } from "@/components/shared/NotificationPermissionPrompt";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+import {
+  DepositFlowStep,
+  type RegistrationConfirmationWait,
+} from "@/hooks/deposit/depositFlowSteps/types";
 import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
 import { logger } from "@/infrastructure";
@@ -53,6 +56,7 @@ import { LedgerHint } from "./LedgerHint";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
+import { ProviderWaitDetailContainer } from "./ProviderWaitDetailContainer";
 import { SplitGroupedProgress } from "./SplitGroupedProgress";
 import {
   buildStepItems,
@@ -110,6 +114,8 @@ export interface DepositProgressViewProps {
    * timelines.
    */
   vaultCount?: number;
+  /** Vault ids in lane order, used for display-only provider progress. */
+  vaultIds?: readonly string[];
   /**
    * Which vault is currently being processed for per-vault phases (WOTS,
    * payout signing, artifact download). `null` when not in a per-vault phase
@@ -158,6 +164,12 @@ export interface DepositProgressViewProps {
    * explanation.
    */
   ethConfirmationDetail?: RegistrationDepthProgress | null;
+  /**
+   * The ETH registration after the wallet took it and before it confirmed,
+   * rendered under the active SUBMIT_PEGIN step in place of the wallet hint.
+   * `null`/omitted outside that window.
+   */
+  registrationWait?: RegistrationConfirmationWait | null;
   /**
    * Hint rendered under the active SUBMIT_WOTS_KEYS step. Resume passes it
    * because its cold path fires a wallet approval the step copy doesn't
@@ -231,9 +243,11 @@ function errorContentKey(error: DepositErrorContent): string {
  * sees something under the step.
  */
 function resolveActiveStepDetail(params: {
+  depositId?: string;
   currentStep: DepositFlowStep;
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
   ethConfirmationDetail?: RegistrationDepthProgress | null;
+  registrationWait?: RegistrationConfirmationWait | null;
   wotsApprovalHint?: string | null;
   /**
    * In split layouts, whether this lane is the vault the flow is currently
@@ -248,8 +262,10 @@ function resolveActiveStepDetail(params: {
 }): ReactNode {
   const {
     currentStep,
+    depositId,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait,
     wotsApprovalHint,
     isActiveVault,
     ledger,
@@ -286,6 +302,17 @@ function resolveActiveStepDetail(params: {
           <LedgerHint>{COPY.deposit.ledger.switchBackHint}</LedgerHint>
         )}
       </>
+    );
+  }
+  // The wallet has taken the registration, so the Ethereum-app hint below no
+  // longer applies: the step now waits for the registration to confirm.
+  if (currentStep === DepositFlowStep.SUBMIT_PEGIN && registrationWait) {
+    return (
+      <Text as="p" variant="body2" className="mt-3 text-accent-secondary">
+        {registrationWait === "slow"
+          ? COPY.deposit.steps.registrationSlow
+          : COPY.deposit.steps.registrationPending}
+      </Text>
     );
   }
   // The registration's wallet popup: on a shared Ledger it needs the
@@ -339,7 +366,11 @@ function resolveActiveStepDetail(params: {
     currentStep !== DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
   return (
     <>
-      <ProviderWaitDetail step={currentStep} />
+      {currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION && depositId ? (
+        <ProviderWaitDetailContainer depositId={depositId} />
+      ) : (
+        <ProviderWaitDetail step={currentStep} />
+      )}
       {showLongWaitHint && (
         <LedgerHint>{COPY.deposit.ledger.longWait}</LedgerHint>
       )}
@@ -359,6 +390,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     payoutSigningProgress,
     peginSigningProgress,
     vaultCount = 1,
+    vaultIds,
     currentVaultIndex = null,
     perVaultSteps,
     onClose,
@@ -367,6 +399,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     onRetry,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait = null,
     wotsApprovalHint,
     offchainParamsVersion,
     started = true,
@@ -598,9 +631,11 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const continueHint = showContinuePrompt ? continuePrompt?.hint : null;
 
   const activeStepDetail = resolveActiveStepDetail({
+    depositId: vaultIds?.[0],
     currentStep,
     btcConfirmationDetail,
     ethConfirmationDetail,
+    registrationWait,
     wotsApprovalHint,
     ledger: ledgerStepContext,
     continueHint,
@@ -611,19 +646,26 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // lanes each show their own). The single-vault path uses the
   // `activeStepDetail` resolved above.
   const renderStepDetail = useCallback(
-    (step: DepositFlowStep, opts?: { isActiveVault?: boolean }): ReactNode =>
+    (
+      step: DepositFlowStep,
+      opts?: { isActiveVault?: boolean; vaultIndex?: number },
+    ): ReactNode =>
       resolveActiveStepDetail({
         currentStep: step,
+        depositId: vaultIds?.[opts?.vaultIndex ?? 0],
         btcConfirmationDetail,
         ethConfirmationDetail,
+        registrationWait,
         wotsApprovalHint,
         isActiveVault: opts?.isActiveVault,
         ledger: ledgerStepContext,
         continueHint,
       }),
     [
+      vaultIds,
       btcConfirmationDetail,
       ethConfirmationDetail,
+      registrationWait,
       wotsApprovalHint,
       ledgerStepContext,
       continueHint,

@@ -19,7 +19,14 @@ const OTHER_KEY = "03" + "bb".repeat(32);
 
 async function connectedProvider(btcwallet: Record<string, unknown>): Promise<OneKeyProvider> {
   const provider = new OneKeyProvider(
-    { $walletInfo: { version: MIN_ONEKEY_VERSION }, btcwallet: { connectWallet: vi.fn(async () => {}), ...btcwallet } },
+    {
+      $walletInfo: { version: MIN_ONEKEY_VERSION },
+      btcwallet: {
+        connectWallet: vi.fn(async () => {}),
+        getChain: vi.fn(async () => ({ enum: "BITCOIN_SIGNET", name: "Bitcoin Signet", network: "testnet" })),
+        ...btcwallet,
+      },
+    },
     config,
   );
   await provider.connectWallet();

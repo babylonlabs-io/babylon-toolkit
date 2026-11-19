@@ -41,10 +41,9 @@ export const LIST_ROW_STATUS_COLUMN_CLASS = "min-w-0 grow-[2] basis-[144px]";
 /**
  * The leading cell — a 32px coin avatar beside a two-line amount / sub-line
  * block. The basis fits the amount and the sub-lines the rows produce in the
- * common case; longer interpolated sub-lines (notably
- * `COPY.pegin.messages.refundMaturing`) truncate rather than widen the cell,
- * because widening it would take width from the other data cells in every row.
- * It takes a double share of any remaining slack.
+ * common case; a longer sub-line wraps rather than widen the
+ * cell, because widening it would take width from the other data cells in
+ * every row. It takes a double share of any remaining slack.
  */
 export const LIST_ROW_LEADING_COLUMN_CLASS = "min-w-0 grow-[2] basis-[240px]";
 
@@ -79,12 +78,13 @@ export const LIST_ROW_TRAILING_CLASS =
   "flex shrink-0 grow-0 basis-[300px] items-center justify-end gap-2 *:ml-0";
 
 /**
- * Every lifecycle row stands the same height so the Pending / Active /
+ * Every lifecycle row stands at least this tall so the Pending / Active /
  * Inactive sections read as one table rather than three — otherwise a row
  * whose leading cell has no sub-line, or whose status cell has no progress
- * bar, sits shorter than its neighbours. The tallest cell is two lines (a 24px
- * amount over a 20px sub-line); this is that 44px plus the card's 16px padding
- * and 1px border on each side, since the box is border-box.
+ * bar, sits shorter than its neighbours. The usual tallest cell is two lines
+ * (a 24px amount over a 20px sub-line); this is that 44px plus the card's 16px
+ * padding and 1px border on each side, since the box is border-box. A row
+ * whose sub-line wraps stands taller.
  *
  * Applied per row rather than inside `ListRowCard`, because that card is also
  * the Activity list's and Active Loans' row. Those are single-line rows that

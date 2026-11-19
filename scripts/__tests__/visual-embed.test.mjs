@@ -19,6 +19,7 @@ import {
   reduceToWidth,
   screenCaption,
   selectEmbeddedGroups,
+  selectEmbeddedScreens,
 } from "../visual-embed.mjs";
 
 /** A PNG-shaped object: changedRowBand only reads width, height and data. */
@@ -264,6 +265,25 @@ test("screenCaption describes the arrangement the picture was composed with", ()
 function group(surface, key, topRank) {
   return { surface, key, group: key, topRank, screens: [] };
 }
+
+test("selectEmbeddedScreens keeps desktop beside the highest-ranked phone", () => {
+  const screens = ["mobile-360", "mobile", "desktop"].map((variant, index) => ({
+    name: `deposit-provider-columns--${variant}.png`,
+    variant,
+    changedRatio: index === 2 ? 0.006678832116788321 : null,
+  }));
+  const selected = selectEmbeddedScreens([
+    { ...group("vault", "deposit-provider-columns", 1), screens },
+  ]);
+  assert.deepEqual(
+    selected.map(({ screen }) => screen.variant),
+    ["desktop", "mobile-360"],
+  );
+  assert.deepEqual(
+    screens.map(({ variant }) => variant),
+    ["mobile-360", "mobile", "desktop"],
+  );
+});
 
 test("selectEmbeddedGroups reserves each surface its floor before ranking the rest", () => {
   const ranked = [

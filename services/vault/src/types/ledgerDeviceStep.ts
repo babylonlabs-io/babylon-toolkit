@@ -4,7 +4,7 @@
  * - `awaiting-app`: an operation is held until the named device app is open
  *   (the modal shows the wait panel, and its cancel ends the wait);
  * - `awaiting-continue`: the HTLC secret was retrieved and the flow pauses for
- *   the depositor to open the Ethereum app, then select Continue;
+ *   the depositor to open the Ethereum app, then select the action button;
  * - `reconnect-required`: the last attempt lost the device session, so the
  *   next click reconnects the device first.
  */

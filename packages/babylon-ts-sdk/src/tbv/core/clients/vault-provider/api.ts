@@ -5,13 +5,17 @@
  * `vaultProvider_*` RPC namespace defined in the btc-vault pegin spec.
  *
  * Implements the narrow service interfaces (PeginStatusReader, WotsKeySubmitter,
- * PresignClient, ClaimerArtifactsReader) so it can be passed directly to
+ * PresignClient) so it can be passed directly to
  * any deposit protocol service function.
  *
  * @see https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md
  */
 
-import type { PeginStatusReader, WotsKeySubmitter, PresignClient, ClaimerArtifactsReader } from "../../services/deposit/interfaces";
+import type {
+  PeginStatusReader,
+  PresignClient,
+  WotsKeySubmitter,
+} from "../../services/deposit/interfaces";
 import { normalizeClaimerPegoutStatus } from "../../services/pegout/state";
 
 import {
@@ -26,8 +30,6 @@ import type {
   BatchGetPegoutStatusResponse,
   GetPeginStatusByVaultIdParams,
   GetPeginStatusResponse,
-  RequestDepositorClaimerArtifactsParams,
-  RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsParams,
   RequestDepositorPresignTransactionsResponse,
   SubmitDepositorPresignaturesParams,
@@ -37,7 +39,6 @@ import {
   validateBatchGetPeginStatusResponse,
   validateBatchGetPegoutStatusResponse,
   validateGetPeginStatusResponse,
-  validateRequestDepositorClaimerArtifactsResponse,
   validateRequestDepositorPresignTransactionsResponse,
 } from "./validators";
 
@@ -78,7 +79,7 @@ const DEFAULT_TIMEOUT_MS = 60_000;
  * ```
  */
 export class VaultProviderRpcClient
-  implements PeginStatusReader, WotsKeySubmitter, PresignClient, ClaimerArtifactsReader
+  implements PeginStatusReader, WotsKeySubmitter, PresignClient
 {
   private client: JsonRpcClient;
 
@@ -141,22 +142,6 @@ export class VaultProviderRpcClient
       params,
       signal,
     );
-  }
-
-  /**
-   * Request the BaBe DecryptorArtifacts needed for the depositor to
-   * independently evaluate garbled circuits during a challenge.
-   */
-  async requestDepositorClaimerArtifacts(
-    params: RequestDepositorClaimerArtifactsParams,
-    signal?: AbortSignal,
-  ): Promise<RequestDepositorClaimerArtifactsResponse> {
-    const response = await this.client.call<
-      RequestDepositorClaimerArtifactsParams,
-      unknown
-    >("vaultProvider_requestDepositorClaimerArtifacts", params, signal);
-    validateRequestDepositorClaimerArtifactsResponse(response);
-    return response;
   }
 
   /**

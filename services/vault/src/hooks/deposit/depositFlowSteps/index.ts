@@ -22,6 +22,7 @@ export type {
   DepositUtxo,
   PeginBatchRegisterParams,
   PeginBatchRegisterResult,
+  RegistrationConfirmationWait,
   UtxoRef,
   WotsSubmissionParams,
 } from "./types";

@@ -143,6 +143,8 @@ const TWO_VAULT_SPLIT_NAME = "Two-vault split";
 // artifact-download and activate-confirmation dialog footers so the two
 // can't drift.
 const CANCEL_DOWNLOAD_LABEL = "Cancel download";
+// A vault row and the download dialog both offer a repeat after a saved kit.
+const DOWNLOAD_AGAIN_LABEL = "Download again";
 // Wallet-signature action/status label, shared by the deposit-stepper button
 // and the recovery-artifacts card status so the two can't drift.
 const SIGN_TRANSACTION_LABEL = "Sign Transaction";
@@ -292,7 +294,7 @@ export const COPY = {
       },
       // Activation floor. Blocks lead because they are the fact the contract
       // checks; the minutes figure is an estimate derived from slot time, so it
-      // is bracketed as approximate. Mirrors the refundMaturing shape.
+      // is bracketed as approximate.
       activationWindowOpening: (blocks: number, minutes: number) =>
         `Your BTCVault is verified. Activation opens in ${blocks} Ethereum ${
           blocks === 1 ? "block" : "blocks"
@@ -301,8 +303,7 @@ export const COPY = {
         "Activation opens a short time after verification. This is a protocol requirement.",
       // Compact form for the always-visible slot under the amount. The full
       // sentence stays in `message`, which the /vaults pending row no longer
-      // surfaces, so this is the only form a depositor sees there and it must
-      // survive `truncate`.
+      // surfaces, so this is the only form a depositor sees there.
       activationWindowSubtext: (blocks: number, minutes: number) =>
         `Opens in ${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
       activationWindowSubtextUnknown: "Waiting for the activation window",
@@ -362,11 +363,13 @@ export const COPY = {
         "A refund was broadcast from this device, and it has not confirmed on Bitcoin.",
       refundComplete:
         "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
-      // Longest sub-line the lifecycle rows render. It exceeds
-      // LIST_ROW_LEADING_COLUMN_CLASS's basis (components/shared/ListRow.tsx),
-      // so that cell truncates it rather than widening.
-      refundMaturing: (blocks: number, hours: number) =>
-        `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
+      // Sub-line under the amount. "Available": the depositor still has to
+      // press Withdraw.
+      refundAvailableIn: (duration: string) =>
+        `Refund available in ~${duration}`,
+      // Appended to the expired tooltip: the block count the label rounds.
+      refundOpensInBlocks: (blocks: number) =>
+        `Your refund opens in ${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"}.`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
       prePeginNotFound:
         "Pre-Pegin transaction not found on this Bitcoin network.",
@@ -497,6 +500,10 @@ export const COPY = {
       signPeginBtc: "Sign the peg-in BTC transaction",
       signLinkProofs: "Sign proof to link your Bitcoin and ETH addresses",
       signAndBroadcastEth: "Sign and broadcast ETH registration",
+      registrationPending:
+        "Your ETH registration has been submitted. Waiting for it to confirm on Ethereum.",
+      registrationSlow:
+        "This is taking longer than usual. If your wallet still needs approvals, such as other Safe signers, complete them there. Keep this window open to continue here once the registration confirms. If it takes much longer, you can finish the deposit from your dashboard.",
       signAndBroadcastPrePegin: SIGN_AND_BROADCAST_PRE_PEGIN_STEP,
       confirmingDeposit:
         "Awaiting Pre-Pegin inclusion (1 Bitcoin block · ~10 min)",
@@ -658,6 +665,10 @@ export const COPY = {
       awaitingBtcDepthAndVpSetup:
         "Awaiting Bitcoin confirmations and vault provider setup",
       verifyingDeposit: "Verifying signatures and collecting ACKs",
+      collectingAcknowledgments: (completed: number, total: number) =>
+        `Collecting acknowledgments: ${completed} of ${total}`,
+      providerStuck:
+        "The vault provider is not responding. Your funds are not affected.",
       confirmingActivation: "Confirming activation",
     },
     // Ledger vault wallet only. One Ledger can hold both the
@@ -685,6 +696,10 @@ export const COPY = {
       longWait:
         "You can close this window and continue later. When you come back, plug in and unlock your Ledger and open the Babylon Vault app.",
       activationPause: {
+        hint: "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Sign Transaction.",
+        continue: SIGN_TRANSACTION_LABEL,
+      },
+      recoveryActivationPause: {
         hint: "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.",
         continue: "Continue",
       },
@@ -971,6 +986,9 @@ export const COPY = {
       // confirms the artifacts are on disk (collateral list); it doesn't
       // perform activation, so the label simply dismisses it.
       doneButton: "Done",
+      // Left footer button in the downloaded state: the saved file may since
+      // be lost, so the dialog can fetch it again.
+      downloadAgainButton: DOWNLOAD_AGAIN_LABEL,
       // Variants of the recoveryArtifacts messages that speak about
       // activation, the risk acknowledgement, or the artifact warning, for a
       // vault that is active or expired after Verified, where those clauses
@@ -979,10 +997,8 @@ export const COPY = {
         "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
       unverifiedSaveNotice:
         "Check your downloads folder for the file. This browser does not report whether the save completed. For a confirmed save, download again using a Chromium-based browser such as Chrome or Brave.",
-      signedGraphUnavailable:
-        "This browser has no record of the transactions you signed for this deposit, so these artifacts cannot be checked. This happens when the deposit was signed on another device or browser data was cleared. Download them on the device you signed with.",
-      signedGraphNotRecorded:
-        "This deposit was signed before this app kept a record of the transactions you signed, so these artifacts cannot be checked against it.",
+      uncheckedGraphNotice:
+        "This browser has no record of the transactions you signed for this deposit, so the file could not be compared with them.",
       signedGraphMismatch:
         "These artifacts do not match the transactions you signed, so they were not saved. Contact support.",
     },
@@ -1016,10 +1032,9 @@ export const COPY = {
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
       cardSubtitle: "Encrypted backup files",
-      cardSize: "Up to ~1 GB",
-      // Size variant rendered once the download has completed — the
-      // "Up to" hedge no longer applies because the file is on disk.
-      cardSizeDownloaded: "~1 GB",
+      cardSize: "About 700 MB",
+      // Size variant rendered once the download has completed.
+      cardSizeDownloaded: "~700 MB",
       downloadingButton: "Downloading...",
       cancelConfirmation: {
         title: "Cancel artifact download?",
@@ -1033,7 +1048,7 @@ export const COPY = {
         "Cannot authenticate with the vault provider. Please refresh and try again.",
       phoneReminder: {
         title: "Save your recovery artifacts",
-        subtitle: "Computer required ~1 GB",
+        subtitle: "Computer required ~700 MB",
         body: "Open this app on a computer, connect the same wallet, and download artifacts from the Vaults page. Keep them in a secure place.",
       },
       // The deposit's vault provider address could not be turned into a
@@ -1041,16 +1056,13 @@ export const COPY = {
       vaultProviderUnreachable:
         "Cannot reach the vault provider for this deposit. Please refresh and try again.",
       // Progress/status lines surfaced in the card while the download hook
-      // works through its fetch / re-auth / wait-for-signatures states.
+      // works through its fetch / re-auth / wait-for-provider states.
       // The signature status shows while the cold-cache auth prime waits on
       // the BTC wallet's signature prompt.
       signTransaction: SIGN_TRANSACTION_LABEL,
       fetchingArtifacts: "Fetching artifacts from vault provider...",
       reauthenticating: "Re-authenticating with vault provider...",
-      waitingForSignatures:
-        "Waiting for vault provider to process signatures...",
-      // The provider does not say why it refuses (INVALID_STATE), so this
-      // names no cause.
+      // Covers ARTIFACTS_NOT_READY and INVALID_STATE; the provider names no cause.
       waitingForProvider:
         "Waiting for the vault provider to make the artifacts available...",
       notAvailable:
@@ -1061,7 +1073,22 @@ export const COPY = {
       downloadFailed: "Download failed",
       downloadLimitReached:
         "Too many artifact download requests. Wait and try again later.",
-      unknownRpcError: "Unknown RPC error",
+      // An HTTP status the download does not handle; `name` is the vault
+      // provider's error_name when its body carried one, else empty.
+      downloadFailedHttp: (status: number, name: string) =>
+        `Download failed: HTTP ${status}${name ? ` ${name}` : ""}`,
+      // Every transfer attempt for one request, the manifest or a session,
+      // failed on the network.
+      transferRetriesExhausted: (attempts: number) =>
+        `The download failed after ${attempts} attempts. Check your connection and try again.`,
+      // The vault id the indexer gave the card does not derive from the
+      // deposit's pegin txid and depositor address. Retrying the download
+      // cannot help; a refresh re-reads the vault id.
+      vaultIdMismatch:
+        "This BTCVault's identity does not match the deposit it was requested for. Refresh and try again; contact support if it persists.",
+      // A size or key-set assertion failed while the kit was being written.
+      kitLengthMismatch:
+        "The recovery kit could not be assembled. Try the download again.",
       // Shown while the browser's save-location dialog is open. The picker is
       // opened before the wallet prompt, so this is the first status a user
       // sees after pressing Download.
@@ -1077,7 +1104,7 @@ export const COPY = {
         "This browser cannot save a file this large. Please use a Chromium-based browser, such as Chrome or Brave, to download your artifacts.",
       // Rendered on those same browsers before the download starts, so the
       // limits are not a surprise partway through a long transfer. This path
-      // must hold the whole ~1 GB file in memory, and the browser reports
+      // must hold the whole ~700 MB file in memory, and the browser reports
       // nothing back about whether it was saved.
       fallbackSaveHint:
         "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved, so your BTCVault will keep showing the artifact warning. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
@@ -1090,19 +1117,20 @@ export const COPY = {
       unverifiedSaveNotice:
         "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTCVault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
       // pegin.md §5.9 check (a). The artifacts are compared with a record of
-      // the transactions this browser signed. No record means no comparison,
-      // so the download is refused and only the risk acknowledgement remains.
-      signedGraphUnavailable:
-        "This browser has no record of the transactions you signed for this deposit, so these artifacts cannot be checked. This happens when the deposit was signed on another device or browser data was cleared. Download them on the device you signed with, or continue only if you accept the risk.",
-      // The entry exists but predates the fingerprint: the deposit was signed
-      // before this check shipped. No device holds a record, so there is no
-      // better place to download from.
-      signedGraphNotRecorded:
-        "This deposit was signed before this app kept a record of the transactions you signed, so these artifacts cannot be checked against it. Continue only if you accept the risk.",
-      // Local storage exists but cannot be read (blocked, corrupt). The record
-      // may still be there, so the fix is on this browser's side.
-      signedGraphStorageUnreadable:
-        "This browser's saved deposit records could not be read, so these artifacts cannot be checked. Check that this site can use browser storage (private browsing and some privacy settings block it), then try again.",
+      // the transactions this browser signed. With no readable record (signed
+      // on another device, browser data cleared or unreadable, or signed before
+      // the record existed) the file is still saved, but does not count as checked.
+      uncheckedGraphTitle: "Downloaded, but not checked",
+      uncheckedGraphNotice:
+        "This browser has no record of the transactions you signed for this deposit, so the file could not be compared with them. The risk acknowledgment stays required.",
+      // An unchecked file saved through the fallback path. A confirmed save
+      // would not make it checked, so this promises nothing clears.
+      uncheckedUnverifiedSaveNotice:
+        "Check your downloads folder for the file. This browser does not report whether the save completed.",
+      // With no record to compare with, the served graph still has to be
+      // well formed. Nothing is saved; nothing here contradicts a signature.
+      servedGraphUnreadable:
+        "The vault provider returned artifacts that could not be read, so nothing was saved. Try again later, or contact support if it continues.",
       // Without the Ethereum account there is no record to look up.
       signedGraphWalletNotConnected:
         "Connect the Ethereum wallet you deposited with, so the artifacts can be checked against what you signed, then try again.",
@@ -1428,6 +1456,15 @@ export const COPY = {
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
         body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard. Otherwise the registration will expire on its own.",
+      },
+      // The wallet took the registration (an EOA's broadcast or a Safe
+      // proposal), but the flow stopped waiting before it confirmed: the wait
+      // timed out, or an inconclusive answer ended it. It can still confirm,
+      // and a second deposit would pay the registration fee again. No Bitcoin
+      // has moved: the Pre-PegIn follows the registration.
+      registrationUnconfirmed: {
+        title: "Registration not confirmed yet",
+        body: "Your ETH registration has been submitted but hasn't confirmed yet, and it may still confirm. Don't start another deposit for now. Once it confirms, continue this deposit from your dashboard. If it doesn't appear there, check the transaction in your wallet before you deposit again. No Bitcoin has been spent.",
       },
       // Also covers the integrity checks on the wallet's returned PSBT, so
       // the lock is offered as a possibility, not stated as the cause.
@@ -2048,6 +2085,17 @@ export const COPY = {
       "Your wallet has a transaction that hasn't confirmed yet. Wait for it to confirm, or speed it up or cancel it in your wallet, then try again.",
   },
   wallet: {
+    waitlist: {
+      title: "This wallet doesn’t have access",
+      beforeLaunch: "We’re in a ",
+      launch: "closed mainnet launch",
+      afterLaunch: ". Only approved wallets can participate.",
+      switchWallet: "Select other Ethereum Wallet",
+      description:
+        "Complete the application form to request access. Submitting the form does not grant automatic access.",
+      openForm: "Open application form",
+      email: "Contact us by email",
+    },
     // Not-connected message thrown by the click-time wallet-client helper
     // (clients/eth-contract/walletChain.ts), used by the Aave position hooks
     // and the deposit flow.
@@ -2257,7 +2305,7 @@ export const COPY = {
       riskTitle: "Liquidation risk is high",
       riskBody: (healthFactor: string) =>
         `Your health factor will drop to ${healthFactor}, close to the liquidation threshold. We recommend repaying your debt or keeping your collateral.`,
-      continueAnyway: "Continue anyway",
+      continueAnyway: "I understand the liquidation risk",
       button: (amount: string) => `Withdraw ${amount}`,
     },
     // Review Withdraw card. Row labels are Title Case to match the sibling
@@ -2852,6 +2900,7 @@ export const COPY = {
     positionTitle: "Position",
     totalCollateralValueLabel: "Total Collateral Value",
     availableToBorrowLabel: "Available to Borrow",
+    availableToBorrowTooltip: "This amount is in USD.",
     // Aave caps how many reserves one position may borrow, so the position bar
     // names the asset the position is tied to, next to its total debt.
     borrowedAssetLabel: "Borrowed Asset",
@@ -2885,7 +2934,7 @@ export const COPY = {
     borrowAction: "Borrow",
     repayAction: "Repay",
     liquidationPriceLabel: "Liquidation price",
-    pctToLiquidationLabel: PCT_TO_LIQUIDATION_LABEL,
+    pctToLiquidationLabel: "BTC Price Drop to Liquidation",
     disconnected: {
       // Only the dot of the first "i" in Bitcoin is orange. `dotless` (U+0131)
       // is the same glyph minus its tittle — the app paints it over `dotted` in
@@ -3019,6 +3068,8 @@ export const COPY = {
     actions: {
       reorder: "Reorder",
       downloadArtifacts: "Download artifacts",
+      // Shown in place of downloadArtifacts once this browser saved the kit.
+      downloadArtifactsAgain: DOWNLOAD_AGAIN_LABEL,
       withdraw: "Withdraw",
       redeem: "Redeem",
       viewDetails: "View Details",
@@ -3362,6 +3413,17 @@ export const COPY = {
         `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible. Adjust CF, THF, or LB.`,
       causeGeneric: (fractionPct: string) =>
         `Seizure fraction computed as ${fractionPct}%, outside the valid range. Adjust CF, THF, or LB.`,
+    },
+  },
+  // God-mode panel labels (dev builds only).
+  dev: {
+    artifactScenarios: {
+      valid: "Valid kit",
+      truncated: "Truncated session (connection dropped)",
+      "bad-manifest": "Manifest is not JSON",
+      "provider-error": "Provider quota exhausted (429)",
+      "corrupt-session": "Session bytes do not match the ETag",
+      "wrong-vault": "Valid kit for a different deposit",
     },
   },
 } as const;

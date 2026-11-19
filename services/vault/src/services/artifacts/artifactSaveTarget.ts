@@ -8,7 +8,7 @@
  *   that only replaces the target on `close()`, so aborting a failed download
  *   leaves nothing behind. This is the only path that can tell a completed
  *   save from a cancelled one, and the only one that avoids holding the whole
- *   ~1.3 GB bundle in memory.
+ *   kit (≈707 MB for 8 challengers) in memory.
  * - **Anchor download** (everything else): the historical behavior — buffer
  *   the body, hand the browser a Blob, click a synthetic link. The browser
  *   gives no save/cancel signal here, so the caller must fall back to user
@@ -30,8 +30,8 @@ import {
   ArtifactFileAccessError,
 } from "./errors";
 
-/** MIME type for the assembled artifact file (the payload is JSON). */
-const ARTIFACT_BLOB_TYPE = "application/json";
+/** MIME type of the recovery kit: a POSIX ustar archive. */
+const ARTIFACT_BLOB_TYPE = "application/x-tar";
 
 /** Characters of the pegin txid used to disambiguate the filename. */
 const FILENAME_TXID_PREFIX_CHARS = 8;
@@ -47,9 +47,9 @@ const ARTIFACT_PICKER_ID = "babylon-vault-artifacts";
  *
  * This path has to hold the whole body before it can hand the browser a Blob,
  * so it needs a bound — but the bound has to sit *above* a real bundle or the
- * path is guaranteed to fail after wasting the user's bandwidth. A measured
- * vault-devnet body is 1,410,824,702 bytes, so 2 GiB leaves headroom while
- * still refusing an implausible response outright.
+ * path is guaranteed to fail after wasting the user's bandwidth. A kit is
+ * ≈707 MB for 8 challengers, so 2 GiB leaves headroom while still refusing an
+ * implausible manifest outright.
  *
  * This is best-effort, not reliable: the chunk array and the resulting Blob
  * can both be resident, so a full-size bundle may still exhaust memory on a
@@ -118,7 +118,7 @@ function artifactFilename(peginTxid: string): string {
     0,
     FILENAME_TXID_PREFIX_CHARS,
   );
-  return `babylon-vault-artifacts-${shortId}.json`;
+  return `babylon-vault-${shortId}.tar`;
 }
 
 /**
@@ -147,7 +147,7 @@ export async function openArtifactSaveTarget(
       types: [
         {
           description: COPY.deposit.recoveryArtifacts.savePickerDescription,
-          accept: { [ARTIFACT_BLOB_TYPE]: [".json"] },
+          accept: { [ARTIFACT_BLOB_TYPE]: [".tar"] },
         },
       ],
     });

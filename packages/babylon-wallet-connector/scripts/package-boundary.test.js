@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import {
+  assertNoStubbedStreamTransform,
+  assertSingleBufferClass,
   bundledDependencies,
   checkPackage,
   emittedDependencies,
@@ -14,14 +16,27 @@ import {
 
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
-function fixture(t, source = 'import "react";', declaration = "export {};") {
+// A peer only the root declarations reach. The package has none today; the checker must still accept one.
+const DECLARED_PEER = "@example/declared-peer";
+manifest.peerDependencies[DECLARED_PEER] = "1.0.0";
+manifest.peerDependenciesMeta[DECLARED_PEER] = { optional: true };
+
+function fixture(
+  t,
+  source = 'import "react";',
+  declaration = "export {};",
+  btcEthSource = 'import "bitcoinjs-lib";',
+  btcEthDeclaration = "export {};",
+) {
   const root = mkdtempSync(join(tmpdir(), "wallet-import-fixture-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const [file, contents] of Object.entries({
     "root.js": walletExternals.map((name) => `import ${JSON.stringify(name)};`).join("\n"),
-    "root.d.ts": 'export type Signer = import("@cosmjs/proto-signing").OfflineSigner;',
+    "root.d.ts": `export type Signer = import(${JSON.stringify(DECLARED_PEER)}).Signer;`,
     "eth.js": source,
     "eth.d.ts": declaration,
+    "btc-eth.js": btcEthSource,
+    "btc-eth.d.ts": btcEthDeclaration,
     "bitcoin.js": 'export * from "bitcoinjs-lib/src/payments/index.js";',
     "bitcoin.d.ts": 'export type { Psbt } from "bitcoinjs-lib";',
   })) {
@@ -30,10 +45,12 @@ function fixture(t, source = 'import "react";', declaration = "export {};") {
   const runtime = {
     root: { ...emittedDependencies([join(root, "root.js")]), bundledPackages: new Set() },
     eth: { ...emittedDependencies([join(root, "eth.js")]), bundledPackages: new Set() },
+    btcEth: { ...emittedDependencies([join(root, "btc-eth.js")]), bundledPackages: new Set() },
   };
   const declarations = {
     root: emittedDependencies([join(root, "root.d.ts")]),
     eth: emittedDependencies([join(root, "eth.d.ts")]),
+    btcEth: emittedDependencies([join(root, "btc-eth.d.ts")]),
   };
   return { runtime, declarations, check: (candidate = manifest) => checkPackage(candidate, runtime, declarations) };
 }
@@ -43,8 +60,8 @@ test("accepts optional peers from externals and declarations, including partiall
   runtime.root.bundledPackages.add("bitcoinjs-lib");
   assert.deepEqual(check().optionalPeers, [
     "@babylonlabs-io/ledger-vault-signer",
-    "@cosmjs/proto-signing",
     "@cosmjs/stargate",
+    DECLARED_PEER,
     "@keystonehq/sdk",
     "@reown/appkit-adapter-bitcoin",
     "bitcoinjs-lib",
@@ -109,6 +126,65 @@ test("rejects Bitcoin declaration imports through local files", (t) => {
   );
 });
 
+for (const [name, source] of [
+  ["static import", 'import "@cosmjs/stargate";'],
+  ["dynamic import", 'export const load = () => import("@tomo-inc/wallet-connect-sdk");'],
+  ["CommonJS import", 'const keplr = require("@keplr-wallet/provider-extension");'],
+]) {
+  test(`rejects Cosmos ${name} in the Bitcoin-Ethereum entry`, (t) => {
+    assert.throws(
+      () => fixture(t, undefined, undefined, source).check(),
+      /Bitcoin-Ethereum entry includes Cosmos wallet dependency/,
+    );
+  });
+}
+
+test("rejects a Cosmos package bundled into the Bitcoin-Ethereum entry", (t) => {
+  const { runtime, check } = fixture(t);
+  runtime.btcEth.bundledPackages.add("cosmjs-types");
+  assert.throws(() => check(), /Bitcoin-Ethereum entry includes Cosmos wallet dependency: cosmjs-types/);
+});
+
+test("accepts the Cosmos encoding helpers the Ledger v1 wallet dependency bundles into the Bitcoin-Ethereum entry", (t) => {
+  const { runtime, check } = fixture(t);
+  runtime.btcEth.bundledPackages.add("@cosmjs/encoding");
+  assert.ok(check());
+});
+
+test("rejects a Cosmos type the Bitcoin-Ethereum declarations reach", (t) => {
+  assert.throws(
+    () =>
+      fixture(
+        t,
+        undefined,
+        undefined,
+        undefined,
+        'export type Client = import("@cosmjs/stargate").SigningStargateClient;',
+      ).check(),
+    /Bitcoin-Ethereum entry declares Cosmos wallet dependency: @cosmjs\/stargate/,
+  );
+});
+
+test("accepts a Cosmos types package the manifest installs for every consumer", (t) => {
+  // The shared core/types.d.ts reaches it from every entry, the Ethereum one included.
+  const declaration = 'export type Chain = import("@keplr-wallet/types").ChainInfo;';
+  assert.ok(fixture(t, undefined, declaration, undefined, declaration).check());
+});
+
+test("counts a Bitcoin-Ethereum import as a use of its optional peer", (t) => {
+  const { runtime, check } = fixture(t);
+  runtime.root.packages.delete("@keystonehq/sdk");
+  runtime.btcEth.packages.add("@keystonehq/sdk");
+  assert.doesNotThrow(() => check());
+});
+
+test("counts a Bitcoin-Ethereum declaration as a use of its optional peer", (t) => {
+  const declaration = 'export type Sdk = import("@keystonehq/sdk").SDK;';
+  const { runtime, check } = fixture(t, undefined, undefined, undefined, declaration);
+  runtime.root.packages.delete("@keystonehq/sdk");
+  assert.doesNotThrow(() => check());
+});
+
 test("rejects an undeclared Ethereum-only dependency", (t) => {
   assert.throws(() => fixture(t, 'import "@keystonehq/animated-qr";').check(), /Undeclared emitted dependency/);
 });
@@ -116,9 +192,9 @@ test("rejects an undeclared Ethereum-only dependency", (t) => {
 test("rejects an unused peer after its optional metadata is removed", (t) => {
   const { declarations, check } = fixture(t);
   const candidate = structuredClone(manifest);
-  delete candidate.peerDependenciesMeta["@cosmjs/proto-signing"];
-  declarations.root.packages.delete("@cosmjs/proto-signing");
-  assert.throws(() => check(candidate), /Unused wallet peer: @cosmjs\/proto-signing/);
+  delete candidate.peerDependenciesMeta[DECLARED_PEER];
+  declarations.root.packages.delete(DECLARED_PEER);
+  assert.throws(() => check(candidate), /Unused wallet peer: @example\/declared-peer/);
 });
 
 for (const section of ["dependencies", "optionalDependencies"]) {
@@ -178,4 +254,74 @@ test("ignores import text in comments and strings", () => {
     ),
     [],
   );
+});
+
+function bundle(t, contents) {
+  const root = mkdtempSync(join(tmpdir(), "wallet-stub-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const file = join(root, "index.es.js");
+  writeFileSync(file, contents);
+  return file;
+}
+
+test("rejects cipher-base reading Transform from an empty stream stub", (t) => {
+  const file = bundle(
+    t,
+    `const __viteBrowserExternal = {}, require$$2$2 = /* @__PURE__ */ getAugmentedNamespace(__viteBrowserExternal$1);
+    var g = require$$2$2.Transform;`,
+  );
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /reads stream.Transform from an empty browser stub/);
+});
+
+test("rejects a minified Transform read from an empty stream stub", (t) => {
+  const file = bundle(t, "require$$2$4=getAugmentedNamespace$1(__viteBrowserExternal$3);var Dc=require$$2$4.Transform;");
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /reads stream.Transform from an empty browser stub/);
+});
+
+test("rejects a Transform read through another interop helper and pure-comment form", (t) => {
+  const file = bundle(t, "var x = /*#__PURE__*/ _interopNamespace(__viteBrowserExternal$1); var g = x.Transform;");
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /through x;/);
+});
+
+test("rejects a Transform read directly from the stub namespace", (t) => {
+  const file = bundle(t, "const __viteBrowserExternal$1 = Object.freeze({}); var g = __viteBrowserExternal$1.Transform;");
+  assert.throws(() => assertNoStubbedStreamTransform([file]), /through __viteBrowserExternal\$1;/);
+});
+
+test("accepts guarded builtin reads from the stub and Transform from stream-browserify", (t) => {
+  const file = bundle(
+    t,
+    `const require$$2$2 = /* @__PURE__ */ getAugmentedNamespace(__viteBrowserExternal$1);
+    var B = require$$2$2; B && B.debuglog;
+    var g = requireStreamBrowserify().Transform;`,
+  );
+  assert.doesNotThrow(() => assertNoStubbedStreamTransform([file]));
+});
+
+test("rejects a second Buffer class in another file of the same output format", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wallet-buffer-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const chunk = join(root, "useOrdinalsHook.js");
+  const entry = join(root, "index.es.js");
+  writeFileSync(chunk, "function Buffer$1() {} Buffer$1.prototype._isBuffer = true;");
+  writeFileSync(entry, "function f(){} f.prototype._isBuffer=!0;");
+  assert.throws(() => assertSingleBufferClass(new Set([chunk, entry])), /The \.js bundle defines 2 Buffer classes/);
+});
+
+test("rejects two Buffer classes bundled into one chunk", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wallet-buffer-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const chunk = join(root, "useOrdinalsHook.cjs");
+  writeFileSync(chunk, "function f(){} f.prototype._isBuffer=!0; function v(){} v.prototype._isBuffer=!0;");
+  assert.throws(() => assertSingleBufferClass(new Set([chunk])), /The \.cjs bundle defines 2 Buffer classes/);
+});
+
+test("accepts one Buffer class in the ES output and one in the CommonJS output", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "wallet-buffer-fixture-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const es = join(root, "useOrdinalsHook.js");
+  const cjs = join(root, "useOrdinalsHook.cjs");
+  writeFileSync(es, "function Buffer$1() {} Buffer$1.prototype._isBuffer = true;");
+  writeFileSync(cjs, "function f(){} f.prototype._isBuffer=!0;");
+  assert.doesNotThrow(() => assertSingleBufferClass(new Set([es, cjs])));
 });

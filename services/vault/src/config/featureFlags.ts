@@ -14,6 +14,16 @@
  */
 
 export default {
+  /** The external access form. Keep the button disabled until its HTTPS URL is set. */
+  get waitlistFormUrl(): string | undefined {
+    try {
+      const url = new URL(process.env.NEXT_PUBLIC_TBV_WAITLIST_FORM_URL ?? "");
+      return url.protocol === "https:" ? url.href : undefined;
+    } catch {
+      return undefined;
+    }
+  },
+
   /**
    * DISABLE_DEPOSIT feature flag
    *
@@ -93,22 +103,6 @@ export default {
    */
   get isPositionDebugPanelEnabled() {
     return process.env.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL === "true";
-  },
-
-  /**
-   * HTTP_ARTIFACT_DOWNLOADS feature flag
-   *
-   * Purpose: Downloads the recovery artifacts over the VP's authenticated
-   * HTTP routes (manifest + one CBOR file per challenger) instead of the
-   * `vaultProvider_requestDepositorClaimerArtifacts` gRPC path. It also pins
-   * the JSON-RPC token issuer to the vault's frozen VP key, because a VP with
-   * the HTTP routes signs that token under the frozen key.
-   * Why needed: VPs remove the gRPC path when they add the HTTP routes, so
-   * DevOps sets this per environment to match the deployed VP version.
-   * Default: false (gRPC path unless explicitly set to "true")
-   */
-  get isHttpArtifactDownloadsEnabled() {
-    return process.env.NEXT_PUBLIC_FF_HTTP_ARTIFACT_DOWNLOADS === "true";
   },
 
   /**

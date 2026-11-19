@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 
+import { COPY } from "@/copy";
 import { setActivityOverride } from "@/overrides/activity";
 import { setArtifactDownloadOverride } from "@/overrides/artifactDownload";
 import { setCollateralOverride } from "@/overrides/collateral";
@@ -20,7 +21,6 @@ import {
 import { clearArtifactDownloadReceipts } from "@/utils/artifactDownloadStorage";
 
 import {
-  DEMO_ARTIFACT_SCENARIO_LABELS,
   DEMO_ARTIFACT_SCENARIOS,
   type DemoArtifactScenario,
   demoFetchAndDownloadArtifacts,
@@ -367,14 +367,15 @@ function DemoControls() {
         >
           {DEMO_ARTIFACT_SCENARIOS.map((scenario) => (
             <option key={scenario} value={scenario}>
-              {DEMO_ARTIFACT_SCENARIO_LABELS[scenario]}
+              {COPY.dev.artifactScenarios[scenario]}
             </option>
           ))}
         </select>
       </label>
 
-      {/* A satisfied gate hides the card's download button, so re-testing the
-          flow against the same vault needs the receipts gone. */}
+      {/* With a receipt the activation dialog offers no download (the vault
+          dialog still does), so re-testing it on the same vault needs the
+          receipts gone. */}
       <button
         type="button"
         onClick={() => {

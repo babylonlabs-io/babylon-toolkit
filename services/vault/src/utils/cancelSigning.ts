@@ -5,7 +5,7 @@
  * feature-detect; this guard is the one place that probe lives.
  */
 
-import type { IBTCProvider } from "@babylonlabs-io/wallet-connector";
+import type { IBTCProvider } from "@babylonlabs-io/wallet-connector/btc-eth";
 
 /** A provider that implements the optional cancel affordance. */
 export type CancellableSigningProvider = {
