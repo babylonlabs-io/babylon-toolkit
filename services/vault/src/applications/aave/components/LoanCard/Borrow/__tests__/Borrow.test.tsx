@@ -8,7 +8,13 @@
  * figure at all rather than the base rate when a charge is unavailable.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,6 +46,7 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   ),
   Callout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Heading: ({ children }: { children: ReactNode }) => <h3>{children}</h3>,
+  Loader: () => <span data-testid="button-spinner" />,
   SubSection: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Text: ({ children }: { children: ReactNode }) => <p>{children}</p>,
   WarningIcon: () => null,
@@ -50,7 +57,7 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 vi.mock("@/components/shared/protocolStatus", () => ({
-  isBorrowBlocked: () => false,
+  isBorrowBlocked: () => mocks.isBorrowBlocked(),
 }));
 
 vi.mock("@/context/wallet", () => ({
@@ -72,6 +79,7 @@ const mocks = vi.hoisted(() => ({
   useProjectedBorrowApr: vi.fn(),
   useNewBorrowAprCharges: vi.fn(),
   borrowMetricsCard: vi.fn(),
+  isBorrowBlocked: vi.fn(),
 }));
 
 vi.mock("../../../../hooks", () => ({
@@ -156,6 +164,7 @@ function makeLoanContext(
 }
 
 beforeEach(() => {
+  mocks.isBorrowBlocked.mockReturnValue(false);
   mocks.useBorrowTransaction.mockReturnValue({
     executeBorrow: mocks.executeBorrow,
     isProcessing: false,
@@ -259,6 +268,99 @@ describe("Borrow", () => {
     expect(
       screen.queryByText("You cannot borrow more than your limit."),
     ).toBeNull();
+  });
+
+  it("shows a spinner on the borrow button while the borrow is processing and none while idle", () => {
+    const loanContext = makeLoanContext();
+    const { rerender } = render(
+      <LoanProvider value={loanContext}>
+        <Borrow />
+      </LoanProvider>,
+    );
+    const button = screen.getByTestId("borrow-submit-button");
+    expect(within(button).queryByTestId("button-spinner")).toBeNull();
+
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: true,
+      isConfirming: false,
+      pendingWrite: null,
+      error: null,
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    rerender(
+      <LoanProvider value={loanContext}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(within(button).getByTestId("button-spinner")).toBeTruthy();
+    expect(button.textContent).toBe(COPY.loans.borrow.processing);
+  });
+
+  it("keeps the spinner on the borrow button while the borrow is confirming", () => {
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: true,
+      isConfirming: true,
+      pendingWrite: null,
+      error: null,
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    const button = screen.getByTestId("borrow-submit-button");
+    expect(within(button).getByTestId("button-spinner")).toBeTruthy();
+    expect(button.textContent).toBe(COPY.common.confirming);
+  });
+
+  it("shows a spinner on the borrow button for a pending write that this form is not processing", () => {
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: false,
+      isConfirming: false,
+      pendingWrite: { phase: "submitting" },
+      error: null,
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    const button = screen.getByTestId("borrow-submit-button");
+    expect(within(button).getByTestId("button-spinner")).toBeTruthy();
+    expect(button.textContent).toBe(COPY.loans.borrow.processing);
+  });
+
+  it("shows no spinner on an unavailable borrow button while a transaction is in flight", () => {
+    mocks.isBorrowBlocked.mockReturnValue(true);
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: true,
+      isConfirming: false,
+      pendingWrite: null,
+      error: null,
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    const button = screen.getByTestId("borrow-submit-button");
+    expect(within(button).queryByTestId("button-spinner")).toBeNull();
+    expect(button.textContent).toBe(COPY.loans.borrow.unavailable);
   });
 
   it("shows current and projected Borrow APR with the premium and fee included", () => {
