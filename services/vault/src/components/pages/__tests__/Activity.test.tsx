@@ -21,7 +21,7 @@ const walletMock = vi.hoisted(() => ({
 }));
 const useActivitiesWithPendingMock = vi.fn();
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWalletConnect: () => ({ connected: walletMock.confirmed }),
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({
@@ -34,7 +34,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 // connected. A hand-supplied `isConnected` would pass whatever the gate's rule.
 vi.mock("../../../context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
-  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector/btc-eth"))
+    .useETHWallet,
 }));
 
 vi.mock("../../../hooks/useActivitiesWithPending", () => ({

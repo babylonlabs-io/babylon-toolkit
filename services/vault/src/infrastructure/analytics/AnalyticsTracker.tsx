@@ -1,4 +1,4 @@
-import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { useWalletConnect } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router";
 

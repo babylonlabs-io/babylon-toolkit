@@ -12,7 +12,7 @@ const mockConnector = vi.hoisted(() => ({
 
 const mockWallet = vi.hoisted(() => ({ locked: false }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useChainConnector: () => mockConnector,
 }));
 

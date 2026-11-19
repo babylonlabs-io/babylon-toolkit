@@ -264,6 +264,8 @@ next-env.d.ts
 # E2E Playwright
 /test-results/
 /playwright-report/
+/test-results-prod/
+/playwright-report-prod/
 /blob-report/
 /playwright/.cache/
 

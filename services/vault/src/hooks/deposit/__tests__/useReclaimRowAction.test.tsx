@@ -23,7 +23,7 @@ const gate = vi.hoisted(() => ({
   value: { protocol: null, aave: null } as ProtocolGateState,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useBTCWallet: () => ({
     connected: wallet.connected,
     locked: wallet.locked,

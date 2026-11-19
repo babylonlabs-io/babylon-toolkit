@@ -1994,7 +1994,11 @@ ethTxHash: `0x${string}`;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
-Ethereum transaction hash for the peg-in registration.
+Hash of the registration transaction. When a receipt confirmed it, this
+is that receipt's hash, which can differ from the hash the wallet
+returned: a Safe's execution transaction, or a speed-up of the same call
+that the receipt wait followed. When the registry shows the vault but no
+receipt arrived, it is the hash the wallet returned.
 
 ##### vaultId
 
@@ -2211,7 +2215,11 @@ ethTxHash: `0x${string}`;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
-Ethereum transaction hash
+Hash of the registration transaction. When a receipt confirmed it, this
+is that receipt's hash, which can differ from the hash the wallet
+returned: a Safe's execution transaction, or a speed-up of the same call
+that the receipt wait followed. When the registry shows every vault but
+no receipt arrived, it is the hash the wallet returned.
 
 ##### vaults
 

@@ -93,7 +93,7 @@ vi.mock("wagmi/actions", () => ({
   switchChain: vi.fn().mockResolvedValue(undefined),
   getWalletClient: vi.fn().mockResolvedValue(mockWalletClient),
 }));
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   getSharedWagmiConfig: () => ({}),
 }));
 vi.mock("@/config/network", () => ({

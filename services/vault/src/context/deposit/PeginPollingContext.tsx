@@ -241,6 +241,7 @@ export function PeginPollingProvider({
   // Use the polling query hook
   const {
     polledIds,
+    verificationProgress,
     errors,
     needsWotsKey,
     pendingIngestion,
@@ -587,7 +588,7 @@ export function PeginPollingProvider({
       const refundTimelock = resolveRefundTimelock(
         activity.offchainParamsVersion,
       );
-      return computeDepositPollingResult({
+      const result = computeDepositPollingResult({
         activity,
         pendingPegins,
         pendingDepositorSignatures,
@@ -623,12 +624,17 @@ export function PeginPollingProvider({
         activationReturnedIds,
         btcPublicKey,
       });
+      return {
+        ...result,
+        providerVerification: verificationProgress?.get(depositId),
+      };
     },
     [
       demo,
       activities,
       pendingPegins,
       pendingDepositorSignatures,
+      verificationProgress,
       errors,
       needsWotsKey,
       pendingIngestion,

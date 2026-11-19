@@ -22,5 +22,4 @@ export * from "./types";
 export {
   VpResponseValidationError,
   isUnrecognizedDaemonStatusError,
-  validateRequestDepositorClaimerArtifactsResponse,
 } from "./validators";

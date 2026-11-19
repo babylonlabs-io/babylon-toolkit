@@ -70,41 +70,37 @@ export function WithdrawSelectContent({
       {notice && <Callout variant="warning">{notice}</Callout>}
 
       {(wouldBreachHF || isAtRisk) && (
-        <Callout
-          variant="error"
-          title={SELECT_COPY.riskTitle}
-          icon={<WarningIcon size={14} color="text-accent-contrast" />}
-          className="border-l-4 border-l-error-dark"
-        >
-          <div className="flex flex-col gap-4">
-            <span>
-              {wouldBreachHF
-                ? COPY.withdraw.review.hfBlockWarning(
-                    WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1),
-                  )
-                : SELECT_COPY.riskBody(
-                    formatHealthFactor(projectedHealthFactor),
-                  )}
-            </span>
-            {isAtRisk && (
-              <label className="flex w-full cursor-pointer items-center gap-4">
-                {/* This control's data-testid is a real-wallet E2E hook
+        <div className="flex flex-col gap-4">
+          <Callout
+            variant="error"
+            title={SELECT_COPY.riskTitle}
+            icon={<WarningIcon size={14} color="text-accent-contrast" />}
+            className="border-l-4 border-l-error-dark"
+          >
+            {wouldBreachHF
+              ? COPY.withdraw.review.hfBlockWarning(
+                  WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1),
+                )
+              : SELECT_COPY.riskBody(formatHealthFactor(projectedHealthFactor))}
+          </Callout>
+          {isAtRisk && (
+            <label className="flex w-full cursor-pointer items-center gap-2">
+              {/* This control's data-testid is a real-wallet E2E hook
                     (e2e/real/actions/withdraw.ts) — carry it over if you move
                     or rename the element. */}
-                <Checkbox
-                  checked={acknowledged}
-                  onChange={() => onAcknowledgedChange(!acknowledged)}
-                  variant="default"
-                  showLabel={false}
-                  data-testid="withdraw-select-acknowledge"
-                />
-                <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-                  {SELECT_COPY.continueAnyway}
-                </span>
-              </label>
-            )}
-          </div>
-        </Callout>
+              <Checkbox
+                checked={acknowledged}
+                onChange={() => onAcknowledgedChange(!acknowledged)}
+                variant="default"
+                showLabel={false}
+                data-testid="withdraw-select-acknowledge"
+              />
+              <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
+                {SELECT_COPY.continueAnyway}
+              </span>
+            </label>
+          )}
+        </div>
       )}
 
       <div className="flex flex-col gap-2">

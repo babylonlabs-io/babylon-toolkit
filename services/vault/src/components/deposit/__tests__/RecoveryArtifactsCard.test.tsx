@@ -3,7 +3,11 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
-import { saveGraphMismatch } from "@/utils/artifactDownloadStorage";
+import { isFileSystemAccessSupported } from "@/services/artifacts";
+import {
+  saveArtifactDownloadReceipt,
+  saveGraphMismatch,
+} from "@/utils/artifactDownloadStorage";
 
 import {
   RecoveryArtifactsCard,
@@ -16,6 +20,7 @@ const IDLE_HOOK_STATE = {
   error: null as string | null,
   downloaded: false,
   delivered: false,
+  graphUnchecked: false,
   graphMismatch: false,
   receivedBytes: 0,
   totalBytes: 0,
@@ -31,7 +36,18 @@ vi.mock("@/hooks/deposit/useArtifactDownload", () => ({
   useArtifactDownload: () => hookState.current,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+// Real (jsdom has no showSaveFilePicker) unless a test overrides it.
+vi.mock("@/services/artifacts", async () => {
+  const actual = await vi.importActual<typeof import("@/services/artifacts")>(
+    "@/services/artifacts",
+  );
+  return {
+    ...actual,
+    isFileSystemAccessSupported: vi.fn(actual.isFileSystemAccessSupported),
+  };
+});
+
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useChainConnector: () => null,
 }));
 
@@ -147,7 +163,7 @@ describe("RecoveryArtifactsCard — idle card", () => {
 
     expect(screen.getByText("Recovery artifacts")).toBeTruthy();
     expect(screen.getByText("Encrypted backup files")).toBeTruthy();
-    expect(screen.getByText("Up to ~1 GB")).toBeTruthy();
+    expect(screen.getByText("About 700 MB")).toBeTruthy();
   });
 
   it("starts the download for this deposit when the parent calls download", () => {
@@ -166,6 +182,7 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
   beforeEach(() => {
     window.localStorage.clear();
     hookState.current = { ...IDLE_HOOK_STATE };
+    vi.mocked(isFileSystemAccessSupported).mockReset();
   });
 
   it("does not report a download upward when the save could not be verified", () => {
@@ -223,6 +240,150 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
     render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
 
     expect(screen.getByTestId("artifact-unverified-notice")).toBeTruthy();
+  });
+
+  it("tells an unchecked download apart and keeps it from unlocking activation", () => {
+    const onDownloaded = vi.fn();
+    hookState.current = {
+      ...IDLE_HOOK_STATE,
+      delivered: true,
+      graphUnchecked: true,
+    };
+
+    render(
+      <RecoveryArtifactsCard {...COMMON_PROPS} onDownloaded={onDownloaded} />,
+    );
+
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.uncheckedGraphTitle),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice),
+    ).toBeTruthy();
+    expect(onDownloaded).not.toHaveBeenCalled();
+  });
+
+  it("uses the vault wording for an unchecked download on the vaults page", () => {
+    hookState.current = {
+      ...IDLE_HOOK_STATE,
+      delivered: true,
+      graphUnchecked: true,
+    };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} context="vault" />);
+
+    expect(
+      screen.getByText(COPY.deposit.artifactDownload.uncheckedGraphNotice),
+    ).toBeTruthy();
+  });
+
+  it("shows the unchecked notice over a receipt saved for this pegin, beside the downloaded size", () => {
+    saveArtifactDownloadReceipt(COMMON_PROPS.vaultId, {
+      version: 1,
+      peginTxid: "pegin",
+      filename: "babylon-vault-pegin.tar",
+      byteLength: 1,
+      sha256: "cc".repeat(32),
+      savedAt: 1,
+      method: "file-system-access",
+    });
+    hookState.current = {
+      ...IDLE_HOOK_STATE,
+      delivered: true,
+      graphUnchecked: true,
+    };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.uncheckedGraphTitle),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.cardSizeDownloaded),
+    ).toBeTruthy();
+  });
+
+  it("shows no unconfirmed-save notice for a plain delivered save over a receipt for this pegin", () => {
+    saveArtifactDownloadReceipt(COMMON_PROPS.vaultId, {
+      version: 1,
+      peginTxid: "pegin",
+      filename: "babylon-vault-pegin.tar",
+      byteLength: 1,
+      sha256: "cc".repeat(32),
+      savedAt: 1,
+      method: "file-system-access",
+    });
+    hookState.current = { ...IDLE_HOOK_STATE, delivered: true };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(screen.queryByTestId("artifact-unverified-notice")).toBeNull();
+  });
+
+  it("shows the not-saved size over a receipt when the repeat download failed", () => {
+    saveArtifactDownloadReceipt(COMMON_PROPS.vaultId, {
+      version: 1,
+      peginTxid: "pegin",
+      filename: "babylon-vault-pegin.tar",
+      byteLength: 1,
+      sha256: "cc".repeat(32),
+      savedAt: 1,
+      method: "file-system-access",
+    });
+    hookState.current = {
+      ...IDLE_HOOK_STATE,
+      error: COPY.deposit.recoveryArtifacts.downloadFailed,
+    };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.cardSize),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(COPY.deposit.recoveryArtifacts.cardSizeDownloaded),
+    ).toBeNull();
+  });
+
+  it("says an unchecked fallback save cannot be confirmed without promising a fix", () => {
+    expect(isFileSystemAccessSupported()).toBe(false);
+    hookState.current = {
+      ...IDLE_HOOK_STATE,
+      delivered: true,
+      graphUnchecked: true,
+    };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(
+      screen.getByText(
+        COPY.deposit.recoveryArtifacts.uncheckedUnverifiedSaveNotice,
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(COPY.deposit.recoveryArtifacts.unverifiedSaveNotice),
+    ).toBeNull();
+  });
+
+  it("shows only the unchecked note for an unchecked save to a chosen file", () => {
+    vi.mocked(isFileSystemAccessSupported).mockReturnValue(true);
+    hookState.current = {
+      ...IDLE_HOOK_STATE,
+      delivered: true,
+      graphUnchecked: true,
+    };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(COPY.deposit.recoveryArtifacts.unverifiedSaveTitle),
+    ).toBeNull();
   });
 
   it("reports a download upward once there is real evidence", () => {

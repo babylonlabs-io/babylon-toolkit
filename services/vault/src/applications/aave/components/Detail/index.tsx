@@ -30,6 +30,7 @@ import {
   getHubPickerSearch,
   getReserveDetailSearch,
   parseReserveId,
+  ROUTES,
 } from "@/routes";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
@@ -191,14 +192,13 @@ export function LoanFlowOverlay({
     }
   }, [successReserveId, reserveId]);
 
-  // Dropping the search alone returns the depositor to the page they opened
-  // the flow from — the overlay renders over any page under the Aave layout,
-  // so a fixed route here would teleport someone who started on Overview.
-  // `replace` so dismissing doesn't leave a history entry browser Back would
-  // use to reopen the just-closed flow.
+  // Return completed borrows to Overview. Replace the flow's history entry.
   const close = () => {
     setSuccess(null);
-    navigate({ pathname, search: "" }, { replace: true });
+    navigate(
+      showSuccess && success.variant === "borrow" ? ROUTES.OVERVIEW : pathname,
+      { replace: true },
+    );
   };
 
   // Every step change `replace`s, so no step leaves an entry behind: browser

@@ -66,7 +66,7 @@ vi.mock("@/hooks/useLedgerVaultDevice", () => ({
   useLedgerVaultDevice: () => ledgerDevice,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
   useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
@@ -345,7 +345,7 @@ describe("EmergencyWithdrawModal — Ledger", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(COPY.deposit.ledger.activationPause.hint),
+        screen.getByText(COPY.deposit.ledger.recoveryActivationPause.hint),
       ).toBeInTheDocument();
     });
     expect(deriveHtlcSecretHex).toHaveBeenCalledOnce();
@@ -353,7 +353,7 @@ describe("EmergencyWithdrawModal — Ledger", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: COPY.deposit.ledger.activationPause.continue,
+        name: "Continue",
       }),
     );
 
@@ -373,7 +373,7 @@ describe("EmergencyWithdrawModal — Ledger", () => {
     renderModal(client);
     await waitFor(() => {
       expect(
-        screen.getByText(COPY.deposit.ledger.activationPause.hint),
+        screen.getByText(COPY.deposit.ledger.recoveryActivationPause.hint),
       ).toBeInTheDocument();
     });
     // The cached status still reads active, so the button stays enabled and
@@ -383,7 +383,7 @@ describe("EmergencyWithdrawModal — Ledger", () => {
     });
     fireEvent.click(
       screen.getByRole("button", {
-        name: COPY.deposit.ledger.activationPause.continue,
+        name: "Continue",
       }),
     );
 

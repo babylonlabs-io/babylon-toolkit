@@ -18,7 +18,8 @@
  *     acceptUnisatRiskModal), and the batch <div preset="primaryV2"> "Sign all N transactions at
  *     once" on the payout/graph steps.
  *   - OKX: OKD-styled <button data-testid="okd-button">.
- *   - OneKey: real <button>, gated on an insecure-origin consent checkbox (see tickConsent).
+ *   - OneKey: real <button>, gated on an insecure-origin consent checkbox (see tickConsent); a batch
+ *     adds a "Sign all" dialog and a final "Done" (see ONEKEY_BATCH_FOLLOW_UP_RX).
  *
  * The handler guards everything: a pop-up that closes mid-approve (the expected outcome of approving)
  * must never reject and crash the run.
@@ -53,9 +54,18 @@ function isUnisatOnboardingPage(url: string): boolean {
   return url.startsWith(`chrome-extension://${unisatId}/`);
 }
 
-/** Accessible-name pattern for the approve/confirm/sign control across wallets. */
+/**
+ * Accessible-name pattern for the approve/confirm/sign control across wallets. `sign all N` is
+ * OneKey's batch-signing button (payout/graph steps).
+ */
 const APPROVE_NAME_RX =
-  /^(connect|approve|next|confirm|sign|broadcast|got it)$/i;
+  /^(connect|approve|next|confirm|sign|sign all \d+|broadcast|got it)$/i;
+
+/**
+ * OneKey's batch-signing follow-ups, in order: "Sign all N" opens a dialog whose "Sign all" makes the
+ * signatures, and the page's "Done" then returns them to the dApp.
+ */
+const ONEKEY_BATCH_FOLLOW_UP_RX = /^(sign all|done)$/i;
 
 /** MetaMask's tx-confirm and gas/next screens expose these stable testids on the primary button. */
 const METAMASK_PRIMARY_TESTIDS = [
@@ -196,6 +206,19 @@ async function clickStyledApprove(popup: Page): Promise<string | null> {
  * prompt should be visible in the log, not silently confirmed), or null if nothing matched.
  */
 export async function clickApprove(popup: Page): Promise<string | null> {
+  // OneKey's batch follow-ups come first: its "Sign all" dialog opens over the "Sign all N" button,
+  // which would otherwise match below and be clicked behind the dialog forever.
+  const oneKeyBatchFollowUp = popup
+    .getByRole("button", { name: ONEKEY_BATCH_FOLLOW_UP_RX })
+    .last();
+  if (await oneKeyBatchFollowUp.isVisible().catch(() => false)) {
+    const name = await readLabel(oneKeyBatchFollowUp, "(onekey-batch)");
+    // "Done" stays disabled until every PSBT is signed; fail fast and retry next round.
+    await oneKeyBatchFollowUp
+      .click({ timeout: APPROVE_CLICK_TIMEOUT_MS })
+      .catch(() => {});
+    return name;
+  }
   const byRole = popup.getByRole("button", { name: APPROVE_NAME_RX }).first();
   if (await byRole.isVisible().catch(() => false)) {
     const name = await readLabel(byRole, "(button)");
@@ -230,27 +253,40 @@ export async function clickApprove(popup: Page): Promise<string | null> {
   return null;
 }
 
+/** OneKey's label on the consent control it shows for an insecure origin. */
+const ONEKEY_RISK_CONSENT_TEXT = "Proceed at my own risk";
+
+/** Root of OneKey's checkbox component, which every prompt uses for that consent. */
+const ONEKEY_CHECKBOX = '[data-sentry-component="RawCheckbox"]';
+
+/** Class OneKey's styling gives the checkbox's box once it is ticked (unticked: `_bg-iconInverse`). */
+const ONEKEY_CHECKBOX_TICKED_CLASS = "_bg-bgPrimary";
+
 /**
- * Tick the consent control that gates the approve button, if one is present. OneKey on an insecure
- * `http://localhost` origin shows "Proceed at my own risk" and keeps Approve `aria-disabled` until it's
- * ticked. That control is a custom element (a `div` with a stable testid, NOT a real checkbox — hence
- * no `role="checkbox"`). We click it only while Approve is still disabled: clicking toggles it, so the
- * `aria-disabled` gate keeps this idempotent across rounds, and it is a no-op on secure origins / other
- * wallets that have no such gate.
+ * Tick OneKey's consent control, if one is present and unticked. OneKey on an insecure
+ * `http://localhost` origin shows "Proceed at my own risk" on every prompt and keeps its primary button
+ * (Approve to connect, Sign for a PSBT, Confirm for a message, Sign all N for a batch) disabled until
+ * it's ticked. That control is a custom element, NOT a real checkbox — hence no `role="checkbox"` and
+ * no checked attribute — so its state is read from its box's class. Clicking toggles it, and the
+ * primary button is also disabled while OneKey is busy signing, so the state is read rather than
+ * inferred from the button. A no-op on secure origins / other wallets that have no such control.
  */
 export async function tickConsent(popup: Page): Promise<void> {
-  const approve = popup.getByRole("button", { name: /^approve$/i }).first();
-  if (!(await approve.isVisible().catch(() => false))) return;
-  const gated =
-    (await approve.getAttribute("aria-disabled").catch(() => null)) === "true";
-  if (!gated) return;
   const consent = popup
-    .locator('[data-testid="dapp-connection-continue-operate-checkbox"]')
+    .locator(ONEKEY_CHECKBOX)
+    .filter({ hasText: ONEKEY_RISK_CONSENT_TEXT })
     .first();
-  if (await consent.isVisible().catch(() => false))
-    await consent
-      .click({ force: true, timeout: APPROVE_CLICK_TIMEOUT_MS })
-      .catch(() => {});
+  if (!(await consent.isVisible().catch(() => false))) return;
+  const boxClass = await consent
+    .locator("> *")
+    .first()
+    .getAttribute("class")
+    .catch(() => null);
+  if (boxClass === null) return;
+  if (boxClass.split(/\s+/).includes(ONEKEY_CHECKBOX_TICKED_CLASS)) return;
+  await consent
+    .click({ force: true, timeout: APPROVE_CLICK_TIMEOUT_MS })
+    .catch(() => {});
 }
 
 /**

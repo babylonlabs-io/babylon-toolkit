@@ -107,6 +107,9 @@ overrides. Every name the app reads is listed with its class in `env-manifest.js
 | `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_POSTHOG_PROJECT_KEY`                                                                              | optional   | Product analytics; set both or neither. The PostHog project must discard client IPs; see `SECURITY.md` "Product analytics (PostHog)". |
 | `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                       | build-only | Set by the release workflow.                                                                                                          |
 
+See [Vault allowlists](../../docs/vault-allowlists.md) for how to limit the vault providers
+offered and the wallets allowed to deposit.
+
 The Ethereum RPC in use, the profile's `ethRpcUrl` or the `NEXT_PUBLIC_ETH_RPC_URL` override,
 must serve `eth_simulateV1` with a gas allowance of at least 16,777,216: the activation checks
 its gas limit with it before sending (`src/services/vault/activationGasLimit.ts`).

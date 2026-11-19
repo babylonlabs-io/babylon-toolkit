@@ -6,7 +6,6 @@
  * concerns (isInUse, vpTerminalError, localStorage compat).
  */
 
-import { PRE_DEPOSITOR_SIGNATURES_STATES } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   ContractStatus,
   PeginAction as SdkPeginAction,
@@ -14,7 +13,7 @@ import {
   type ExpirationReason,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
-import { BTC_BLOCK_TIME_MINS, MINS_PER_HOUR } from "@/constants";
+import { BTC_BLOCK_TIME_MINS, MINS_PER_DAY, MINS_PER_HOUR } from "@/constants";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import {
@@ -22,6 +21,7 @@ import {
   isActivationFloorGating,
 } from "@/utils/activationFloor";
 import { formatClaimWindowRemaining } from "@/utils/claimExpiredWindow";
+import { formatDuration } from "@/utils/formatting";
 import { isWithinTtl } from "@/utils/ttl";
 
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
@@ -51,20 +51,6 @@ export enum OffChainTrackingStatus {
 
 export const LocalStorageStatus = OffChainTrackingStatus;
 export type LocalStorageStatus = OffChainTrackingStatus;
-
-/**
- * Check if an error indicates the vault provider is still processing
- * (before PendingDepositorSignatures state).
- */
-export function isPreDepositorSignaturesError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const msg = error.message;
-
-  return (
-    msg.includes("Invalid state") &&
-    PRE_DEPOSITOR_SIGNATURES_STATES.some((state) => msg.includes(state))
-  );
-}
 
 export enum PeginAction {
   SUBMIT_WOTS_KEY = "SUBMIT_WOTS_KEY",
@@ -141,11 +127,11 @@ export interface PeginState {
   /** Blocks remaining until refund matures; set only when `maturing`. */
   refundMaturesInBlocks?: number;
   /**
-   * Short message intended for the inline subtext slot under the amount
-   * (e.g. "Your refund will be claimable in ~18 blocks (~3h)"). The full sentence stays
-   * in `message` for the tooltip. Set for maturing / unknown / notFound EXPIRED, and for
-   * a VERIFIED vault waiting out the activation floor — that second producer
-   * is why the row prefers this over the step counter.
+   * Short message for the slot under the amount (e.g. "Refund available in
+   * ~3 hours"). The exact block count stays in `message` for the tooltip. Set
+   * for maturing / unknown / notFound EXPIRED, and for a VERIFIED vault waiting
+   * out the activation floor — that second producer is why the row prefers
+   * this over the step counter.
    */
   inlineSubtext?: string;
   /**
@@ -389,6 +375,17 @@ function formatExpiredTimeAgo(timestamp: number): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+/**
+ * A wait as the row shows it. `formatDuration` rounds to the nearest hour or
+ * day; a wait is rounded up to that unit first, so the label never promises
+ * an action sooner than it opens.
+ */
+function formatWait(minutes: number): string {
+  if (minutes < MINS_PER_HOUR) return formatDuration(minutes);
+  const unit = minutes < MINS_PER_DAY ? MINS_PER_HOUR : MINS_PER_DAY;
+  return formatDuration(Math.ceil(minutes / unit) * unit);
 }
 
 function buildExpiredMessage(
@@ -1025,26 +1022,16 @@ function getDisplay(
     const refundMaturityState = options.refundMaturityState;
     const refundMaturesInBlocks = options.refundMaturesInBlocks;
     let inlineSubtext: string | undefined;
+    let message = expiredMessage;
     if (
       refundMaturityState === "maturing" &&
       refundMaturesInBlocks !== undefined
     ) {
-      // Convert the remaining-blocks figure to a rough hour estimate for the
-      // message. Round up so a fractional last block doesn't display as 0
-      // hours.
-      const hours = Math.max(
-        1,
-        Math.ceil(
-          (refundMaturesInBlocks * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
-        ),
+      // The duration is always visible; the tooltip adds the exact count.
+      inlineSubtext = COPY.pegin.messages.refundAvailableIn(
+        formatWait(refundMaturesInBlocks * BTC_BLOCK_TIME_MINS),
       );
-      // Tooltip stays focused on the expiry itself (the reason, where we
-      // have one to give, and when); the countdown lives in `inlineSubtext`
-      // so the user doesn't need to hover to see the actionable info.
-      inlineSubtext = COPY.pegin.messages.refundMaturing(
-        refundMaturesInBlocks,
-        hours,
-      );
+      message = `${expiredMessage} ${COPY.pegin.messages.refundOpensInBlocks(refundMaturesInBlocks)}`;
     } else if (refundMaturityState === "unknown") {
       inlineSubtext = COPY.pegin.messages.refundMaturingUnknown;
     } else if (refundMaturityState === "notFound") {
@@ -1053,7 +1040,7 @@ function getDisplay(
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
-      message: expiredMessage,
+      message,
       inlineSubtext,
       refundMaturityState: refundMaturityState ?? "mature",
       refundMaturesInBlocks:

@@ -20,6 +20,23 @@ export const BITCOIN_WALLET_PACKAGES = [
   "bitcoinjs-lib",
 ];
 
+// The Bitcoin-Ethereum entry must not include the Cosmos wallet path: the cosmjs signing and RPC
+// clients, the Keplr types and provider, and Tomo Connect. Keystone's UR registries are outside it:
+// @keystonehq/keystone-sdk, a Bitcoin wallet dependency, ships one registry per chain it supports.
+const COSMOS_WALLET_PACKAGE_PREFIXES = [
+  "@cosmjs/",
+  "@keplr-wallet/",
+  "@tomo-inc/wallet-connect-sdk",
+  "cosmjs-types",
+];
+
+// Byte-encoding helpers that @tomo-inc/ledger-bitcoin-babylon, the Ledger v1 Bitcoin wallet dependency, requires.
+const COSMOS_UTILITY_PACKAGES = ["@cosmjs/encoding"];
+
+const isCosmosWalletPackage = (name) =>
+  !COSMOS_UTILITY_PACKAGES.includes(name) &&
+  COSMOS_WALLET_PACKAGE_PREFIXES.some((prefix) => name === prefix || name.startsWith(prefix));
+
 // Share React, query state, and AppKit with the host application.
 export const requiredExternals = [
   "react",
@@ -120,8 +137,26 @@ export function checkPackage(manifest, runtime, declarations) {
   for (const name of runtime.eth.bundledPackages) {
     if (BITCOIN_WALLET_PACKAGES.includes(name)) throw new Error(`Ethereum bundles Bitcoin wallet dependency: ${name}`);
   }
+  for (const name of [...runtime.btcEth.packages, ...runtime.btcEth.bundledPackages]) {
+    if (isCosmosWalletPackage(name)) {
+      throw new Error(`Bitcoin-Ethereum entry includes Cosmos wallet dependency: ${name}`);
+    }
+  }
+  // Declarations may name a package the manifest installs for every consumer (`@keplr-wallet/types`
+  // through `core/types.ts`); a type-only reach into an optional Cosmos peer still fails.
+  for (const name of declarations.btcEth.packages) {
+    if (isCosmosWalletPackage(name) && !manifest.dependencies?.[name]) {
+      throw new Error(`Bitcoin-Ethereum entry declares Cosmos wallet dependency: ${name}`);
+    }
+  }
   const required = new Set([...runtime.eth.packages, ...declarations.eth.packages]);
-  const used = new Set([...runtime.root.packages, ...declarations.root.packages, ...required]);
+  const used = new Set([
+    ...runtime.root.packages,
+    ...declarations.root.packages,
+    ...runtime.btcEth.packages,
+    ...declarations.btcEth.packages,
+    ...required,
+  ]);
   const optionalPeers = new Set(walletExternals);
   for (const name of used) {
     if (!required.has(name) && !requiredExternals.includes(name)) optionalPeers.add(name);
@@ -162,4 +197,59 @@ export function checkPackage(manifest, runtime, declarations) {
     }
   }
   return { optionalPeers: [...optionalPeers].sort(), buildOnlyDependencies: buildOnlyDependencies.sort() };
+}
+
+// Vite replaces a Node builtin that nodePolyfills does not include with an empty
+// `__viteBrowserExternal` namespace. Most reads of it are guarded, but
+// cipher-base (Keystone's bs58check → create-hash chain) runs
+// `require("stream").Transform.call(this)`, so a stubbed `stream` throws at runtime.
+// The stub is reached through the namespace itself and through the binding an interop
+// wrapper assigns from it (`x = /* @__PURE__ */ getAugmentedNamespace(__viteBrowserExternal$1)`),
+// whatever the helper's name or pure-comment form, so both are checked. Plain copies of
+// that binding (`v = x`) are not followed: minified names are reused across scopes, and
+// matching them file-wide flags unrelated variables.
+export function assertNoStubbedStreamTransform(files) {
+  const identifier = String.raw`[A-Za-z_$][\w$]*`;
+  // One block comment, ending at its own `*/`: a lazy `[\s\S]*?` would extend across
+  // later comments and backtrack over the whole multi-megabyte bundle.
+  const comment = String.raw`\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\/`;
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const namespaces = [...new Set(source.match(/__viteBrowserExternal[\w$]*/g))];
+    if (namespaces.length === 0) continue;
+    const namespace = namespaces.map(RegExp.escape).join("|");
+    const binding = new RegExp(
+      String.raw`(?<![\w$.])(${identifier})\s*=\s*(?:${comment}\s*)*${identifier}\(\s*(?:${namespace})\s*\)`,
+      "g",
+    );
+    const names = new Set([...namespaces, ...[...source.matchAll(binding)].map(([, name]) => name)]);
+    const read = new RegExp(
+      String.raw`(?<![\w$.])(${[...names].map(RegExp.escape).join("|")})\.Transform(?![\w$])`,
+    ).exec(source);
+    if (read) {
+      throw new Error(`${file} reads stream.Transform from an empty browser stub through ${read[1]}; add "stream" to nodePolyfills`);
+    }
+  }
+}
+
+// Keystone's bundled CBOR encoder (bc-ur-registry) writes a value as bytes only if
+// `value instanceof Buffer`. A second Buffer implementation in the same bundle makes the
+// providers' Buffers fail that check, and PSBT QR codes are encoded as
+// `{type:"Buffer",data:[...]}`, which the device rejects. Each implementation of the
+// `buffer` package defines `Buffer.prototype._isBuffer`, so a format's files may define it
+// at most once. ES and CommonJS outputs are separate bundles and are counted apart.
+const BUFFER_CLASS_DEFINITION = /\.prototype\._isBuffer\s*=/g;
+const OUTPUT_FORMAT_EXTENSIONS = [".cjs", ".js"];
+
+export function assertSingleBufferClass(files) {
+  for (const extension of OUTPUT_FORMAT_EXTENSIONS) {
+    const definitions = [...files]
+      .filter((file) => file.endsWith(extension))
+      .flatMap((file) => [...readFileSync(file, "utf8").matchAll(BUFFER_CLASS_DEFINITION)].map(() => file));
+    if (definitions.length > 1) {
+      throw new Error(
+        `The ${extension} bundle defines ${definitions.length} Buffer classes (${[...new Set(definitions)].join(", ")}); alias bare "buffer" to the polyfill shim so it has one`,
+      );
+    }
+  }
 }

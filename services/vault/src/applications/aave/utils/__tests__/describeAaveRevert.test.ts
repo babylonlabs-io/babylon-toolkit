@@ -70,7 +70,9 @@ describe("describeAaveRevert", () => {
   it("returns the fixed text for a spoke reserve revert", () => {
     expect(
       describeAaveRevert(revert("ReserveFrozen"), usdcCore, "borrow"),
-    ).toBe("This market isn't accepting new borrows right now.");
+    ).toBe(
+      "This market is frozen, so it isn't accepting new collateral or borrows right now.",
+    );
   });
 
   it("leaves other errors to the caller", () => {

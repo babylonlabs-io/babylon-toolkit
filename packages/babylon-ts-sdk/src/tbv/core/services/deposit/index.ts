@@ -1,5 +1,4 @@
 export type {
-  ClaimerArtifactsReader,
   PeginStatusReader,
   PresignClient,
   WotsKeySubmitter,

@@ -1,6 +1,7 @@
-import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { derivePeginVaultId } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
 import {
   ArtifactDownloadCancelledError,
   type ArtifactSaveTarget,
@@ -11,12 +12,16 @@ import {
   setArtifactDownloadScenario,
 } from "../demoArtifactDownload";
 
-const BINDING = {
+const REQUEST = {
   peginTxid: "aa".repeat(32),
   depositorPk: "bb".repeat(32),
-  // The demo stands in its own graph's fingerprint, so this is never read.
-  signedGraphFingerprint: undefined,
+  providerAddress: "0x" + "34".repeat(20),
+  depositorEthAddress: undefined,
 };
+const DEMO_DEPOSITOR_ETH_ADDRESS = "0x" + "00".repeat(19) + "01";
+const DEMO_SESSION_NAME = `sessions/${"ab".repeat(32)}.cbor`;
+/** A full kit hashes the 8 MB session two or three times; fake timers do not skip CPU work. */
+const FULL_KIT_TIMEOUT_MS = 20_000;
 
 /** Records what the demo writes, the same way the real service's target does. */
 function fakeSaveTarget() {
@@ -28,12 +33,50 @@ function fakeSaveTarget() {
   const discard = vi.fn(async () => undefined);
   const target: ArtifactSaveTarget = {
     method: "file-system-access",
-    filename: "demo.json",
+    filename: "demo.tar",
     maxBytes: Number.POSITIVE_INFINITY,
     open: vi.fn(async () => ({ write, commit, discard })),
   };
   return { target, write, commit, discard, written };
 }
+
+function concat(chunks: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+/** Walks a ustar archive independently of the writer and checks the trailer. */
+function parseTar(bytes: Uint8Array): { name: string; data: Uint8Array }[] {
+  const entries: { name: string; data: Uint8Array }[] = [];
+  let offset = 0;
+  for (;;) {
+    const header = bytes.subarray(offset, offset + 512);
+    if (header.every((b) => b === 0)) break;
+    const nameEnd = header.indexOf(0);
+    const name = new TextDecoder().decode(
+      header.subarray(0, nameEnd === -1 || nameEnd > 100 ? 100 : nameEnd),
+    );
+    const size = parseInt(
+      new TextDecoder().decode(header.subarray(124, 135)),
+      8,
+    );
+    const start = offset + 512;
+    entries.push({ name, data: bytes.slice(start, start + size) });
+    offset = start + Math.ceil(size / 512) * 512;
+  }
+  expect(bytes.byteLength - offset).toBe(1024);
+  expect(bytes.subarray(offset).every((b) => b === 0)).toBe(true);
+  return entries;
+}
+
+type Settled =
+  | { ok: true; value: unknown; settledAt: number }
+  | { ok: false; error: unknown; settledAt: number };
 
 describe("demoFetchAndDownloadArtifacts", () => {
   beforeEach(() => {
@@ -50,78 +93,176 @@ describe("demoFetchAndDownloadArtifacts", () => {
   });
 
   /** Drive the mock's paced stream to completion under fake timers. */
-  async function run(promise: Promise<unknown>): Promise<unknown> {
+  async function run(promise: Promise<unknown>): Promise<Settled> {
     const settled = promise.then(
-      (value) => ({ ok: true, value }) as const,
-      (error) => ({ ok: false, error }) as const,
+      (value) => ({ ok: true, value, settledAt: Date.now() }) as const,
+      (error) => ({ ok: false, error, settledAt: Date.now() }) as const,
     );
     await vi.runAllTimersAsync();
     return settled;
   }
 
-  it("streams a valid bundle through the real pipeline and commits it", async () => {
-    const { target, commit, discard, written } = fakeSaveTarget();
-    const onProgress = vi.fn();
+  const claimOf = (written: Uint8Array[]) =>
+    JSON.parse(new TextDecoder().decode(parseTar(concat(written))[1]!.data));
 
-    await run(demoFetchAndDownloadArtifacts(target, BINDING, { onProgress }));
+  it(
+    "streams a valid kit through the real pipeline and commits a tar ending in claim.json",
+    async () => {
+      const { target, commit, discard, written } = fakeSaveTarget();
+      const onProgress = vi.fn();
 
-    expect(commit).toHaveBeenCalledTimes(1);
-    expect(discard).not.toHaveBeenCalled();
-    // Many chunks, not one blob — the point of the mock is to exercise the
-    // streaming path rather than hand the sink a finished buffer.
-    expect(written.length).toBeGreaterThan(1);
+      const result = await run(
+        demoFetchAndDownloadArtifacts(target, REQUEST, { onProgress }),
+      );
 
-    const received = onProgress.mock.calls.map(([bytes]) => bytes as number);
-    for (let i = 1; i < received.length; i++) {
-      expect(received[i]).toBeGreaterThanOrEqual(received[i - 1]);
-    }
+      expect(result).toMatchObject({ ok: true, value: undefined });
+      expect(commit).toHaveBeenCalledTimes(1);
+      expect(discard).not.toHaveBeenCalled();
+      const entries = parseTar(concat(written));
+      expect(entries.map((e) => e.name)).toEqual([
+        DEMO_SESSION_NAME,
+        "claim.json",
+      ]);
+      expect(claimOf(written).vault_id).toBe(
+        "0x" +
+          derivePeginVaultId(REQUEST.peginTxid, DEMO_DEPOSITOR_ETH_ADDRESS),
+      );
+      // Paced, not one blob: progress moves through the session.
+      const received = onProgress.mock.calls.map(([bytes]) => bytes as number);
+      expect(new Set(received).size).toBeGreaterThan(2);
+      expect(received).toEqual([...received].sort((a, b) => a - b));
+    },
+    FULL_KIT_TIMEOUT_MS,
+  );
+
+  it(
+    "uses the wallet address when the request carries one",
+    async () => {
+      const wallet = "0x" + "12".repeat(20);
+      const { target, written } = fakeSaveTarget();
+
+      await run(
+        demoFetchAndDownloadArtifacts(target, {
+          ...REQUEST,
+          depositorEthAddress: wallet,
+        }),
+      );
+
+      expect(claimOf(written).vault_id).toBe(
+        "0x" + derivePeginVaultId(REQUEST.peginTxid, wallet),
+      );
+    },
+    FULL_KIT_TIMEOUT_MS,
+  );
+
+  it.each([
+    "truncated",
+    "bad-manifest",
+    "provider-error",
+    "corrupt-session",
+    "wrong-vault",
+  ] as const)("%s fails without committing", async (scenario) => {
+    setArtifactDownloadScenario(scenario);
+    const { target, commit } = fakeSaveTarget();
+
+    const result = await run(demoFetchAndDownloadArtifacts(target, REQUEST));
+
+    expect(result.ok).toBe(false);
+    expect(commit).not.toHaveBeenCalled();
   });
 
-  it.each([["truncated"], ["garbage"], ["non-hex"], ["wrong-vault"]] as const)(
-    "rejects the %s scenario and discards the partial file",
+  it("provider-error surfaces the quota copy promptly", async () => {
+    setArtifactDownloadScenario("provider-error");
+    const { target } = fakeSaveTarget();
+    const startedAt = Date.now();
+
+    const result = await run(demoFetchAndDownloadArtifacts(target, REQUEST));
+
+    expect(result.ok).toBe(false);
+    expect((result as { error: Error }).error.message).toBe(
+      COPY.deposit.recoveryArtifacts.downloadLimitReached,
+    );
+    expect(result.settledAt - startedAt).toBeLessThan(5_000);
+  });
+
+  it.each(["wrong-vault", "bad-manifest"] as const)(
+    "%s fails before the sink opens",
     async (scenario) => {
       setArtifactDownloadScenario(scenario);
-      const { target, commit, discard } = fakeSaveTarget();
+      const { target } = fakeSaveTarget();
 
-      const outcome = (await run(
-        demoFetchAndDownloadArtifacts(target, BINDING, {}),
-      )) as { ok: boolean; error?: unknown };
+      await run(demoFetchAndDownloadArtifacts(target, REQUEST));
 
-      expect(outcome.ok).toBe(false);
-      expect(outcome.error).toBeInstanceOf(VpResponseValidationError);
-      expect(commit).not.toHaveBeenCalled();
-      expect(discard).toHaveBeenCalledTimes(1);
+      expect(target.open).not.toHaveBeenCalled();
     },
   );
+
+  it("truncated fails with the download-failed copy after one resume", async () => {
+    setArtifactDownloadScenario("truncated");
+    const { target, discard } = fakeSaveTarget();
+
+    const result = await run(demoFetchAndDownloadArtifacts(target, REQUEST));
+
+    expect(result.ok).toBe(false);
+    expect((result as { error: Error }).error).toEqual(
+      new Error(COPY.deposit.recoveryArtifacts.downloadFailedHttp(416, "")),
+    );
+    expect(discard).toHaveBeenCalledTimes(1);
+  });
+
+  it("corrupt-session never writes the session", async () => {
+    setArtifactDownloadScenario("corrupt-session");
+    const { target, write, discard } = fakeSaveTarget();
+
+    const result = await run(demoFetchAndDownloadArtifacts(target, REQUEST));
+
+    expect(result.ok).toBe(false);
+    expect(write).not.toHaveBeenCalled();
+    expect(discard).toHaveBeenCalledTimes(1);
+  });
 
   it("throws the cancellation sentinel when the signal is already aborted", async () => {
     const controller = new AbortController();
     controller.abort();
     const { target, commit } = fakeSaveTarget();
 
-    const outcome = (await run(
-      demoFetchAndDownloadArtifacts(target, BINDING, {
+    const result = await run(
+      demoFetchAndDownloadArtifacts(target, REQUEST, {
         signal: controller.signal,
       }),
-    )) as { ok: boolean; error?: unknown };
+    );
 
-    expect(outcome.ok).toBe(false);
-    expect(outcome.error).toBeInstanceOf(ArtifactDownloadCancelledError);
+    expect(result.ok).toBe(false);
+    expect((result as { error: unknown }).error).toBeInstanceOf(
+      ArtifactDownloadCancelledError,
+    );
     expect(commit).not.toHaveBeenCalled();
   });
 
-  it("throws the cancellation sentinel when cancelled mid-stream", async () => {
-    const { target, commit } = fakeSaveTarget();
-    let chunks = 0;
-    // Cancel once bytes are genuinely flowing, not before the stream starts.
-    const isCancelled = () => ++chunks > 3;
+  it("honours cancellation between chunks and stops the paced stream", async () => {
+    const { target, write, commit, discard } = fakeSaveTarget();
+    let cancelled = false;
+    const onProgress = vi.fn((received: number) => {
+      if (received > 0) cancelled = true;
+    });
 
-    const outcome = (await run(
-      demoFetchAndDownloadArtifacts(target, BINDING, { isCancelled }),
-    )) as { ok: boolean; error?: unknown };
+    const result = await run(
+      demoFetchAndDownloadArtifacts(target, REQUEST, {
+        isCancelled: () => cancelled,
+        onProgress,
+      }),
+    );
 
-    expect(outcome.ok).toBe(false);
-    expect(outcome.error).toBeInstanceOf(ArtifactDownloadCancelledError);
+    expect(result.ok).toBe(false);
+    expect((result as { error: unknown }).error).toBeInstanceOf(
+      ArtifactDownloadCancelledError,
+    );
+    expect(discard).toHaveBeenCalledTimes(1);
     expect(commit).not.toHaveBeenCalled();
+    const writes = write.mock.calls.length;
+    const reports = onProgress.mock.calls.length;
+    await vi.runAllTimersAsync();
+    expect(write.mock.calls.length).toBe(writes);
+    expect(onProgress.mock.calls.length).toBe(reports);
   });
 });

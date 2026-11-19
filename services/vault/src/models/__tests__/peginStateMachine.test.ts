@@ -719,7 +719,7 @@ describe("peginStateMachine", () => {
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
     });
 
-    it("surfaces a CSV-maturing countdown when refund timelock has not elapsed", () => {
+    it("shows the refund wait as a duration, with the block count in the tooltip", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
         expirationReason: "proof_timeout",
         canRefund: false,
@@ -729,26 +729,42 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(state.refundMaturityState).toBe("maturing");
       expect(state.refundMaturesInBlocks).toBe(24);
-      // 24 blocks × 10 min = 240 min → ceil(240/60) = 4h.
-      // The countdown lives only in `inlineSubtext`; `message` (tooltip)
-      // stays focused on the expired reason so the user doesn't see the
-      // same sentence twice.
-      expect(state.inlineSubtext).toBe(
-        "Your refund will be claimable in ~24 Bitcoin blocks (~4h).",
+      // 24 blocks x 10 min = 240 min.
+      expect(state.inlineSubtext).toBe("Refund available in ~4 hours");
+      // The exact count is in the tooltip, after the expiry reason.
+      expect(state.message).toBe(
+        "This BTCVault has expired. The inclusion proof was not submitted in time. Your refund opens in 24 Bitcoin blocks.",
       );
-      expect(state.message).not.toContain("claimable in");
     });
 
-    it("uses singular 'block' when exactly one block remains", () => {
+    it("reports one remaining block as ten minutes", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
         canRefund: false,
         refundMaturityState: "maturing",
         refundMaturesInBlocks: 1,
       });
-      // 1 block * 10 min = 10 min → ceil(10/60)=1h, floored to min 1h.
-      expect(state.inlineSubtext).toBe(
-        "Your refund will be claimable in ~1 Bitcoin block (~1h).",
-      );
+      expect(state.inlineSubtext).toBe("Refund available in ~10 minutes");
+      expect(state.message).toContain("Your refund opens in 1 Bitcoin block.");
+    });
+
+    it("rounds a refund wait over an hour up to the next hour", () => {
+      // 8 blocks x 10 min = 80 min: nearer one hour, but not available by then.
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundMaturityState: "maturing",
+        refundMaturesInBlocks: 8,
+      });
+      expect(state.inlineSubtext).toBe("Refund available in ~2 hours");
+    });
+
+    it("rounds a refund wait over a day up to the next day", () => {
+      // 215 blocks x 10 min = 2150 min, about 36 hours.
+      const state = getPeginState(ContractStatus.EXPIRED, {
+        canRefund: false,
+        refundMaturityState: "maturing",
+        refundMaturesInBlocks: 215,
+      });
+      expect(state.inlineSubtext).toBe("Refund available in ~2 days");
     });
 
     it.each([

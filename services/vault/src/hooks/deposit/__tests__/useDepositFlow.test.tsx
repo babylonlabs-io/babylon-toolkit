@@ -17,11 +17,12 @@ import {
   createWalletClient,
   custom,
   InsufficientFundsError,
+  WaitForTransactionReceiptTimeoutError,
   type Address,
   type Hex,
   type WalletClient,
 } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CONTRACTS } from "@/config/contracts";
 import { getETHChain } from "@/config/network";
@@ -153,7 +154,7 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   })),
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   getSharedWagmiConfig: () => ({}),
   useChainConnector: vi.fn(),
 }));
@@ -610,7 +611,7 @@ function signingCanceledError() {
 
 async function setupDefaultMocks() {
   const { useChainConnector } = await import(
-    "@babylonlabs-io/wallet-connector"
+    "@babylonlabs-io/wallet-connector/btc-eth"
   );
   vi.mocked(useChainConnector).mockReturnValue(null);
   ethFundsMocks.getBalance.mockResolvedValue(MOCK_BATCH_RESULT.fee);
@@ -939,6 +940,218 @@ describe("useDepositFlow", () => {
         expect(preparePeginTransaction).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe("ETH registration confirmation", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("reports the submitted registration as waiting, then slow after two minutes, until it confirms", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      let confirm!: () => void;
+      vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
+        async ({ walletClient }) => {
+          await walletClient.sendTransaction({
+            to: CONTRACTS.BTC_VAULT_REGISTRY,
+            account: walletClient.account!,
+            chain: walletClient.chain,
+          });
+          await new Promise<void>((resolve) => {
+            confirm = resolve;
+          });
+          return {
+            ethTxHash: "0xBatchEthTxHash" as Hex,
+            vaults: [
+              {
+                vaultId: "0xVault0Id" as Hex,
+                peginTxHash: "0xVault0BtcTxHash" as Hex,
+              },
+              {
+                vaultId: "0xVault1Id" as Hex,
+                peginTxHash: "0xVault1BtcTxHash" as Hex,
+              },
+            ],
+          };
+        },
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+
+      await waitFor(() =>
+        expect(result.current.registrationWait).toBe("pending"),
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+      expect(result.current.registrationWait).toBe("slow");
+
+      await act(async () => {
+        confirm();
+        await pending;
+      });
+      expect(result.current.registrationWait).toBeNull();
+      expect(result.current.error).toBeNull();
+      expect(result.current.currentStep).not.toBe(DepositFlowStep.SUBMIT_PEGIN);
+    });
+
+    it("does not mark a registration slow after it confirmed within two minutes", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
+        async ({ walletClient }) => {
+          await walletClient.sendTransaction({
+            to: CONTRACTS.BTC_VAULT_REGISTRY,
+            account: walletClient.account!,
+            chain: walletClient.chain,
+          });
+          return {
+            ethTxHash: "0xBatchEthTxHash" as Hex,
+            vaults: [
+              {
+                vaultId: "0xVault0Id" as Hex,
+                peginTxHash: "0xVault0BtcTxHash" as Hex,
+              },
+              {
+                vaultId: "0xVault1Id" as Hex,
+                peginTxHash: "0xVault1BtcTxHash" as Hex,
+              },
+            ],
+          };
+        },
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      await act(async () => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+
+      expect(result.current.registrationWait).toBeNull();
+    });
+
+    it("still saves the stamped resume record when the registration confirms after the modal closed", async () => {
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      let confirm!: () => void;
+      vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
+        async (params) => {
+          await params.walletClient.sendTransaction({
+            to: CONTRACTS.BTC_VAULT_REGISTRY,
+            account: params.walletClient.account!,
+            chain: params.walletClient.chain,
+          });
+          // Rejects if the flow ever hands the registration wait an abort
+          // signal: closing the modal must not end the wait.
+          const { signal } = params as { signal?: AbortSignal };
+          await new Promise<void>((resolve, reject) => {
+            confirm = resolve;
+            signal?.addEventListener("abort", () => reject(signal.reason));
+          });
+          return {
+            ethTxHash: "0xBatchEthTxHash" as Hex,
+            vaults: [
+              {
+                vaultId: "0xVault0Id" as Hex,
+                peginTxHash: "0xVault0BtcTxHash" as Hex,
+              },
+              {
+                vaultId: "0xVault1Id" as Hex,
+                peginTxHash: "0xVault1BtcTxHash" as Hex,
+              },
+            ],
+          };
+        },
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const pending = result.current.executeDeposit();
+      await waitFor(() =>
+        expect(result.current.registrationWait).toBe("pending"),
+      );
+
+      await act(async () => {
+        result.current.abort();
+        confirm();
+        await pending;
+      });
+
+      expect(addPendingPegin).toHaveBeenCalledWith(
+        "0xEthAddress123",
+        expect.objectContaining({
+          id: "0xVault0Id",
+          buildParticipantOperationKeys: expect.anything(),
+        }),
+      );
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("keeps the generic error for a transient failure before the wallet took the registration", async () => {
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      vi.mocked(registerPeginBatchAndWait).mockRejectedValueOnce(
+        new WaitForTransactionReceiptTimeoutError({
+          hash: "0xBatchEthTxHash",
+        }),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error).not.toBe(
+        DEPOSIT_ERRORS.registrationUnconfirmed,
+      );
+    });
+
+    it("warns that a submitted registration may still confirm when the wait ends without an answer", async () => {
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
+        async ({ walletClient }) => {
+          const hash = await walletClient.sendTransaction({
+            to: CONTRACTS.BTC_VAULT_REGISTRY,
+            account: walletClient.account!,
+            chain: walletClient.chain,
+          });
+          throw new WaitForTransactionReceiptTimeoutError({ hash });
+        },
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toBe(DEPOSIT_ERRORS.registrationUnconfirmed);
+      expect(result.current.registrationWait).toBeNull();
+    });
+
+    it("reports a submitted registration that reverted as a failure", async () => {
+      const { registerPeginBatchAndWait } = await import("../depositFlowSteps");
+      vi.mocked(registerPeginBatchAndWait).mockImplementationOnce(
+        async ({ walletClient }) => {
+          await walletClient.sendTransaction({
+            to: CONTRACTS.BTC_VAULT_REGISTRY,
+            account: walletClient.account!,
+            chain: walletClient.chain,
+          });
+          throw new Error(
+            "Batch transaction reverted. Hash: 0xBatchEthTxHash. Check a block explorer for details.",
+          );
+        },
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error).not.toBe(
+        DEPOSIT_ERRORS.registrationUnconfirmed,
+      );
+    });
   });
 
   describe("Depositor allow-list", () => {
@@ -1663,7 +1876,7 @@ describe("useDepositFlow", () => {
           };
         if (changed === "provider") {
           const { useChainConnector } = await import(
-            "@babylonlabs-io/wallet-connector"
+            "@babylonlabs-io/wallet-connector/btc-eth"
           );
           vi.mocked(useChainConnector).mockReturnValue({
             connectedWallet: { provider: {} },

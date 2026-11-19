@@ -215,7 +215,7 @@ describe("WithdrawFlow selection step", () => {
     expect(
       screen.getByText(/would drop your health factor below 1\.0/),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Continue anyway")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("withdraw-select-acknowledge")).toBeNull();
     expect(continueButton()).toBeDisabled();
   });
 
@@ -229,7 +229,7 @@ describe("WithdrawFlow selection step", () => {
     ).toBeInTheDocument();
     expect(continueButton()).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Continue anyway/ }));
+    fireEvent.click(screen.getByLabelText("I understand the liquidation risk"));
 
     expect(continueButton()).toBeEnabled();
   });
