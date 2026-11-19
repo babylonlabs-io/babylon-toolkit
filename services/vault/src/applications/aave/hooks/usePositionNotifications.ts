@@ -175,6 +175,7 @@ export function usePositionNotifications(
 
   const {
     collateralVaults,
+    borrowedAssets,
     debtValueUsd,
     healthFactor,
     indexerError,
@@ -355,6 +356,7 @@ export function usePositionNotifications(
       LB: splitParams.LB,
       bonusCurve: splitParams.bonusCurve,
       expectedHF: splitParams.expectedHF,
+      hasWbtcDebt: borrowedAssets.some((asset) => asset.symbol === "WBTC"),
       minPeginBtc: pegInConfig
         ? satoshiToBtcNumber(pegInConfig.minimumPegInAmount)
         : null,
@@ -428,6 +430,7 @@ export function usePositionNotifications(
     isBtcPriceFailing,
     btcPriceUsd,
     collateralVaults,
+    borrowedAssets,
     debtValueUsd,
     healthFactor,
     indexerError,

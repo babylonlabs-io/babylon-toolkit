@@ -390,7 +390,10 @@ export function calculate(
   const currentHF =
     totalDebtUsd > 0 ? (collateralValue * CF) / totalDebtUsd : Infinity;
 
-  const warnings: Warning[] = [];
+  const warnings: Warning[] =
+    params.hasWbtcDebt && totalDebtUsd > 0 && totalBtc > 0
+      ? [{ type: "wbtc-debt", ...COPY.liquidationWarnings.wbtcDebt }]
+      : [];
   const groups: LiquidationGroup[] = [];
 
   // ── 1. Early exits ─────────────────────────────────────────────

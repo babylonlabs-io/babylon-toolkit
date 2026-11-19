@@ -17,6 +17,7 @@ export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
  */
 const SEVERITY_BY_TYPE: Partial<Record<WarningType, BannerSeverity>> = {
   urgent: "red",
+  "wbtc-debt": "yellow",
   cliff: "yellow",
   "too-many-vaults": "yellow",
 };
@@ -44,6 +45,7 @@ export interface BannerState {
  */
 const PRIMARY_ORDER: WarningType[] = [
   "urgent",
+  "wbtc-debt",
   "weird-params",
   "cliff",
   "too-many-vaults",
@@ -65,8 +67,11 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
   const suggestReorder =
     result.optimalVaultOrder != null && !isFirstEventGapped(groups);
 
-  // Small positions hide advice unless a liquidation warning is urgent.
-  if (warnings.some((w) => w.type === "dust")) {
+  // Small positions keep urgent warnings and the WBTC notice.
+  if (
+    warnings.some((w) => w.type === "dust") &&
+    !warnings.some((w) => w.type === "wbtc-debt")
+  ) {
     const urgentWarning = warnings.find((w) => w.type === "urgent");
     return {
       severity: urgentWarning ? "red" : "hidden",
@@ -86,7 +91,9 @@ export function deriveBannerState(result: CalculatorResult): BannerState {
     return {
       severity: SEVERITY_BY_TYPE[primaryWarning.type] ?? "soft",
       primaryWarning,
-      secondaryWarnings: warnings.filter((w) => w !== primaryWarning),
+      secondaryWarnings: warnings.filter(
+        (w) => w !== primaryWarning && w.type !== "dust",
+      ),
       suggestReorder,
     };
   }

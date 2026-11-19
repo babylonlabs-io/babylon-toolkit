@@ -62,6 +62,7 @@ const SEVERITY_VARIANT: Record<
 // lookup, since it is a composite condition rather than a plain type match.
 const WARNING_TONE: Record<WarningType, NotificationCardTone | null> = {
   urgent: "urgent",
+  "wbtc-debt": null,
   cliff: "cliff",
   reorder: "reorder",
   dust: null,
@@ -415,19 +416,25 @@ export function PositionNotificationBanner({
       suggestion = (
         <div className="flex flex-col gap-2">
           {primarySuggestionNode}
-          {secondaryWarnings.map((warning, index) => (
-            <div key={index}>
-              <div className="text-sm font-semibold text-accent-primary">
-                {warning.title}
+          {secondaryWarnings.map((warning, index) =>
+            warning.type === "wbtc-debt" ? (
+              <Callout key={index} variant="warning" title={warning.title}>
+                {warning.detail}
+              </Callout>
+            ) : (
+              <div key={index}>
+                <div className="text-sm font-semibold text-accent-primary">
+                  {warning.title}
+                </div>
+                {warning.detail && (
+                  <div className="text-sm">{warning.detail}</div>
+                )}
+                {warning.suggestion && (
+                  <div className="text-sm opacity-80">{warning.suggestion}</div>
+                )}
               </div>
-              {warning.detail && (
-                <div className="text-sm">{warning.detail}</div>
-              )}
-              {warning.suggestion && (
-                <div className="text-sm opacity-80">{warning.suggestion}</div>
-              )}
-            </div>
-          ))}
+            ),
+          )}
           {reorderStatus}
         </div>
       );
@@ -449,7 +456,11 @@ export function PositionNotificationBanner({
     icon: isStandaloneReorder || isCliffPrimary ? null : undefined,
     actions: actions.length > 0 ? actions : undefined,
     actionsPlacement:
-      isStandaloneReorder || isCliffPrimary ? "below" : "inline",
+      isStandaloneReorder ||
+      isCliffPrimary ||
+      primaryWarning?.type === "wbtc-debt"
+        ? "below"
+        : "inline",
     suggestion,
     onClose: dismissibleAdvisoryKey
       ? () => handleDismissAdvisory(dismissibleAdvisoryKey)
