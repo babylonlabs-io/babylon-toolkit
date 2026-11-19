@@ -5,6 +5,8 @@
  * Includes configurable retry policy and AbortSignal passthrough.
  */
 
+import { combineAbortSignals } from "../../utils/abortSignals";
+
 export interface JsonRpcRequest<T = unknown> {
   jsonrpc: "2.0";
   method: string;
@@ -57,7 +59,7 @@ export interface BearerTokenProvider {
 export interface JsonRpcClientConfig {
   /** Base URL of the RPC service */
   baseUrl: string;
-  /** Timeout in milliseconds per request attempt */
+  /** Timeout per attempt in ms. Covers response headers and body. */
   timeout: number;
   /** Optional custom headers */
   headers?: Record<string, string>;
@@ -312,7 +314,7 @@ export class JsonRpcClient {
     signal: AbortSignal | undefined,
     authState?: AttemptAuthState,
   ): Promise<TResult> {
-    const response = await this.fetchWithRetry(
+    const responseText = await this.fetchWithRetry(
       method,
       params,
       signal,
@@ -321,15 +323,8 @@ export class JsonRpcClient {
 
     let jsonResponse: unknown;
     try {
-      const responseText = await readResponseTextWithLimit(
-        response,
-        this.maxResponseBytes,
-      );
       jsonResponse = JSON.parse(responseText);
-    } catch (error) {
-      if (error instanceof JsonRpcError) {
-        throw error;
-      }
+    } catch {
       throw new JsonRpcError(
         JSON_RPC_ERROR_CODES.INVALID_RESPONSE,
         "Invalid JSON-RPC response: body is not valid JSON",
@@ -381,7 +376,7 @@ export class JsonRpcClient {
     params: TParams,
     callerSignal?: AbortSignal,
     authState?: AttemptAuthState,
-  ): Promise<Response> {
+  ): Promise<string> {
     const requestId = ++this.requestId;
     const maxRetries = this.retryableFor(method) ? this.retries : 0;
 
@@ -405,7 +400,7 @@ export class JsonRpcClient {
       );
 
       const merged = callerSignal
-        ? mergeAbortSignals(callerSignal, timeoutController.signal)
+        ? combineAbortSignals([callerSignal, timeoutController.signal])
         : null;
       const signal = merged ? merged.signal : timeoutController.signal;
 
@@ -422,10 +417,9 @@ export class JsonRpcClient {
           signal,
         });
 
-        clearTimeout(timeoutId);
-        merged?.cleanup();
-
         if (!response.ok) {
+          clearTimeout(timeoutId);
+          merged?.cleanup();
           const shouldRetry =
             attempt < maxRetries &&
             RETRYABLE_HTTP_STATUS_CODES.has(response.status);
@@ -441,7 +435,13 @@ export class JsonRpcClient {
           );
         }
 
-        return response;
+        const responseText = await readResponseTextWithLimit(
+          response,
+          this.maxResponseBytes,
+        );
+        clearTimeout(timeoutId);
+        merged?.cleanup();
+        return responseText;
       } catch (error) {
         clearTimeout(timeoutId);
         merged?.cleanup();
@@ -508,41 +508,6 @@ export class JsonRpcClient {
   getBaseUrl(): string {
     return this.baseUrl;
   }
-}
-
-interface MergedSignal {
-  signal: AbortSignal;
-  /** Remove listeners from the source signals. Call after the request completes. */
-  cleanup: () => void;
-}
-
-/**
- * Merge two AbortSignals — the returned signal aborts if either input aborts.
- * Returns a cleanup function to remove listeners when the request completes
- * normally, preventing listener accumulation in long-lived polling flows.
- */
-function mergeAbortSignals(a: AbortSignal, b: AbortSignal): MergedSignal {
-  if (a.aborted) return { signal: a, cleanup: () => {} };
-  if (b.aborted) return { signal: b, cleanup: () => {} };
-
-  const controller = new AbortController();
-  const onAbortA = () => {
-    b.removeEventListener("abort", onAbortB);
-    controller.abort();
-  };
-  const onAbortB = () => {
-    a.removeEventListener("abort", onAbortA);
-    controller.abort();
-  };
-  a.addEventListener("abort", onAbortA, { once: true });
-  b.addEventListener("abort", onAbortB, { once: true });
-
-  const cleanup = () => {
-    a.removeEventListener("abort", onAbortA);
-    b.removeEventListener("abort", onAbortB);
-  };
-
-  return { signal: controller.signal, cleanup };
 }
 
 async function readResponseTextWithLimit(

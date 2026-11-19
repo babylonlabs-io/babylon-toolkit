@@ -59,6 +59,21 @@ function createStreamedTextResponse(chunks: string[]): Response {
   );
 }
 
+function createStalledBodyResponse(signal: AbortSignal): Response {
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        signal.addEventListener(
+          "abort",
+          () => controller.error(new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
+      },
+    }),
+    { status: HTTP_OK, headers: { "Content-Type": "application/json" } },
+  );
+}
+
 describe("JsonRpcClient", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -130,7 +145,9 @@ describe("JsonRpcClient", () => {
     ).rejects.toThrow(JsonRpcError);
 
     try {
-      await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
+      await client.call("vaultProvider_getPeginStatusByVaultId", {
+        vault_id: "abc",
+      });
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
       expect((err as JsonRpcError).code).toBe(RpcErrorCode.PEGIN_NOT_FOUND);
@@ -265,7 +282,9 @@ describe("JsonRpcClient", () => {
       headers: { Authorization: "Bearer token123" },
     });
 
-    await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
+    await client.call("vaultProvider_getPeginStatusByVaultId", {
+      vault_id: "abc",
+    });
 
     const [, options] = mockFetch.mock.calls[0];
     expect(options.headers).toEqual({
@@ -286,6 +305,51 @@ describe("JsonRpcClient", () => {
     ).rejects.toThrow('missing "result" field');
   });
 
+  it("times out a typed call when the response body stalls after the headers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        createStalledBodyResponse(init.signal!),
+      ),
+    );
+
+    const client = createClient();
+    const resultPromise = client
+      .call("vaultProvider_submitDepositorWotsKey", { pegin_txid: "abc" })
+      .catch((e: Error) => e);
+
+    await vi.advanceTimersByTimeAsync(TEST_TIMEOUT_MS);
+    const error = await resultPromise;
+
+    expect(error).toBeInstanceOf(JsonRpcError);
+    expect((error as JsonRpcError).code).toBe(JSON_RPC_ERROR_CODES.TIMEOUT);
+  });
+
+  it("aborts a typed call when the caller aborts during a stalled response body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        createStalledBodyResponse(init.signal!),
+      ),
+    );
+    const controller = new AbortController();
+
+    const client = createClient();
+    const resultPromise = client
+      .call(
+        "vaultProvider_submitDepositorWotsKey",
+        { pegin_txid: "abc" },
+        controller.signal,
+      )
+      .catch((e: Error) => e);
+
+    await vi.advanceTimersByTimeAsync(0);
+    controller.abort();
+    const error = await resultPromise;
+
+    expect((error as Error).message).toBe("Request aborted");
+  });
+
   it("rejects typed calls before reading when Content-Length exceeds the response cap", async () => {
     vi.stubGlobal(
       "fetch",
@@ -302,7 +366,9 @@ describe("JsonRpcClient", () => {
     const client = createClient({ maxResponseBytes: 64 });
 
     try {
-      await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
+      await client.call("vaultProvider_getPeginStatusByVaultId", {
+        vault_id: "abc",
+      });
       expect.fail("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
@@ -400,9 +466,7 @@ describe("JsonRpcClient", () => {
       vault_ids: [vaultId],
     });
 
-    expect(response.results[0].result?.claimer?.status).toBe(
-      "PayoutConfirmed",
-    );
+    expect(response.results[0].result?.claimer?.status).toBe("PayoutConfirmed");
   });
 
   it("throws timeout error after max retries on AbortError for retryable methods", async () => {

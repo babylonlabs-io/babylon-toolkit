@@ -5983,7 +5983,7 @@ timeout: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/json-rpc-client.ts)
 
-Timeout in milliseconds per request attempt
+Timeout per attempt in ms. Covers response headers and body.
 
 ##### headers?
 
