@@ -528,6 +528,16 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("ref_[BTC_ADDR]");
   });
 
+  it("leaves a 24-character legacy-shaped run, one short of an address", () => {
+    const result = deriveAttribution({
+      search: `?utm_campaign=ref_1${"A".repeat(23)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_campaign).toBe(`ref_1${"A".repeat(23)}`);
+  });
+
   it("leaves a legacy-shaped run followed directly by letters, as documented", () => {
     const result = deriveAttribution({
       search: "?utm_campaign=ref_1BoatSLRHtKNngkdXEeobR76b53LETtpyTxyz",
