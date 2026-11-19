@@ -35,25 +35,22 @@ interface EnvVars {
   ANALYTICS: AnalyticsConfig;
 }
 
-/** Product analytics (PostHog). Off unless a deployment sets both the host and the project key. */
+/** Product analytics (PostHog). Off unless a deployment sets the host. */
 export type AnalyticsConfig =
   | { enabled: false }
   | {
       enabled: true;
       /**
-       * PostHog ingestion URL: https, optionally with a path, e.g. the sidecar proxy
-       * https://sidecar-api.<env>.babylonlabs.io/posthog.
+       * The sidecar PostHog proxy: https, optionally with a path, e.g.
+       * https://sidecar-api.<env>.babylonlabs.io/posthog. It must be the proxy,
+       * because the app sends no project key and the proxy adds it.
        */
       host: string;
-      /** Public, write-only project key (`phc_…`). */
-      projectKey: string;
       /** Network profile name, sent on every event so test and production data never mix. */
       network: string;
     };
 
 const ANALYTICS_DISABLED: AnalyticsConfig = { enabled: false };
-
-const POSTHOG_PROJECT_KEY_RE = /^phc_[A-Za-z0-9]+$/;
 
 const QUERY_OR_FRAGMENT_RE = /[?#]/;
 
@@ -111,33 +108,19 @@ export function resolveEthRpcUrl(
 }
 
 /**
- * Analytics settings: both unset turns analytics off by choice. One without the
- * other, a host that is not https or carries credentials, a query or a
- * fragment, or a key that is not a PostHog project key is a configuration
+ * Analytics settings: an unset host turns analytics off by choice. A host that
+ * is not https or carries credentials, a query or a fragment is a configuration
  * error, never a silent "not tracking". The caller reports it; it turns
- * analytics off but does not block the app.
+ * analytics off but does not block the app. The PostHog project key is not
+ * read here: the sidecar proxy at the host holds it and adds it to each batch.
  */
 export function resolveAnalyticsConfig(
   rawHost: string | undefined,
-  rawProjectKey: string | undefined,
   network: string,
   errors: string[],
 ): AnalyticsConfig {
   const host = (rawHost ?? "").trim().replace(/\/$/, "");
-  const projectKey = (rawProjectKey ?? "").trim();
-  if (!host && !projectKey) return ANALYTICS_DISABLED;
-  if (!host) {
-    errors.push(
-      "NEXT_PUBLIC_POSTHOG_PROJECT_KEY is set but NEXT_PUBLIC_POSTHOG_HOST is not; set both or neither",
-    );
-    return ANALYTICS_DISABLED;
-  }
-  if (!projectKey) {
-    errors.push(
-      "NEXT_PUBLIC_POSTHOG_HOST is set but NEXT_PUBLIC_POSTHOG_PROJECT_KEY is not; set both or neither",
-    );
-    return ANALYTICS_DISABLED;
-  }
+  if (!host) return ANALYTICS_DISABLED;
   let parsed: URL;
   try {
     parsed = new URL(host);
@@ -162,13 +145,7 @@ export function resolveAnalyticsConfig(
     );
     return ANALYTICS_DISABLED;
   }
-  if (!POSTHOG_PROJECT_KEY_RE.test(projectKey)) {
-    errors.push(
-      'NEXT_PUBLIC_POSTHOG_PROJECT_KEY must be a PostHog project key ("phc_" followed by letters and digits)',
-    );
-    return ANALYTICS_DISABLED;
-  }
-  return { enabled: true, host, projectKey, network };
+  return { enabled: true, host, network };
 }
 
 const ALREADY_CONFIGURED_MESSAGE = "already been called";
@@ -258,12 +235,11 @@ function validateEnvVars(): EnvValidationResult {
     errors,
   );
   // Kept out of `errors`: a marketing setting must never lock a depositor out of
-  // repaying or withdrawing. A bad pair turns analytics off and is reported by
+  // repaying or withdrawing. A bad host turns analytics off and is reported by
   // reportAnalyticsConfigError, because this module runs before Sentry starts.
   const analyticsErrors: string[] = [];
   const analytics = resolveAnalyticsConfig(
     process.env.NEXT_PUBLIC_POSTHOG_HOST,
-    process.env.NEXT_PUBLIC_POSTHOG_PROJECT_KEY,
     profile.name,
     analyticsErrors,
   );

@@ -24,9 +24,9 @@ const CAPTURE_PATH = "/batch/";
 const LOG_CATEGORY = "analytics";
 
 /**
- * Statuses PostHog returns when the request itself is wrong: a bad or revoked
- * project key, or a host that is not a PostHog capture API. Rate limiting
- * (429) and server errors (5xx) are PostHog's outages, not ours.
+ * Statuses returned when the request itself is wrong: a proxy whose project key
+ * is bad or revoked, or a host that is not the sidecar PostHog proxy. Rate
+ * limiting (429) and server errors (5xx) are PostHog's outages, not ours.
  */
 const CONFIGURATION_FAULT_STATUSES: ReadonlySet<number> = new Set([
   400, 401, 403, 404,
@@ -82,8 +82,8 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   properties: AnalyticsEventProperties[E],
   timestamp: string,
 ) {
+  // No api_key: the sidecar proxy holds the project key and adds it.
   return {
-    api_key: config.projectKey,
     batch: [
       {
         event,
