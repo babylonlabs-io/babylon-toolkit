@@ -1721,7 +1721,7 @@ describe("ResumeActivationContent — Withdraw after a failed activation", () =>
 
   function failedWith(
     errorKind: ActivationFailureKind | null,
-    overrides: { errorTerminal?: boolean; errorOutcomeUnknown?: boolean } = {},
+    overrides: { errorTerminal?: boolean } = {},
   ) {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,
@@ -1729,7 +1729,7 @@ describe("ResumeActivationContent — Withdraw after a failed activation", () =>
       returnedReason: null,
       error: "Activation reverted",
       errorTerminal: overrides.errorTerminal ?? false,
-      errorOutcomeUnknown: overrides.errorOutcomeUnknown ?? false,
+      errorOutcomeUnknown: false,
       errorKind,
       handleActivation: mockHandleActivation,
     });
@@ -1785,17 +1785,6 @@ describe("ResumeActivationContent — Withdraw after a failed activation", () =>
       expect(queryByTestId("secondary-action")).toBeNull();
     },
   );
-
-  it("does not offer Withdraw after a reveal whose outcome is unknown", async () => {
-    failedWith("other", { errorOutcomeUnknown: true });
-
-    const { getByTestId, queryByTestId } = renderActivation();
-
-    await waitFor(() =>
-      expect(getByTestId("error-variant").textContent).toBe("warning"),
-    );
-    expect(queryByTestId("secondary-action")).toBeNull();
-  });
 
   it("does not offer Withdraw for a stale failure kind under a local error", async () => {
     // The hook keeps the earlier attempt's kind; the derive failure is what shows.

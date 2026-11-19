@@ -122,6 +122,19 @@ export class ActivationNotPossibleError extends Error {
 }
 
 /**
+ * A Withdraw whose transaction confirmed without the registry's redeem log
+ * for the depositor: a replacement transaction, or a contract wallet whose
+ * inner call failed. Not success, and not proof of failure, so the UI shows it
+ * as an unknown outcome.
+ */
+export class WithdrawUnconfirmedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WithdrawUnconfirmedError";
+  }
+}
+
+/**
  * Thrown before the reveal when a governance pause blocks it. `scope` is
  * `"protocol"` whenever the protocol scope is paused, `"aave"` otherwise.
  */
