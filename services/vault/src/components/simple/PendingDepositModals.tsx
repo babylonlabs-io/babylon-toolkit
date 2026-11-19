@@ -11,6 +11,7 @@
 
 import { ClaimExpiredVaultModal } from "@/components/deposit/ClaimExpiredVaultModal";
 import { EmergencyWithdrawModal } from "@/components/deposit/EmergencyWithdrawModal";
+import type { WithdrawStuckProof } from "@/components/deposit/EmergencyWithdrawModal/stuckProof";
 import { ReclaimModal } from "@/components/deposit/ReclaimModal";
 import { RefundModal } from "@/components/deposit/RefundModal";
 import type { VaultActivity } from "@/types/activity";
@@ -31,7 +32,9 @@ interface ReclaimModalState {
 interface EmergencyWithdrawModalState {
   withdrawing: {
     activity: VaultActivity;
+    stuckProof: WithdrawStuckProof;
   } | null;
+  splitProtectionLost: boolean;
   handleClose: () => void;
   handleSuccess: () => void;
 }
@@ -83,6 +86,8 @@ export function PendingDepositModals({
         <EmergencyWithdrawModal
           open={!!emergencyWithdrawModal.withdrawing}
           activity={emergencyWithdrawModal.withdrawing.activity}
+          stuckProof={emergencyWithdrawModal.withdrawing.stuckProof}
+          splitProtectionLost={emergencyWithdrawModal.splitProtectionLost}
           onClose={emergencyWithdrawModal.handleClose}
           onSuccess={emergencyWithdrawModal.handleSuccess}
         />

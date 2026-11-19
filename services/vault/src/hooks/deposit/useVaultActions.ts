@@ -36,6 +36,7 @@ import {
   composeGateState,
   isActivateAndRedeemBlocked,
   isActivationBlocked,
+  type ProtocolGateState,
 } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
@@ -52,7 +53,11 @@ import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
-import { deadlineHead, readHeadBlock } from "@/services/vault/headBlock";
+import {
+  deadlineHead,
+  readHeadBlock,
+  type HeadBlock,
+} from "@/services/vault/headBlock";
 import { assertPrePeginBroadcastAckWindowOpen } from "@/services/vault/prePeginBroadcastAckWindow";
 import { ACTIVATION_INCLUSION_MARGIN_BLOCKS } from "@/utils/activationDeadline";
 import {
@@ -61,11 +66,15 @@ import {
 } from "@/utils/activationFloor";
 import {
   ActivationNotPossibleError,
+  ActivationPausedError,
+  classifyActivationFailure,
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
   mapResumeBroadcastError,
   SendOutcomeUnknownError,
+  WithdrawUnconfirmedError,
+  type ActivationFailureKind,
   type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
@@ -159,13 +168,9 @@ export interface ActivateVaultParams {
   /** Depositor's ETH address */
   depositorEthAddress: string;
   /**
-   * Escape hatch mode: call `activateVaultWithSecretAndRedeem` instead of
-   * `activateVaultWithSecret`, revealing the secret and immediately redeeming
-   * the vault for the depositor without application activation. The pause
-   * gate checks only the protocol scope — an aave-scope pause is what this
-   * mode escapes. The construction-order, deadline-margin and floor gates are
-   * skipped; in their place the PegIn fetched from Bitcoin must be proven a
-   * valid spend of the HTLC, or nothing is revealed.
+   * Withdraw mode: call `activateVaultWithSecretAndRedeem`. Only a protocol
+   * pause blocks it; the deadline margin applies unless the PegIn is proven
+   * to have spent the HTLC; the order and floor gates never apply.
    */
   redeemImmediately?: boolean;
   /**
@@ -178,7 +183,7 @@ export interface ActivateVaultParams {
   /**
    * Stores CONFIRMED on `pendingPegin` once the reveal lands. A normal
    * activation the registry redeemed for the depositor passes the `"returned"`
-   * outcome in that same write.
+   * outcome in that same write, and a Withdraw passes `"withdrawn"`.
    */
   updatePendingPeginStatus?: (
     vaultId: string,
@@ -223,6 +228,8 @@ export interface UseVaultActionsReturn {
    * broadcast it — a status-unknown warning, not a failure, and no Retry.
    */
   activationOutcomeUnknown: boolean;
+  /** What kind of failure `activationError` is; `null` when there is none. */
+  activationFailureKind: ActivationFailureKind | null;
   handleActivation: (params: ActivateVaultParams) => Promise<void>;
 }
 
@@ -252,6 +259,8 @@ export function useVaultActions(): UseVaultActionsReturn {
   const [activationErrorTerminal, setActivationErrorTerminal] = useState(false);
   const [activationOutcomeUnknown, setActivationOutcomeUnknown] =
     useState(false);
+  const [activationFailureKind, setActivationFailureKind] =
+    useState<ActivationFailureKind | null>(null);
 
   // Track mount: both handleBroadcast and handleActivation await slow
   // on-chain work and then setState. The consumer (Resume*Content inside
@@ -730,9 +739,16 @@ export function useVaultActions(): UseVaultActionsReturn {
     const pausedMessage = redeemImmediately
       ? COPY.pegin.activateAndRedeemPaused
       : COPY.pegin.activationPaused;
+    // Withdraw escapes an Aave-scope pause, so the error carries which scope blocked.
+    const pausedError = (blockedBy: ProtocolGateState) =>
+      new ActivationPausedError(
+        pausedMessage,
+        blockedBy.protocol === "paused" ? "protocol" : "aave",
+      );
     if (isRevealBlocked(gate)) {
       setActivationError(pausedMessage);
       setActivationOutcomeUnknown(false);
+      setActivationFailureKind(classifyActivationFailure(pausedError(gate)));
       return;
     }
 
@@ -740,6 +756,7 @@ export function useVaultActions(): UseVaultActionsReturn {
     setActivationError(null);
     setActivationErrorTerminal(false);
     setActivationOutcomeUnknown(false);
+    setActivationFailureKind(null);
 
     // Telemetry discriminators for the catch below. `expectedInterruption`
     // marks the self-resolving pre-reveal states (protocol pause, the
@@ -750,6 +767,10 @@ export function useVaultActions(): UseVaultActionsReturn {
     // activation that succeeded.
     let expectedInterruption = false;
     let revealed = false;
+    // Withdraw only: whether the PegIn was proven to have spent the HTLC.
+    let peginSpendProven = false;
+    // Withdraw only: set when that proof could not be read from Bitcoin.
+    let peginProofUnavailable: { cause: unknown } | null = null;
 
     try {
       // Read basic + protocol info in one parallel call. Indexer is
@@ -771,14 +792,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // put the secret into `simulateContract` calldata for a call the
       // contract may refuse.
       //
-      // The redeem path needs none of them. It is exempt from the floor on
-      // chain, and below it runs only once the PegIn is proven a valid spend
-      // of the HTLC — fetched by its on-chain txid with a witness Bitcoin
-      // would accept, which holds the secret, so whoever served it already
-      // has the secret; refused without that proof — so the deadline margin
-      // protects nothing there and would only block the one recovery left.
-      const deadlineGateEnabled = !redeemImmediately;
-      const floorEnabled = deadlineGateEnabled;
+      // Withdraw is exempt from the floor on chain, and needs the deadline
+      // reads only when the PegIn is not proven to have spent the HTLC.
+      const floorEnabled = !redeemImmediately;
       // Re-throws (so the gate still fails closed) but re-labels first: an
       // unreadable window is an expected interruption, not a reveal failure.
       // Without this the `activation.reveal` funnel counts every click on a
@@ -811,10 +827,21 @@ export function useVaultActions(): UseVaultActionsReturn {
       // One reader for both reads. A reader that cannot resolve fails the
       // deadline read, so it is captured. The floor's catch wraps only its
       // own getter: if it wrapped the reader too, the floor chain would settle
-      // first and file that failure as a routine floor interruption. The floor
-      // runs only when the deadline gate does, so the reader is there for it.
-      const paramsReader = deadlineGateEnabled
-        ? getProtocolParamsReader().catch(onDeadlineReadFailure)
+      // first and file that failure as a routine floor interruption.
+      const paramsReader = getProtocolParamsReader().catch(
+        onDeadlineReadFailure,
+      );
+      const headBlockRead = readHeadBlock().catch(onDeadlineReadFailure);
+      const activationTimeoutRead = paramsReader.then((r) =>
+        r
+          .getTBVProtocolParams()
+          .then((params) => params.pegInActivationTimeout)
+          .catch(onDeadlineReadFailure),
+      );
+      // Withdraw always reads the window, but a failed read only matters on
+      // the not-proven branch, so it is held until the proof has answered.
+      const heldWithdrawWindow = redeemImmediately
+        ? Promise.allSettled([headBlockRead, activationTimeoutRead])
         : undefined;
       const [
         { basic: basicInfo, protocol: protocolInfo },
@@ -825,22 +852,13 @@ export function useVaultActions(): UseVaultActionsReturn {
       ] = await Promise.all([
         reader.getVaultData(vaultId),
         getOnChainPauseState().catch(() => null),
-        deadlineGateEnabled
-          ? readHeadBlock().catch(onDeadlineReadFailure)
-          : Promise.resolve(undefined),
-        floorEnabled && paramsReader
+        redeemImmediately ? undefined : headBlockRead,
+        floorEnabled
           ? paramsReader.then((r) =>
               r.getPeginActivationDelay().catch(onFloorReadFailure),
             )
-          : Promise.resolve(undefined),
-        paramsReader
-          ? paramsReader.then((r) =>
-              r
-                .getTBVProtocolParams()
-                .then((params) => params.pegInActivationTimeout)
-                .catch(onDeadlineReadFailure),
-            )
-          : Promise.resolve(undefined),
+          : undefined,
+        redeemImmediately ? undefined : activationTimeoutRead,
       ]);
 
       const effectiveGate = freshPauseState
@@ -851,13 +869,11 @@ export function useVaultActions(): UseVaultActionsReturn {
         // operator action, not a depositor failure, so telemetry stays quiet
         // on both paths.
         expectedInterruption = true;
-        throw new Error(pausedMessage);
+        throw pausedError(effectiveGate);
       }
 
       if (!protocolInfo.hashlock || protocolInfo.hashlock === "0x") {
-        throw new Error(
-          "BTCVault hashlock not found. The BTCVault may not support activation.",
-        );
+        throw new Error(COPY.deposit.errors.activationHashlockMissing);
       }
 
       // Gate on the on-chain status. The UI surfaces the "Activate" button
@@ -935,13 +951,14 @@ export function useVaultActions(): UseVaultActionsReturn {
       // the deadline between the last poll and this click. Checked here on the
       // fresh reads, and again on a fresh head right before the write below.
       //
-      // Refusing is the safe direction. A late activation reverts
+      // Refusing is the safe direction. A late reveal reverts
       // `ActivationDeadlineExpired`, but `s` is public in the calldata either
-      // way: the vault then expires with `ActivationTimeout`, and the vault
-      // provider, which holds the rest of the HTLC signature set, can
+      // way: the vault then expires with `ActivationTimeout`, and anyone can
       // broadcast the PegIn with that secret.
       //
-      // Terminal, not retryable — the margin only shrinks.
+      // Terminal, not retryable — the margin only shrinks. The exception is a
+      // Withdraw whose PegIn proof could not be read: a later read may prove
+      // the spend, which needs no margin.
       const assertDeadlineMargin = (head: bigint, timeout: bigint): void => {
         const remaining = activationDeadlineBlocksRemaining({
           currentBlock: head,
@@ -949,41 +966,55 @@ export function useVaultActions(): UseVaultActionsReturn {
           pegInActivationTimeout: timeout,
         });
         if (remaining <= ACTIVATION_INCLUSION_MARGIN_BLOCKS) {
+          // A passed deadline stays terminal: the contract refuses then too.
+          if (peginProofUnavailable && remaining > 0) {
+            throw new Error(
+              COPY.pegin.messages.withdrawWindowClosingUnchecked,
+              { cause: peginProofUnavailable.cause },
+            );
+          }
           throw new ActivationNotPossibleError(
-            COPY.pegin.messages.activationWindowClosing,
+            redeemImmediately
+              ? COPY.pegin.messages.withdrawWindowClosing
+              : COPY.pegin.messages.activationWindowClosing,
           );
         }
+      };
+      // First margin check. Returns the lag-corrected head the re-check before
+      // the write starts from, so that one never counts from an older head.
+      const openDeadlineGate = (head: HeadBlock, timeout: bigint): bigint => {
+        // A head below the registration block is provably stale, and it
+        // would read as the whole window still ahead.
+        if (head.number < basicInfo.createdAt) {
+          throw onDeadlineReadFailure(
+            new Error(
+              `RPC head ${head.number} is below the vault's createdAt ${basicInfo.createdAt}`,
+            ),
+          );
+        }
+        const correctedHead = deadlineHead(head);
+        assertDeadlineMargin(correctedHead, timeout);
+        return correctedHead;
       };
       // The floor keeps the head as reported: adding lag there would open the
       // floor early, and a reveal before the floor reverts with the secret
       // public just as a late one does.
       const currentBlock = headRead?.number;
-      // Raised to the latest head seen, so the re-check before the write can
-      // never count from a node that is further behind than this read.
-      let highestDeadlineHead: bigint | undefined;
-      if (deadlineGateEnabled) {
-        if (
-          headRead === undefined ||
-          currentBlock === undefined ||
-          pegInActivationTimeout === undefined
-        ) {
+      // Set only where the margin applies: every activation, and a Withdraw
+      // whose PegIn is not proven to have spent the HTLC.
+      let deadlineGate: { highestHead: bigint; timeout: bigint } | undefined;
+      if (!redeemImmediately) {
+        if (headRead === undefined || pegInActivationTimeout === undefined) {
           throw onDeadlineReadFailure(
             new Error(
               "activation deadline inputs missing after a settled read",
             ),
           );
         }
-        // A head below the registration block is provably stale, and it
-        // would read as the whole window still ahead.
-        if (currentBlock < basicInfo.createdAt) {
-          throw onDeadlineReadFailure(
-            new Error(
-              `RPC head ${currentBlock} is below the vault's createdAt ${basicInfo.createdAt}`,
-            ),
-          );
-        }
-        highestDeadlineHead = deadlineHead(headRead);
-        assertDeadlineMargin(highestDeadlineHead, pegInActivationTimeout);
+        deadlineGate = {
+          highestHead: openDeadlineGate(headRead, pegInActivationTimeout),
+          timeout: pegInActivationTimeout,
+        };
       }
 
       // Activation floor, re-checked on fresh reads immediately before the
@@ -992,12 +1023,8 @@ export function useVaultActions(): UseVaultActionsReturn {
       // registry, so a raise between render and click would otherwise reach
       // simulation. Retryable: the floor clears purely by waiting.
       //
-      // NOT applied to the redeem path. `_requireActivationDelayElapsed` guards
-      // `activateVaultWithSecret` only; `activateVaultWithSecretAndRedeem` is
-      // deliberately exempt on-chain because it mints no vaultBTC and invokes
-      // no adapter callback. Gating it here would block the escape hatch the
-      // "Activation incomplete" state advertises as the way to recover BTC —
-      // for a contract call that would have succeeded.
+      // Never applied to Withdraw, on either branch: the registry exempts
+      // `activateVaultWithSecretAndRedeem` from the activation delay.
       if (floorEnabled) {
         // Shaped so the absence of a value ABORTS rather than skips. Unreachable
         // today for the delay (a failed read rejects above), but the gate must
@@ -1034,33 +1061,32 @@ export function useVaultActions(): UseVaultActionsReturn {
         }
       }
 
-      // The redeem's own gate, in place of the ones it skips above. The stuck
-      // state that offered it rests on the mempool API's report that the
-      // PegIn spent the HTLC, and the API can name the PegIn's public txid
-      // for a healthy vault. Only the PegIn itself — fetched by the txid of
-      // the on-chain signed PegIn, spending the on-chain HTLC outpoint with
-      // the preimage of the on-chain hashlock and every participant's valid
-      // signature — is a valid spend of the HTLC, so whoever served it already
-      // holds the secret. Checked before the Ethereum wallet is touched;
-      // retryable, since a lagging or wrong
-      // API is not a final state, and captured, since the row ran the same
-      // proof to offer this action.
+      // Withdraw's two branches. A PegIn proven to spend the HTLC already
+      // holds the secret, so only that proof skips the deadline margin.
+      // Any other answer, an unreadable proof included, keeps the margin.
       if (redeemImmediately) {
+        // Absence aborts rather than skips, as for the floor above.
+        if (heldWithdrawWindow === undefined) {
+          throw onDeadlineReadFailure(
+            new Error("withdraw deadline inputs missing"),
+          );
+        }
         const proof = await provePeginSpendsHtlc(
           protocolInfo,
           getMempoolApiUrl(),
         );
+        peginSpendProven = proof.status === "proven";
         if (proof.status === "unavailable") {
-          throw new Error(
-            COPY.deposit.emergencyWithdraw.errors.peginProofUnavailable,
-            { cause: proof.cause },
-          );
+          peginProofUnavailable = { cause: proof.cause };
         }
-        if (proof.status !== "proven") {
-          throw new Error(
-            COPY.deposit.emergencyWithdraw.errors.peginProofFailed,
-            { cause: new Error(proof.reason) },
-          );
+        if (!peginSpendProven) {
+          const [head, timeout] = await heldWithdrawWindow;
+          if (head.status === "rejected") throw head.reason;
+          if (timeout.status === "rejected") throw timeout.reason;
+          deadlineGate = {
+            highestHead: openDeadlineGate(head.value, timeout.value),
+            timeout: timeout.value,
+          };
         }
       }
 
@@ -1088,16 +1114,16 @@ export function useVaultActions(): UseVaultActionsReturn {
       // gas search (a few simulations, seconds) and `writeContract`, which
       // asks the wallet to sign and sends in one step, so the time the user
       // spends in that prompt is covered only by the margin's size.
-      if (
-        deadlineGateEnabled &&
-        pegInActivationTimeout !== undefined &&
-        highestDeadlineHead !== undefined
-      ) {
+      if (deadlineGate) {
         const freshHead = deadlineHead(
           await readHeadBlock().catch(onDeadlineReadFailure),
         );
-        if (freshHead > highestDeadlineHead) highestDeadlineHead = freshHead;
-        assertDeadlineMargin(highestDeadlineHead, pegInActivationTimeout);
+        assertDeadlineMargin(
+          freshHead > deadlineGate.highestHead
+            ? freshHead
+            : deadlineGate.highestHead,
+          deadlineGate.timeout,
+        );
       }
 
       // Reveal the secret on the contract — the normal activation or, in
@@ -1115,6 +1141,20 @@ export function useVaultActions(): UseVaultActionsReturn {
       let minActivationGasAtSend: bigint | null = null;
       if (redeemImmediately) {
         revealResult = await activateVaultWithSecretAndRedeem(revealArgs);
+        // The escape hatch always emits the depositor's redeem log, so a
+        // confirmed receipt without it (a replacement transaction, a contract
+        // wallet whose inner call failed) is not a Withdraw: no success, no mark.
+        if (
+          !activationRedeemedForDepositor(
+            revealResult,
+            ensureHexPrefix(vaultId),
+            expectedDepositorBtcPubkey,
+          )
+        ) {
+          throw new WithdrawUnconfirmedError(
+            COPY.deposit.emergencyWithdraw.errors.withdrawUnconfirmed,
+          );
+        }
       } else {
         const result = await activateVaultWithSecret(revealArgs);
         revealResult = result;
@@ -1140,8 +1180,8 @@ export function useVaultActions(): UseVaultActionsReturn {
         ensureHexPrefix(vaultId),
         expectedDepositorBtcPubkey,
       );
-      // A normal activation the registry redeemed for the depositor. The
-      // escape hatch always redeems, and is told apart by its own mode.
+      // A normal activation the registry redeemed for the depositor. A
+      // Withdraw always redeems, and is told apart by its own mode.
       const returned = redeemed && !redeemImmediately;
       // The registry's own application binding decides whether a cap may be inferred.
       const reason = returned
@@ -1153,10 +1193,10 @@ export function useVaultActions(): UseVaultActionsReturn {
           })
         : null;
 
-      // Update localStorage status. A returned activation stores that outcome
-      // in the same write: CONFIRMED alone reads as activated, and a reload or
-      // another tab sees only this record, not this session's mark. The
-      // escape hatch stays unmarked — it has its own success screen.
+      // Update localStorage status. A returned activation and a Withdraw store
+      // their outcome in the same write: CONFIRMED alone reads as activated,
+      // and a reload or another tab sees only this record.
+      const withdrawnOutcome = redeemImmediately ? "withdrawn" : undefined;
       const nextStatus = getNextLocalStatus(
         redeemImmediately
           ? PeginAction.ACTIVATE_AND_REDEEM
@@ -1166,7 +1206,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         updatePendingPeginStatus(
           vaultId,
           nextStatus,
-          returned ? "returned" : undefined,
+          returned ? "returned" : withdrawnOutcome,
         );
       }
 
@@ -1175,12 +1215,17 @@ export function useVaultActions(): UseVaultActionsReturn {
         category: "activation",
         tags: {
           vaultId: shortId(vaultId),
-          // Present only on the escape hatch so existing activation events
-          // keep their exact shape.
-          ...(redeemImmediately ? { redeem: "true" } : {}),
+          // Present only on a Withdraw, so existing activation events keep
+          // their shape. `stuck_proof` tells a proven-stuck recovery apart.
+          ...(redeemImmediately
+            ? {
+                redeem: "true",
+                stuck_proof: peginSpendProven ? "proven" : "not_proven",
+              }
+            : {}),
           // Present only on a normal activation the registry redeemed for the
-          // depositor, for the same reason. The escape hatch always redeems,
-          // so `redeem` already says it there.
+          // depositor, for the same reason. A Withdraw always redeems, so
+          // `redeem` already says it there.
           ...(returned ? { returned: "true" } : {}),
         },
       });
@@ -1203,32 +1248,46 @@ export function useVaultActions(): UseVaultActionsReturn {
       // only when it is the error that actually surfaced.
       const floorUnavailable =
         err instanceof Error && err.name === FLOOR_UNAVAILABLE_ERROR_NAME;
-      const outcomeUnknown = err instanceof SendOutcomeUnknownError;
+      const sendOutcomeUnknown = err instanceof SendOutcomeUnknownError;
+      // An unconfirmed Withdraw is captured, unlike a send that may have gone
+      // through: its receipt is in hand and shows no redeem.
+      const outcomeUnknown =
+        sendOutcomeUnknown || err instanceof WithdrawUnconfirmedError;
       if (
         !expectedInterruption &&
         !floorUnavailable &&
         !revealed &&
-        !outcomeUnknown
+        !sendOutcomeUnknown
       ) {
         captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
       }
       // The reveal may have landed: show the vault's real status.
       if (outcomeUnknown) onRefetchActivities();
       if (mountedRef.current) {
-        const rawMessage =
-          err instanceof Error ? err.message : "Failed to activate BTC Vault";
+        const fallbackMessage = redeemImmediately
+          ? COPY.deposit.emergencyWithdraw.errors.withdrawFailed
+          : COPY.deposit.errors.activationFailed;
+        const rawMessage = err instanceof Error ? err.message : fallbackMessage;
         // Normalize the empty-record error so we don't leak the raw vault id
         // into the UI, and don't claim the vault is gone when a lagging RPC
         // node is the likelier cause.
         const errorMessage = isVaultRecordEmptyError(err)
           ? COPY.deposit.errors.vaultRegistrationNotYetVisible.body
           : rawMessage;
-        setActivationError(appendActivationRevertNotice(err, errorMessage));
+        setActivationError(
+          appendActivationRevertNotice(
+            err,
+            errorMessage,
+            redeemImmediately ? "withdraw" : "activate",
+          ),
+        );
         // Classify from the typed error before it is flattened to a string — a
         // passed deadline, an already-EXPIRED vault or an endpoint that cannot
         // run the activation check is terminal (no Retry).
         setActivationErrorTerminal(isTerminalActivationError(err));
         setActivationOutcomeUnknown(outcomeUnknown);
+        // Kept apart from the message so a mined revert survives a terminal error.
+        setActivationFailureKind(classifyActivationFailure(err));
         setActivating(false);
       }
     }
@@ -1243,6 +1302,7 @@ export function useVaultActions(): UseVaultActionsReturn {
     activationError,
     activationErrorTerminal,
     activationOutcomeUnknown,
+    activationFailureKind,
     handleActivation,
   };
 }

@@ -15,6 +15,7 @@ import {
   getPeginProgressStep,
   isVaultActivated,
   isVaultActivationReturned,
+  isVaultWithdrawnByDepositor,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -70,6 +71,7 @@ function makeInputs(
     optimisticConfirmingAt: new Map(),
     wotsSubmittedAt: new Map(),
     activationReturnedIds: new Set(),
+    withdrawnIds: new Set(),
     btcPublicKey: PUBKEY,
     ...overrides,
   };
@@ -1149,6 +1151,169 @@ describe("computeDepositPollingResult — activation returned", () => {
 
     expect(isVaultActivationReturned(result.peginState)).toBe(false);
     expect(isVaultActivated(result.peginState)).toBe(true);
+  });
+
+  it("reports a vault the session saw withdrawn as withdrawn, not activated", () => {
+    const result = computeDepositPollingResult(
+      makeSubmittedActivationInputs({ withdrawnIds: new Set([VAULT_ID]) }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(true);
+    expect(isVaultActivated(result.peginState)).toBe(false);
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.withdrawSubmitted,
+    );
+  });
+
+  it("reports a stored CONFIRMED record carrying the withdrawn outcome as withdrawn after a reload empties the session store", () => {
+    const result = computeDepositPollingResult(
+      makeSubmittedActivationInputs({
+        optimisticStatuses: new Map(),
+        pendingPegins: [
+          {
+            id: VAULT_ID,
+            peginTxHash: PEGIN_TX,
+            timestamp: 1_700_000_000_000,
+            status: LocalStorageStatus.CONFIRMED,
+            activationOutcome: "withdrawn",
+            unsignedTxHex: "0x00",
+          },
+        ],
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(true);
+    expect(isVaultActivationReturned(result.peginState)).toBe(false);
+    expect(isVaultActivated(result.peginState)).toBe(false);
+  });
+
+  it("keeps the returned row text for a stored returned outcome", () => {
+    const result = computeDepositPollingResult(
+      makeSubmittedActivationInputs({
+        optimisticStatuses: new Map(),
+        pendingPegins: [
+          {
+            id: VAULT_ID,
+            peginTxHash: PEGIN_TX,
+            timestamp: 1_700_000_000_000,
+            status: LocalStorageStatus.CONFIRMED,
+            activationOutcome: "returned",
+            unsignedTxHex: "0x00",
+          },
+        ],
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(false);
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.activationReturned,
+    );
+  });
+
+  it("reports a redeemed vault the indexer says the depositor redeemed as withdrawn, with no local mark", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.REDEEMED,
+          peginTxHash: PEGIN_TX,
+          redeemReason: { kind: "depositor_redeemed" },
+        },
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(true);
+  });
+
+  it("does not read a redeemed vault with no indexer reason and no local mark as withdrawn", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.REDEEMED,
+          peginTxHash: PEGIN_TX,
+        },
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(false);
+  });
+
+  it("does not read a redeemed vault whose indexer reason is unknown as withdrawn", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.REDEEMED,
+          peginTxHash: PEGIN_TX,
+          redeemReason: { kind: "unknown" },
+        },
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(false);
+  });
+
+  it("does not read a redeemed vault whose indexer reason is cap_exceeded as withdrawn", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.REDEEMED,
+          peginTxHash: PEGIN_TX,
+          redeemReason: { kind: "cap_exceeded" },
+        },
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(false);
+  });
+
+  // The indexer's app_reverted maps to app_rejected or app_failed_without_reason.
+  it("does not read a redeemed vault the application rejected as withdrawn", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.REDEEMED,
+          peginTxHash: PEGIN_TX,
+          redeemReason: { kind: "app_rejected", errorName: "ApplicationError" },
+        },
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(false);
+  });
+
+  it("does not read a redeemed vault whose application failed without a reason as withdrawn", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.REDEEMED,
+          peginTxHash: PEGIN_TX,
+          redeemReason: { kind: "app_failed_without_reason" },
+        },
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(false);
+  });
+
+  it("does not read a verified vault carrying the depositor_redeemed reason as withdrawn", () => {
+    const result = computeDepositPollingResult(
+      makeSubmittedActivationInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+          contractStatus: ContractStatus.VERIFIED,
+          peginTxHash: PEGIN_TX,
+          redeemReason: { kind: "depositor_redeemed" },
+        },
+      }),
+    );
+
+    expect(isVaultWithdrawnByDepositor(result.peginState)).toBe(false);
   });
 });
 

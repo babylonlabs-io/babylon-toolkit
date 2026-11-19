@@ -81,6 +81,7 @@ import {
   hasActionableStep,
   isRefundInFlightOrSettled,
   isVaultActivationReturned,
+  isVaultWithdrawnByDepositor,
   LocalStorageStatus,
   PeginAction,
   type PeginState,
@@ -226,12 +227,13 @@ function PendingRow({
 
   // No estimate for a returned activation: the vault will never activate, and
   // an estimate would hide the message saying the BTC is being returned. The
-  // same goes for a refund.
+  // same goes for a refund and for the depositor's own Withdraw.
   const refundInFlightOrSettled =
     peginState !== undefined && isRefundInFlightOrSettled(peginState);
   const estimateMinutes =
     peginState?.displayVariant === "pending" &&
     !isVaultActivationReturned(peginState) &&
+    !isVaultWithdrawnByDepositor(peginState) &&
     !refundInFlightOrSettled &&
     !hasActionableStep(peginState, result?.depositorBtcPubkey) &&
     result?.requiredPrePeginDepth !== undefined
@@ -893,13 +895,21 @@ export function VaultsLifecycleSections({
   );
   const handleEmergencyWithdraw = useCallback(
     (depositId: string) => {
-      if (allActivities.some((a) => a.id === depositId)) {
-        emergencyWithdrawModal.handleWithdrawClick(depositId);
+      const activity = allActivities.find((a) => a.id === depositId);
+      if (activity) {
+        // The row offers Withdraw only for a vault proven stuck on Bitcoin.
+        emergencyWithdrawModal.handleWithdrawClick(activity, "proven");
         return;
       }
       handleOpenDetails(depositId, null);
     },
     [allActivities, emergencyWithdrawModal, handleOpenDetails],
+  );
+  // From the failure screen nothing is proven: the activation just failed.
+  const { handleWithdrawClick } = emergencyWithdrawModal;
+  const handleFailedActivationWithdraw = useCallback(
+    (activity: VaultActivity) => handleWithdrawClick(activity, "not-proven"),
+    [handleWithdrawClick],
   );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
@@ -1135,6 +1145,8 @@ export function VaultsLifecycleSections({
                   : null
               }
               onClose={handleViewingClose}
+              onWithdraw={handleFailedActivationWithdraw}
+              withdrawOpen={emergencyWithdrawModal.withdrawing !== null}
             />
           </div>
         </V3ModalShell>

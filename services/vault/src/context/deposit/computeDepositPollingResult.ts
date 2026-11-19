@@ -66,6 +66,25 @@ function resolveActivationReturned(
   );
 }
 
+/**
+ * The Withdraw twin of {@link resolveActivationReturned}, plus the indexer's
+ * reason for a vault already past VERIFIED: the stored record is deleted then.
+ */
+function resolveWithdrawnByDepositor(
+  activity: VaultActivity,
+  contractStatus: ContractStatus,
+  withdrawnIds: ReadonlySet<string>,
+  pendingPegins: PendingPeginRequest[],
+): boolean {
+  return (
+    withdrawnIds.has(activity.id) ||
+    pendingPegins.find((p) => p.id === activity.id)?.activationOutcome ===
+      "withdrawn" ||
+    (contractStatus !== ContractStatus.VERIFIED &&
+      activity.redeemReason?.kind === "depositor_redeemed")
+  );
+}
+
 export interface DepositPollingInputs {
   activity: VaultActivity;
   pendingPegins: PendingPeginRequest[];
@@ -153,6 +172,8 @@ export interface DepositPollingInputs {
    * in `pendingPegins`.
    */
   activationReturnedIds: ReadonlySet<string>;
+  /** Deposits whose Withdraw landed; marked and stored like the set above. */
+  withdrawnIds: ReadonlySet<string>;
   btcPublicKey: string | undefined;
   /**
    * Override `Date.now()` for every suppression TTL this compute touches
@@ -193,6 +214,7 @@ export function computeDepositPollingResult(
     optimisticConfirmingAt,
     wotsSubmittedAt,
     activationReturnedIds,
+    withdrawnIds,
     btcPublicKey,
     now,
   } = inputs;
@@ -213,6 +235,13 @@ export function computeDepositPollingResult(
   const activationReturned = resolveActivationReturned(
     depositId,
     activationReturnedIds,
+    pendingPegins,
+  );
+
+  const withdrawnByDepositor = resolveWithdrawnByDepositor(
+    activity,
+    contractStatus,
+    withdrawnIds,
     pendingPegins,
   );
 
@@ -412,6 +441,7 @@ export function computeDepositPollingResult(
     confirmingAt:
       optimisticConfirmingAt.get(depositId) ?? pendingPegin?.confirmingAt,
     activationReturned,
+    withdrawnByDepositor,
     now,
   });
 

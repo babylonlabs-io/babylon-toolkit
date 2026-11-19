@@ -7,6 +7,8 @@ import {
   hasWotsSubmissionRecord,
   isWotsSubmissionWithinTtl,
   markActivationReturned,
+  markPayoutSignCanceled,
+  markVaultWithdrawn,
   markWotsSubmitted,
   resetOptimisticDepositState,
   setOptimisticDepositStatus,
@@ -137,6 +139,42 @@ describe("optimisticDepositState", () => {
     expect(
       getOptimisticDepositState().activationReturnedIds.has(DEPOSIT_ID),
     ).toBe(true);
+  });
+
+  it("records a vault the depositor withdrew", () => {
+    markVaultWithdrawn(DEPOSIT_ID);
+    expect(getOptimisticDepositState().withdrawnIds.has(DEPOSIT_ID)).toBe(true);
+  });
+
+  it("keeps the snapshot reference stable when the same withdrawal is recorded twice", () => {
+    markVaultWithdrawn(DEPOSIT_ID);
+    const after = getOptimisticDepositState();
+    markVaultWithdrawn(DEPOSIT_ID);
+    expect(getOptimisticDepositState()).toBe(after);
+  });
+
+  it("keeps a withdrawal when a status is set afterwards", () => {
+    markVaultWithdrawn(DEPOSIT_ID);
+    setOptimisticDepositStatus(DEPOSIT_ID, LocalStorageStatus.CONFIRMED);
+    expect(getOptimisticDepositState().withdrawnIds.has(DEPOSIT_ID)).toBe(true);
+  });
+
+  it("keeps a withdrawal when a wots submission is recorded afterwards", () => {
+    markVaultWithdrawn(DEPOSIT_ID);
+    markWotsSubmitted("0xother");
+    expect(getOptimisticDepositState().withdrawnIds.has(DEPOSIT_ID)).toBe(true);
+  });
+
+  it("keeps a withdrawal when a payout-sign cancel is recorded afterwards", () => {
+    markVaultWithdrawn(DEPOSIT_ID);
+    markPayoutSignCanceled("0xother");
+    expect(getOptimisticDepositState().withdrawnIds.has(DEPOSIT_ID)).toBe(true);
+  });
+
+  it("keeps a withdrawal when another deposit's activation is marked returned", () => {
+    markVaultWithdrawn(DEPOSIT_ID);
+    markActivationReturned("0xother", null);
+    expect(getOptimisticDepositState().withdrawnIds.has(DEPOSIT_ID)).toBe(true);
   });
 
   it("keeps the snapshot reference stable when the same status is set twice", () => {

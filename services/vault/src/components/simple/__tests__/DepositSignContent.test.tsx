@@ -92,14 +92,49 @@ vi.mock("../PostDepositContinuationContent", () => ({
   PostDepositContinuationContent: ({
     vaultIds,
     autoStartAction,
+    onWithdraw,
+    withdrawOpen,
   }: {
     vaultIds: string[];
     autoStartAction: string | null;
+    onWithdraw: (activity: { id: string }) => void;
+    withdrawOpen: boolean;
   }) => (
     <div
       data-testid="continuation"
       data-count={vaultIds.length}
       data-auto-start-action={String(autoStartAction)}
+      data-withdraw-open={String(withdrawOpen)}
+    >
+      <button
+        type="button"
+        data-testid="continuation-withdraw"
+        onClick={() => onWithdraw({ id: vaultIds[0] })}
+      />
+    </div>
+  ),
+}));
+
+// The vault list the Withdraw dialog is opened from.
+vi.mock("@/hooks/useVaultDeposits", () => ({
+  useVaultDeposits: () => ({
+    activities: [{ id: "0xv0", unsignedPrePeginTx: "" }],
+    refetchActivities: vi.fn(),
+  }),
+}));
+
+vi.mock("@/components/deposit/EmergencyWithdrawModal", () => ({
+  EmergencyWithdrawModal: ({
+    activity,
+    stuckProof,
+  }: {
+    activity: { id: string };
+    stuckProof: string;
+  }) => (
+    <div
+      data-testid="withdraw-modal"
+      data-vault={activity.id}
+      data-stuck-proof={stuckProof}
     />
   ),
 }));
@@ -442,6 +477,28 @@ describe("DepositSignContent", () => {
 
     const continuation = await findByTestId("continuation");
     expect(continuation.getAttribute("data-auto-start-action")).toBe("any");
+  });
+
+  it("opens Withdraw from the continuation's failure screen as not proven stuck", async () => {
+    mockExecuteDeposit.mockResolvedValue({
+      pegins: [{ vaultId: "0xv0" }],
+      batchId: "batch",
+    });
+
+    const { findByTestId, getByTestId } = renderContent({
+      onRefetchActivities: vi.fn().mockResolvedValue(undefined),
+    });
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("continuation");
+
+    fireEvent.click(getByTestId("continuation-withdraw"));
+
+    const modal = getByTestId("withdraw-modal");
+    expect(modal.getAttribute("data-vault")).toBe("0xv0");
+    expect(modal.getAttribute("data-stuck-proof")).toBe("not-proven");
+    expect(getByTestId("continuation").getAttribute("data-withdraw-open")).toBe(
+      "true",
+    );
   });
 
   it("stays on the progress view when the deposit returns null", async () => {

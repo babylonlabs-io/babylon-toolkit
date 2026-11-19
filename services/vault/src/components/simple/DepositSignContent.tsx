@@ -13,11 +13,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { EmergencyWithdrawModal } from "@/components/deposit/EmergencyWithdrawModal";
 import { useSigningNotificationOptional } from "@/context/SigningNotificationContext";
 import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigningNotification";
+import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useBtcAction } from "@/hooks/useBtcAction";
+import { useVaultDeposits } from "@/hooks/useVaultDeposits";
+import type { VaultActivity } from "@/types/activity";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { FeeRateSelector } from "./DepositProgressView/FeeRateSelector";
@@ -84,6 +88,22 @@ export function DepositSignContent({
   const [continuationVaultIds, setContinuationVaultIds] = useState<
     Hex[] | null
   >(null);
+
+  // The continuation's failure screen opens Withdraw through the same hook as
+  // the /vaults rows; the list shares their address-keyed query entry.
+  const { activities, refetchActivities } = useVaultDeposits(
+    flowParams.depositorEthAddress,
+  );
+  const withdrawModal = useEmergencyWithdrawModal({
+    allActivities: activities,
+    onSuccess: refetchActivities,
+  });
+  const { handleWithdrawClick } = withdrawModal;
+  // Not proven stuck: this vault's activation just failed, nothing more is known.
+  const handleWithdraw = useCallback(
+    (activity: VaultActivity) => handleWithdrawClick(activity, "not-proven"),
+    [handleWithdrawClick],
+  );
 
   const signingNotifier = useSigningNotificationOptional();
 
@@ -223,7 +243,19 @@ export function DepositSignContent({
           warnings={lastWarnings}
           autoStartAction="any"
           onClose={onClose}
+          onWithdraw={handleWithdraw}
+          withdrawOpen={withdrawModal.withdrawing !== null}
         />
+        {withdrawModal.withdrawing && (
+          <EmergencyWithdrawModal
+            open
+            activity={withdrawModal.withdrawing.activity}
+            stuckProof={withdrawModal.withdrawing.stuckProof}
+            splitProtectionLost={withdrawModal.splitProtectionLost}
+            onClose={withdrawModal.handleClose}
+            onSuccess={withdrawModal.handleSuccess}
+          />
+        )}
       </>
     );
   }
