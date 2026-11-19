@@ -987,9 +987,10 @@ roles have different review requirements. Satisfy both.
   `required_approving_review_count: 2` — CODEOWNERS alone cannot express it, as the comment in
   `.github/CODEOWNERS` notes. Verify that ruleset exists; the file cannot.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
-  bundle to S3. Note `continue-on-error` is set for the `prod: true` environment (`vault-testnet-3`)
-  in multi-env runs so a prod OIDC failure cannot block devnet — deliberate, and
-  worth knowing when reading a green run.
+  bundle to S3. Note `continue-on-error` is set for `prod: true` environments in multi-env runs
+  off `main`, `release/v1.x` and tags, so a prod OIDC failure cannot block devnet — deliberate, and
+  worth knowing when reading a green run. In practice that is `vault-testnet-3`: `vault-mainnet`
+  runs only on tags, where it never applies.
   `vault-real-money-devnet` builds the `real-money-devnet` profile (`expected_kind` `production`)
   and publishes with its own role, which trusts this workflow on `refs/heads/main` alone; the
   shared role is denied on that environment's build and checksum prefixes. Off `main` its leg is
@@ -1000,10 +1001,37 @@ roles have different review requirements. Satisfy both.
   where its own publish role can write a newer version under the same key. That bucket is
   versioned with Object Lock, so an earlier version is kept, but a plain read returns the newest
   and no integrity checker watches this environment.
+  `vault-mainnet` builds the `mainnet` profile (`expected_kind` `production`) and publishes with
+  its own role in the prod account, which trusts this workflow only on `refs/tags/vault/v*` in the
+  `vault-mainnet` environment and may only put objects under `vault/vault-mainnet/` in the build
+  and checksum buckets; the shared roles are denied on those prefixes. That trust covers any
+  `vault/v*` tag run, `-rc` tags included, with whatever this file says at the tagged commit, so
+  the boundary is who may create `vault/v*` tags (the tag rulesets) plus the environment's
+  required reviewers. The `setup` job keeping the leg only for a pushed final `vault/vX.Y.Z` tag
+  (the pattern the deploy repository accepts for `vault-mainnet`) is defence in depth; a branch
+  push, an `-rc` tag or an all-environment dispatch leaves it out (a notice names it), and it is
+  not a dispatch choice.
+  Before the build, every production-kind leg fails when the utils API, mempool, canonical,
+  Reown or bucket variable is empty, when the mempool, utils API or ordinals API base is not an
+  https URL with a host and free of `signet`/`testnet`, or when the canonical origin is a testnet
+  host. `vault-mainnet` also pins its canonical origin to `https://tbv.babylonlabs.io` and both
+  `NEXT_PUBLIC_TBV_UTILS_API` and `NEXT_PUBLIC_TBV_ORDINALS_API_URL` to exactly
+  `https://utils-api.mainnet.babylonlabs.io`, and its mempool API to exactly
+  `https://mempool.babylonlabs.io`, so a value copied from another environment fails. The
+  ordinals API is the only inscription check for a wallet that keeps no inscription
+  index or whose own lookup fails or times out; without it those UTXOs would be treated as
+  inscription-free. The app still treats every UTXO as available while that API errors;
+  submission waits while it loads (`useUTXOs.ts`).
+  Re-running a tag run rebuilds with the environment's variables at that time and overwrites the
+  same object keys; the buckets keep earlier versions, but the deploy reads the newest. The leg
+  uploads checksums with the same role, has no immutable per-sha release manifest, and no
+  integrity checker watches it yet.
   Each matrix entry names the profile it builds (`network`) and its `expected_kind`; the job
   checks the profile before the build and the bundle after it (see "Environment
   configuration"). Rollback is republishing the previous sha's tarball from the per-sha S3
-  prefix via the deploy repository; nothing in this workflow is mutable per sha.
+  prefix via the deploy repository, except for `vault-mainnet`, which the deploy repository
+  deploys only from a final `vault/vX.Y.Z` tag, so its rollback is the deploy repository's
+  snapshot rollback or redeploying the previous final tag.
 - `claude-md-drift.yml` checks the hand-maintained critical-path inventory weekly, records paths that
   no longer exist, and reports them to a tracker issue. Paths registered ahead of their code sit in a
   `pending` list that is exempt from the existence check and reported separately once the files land.

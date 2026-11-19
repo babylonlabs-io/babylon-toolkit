@@ -156,7 +156,11 @@ To add an environment:
    add an `overrides` block only if the registry entry is wrong, and open a PR.
 3. Create the GitHub Environment with the override variables it needs (`NEXT_PUBLIC_REOWN_PROJECT_ID`,
    Sentry, `NEXT_PUBLIC_CANONICAL`, flags, and the PostHog pair if the environment sends analytics).
-   Never add a contract address or endpoint there.
+   Never add a contract address there. A `production`-kind environment must also resolve
+   `NEXT_PUBLIC_TBV_UTILS_API`, `NEXT_PUBLIC_MEMPOOL_API`, `S3_PUBLIC_BUCKET_NEW` and
+   `S3_CHECKSUM_BUCKET_NEW` (from the environment or organisation variables), as https mainnet
+   hosts where they are URLs, or the workflow refuses the build; a matrix entry that pins
+   `canonical`, `mempool_api`, `utils_api` or `ordinals_api` needs those exact values.
 4. Add a matrix entry to `service-release-vault.yml` with `"network":"<name>"` and
    `"expected_kind":"<kind>"`, plus the AWS account and, for a main-only environment, its role.
 
