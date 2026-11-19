@@ -254,14 +254,23 @@ function pacedBody(
   });
 }
 
+let demoSession: { bytes: Uint8Array<ArrayBuffer>; etag: string } | undefined;
+
+/** Built on first use and shared: hashing 8 MB per download is the slow part. */
+function getDemoSession() {
+  if (demoSession === undefined) {
+    const bytes = new Uint8Array(DEMO_SESSION_BYTES).fill(DEMO_SESSION_FILL);
+    demoSession = { bytes, etag: `"${bytesToHex(sha256(bytes))}"` };
+  }
+  return demoSession;
+}
+
 /** The in-memory vault provider: answers the manifest and session URLs. */
 function demoFetch(
   scenario: DemoArtifactScenario,
   request: DemoArtifactRequest,
 ): typeof fetch {
   const depositUrl = `${DEMO_ARTIFACTS_BASE_URL}/${request.peginTxid.toLowerCase()}`;
-  const session = new Uint8Array(DEMO_SESSION_BYTES).fill(DEMO_SESSION_FILL);
-  const etag = `"${bytesToHex(sha256(session))}"`;
 
   return async (input, init) => {
     const url = String(input);
@@ -306,6 +315,7 @@ function demoFetch(
       if (new Headers(init?.headers).has("range")) {
         return new Response(null, { status: HTTP_RANGE_NOT_SATISFIABLE });
       }
+      const { bytes: session, etag } = getDemoSession();
       const served =
         scenario === "corrupt-session" ? corruptLastByte(session) : session;
       const limit =
