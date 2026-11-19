@@ -37,7 +37,8 @@ import {
   type FetchArtifactsOptions,
   openArtifactSaveTarget,
   PresignGraphMismatchError,
-  type RecoveryKitIdentity,
+  type RecoveryKitDownloadIdentity,
+  ServedGraphUnreadableError,
 } from "@/services/artifacts";
 import {
   getSignedGraphFingerprint,
@@ -47,6 +48,7 @@ import {
   ARTIFACT_RECEIPT_VERSION,
   hasArtifactsDownloaded,
   normalizePeginTxid,
+  readSignedGraphFingerprintRecord,
   saveArtifactDownloadReceipt,
   saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
@@ -81,11 +83,18 @@ interface ArtifactDownloadState {
    */
   downloaded: boolean;
   /**
-   * The file was handed to the browser but we cannot prove it was saved (the
-   * anchor fallback, or a mocked download). Drives the card's "we can't
-   * confirm this" state and nothing else — it must never satisfy the gate.
+   * The download finished without the proof a receipt needs: the save cannot
+   * be confirmed (the anchor fallback, or a mocked download), or the graph was
+   * not compared (`graphUnchecked`). Drives the card's notice and nothing
+   * else — it must never satisfy the gate.
    */
   delivered: boolean;
+  /**
+   * The kit was saved, but this browser holds no readable record of the graph
+   * signed at presign, so the served graph was compared with nothing. Only
+   * ever set together with `delivered`.
+   */
+  graphUnchecked: boolean;
   /**
    * The provider served a graph other than the one the depositor signed at
    * presign. Positive evidence, not missing evidence: the activation modal
@@ -107,6 +116,7 @@ const INITIAL_STATE: ArtifactDownloadState = {
   error: null,
   downloaded: false,
   delivered: false,
+  graphUnchecked: false,
   graphMismatch: false,
   receivedBytes: 0,
   totalBytes: 0,
@@ -138,10 +148,10 @@ export function useArtifactDownload(options?: {
 
   /**
    * The identity a real download is bound to: the indexer's vault id, the
-   * wallet's address and the presign fingerprint this device recorded. When
-   * one is missing or the vault id does not derive from the deposit, the
-   * error that says why; the download fails closed and the message sends the
-   * depositor to the fix that matches the cause.
+   * wallet's address and the presign fingerprint this browser recorded, or
+   * null for it when the browser holds none or its storage cannot be read.
+   * When the wallet or the vault id is missing, or the vault id does not
+   * derive from the deposit, the error that says why and its telemetry site.
    */
   const readDownloadIdentity = useCallback(
     (
@@ -149,21 +159,25 @@ export function useArtifactDownload(options?: {
       peginTxid: string,
       depositorPk: string,
     ):
-      | { ok: true; identity: RecoveryKitIdentity }
+      | { ok: true; identity: RecoveryKitDownloadIdentity }
       | { ok: false; error: Error; site: string } => {
-      const unavailable = (message: string) => ({
+      const refused = (error: Error, site: string) => ({
         ok: false as const,
-        error: new Error(message),
-        site: "presign_fingerprint_unavailable",
+        error,
+        site,
       });
       if (!ethAddress) {
-        return unavailable(
-          COPY.deposit.recoveryArtifacts.signedGraphWalletNotConnected,
+        return refused(
+          new Error(
+            COPY.deposit.recoveryArtifacts.signedGraphWalletNotConnected,
+          ),
+          "wallet_not_connected",
         );
       }
       if (!vaultId) {
-        return unavailable(
-          COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
+        return refused(
+          new Error(COPY.deposit.recoveryArtifacts.downloadFailed),
+          "vault_id_missing",
         );
       }
       // Pure, and before the picker, the wallet prompt and any request. The
@@ -174,57 +188,50 @@ export function useArtifactDownload(options?: {
         derivedVaultId = `0x${derivePeginVaultId(peginTxid, ethAddress)}`;
       } catch (err) {
         // Throws on a malformed txid or a non-checksummed address.
-        return {
-          ok: false as const,
-          error: new Error(COPY.deposit.recoveryArtifacts.vaultIdMismatch, {
+        return refused(
+          new Error(COPY.deposit.recoveryArtifacts.vaultIdMismatch, {
             cause: err,
           }),
-          site: "vault_id_derivation",
-        };
+          "vault_id_derivation",
+        );
       }
       if (vaultId.toLowerCase() !== derivedVaultId) {
-        return {
-          ok: false as const,
-          error: new ArtifactIdentityMismatchError(
+        return refused(
+          new ArtifactIdentityMismatchError(
             COPY.deposit.recoveryArtifacts.vaultIdMismatch,
           ),
-          site: "vault_id_mismatch",
-        };
+          "vault_id_mismatch",
+        );
       }
-      let lookup: ReturnType<typeof getSignedGraphFingerprint>;
+      // `no-entry` and `not-recorded` both mean nothing to compare with: the
+      // kit is still saved, and reported as unchecked.
+      let signedGraphFingerprint: string | null = null;
       try {
-        lookup = getSignedGraphFingerprint(ethAddress, vaultId);
+        const lookup = getSignedGraphFingerprint(ethAddress, vaultId);
+        if (lookup.status === "found") {
+          signedGraphFingerprint = lookup.fingerprint;
+        }
       } catch (err) {
         if (!(err instanceof PendingPeginStorageReadError)) throw err;
+        // Unreadable pending deposits do not refuse the download. The
+        // per-vault record is stored apart from them, so it is still compared
+        // when present; with neither, the download goes on unchecked.
         logger.error(err, {
           data: { context: "[useArtifactDownload] presign fingerprint read" },
         });
-        return unavailable(
-          COPY.deposit.recoveryArtifacts.signedGraphStorageUnreadable,
-        );
+        signedGraphFingerprint = readSignedGraphFingerprintRecord(vaultId);
       }
-      switch (lookup.status) {
-        case "found":
-          return {
-            ok: true,
-            identity: {
-              vaultId,
-              peginTxid,
-              depositorPk,
-              depositorEthAddress: ethAddress,
-              providerAddress,
-              signedGraphFingerprint: lookup.fingerprint,
-            },
-          };
-        case "not-recorded":
-          return unavailable(
-            COPY.deposit.recoveryArtifacts.signedGraphNotRecorded,
-          );
-        case "no-entry":
-          return unavailable(
-            COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
-          );
-      }
+      return {
+        ok: true,
+        identity: {
+          vaultId,
+          peginTxid,
+          depositorPk,
+          depositorEthAddress: ethAddress,
+          providerAddress,
+          signedGraphFingerprint,
+        },
+      };
     },
     [vaultId, ethAddress],
   );
@@ -318,9 +325,9 @@ export function useArtifactDownload(options?: {
         return;
       }
 
-      // Without the wallet, the vault id and a stored fingerprint the kit can
-      // never be bound or pass check (a), so stop before the save dialog, the
-      // wallet prompt and the stream. The demo derives its own identity.
+      // Without the wallet and the vault id the kit can never be bound, so
+      // stop before the save dialog, the wallet prompt and the stream. The
+      // demo derives its own identity.
       let startDownload: (
         target: ArtifactSaveTarget,
         fetchOptions: FetchArtifactsOptions,
@@ -601,6 +608,18 @@ export function useArtifactDownload(options?: {
             return;
           }
 
+          // No readable presign record: the kit is saved but check (a) never
+          // ran, so no receipt. Ahead of the anchor branch because it holds for
+          // either save method; the card adds the unconfirmed-save note itself.
+          if (!outcome.comparedWithPresignRecord) {
+            setState({
+              ...INITIAL_STATE,
+              delivered: true,
+              graphUnchecked: true,
+            });
+            return;
+          }
+
           if (outcome.method === "browser-download") {
             // The anchor path only proves a link was clicked: the browser
             // reports nothing about whether the file reached disk, and it may
@@ -614,8 +633,8 @@ export function useArtifactDownload(options?: {
             return;
           }
 
-          // The one path with real evidence: validated, streamed to a file the
-          // user chose, and receipted.
+          // The one path with real evidence: validated, compared with the
+          // presign record, streamed to a file the user chose, and receipted.
           persistReceipt(peginTxid, outcome);
           setState({
             ...INITIAL_STATE,
@@ -666,6 +685,18 @@ export function useArtifactDownload(options?: {
               error: COPY.deposit.recoveryArtifacts.signedGraphMismatch,
               graphMismatch: true,
             });
+            return;
+          }
+          // Terminal too, but not a mismatch: with no presign record there is
+          // nothing the malformed graph contradicts, so none is recorded.
+          if (err instanceof ServedGraphUnreadableError) {
+            captureFunnelFailure(
+              TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+              err,
+              telemetryVaultId,
+              { tags: { site: "served_graph_unreadable" } },
+            );
+            setError(COPY.deposit.recoveryArtifacts.servedGraphUnreadable);
             return;
           }
           if (err instanceof ArtifactFileAccessError) {

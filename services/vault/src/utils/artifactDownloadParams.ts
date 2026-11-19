@@ -1,10 +1,6 @@
 import { isHex, type Hex } from "viem";
 
 import { ContractStatus } from "@/models/peginStateMachine";
-import {
-  getSignedGraphFingerprint,
-  PendingPeginStorageReadError,
-} from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
@@ -15,20 +11,6 @@ export interface ArtifactDownloadParams {
   peginTxid: string;
   depositorPk: string;
   unsignedPrePeginTxHex: string;
-}
-
-/**
- * True when this device holds the presign fingerprint the download checks the
- * bundle against. Unreadable storage counts as none: without the fingerprint
- * the download is refused anyway.
- */
-function hasSignedGraphFingerprint(ethAddress: string, vaultId: Hex): boolean {
-  try {
-    return getSignedGraphFingerprint(ethAddress, vaultId).status === "found";
-  } catch (err) {
-    if (err instanceof PendingPeginStorageReadError) return false;
-    throw err;
-  }
 }
 
 /** The vault fields a download is bound to, whichever list the vault is in. */
@@ -50,8 +32,7 @@ function toDownloadParams(
     !source.peginTxHash ||
     !source.unsignedPrePeginTx ||
     !isHex(source.vaultId) ||
-    !ethAddress ||
-    !hasSignedGraphFingerprint(ethAddress, source.vaultId)
+    !ethAddress
   ) {
     return null;
   }
@@ -69,7 +50,7 @@ function toDownloadParams(
  * downloaded: a demo row (it carries a fake `vaultId` and no provider), one
  * missing the peg-in hash or depositor key the provider call is bound to, one
  * missing the unsigned Pre-PegIn tx that re-derives the provider auth anchor
- * after a reload, or one this device holds no presign fingerprint for.
+ * after a reload, or any entry while no Ethereum wallet is connected.
  */
 export function getArtifactDownloadParams(
   vault: CollateralVaultEntry,

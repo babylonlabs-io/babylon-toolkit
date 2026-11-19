@@ -90,6 +90,7 @@ vi.mock("@/utils/artifactDownloadStorage", () => ({
   saveGraphMismatch: vi.fn(),
   hasArtifactsDownloaded: vi.fn(() => false),
   normalizePeginTxid: (txid: string) => txid.toLowerCase(),
+  readSignedGraphFingerprintRecord: vi.fn((): string | null => null),
 }));
 
 const mockLoggerError = vi.hoisted(() => vi.fn());
@@ -124,10 +125,12 @@ import {
   fetchAndDownloadArtifacts,
   openArtifactSaveTarget,
   PresignGraphMismatchError,
+  ServedGraphUnreadableError,
 } from "@/services/artifacts";
 import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import {
   hasArtifactsDownloaded,
+  readSignedGraphFingerprintRecord,
   saveArtifactDownloadReceipt,
   saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
@@ -150,6 +153,7 @@ const OUTCOME: ArtifactDownloadOutcome = {
   sha256: "9".repeat(64),
   method: "file-system-access",
   sessions: { [SESSION_PK]: { sha256: "b".repeat(64), byteLength: 32_768 } },
+  comparedWithPresignRecord: true,
 };
 
 const FALLBACK_OUTCOME: ArtifactDownloadOutcome = {
@@ -584,36 +588,42 @@ describe("useArtifactDownload — prime then fetch", () => {
     );
   });
 
-  it("fails before the save dialog, the wallet prompt and the fetch when no presign fingerprint is stored", async () => {
-    // Cold cache: without the early exit this would prompt the BTC wallet.
+  it("downloads uncompared, without a receipt, when this browser holds no presign record", async () => {
+    seedHotCache();
     mockGetSignedGraphFingerprint.mockReturnValueOnce({ status: "no-entry" });
+    fetchMock.mockResolvedValueOnce({
+      ...OUTCOME,
+      comparedWithPresignRecord: false,
+    });
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
     );
-
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
     });
 
-    await waitFor(() =>
-      expect(result.current.error).toBe(
-        COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
-      ),
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signedGraphFingerprint: null }),
+      SAVE_TARGET,
+      expect.anything(),
     );
-    expect(openTargetMock).not.toHaveBeenCalled();
-    expect(ensureAuthMock).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.graphUnchecked).toBe(true);
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.error).toBeNull();
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
-  it("tells a deposit signed before the record existed apart from one signed elsewhere", async () => {
-    // The local entry exists but carries no fingerprint: the deposit predates
-    // this check, so "download on the device you signed with" would not help.
+  it("downloads uncompared, without a receipt, for a deposit signed before the record existed", async () => {
     seedHotCache();
     mockGetSignedGraphFingerprint.mockReturnValueOnce({
       status: "not-recorded",
     });
+    fetchMock.mockResolvedValueOnce({
+      ...OUTCOME,
+      comparedWithPresignRecord: false,
+    });
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -622,15 +632,22 @@ describe("useArtifactDownload — prime then fetch", () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
     });
 
-    await waitFor(() =>
-      expect(result.current.error).toBe(
-        COPY.deposit.recoveryArtifacts.signedGraphNotRecorded,
-      ),
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signedGraphFingerprint: null }),
+      SAVE_TARGET,
+      expect.anything(),
     );
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.graphUnchecked).toBe(true);
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
-  it("logs an unreadable storage record and says so instead of blaming another device", async () => {
+  it("logs unreadable pending deposits and downloads unchecked when no per-vault record exists", async () => {
     seedHotCache();
+    mockLoggerError.mockReset();
+    vi.mocked(readSignedGraphFingerprintRecord).mockReturnValueOnce(null);
     mockGetSignedGraphFingerprint.mockImplementationOnce(() => {
       throw new PendingPeginStorageReadError(
         DEPOSITOR_ETH_ADDRESS,
@@ -638,6 +655,73 @@ describe("useArtifactDownload — prime then fetch", () => {
         new Error("storage blocked"),
       );
     });
+    fetchMock.mockResolvedValueOnce({
+      ...OUTCOME,
+      comparedWithPresignRecord: false,
+    });
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(PendingPeginStorageReadError),
+      expect.anything(),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signedGraphFingerprint: null }),
+      SAVE_TARGET,
+      expect.anything(),
+    );
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.graphUnchecked).toBe(true);
+    expect(result.current.error).toBeNull();
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("compares with the per-vault record when the pending deposits cannot be read", async () => {
+    seedHotCache();
+    const perVaultFingerprint = "7c".repeat(32);
+    vi.mocked(readSignedGraphFingerprintRecord).mockReturnValueOnce(
+      perVaultFingerprint,
+    );
+    mockGetSignedGraphFingerprint.mockImplementationOnce(() => {
+      throw new PendingPeginStorageReadError(
+        DEPOSITOR_ETH_ADDRESS,
+        null,
+        new Error("storage blocked"),
+      );
+    });
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(vi.mocked(readSignedGraphFingerprintRecord)).toHaveBeenCalledWith(
+      VAULT_ID,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signedGraphFingerprint: perVaultFingerprint }),
+      SAVE_TARGET,
+      expect.anything(),
+    );
+  });
+
+  it("shows the unreadable-graph copy, records no mismatch and writes no receipt when the served graph cannot be fingerprinted", async () => {
+    seedHotCache();
+    mockLoggerError.mockReset();
+    vi.mocked(saveGraphMismatch).mockClear();
+    mockGetSignedGraphFingerprint.mockReturnValueOnce({ status: "no-entry" });
+    fetchMock.mockRejectedValueOnce(
+      new ServedGraphUnreadableError("missing challenger subgraphs"),
+    );
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -648,12 +732,35 @@ describe("useArtifactDownload — prime then fetch", () => {
 
     await waitFor(() =>
       expect(result.current.error).toBe(
-        COPY.deposit.recoveryArtifacts.signedGraphStorageUnreadable,
+        COPY.deposit.recoveryArtifacts.servedGraphUnreadable,
       ),
     );
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      expect.any(PendingPeginStorageReadError),
-      expect.anything(),
+    expect(result.current.graphMismatch).toBe(false);
+    expect(vi.mocked(saveGraphMismatch)).not.toHaveBeenCalled();
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError.mock.calls[0]![1].tags.site).toBe(
+      "served_graph_unreadable",
+    );
+  });
+
+  it("fails with the generic download error, before the save dialog, when there is no vault id", async () => {
+    mockLoggerError.mockReset();
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.downloadFailed,
+      ),
+    );
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockLoggerError.mock.calls[0]![1].tags.site).toBe(
+      "vault_id_missing",
     );
   });
 
@@ -661,6 +768,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     seedHotCache();
     ethWallet.address = undefined;
     mockGetSignedGraphFingerprint.mockClear();
+    mockLoggerError.mockReset();
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -675,6 +783,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       ),
     );
     expect(mockGetSignedGraphFingerprint).not.toHaveBeenCalled();
+    expect(mockLoggerError.mock.calls[0]![1].tags.site).toBe(
+      "wallet_not_connected",
+    );
   });
 
   it("shows the mismatch copy and writes no receipt when the graph differs from the one signed", async () => {
@@ -725,6 +836,21 @@ describe("useArtifactDownload — prime then fetch", () => {
     await waitFor(() => expect(result.current.delivered).toBe(true));
     expect(result.current.downloaded).toBe(false);
     expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("does not mark a compared anchor-download fallback as unchecked", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(FALLBACK_OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.graphUnchecked).toBe(false);
   });
 
   it("runs a mocked (god-mode) download through a real save target but writes no receipt", async () => {

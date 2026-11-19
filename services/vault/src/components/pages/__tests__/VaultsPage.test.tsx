@@ -26,6 +26,8 @@ const featureFlagsMock = vi.hoisted(() => ({
 
 vi.mock("@/config", () => ({
   FeatureFlags: featureFlagsMock,
+  // Read at module load by utils/formatting, which the state machine imports.
+  getNetworkConfigBTC: () => ({ coinSymbol: "BTC" }),
 }));
 
 vi.mock("@/config/featureFlags", () => ({

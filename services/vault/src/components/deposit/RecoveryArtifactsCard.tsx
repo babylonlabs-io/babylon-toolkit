@@ -68,12 +68,8 @@ const VAULT_MESSAGES = new Map<string, string>([
     COPY.deposit.artifactDownload.unverifiedSaveNotice,
   ],
   [
-    COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
-    COPY.deposit.artifactDownload.signedGraphUnavailable,
-  ],
-  [
-    COPY.deposit.recoveryArtifacts.signedGraphNotRecorded,
-    COPY.deposit.artifactDownload.signedGraphNotRecorded,
+    COPY.deposit.recoveryArtifacts.uncheckedGraphNotice,
+    COPY.deposit.artifactDownload.uncheckedGraphNotice,
   ],
   [
     COPY.deposit.recoveryArtifacts.signedGraphMismatch,
@@ -177,6 +173,7 @@ export const RecoveryArtifactsCard = forwardRef<
     error: downloadError,
     downloaded,
     delivered,
+    graphUnchecked,
     graphMismatch,
     receivedBytes,
     totalBytes,
@@ -197,18 +194,34 @@ export const RecoveryArtifactsCard = forwardRef<
       ? COPY.deposit.recoveryArtifacts.signedGraphMismatch
       : null);
 
+  // A repeat download can fail, or find a mismatch, while an earlier receipt
+  // stands. The card must not look saved over that error.
+  const showSaved = isDownloaded && !error;
+
   const message = (text: string) =>
     context === "vault" ? (VAULT_MESSAGES.get(text) ?? text) : text;
-
-  // A finished-but-unprovable save (the anchor fallback). Deliberately not
-  // folded into `isDownloaded`: that flag drives the success presentation and,
-  // through onDownloaded, the activation gate. A receipt from an earlier
-  // Chromium download still wins, so this never downgrades a proven state.
-  const isUnverified = delivered && !isDownloaded;
 
   // Browsers without the File System Access API cannot stream to a chosen
   // file, so the user is warned before starting a multi-minute transfer.
   const usesFallbackSave = !isFileSystemAccessSupported();
+
+  // The save could not be confirmed. Never folded into `isDownloaded`, which
+  // drives the success presentation and, through onDownloaded, the gate.
+  let unconfirmedSaveNotice: string | null = null;
+  if (graphUnchecked) {
+    // Unproven twice over the fallback, and a confirmed save would not make
+    // the kit checked, so this wording promises nothing clears.
+    if (usesFallbackSave) {
+      unconfirmedSaveNotice =
+        COPY.deposit.recoveryArtifacts.uncheckedUnverifiedSaveNotice;
+    }
+  } else if (delivered && !isDownloaded) {
+    // A receipt from an earlier verified download wins over a plain
+    // `delivered`, so this never downgrades a proven state.
+    unconfirmedSaveNotice = message(
+      COPY.deposit.recoveryArtifacts.unverifiedSaveNotice,
+    );
+  }
 
   const notifiedRef = useRef(false);
   useEffect(() => {
@@ -256,7 +269,7 @@ export const RecoveryArtifactsCard = forwardRef<
       <div className="flex items-center gap-4">
         <div
           className={`flex h-11 w-[47px] shrink-0 items-center justify-center rounded-lg text-white ${
-            isDownloaded ? "bg-success-main" : "bg-secondary-main"
+            showSaved ? "bg-success-main" : "bg-secondary-main"
           }`}
         >
           <RecoveryArtifactsIcon />
@@ -270,7 +283,7 @@ export const RecoveryArtifactsCard = forwardRef<
               {COPY.deposit.recoveryArtifacts.cardSubtitle}
             </span>
             <span className="shrink-0 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
-              {isDownloaded
+              {showSaved
                 ? COPY.deposit.recoveryArtifacts.cardSizeDownloaded
                 : COPY.deposit.recoveryArtifacts.cardSize}
             </span>
@@ -278,24 +291,36 @@ export const RecoveryArtifactsCard = forwardRef<
         </div>
       </div>
 
-      {/* The save finished but this browser cannot confirm it reached disk, so
-          the card stops short of the green "downloaded" state: the warning
-          copy stays, the download stays available for a retry on a browser
-          that can prove it, and no proof is reported upward. */}
-      {isUnverified && (
-        <span
+      {/* The download finished without proof (the browser cannot confirm the
+          save, or the graph was compared with nothing), so no proof is
+          reported upward. The unchecked note shows over an older receipt too:
+          that receipt says nothing about the file just saved. */}
+      {(graphUnchecked || unconfirmedSaveNotice) && (
+        <div
           data-testid="artifact-unverified-notice"
-          className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary"
+          className="flex flex-col gap-2 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary"
         >
-          <span className="text-accent-primary">
-            {COPY.deposit.recoveryArtifacts.unverifiedSaveTitle}
-          </span>{" "}
-          {message(COPY.deposit.recoveryArtifacts.unverifiedSaveNotice)}
-        </span>
+          {graphUnchecked && (
+            <span>
+              <span className="text-accent-primary">
+                {COPY.deposit.recoveryArtifacts.uncheckedGraphTitle}
+              </span>{" "}
+              {message(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice)}
+            </span>
+          )}
+          {unconfirmedSaveNotice && (
+            <span>
+              <span className="text-accent-primary">
+                {COPY.deposit.recoveryArtifacts.unverifiedSaveTitle}
+              </span>{" "}
+              {unconfirmedSaveNotice}
+            </span>
+          )}
+        </div>
       )}
 
       {/* Already spelled out at length by the unverified notice above. */}
-      {!isDownloaded && usesFallbackSave && !isUnverified && (
+      {!isDownloaded && usesFallbackSave && !delivered && (
         <span className="text-center text-xs text-accent-secondary">
           {message(COPY.deposit.recoveryArtifacts.fallbackSaveHint)}
         </span>

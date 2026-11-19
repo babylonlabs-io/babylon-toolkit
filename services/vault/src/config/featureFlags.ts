@@ -14,6 +14,16 @@
  */
 
 export default {
+  /** The external access form. Keep the button disabled until its HTTPS URL is set. */
+  get waitlistFormUrl(): string | undefined {
+    try {
+      const url = new URL(process.env.NEXT_PUBLIC_TBV_WAITLIST_FORM_URL ?? "");
+      return url.protocol === "https:" ? url.href : undefined;
+    } catch {
+      return undefined;
+    }
+  },
+
   /**
    * DISABLE_DEPOSIT feature flag
    *
