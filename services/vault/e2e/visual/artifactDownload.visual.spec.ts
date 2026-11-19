@@ -169,7 +169,8 @@ for (const viewport of VISUAL_VIEWPORTS) {
     // asserted where the source has it.
     if (HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW)
       await expect(
-        row.getByRole("button", { name: "Download again", exact: true }),
+        // The merge-base still labels it "Download again".
+        row.getByRole("button", { name: /^Download (artifacts )?again$/ }),
       ).toBeVisible();
     const shot = await capture(
       page,

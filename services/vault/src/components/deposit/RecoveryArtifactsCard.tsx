@@ -223,9 +223,12 @@ export const RecoveryArtifactsCard = forwardRef<
     );
   }
 
+  // Once per attempt, not once per mount: a repeat download reports again.
   const notifiedRef = useRef(false);
   useEffect(() => {
-    if (downloaded && !notifiedRef.current) {
+    if (!downloaded) {
+      notifiedRef.current = false;
+    } else if (!notifiedRef.current) {
       notifiedRef.current = true;
       onDownloaded?.();
     }
@@ -243,7 +246,9 @@ export const RecoveryArtifactsCard = forwardRef<
 
   const mismatchNotifiedRef = useRef(false);
   useEffect(() => {
-    if (graphMismatch && !mismatchNotifiedRef.current) {
+    if (!graphMismatch) {
+      mismatchNotifiedRef.current = false;
+    } else if (!mismatchNotifiedRef.current) {
       mismatchNotifiedRef.current = true;
       onGraphMismatch?.();
     }
@@ -305,7 +310,11 @@ export const RecoveryArtifactsCard = forwardRef<
               <span className="text-accent-primary">
                 {COPY.deposit.recoveryArtifacts.uncheckedGraphTitle}
               </span>{" "}
-              {message(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice)}
+              {/* An older receipt already satisfies the gate, so the
+                  wording that asks for the acknowledgement would be false. */}
+              {persisted
+                ? COPY.deposit.artifactDownload.uncheckedGraphNotice
+                : message(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice)}
             </span>
           )}
           {unconfirmedSaveNotice && (

@@ -555,6 +555,79 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("starts the card download again from the saved state", () => {
+    seedReceipt();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("download-artifacts-again-button"));
+
+    expect(cardDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no repeat download before the artifacts are saved", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId("download-artifacts-again-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no repeat download while the proxy is down, since it would be canceled", () => {
+    seedReceipt();
+    liveness.status = "proxy-unreachable";
+    renderModal();
+
+    expect(
+      screen.queryByTestId("download-artifacts-again-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the repeat download after a mismatch over a receipt, with Activate disabled", () => {
+    seedReceipt();
+    renderModal();
+
+    fireEvent.click(screen.getByTestId("card-graph-mismatch"));
+
+    // Only a matching repeat download can clear the mismatch.
+    expect(screen.getByTestId("download-artifacts-again-button")).toBeVisible();
+    expect(screen.getByTestId("activate-vault-button")).toBeDisabled();
+  });
+
+  it("keeps the repeat download and Activate enabled after a failed repeat once the probe has settled", () => {
+    seedReceipt();
+    renderModal();
+
+    fireEvent.click(screen.getByTestId("card-download-failed"));
+
+    expect(liveness.retry).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("download-artifacts-again-button")).toBeVisible();
+    expect(screen.getByTestId("activate-vault-button")).toBeEnabled();
+  });
+
+  it("hides the repeat download under the unconfirmed-provider warning", () => {
+    seedReceipt();
+    liveness.status = "vp-unconfirmed";
+    renderModal();
+
+    expect(
+      screen.queryByTestId("download-artifacts-again-button"),
+    ).not.toBeInTheDocument();
+  });
+
   it("starts the card download when Download Artifacts is clicked", () => {
     render(
       <ActivateConfirmationModal

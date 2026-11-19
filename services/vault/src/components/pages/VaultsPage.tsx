@@ -117,7 +117,7 @@ export default function VaultsPage() {
     null,
   );
   // Closing the modal clears this, which re-renders the rows so a vault whose
-  // artifacts were just saved shows its button as "Download again".
+  // artifacts were just saved shows its button as "Download artifacts again".
   const [artifactParams, setArtifactParams] =
     useState<ArtifactDownloadParams | null>(null);
   const [isReorderOpen, setIsReorderOpen] = useState(false);

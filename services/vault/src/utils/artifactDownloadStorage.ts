@@ -229,9 +229,9 @@ export function hasArtifactsDownloaded(
 /**
  * Drop every stored receipt, returning how many were removed.
  *
- * Dev-only affordance: once a vault's gate is satisfied the activation dialog
- * offers no further download, so there is otherwise no way to re-run that
- * flow against the same vault. Exposed through the god-mode panel.
+ * Dev-only affordance: a satisfied gate skips the first-download flow, so
+ * there is otherwise no way to re-run it against the same vault. Exposed
+ * through the god-mode panel.
  */
 export function clearArtifactDownloadReceipts(): number {
   if (!isBrowserStorageAvailable()) return 0;

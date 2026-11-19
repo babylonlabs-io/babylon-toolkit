@@ -336,6 +336,16 @@ export function ActivateConfirmationModal({
               onStateChange={setDownloadState}
               onGraphMismatch={() => setGraphMismatch(true)}
             />
+            {downloaded && !blockedByProbe && (
+              <button
+                type="button"
+                className="mx-auto mt-4 block text-sm leading-[1.43] tracking-[0.17px] text-secondary-main underline"
+                onClick={() => cardRef.current?.download()}
+                data-testid="download-artifacts-again-button"
+              >
+                {COPY.deposit.activateConfirmation.downloadAgainButton}
+              </button>
+            )}
           </div>
         )}
 

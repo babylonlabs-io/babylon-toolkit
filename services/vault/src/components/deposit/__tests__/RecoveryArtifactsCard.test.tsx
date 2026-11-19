@@ -277,7 +277,74 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
     ).toBeTruthy();
   });
 
-  it("shows the unchecked notice over a receipt saved for this pegin, beside the downloaded size", () => {
+  it("reports a second mismatch from a repeat download after a clean one", () => {
+    const onGraphMismatch = vi.fn();
+    hookState.current = { ...IDLE_HOOK_STATE, graphMismatch: true };
+    const { rerender } = render(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onGraphMismatch={onGraphMismatch}
+      />,
+    );
+
+    hookState.current = { ...IDLE_HOOK_STATE, downloaded: true };
+    rerender(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onGraphMismatch={onGraphMismatch}
+      />,
+    );
+    hookState.current = { ...IDLE_HOOK_STATE, graphMismatch: true };
+    rerender(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onGraphMismatch={onGraphMismatch}
+      />,
+    );
+
+    expect(onGraphMismatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a second verified download after a mismatched repeat", () => {
+    const onDownloaded = vi.fn();
+    hookState.current = { ...IDLE_HOOK_STATE, downloaded: true };
+    const { rerender } = render(
+      <RecoveryArtifactsCard {...COMMON_PROPS} onDownloaded={onDownloaded} />,
+    );
+
+    hookState.current = { ...IDLE_HOOK_STATE, graphMismatch: true };
+    rerender(
+      <RecoveryArtifactsCard {...COMMON_PROPS} onDownloaded={onDownloaded} />,
+    );
+    hookState.current = { ...IDLE_HOOK_STATE, downloaded: true };
+    rerender(
+      <RecoveryArtifactsCard {...COMMON_PROPS} onDownloaded={onDownloaded} />,
+    );
+
+    expect(onDownloaded).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not report the same download again when the parent passes a new callback", () => {
+    const onDownloaded = vi.fn();
+    hookState.current = { ...IDLE_HOOK_STATE, downloaded: true };
+    // A fresh arrow each render re-runs the effect with the flag unchanged.
+    const { rerender } = render(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onDownloaded={() => onDownloaded()}
+      />,
+    );
+    rerender(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onDownloaded={() => onDownloaded()}
+      />,
+    );
+
+    expect(onDownloaded).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops the acknowledgement sentence from the unchecked note over a receipt for this pegin, beside the downloaded size", () => {
     saveArtifactDownloadReceipt(COMMON_PROPS.vaultId, {
       version: 1,
       peginTxid: "pegin",
@@ -293,14 +360,19 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
       graphUnchecked: true,
     };
 
-    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} context="activation" />);
 
     expect(
       screen.getByText(COPY.deposit.recoveryArtifacts.uncheckedGraphTitle),
     ).toBeTruthy();
     expect(
-      screen.getByText(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice),
+      screen.getByText(
+        "This browser has no record of the transactions you signed for this deposit, so the file could not be compared with them.",
+      ),
     ).toBeTruthy();
+    expect(
+      screen.queryByText(/The risk acknowledgment stays required/),
+    ).toBeNull();
     expect(
       screen.getByText(COPY.deposit.recoveryArtifacts.cardSizeDownloaded),
     ).toBeTruthy();
