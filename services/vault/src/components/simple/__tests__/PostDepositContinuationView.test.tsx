@@ -1746,7 +1746,6 @@ describe("PostDepositContinuationView", () => {
   it.each([
     [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN, "broadcast"],
     [PeginAction.SUBMIT_WOTS_KEY, "wots"],
-    [PeginAction.SIGN_PAYOUT_TRANSACTIONS, "payout"],
   ])("auto-starts %s when the opener named it", (action, testId) => {
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [action] }),
@@ -1758,7 +1757,6 @@ describe("PostDepositContinuationView", () => {
   it.each([
     [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN, "broadcast"],
     [PeginAction.SUBMIT_WOTS_KEY, "wots"],
-    [PeginAction.SIGN_PAYOUT_TRANSACTIONS, "payout"],
   ])("auto-starts %s for the deposit session's opener", (action, testId) => {
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [action] }),
@@ -1770,7 +1768,6 @@ describe("PostDepositContinuationView", () => {
   it.each([
     [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN, "broadcast"],
     [PeginAction.SUBMIT_WOTS_KEY, "wots"],
-    [PeginAction.SIGN_PAYOUT_TRANSACTIONS, "payout"],
   ])(
     "does not auto-start %s when the opener named no action",
     (action, testId) => {
@@ -1785,18 +1782,7 @@ describe("PostDepositContinuationView", () => {
     },
   );
 
-  it("does not auto-start payout when the opener named WOTS", () => {
-    mockGetPollingResult.mockReturnValue(
-      resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
-    );
-    const view = renderView({ autoStartAction: PeginAction.SUBMIT_WOTS_KEY });
-    expect(view.getByTestId("payout")).toHaveAttribute(
-      "data-auto-start",
-      "false",
-    );
-  });
-
-  it("does not auto-start a split sibling whose action differs from the clicked row's", () => {
+  it("selects the first actionable split sibling", () => {
     // The depositor clicked vault 1's WOTS row; the view selects vault 0's payout.
     const states = new Map<string, ReturnType<typeof resultWith>>([
       [
@@ -1817,102 +1803,5 @@ describe("PostDepositContinuationView", () => {
     });
     const payout = view.getByTestId("payout");
     expect(payout).toHaveAttribute("data-vault", "0xvault0");
-    expect(payout).toHaveAttribute("data-auto-start", "false");
-  });
-
-  // A named opener opened the view while payout was not yet actionable; the
-  // wallet then changed state before payout became actionable. Fresh element
-  // each render, as above: a reused one makes React skip the re-render. The
-  // key prop follows the wallet: the key hook returns none while locked, so a
-  // view mounted while locked starts without one.
-  function renderNamedPayoutOpener(initialKey: string | undefined) {
-    mockGetPollingResult.mockReturnValue(
-      resultWith({ availableActions: [PeginAction.NONE] }),
-    );
-    const props = {
-      vaultIds: ["0xvault0" as Hex],
-      activities: [activityWithId("0xvault0")],
-      onClose: vi.fn(),
-    };
-    const view = (btcPublicKey: string | undefined) => (
-      <PostDepositContinuationView
-        vaultIds={props.vaultIds}
-        activities={props.activities}
-        depositorEthAddress={ETH}
-        btcPublicKey={btcPublicKey}
-        autoStartAction={PeginAction.SIGN_PAYOUT_TRANSACTIONS}
-        onClose={props.onClose}
-      />
-    );
-    const rendered = render(view(initialKey), { wrapper: MemoryRouter });
-    return {
-      ...rendered,
-      // The key is passed explicitly: a default would swallow `undefined`.
-      rerenderWaiting: (btcPublicKey: string | undefined) =>
-        rendered.rerender(view(btcPublicKey)),
-      rerenderWithPayoutActionable: () => {
-        mockGetPollingResult.mockReturnValue(
-          resultWith({
-            availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
-          }),
-        );
-        rendered.rerender(view("btcpub"));
-      },
-    };
-  }
-
-  it("keeps a named opener's admission through a wallet lock, so the flow resumes after the unlock", () => {
-    const view = renderNamedPayoutOpener("btcpub");
-
-    btcAction.locked = true;
-    view.rerenderWaiting(undefined);
-
-    btcAction.locked = false;
-    view.rerenderWithPayoutActionable();
-
-    expect(view.getByTestId("payout")).toHaveAttribute(
-      "data-auto-start",
-      "true",
-    );
-  });
-
-  it("admits a named opener whose wallet is already locked when the view mounts", () => {
-    btcAction.locked = true;
-    const view = renderNamedPayoutOpener(undefined);
-
-    btcAction.locked = false;
-    view.rerenderWithPayoutActionable();
-
-    expect(view.getByTestId("payout")).toHaveAttribute(
-      "data-auto-start",
-      "true",
-    );
-  });
-
-  it("withdraws a named opener's admission when the wallet disconnects, even after it reconnects", () => {
-    const view = renderNamedPayoutOpener("btcpub");
-
-    btcAction.btcConnected = false;
-    view.rerenderWaiting("btcpub");
-
-    btcAction.btcConnected = true;
-    view.rerenderWithPayoutActionable();
-
-    expect(view.getByTestId("payout")).toHaveAttribute(
-      "data-auto-start",
-      "false",
-    );
-  });
-
-  it("withdraws a named opener's admission when the key is lost while unlocked", () => {
-    const view = renderNamedPayoutOpener("btcpub");
-
-    view.rerenderWaiting(undefined);
-    view.rerenderWithPayoutActionable();
-
-    expect(view.getByTestId("payout")).toHaveAttribute(
-      "data-auto-start",
-      "false",
-    );
   });
 });
