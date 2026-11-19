@@ -11,6 +11,7 @@
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
+import { toCheckedAddress } from "@/utils/addressUtils";
 
 import logger from "../logger";
 
@@ -35,12 +36,16 @@ const CONFIGURATION_FAULT_STATUSES: ReadonlySet<number> = new Set([
 ]);
 
 /**
- * Whether a configuration fault or a failure to build an event has been
- * reported this page load. Both repeat on every event, so one report each is
- * enough.
+ * Whether a configuration fault has been reported this page load. It repeats
+ * on every event, so one report is enough.
  */
 let rejectionReported = false;
-let buildFailureReported = false;
+/**
+ * The events whose build has failed this page load. A failure repeats on every
+ * send of its event, but one event's builder can fail while the others build,
+ * so each event is reported once.
+ */
+const buildFailuresReported = new Set<AnalyticsEventName>();
 
 type EnabledAnalyticsConfig = Extract<AnalyticsConfig, { enabled: true }>;
 
@@ -89,13 +94,33 @@ function normalizeVaultId(properties: object): object {
   return { ...properties, vault_id: ensureHexPrefix(vaultId.toLowerCase()) };
 }
 
+/**
+ * An event's own account, lowercased, or null when it is not an address. The
+ * wallet reports it and nothing upstream checks it, so it gets the same check
+ * the session's address gets in `AnalyticsTracker.tsx`.
+ */
+function checkedEventWallet(value: string): string | null {
+  const checked = toCheckedAddress(value);
+  return checked === undefined ? null : checked.toLowerCase();
+}
+
 function buildCaptureBody<E extends AnalyticsEventName>(
   config: EnabledAnalyticsConfig,
   event: E,
   properties: AnalyticsEventProperties[E],
   timestamp: string,
 ) {
-  const wallet = getWalletAddress();
+  // An event about a transaction names the account that sent it; the
+  // session's address can change before the transaction is mined. One that
+  // fails the check is left out, never replaced by the session's.
+  const {
+    wallet_address: eventWallet,
+    ...eventProperties
+  }: { wallet_address?: unknown } = normalizeVaultId(properties);
+  const wallet =
+    typeof eventWallet === "string"
+      ? checkedEventWallet(eventWallet)
+      : getWalletAddress();
   return {
     api_key: config.projectKey,
     batch: [
@@ -105,7 +130,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         timestamp,
         properties: {
           ...getAttribution(),
-          ...normalizeVaultId(properties),
+          ...eventProperties,
           ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),
@@ -117,16 +142,23 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   };
 }
 
+/**
+ * `properties` may be a function that builds them. Pass one when building the
+ * fields can throw: it runs inside this function's guard, so a throw is
+ * reported here and never reaches the caller's flow.
+ */
 export function trackEvent<E extends AnalyticsEventName>(
   event: E,
-  properties: AnalyticsEventProperties[E],
+  properties: AnalyticsEventProperties[E] | (() => AnalyticsEventProperties[E]),
   config: AnalyticsConfig = ENV.ANALYTICS,
 ): void {
   try {
     if (!config.enabled || hasOptedOut()) return;
+    const resolved =
+      typeof properties === "function" ? properties() : properties;
     // Built now, so a held event keeps the time and fields it was sent with.
     const body = JSON.stringify(
-      buildCaptureBody(config, event, properties, new Date().toISOString()),
+      buildCaptureBody(config, event, resolved, new Date().toISOString()),
     );
     if (geofenceOutcome === "passed") {
       post(config, event, body, true);
@@ -204,8 +236,8 @@ function post(
  * code or a browser refusing the request, never an ad blocker.
  */
 function reportBuildFailure(event: AnalyticsEventName, error: unknown): void {
-  if (buildFailureReported) return;
-  buildFailureReported = true;
+  if (buildFailuresReported.has(event)) return;
+  buildFailuresReported.add(event);
   logger.error(
     new Error(`Analytics event could not be sent: ${describe(error)}`),
     { tags: { category: LOG_CATEGORY, event } },

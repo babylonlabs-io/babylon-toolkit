@@ -158,6 +158,36 @@ describe("trackEvent", () => {
     expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
   });
 
+  it("sends an event's own account, lowercased, in place of the session's address", () => {
+    setWalletAddress("0x1111111111111111111111111111111111111111");
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      {
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0xabcdef0000000000000000000000000000000002",
+    );
+  });
+
+  it("sends an event's own account even after the session's address is cleared", () => {
+    setWalletAddress(null);
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      {
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0xabcdef0000000000000000000000000000000002",
+    );
+  });
+
   it("sends only the allow-listed fields, with and without a wallet address", () => {
     window.history.pushState({}, "", "/?utm_source=x");
     captureAttribution();
@@ -201,6 +231,31 @@ describe("trackEvent", () => {
       ...baseKeys,
       "wallet_address",
     ]);
+  });
+
+  it("leaves out an event's own account that is not an address, without sending the session's", () => {
+    setWalletAddress("0x1111111111111111111111111111111111111111");
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      { reserve: "USDC", wallet_address: "not-an-address" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties).not.toHaveProperty("wallet_address");
+  });
+
+  it("sends the fields a property builder returns", () => {
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_STARTED,
+      () => ({
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      }),
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties).toMatchObject({
+      reserve: "USDC",
+      wallet_address: "0xabcdef0000000000000000000000000000000002",
+    });
   });
 
   it("reports a rejected key as an error once per page load", async () => {
@@ -306,6 +361,52 @@ describe("trackEvent", () => {
       new Error("Analytics event could not be sent: boom"),
       { tags: { category: "analytics", event: "$pageview" } },
     );
+  });
+
+  it("reports a property builder that throws once, sends nothing and does not throw", async () => {
+    const send = await freshTrackEvent();
+    const build = (): { $pathname: string } => {
+      throw new Error("no label");
+    };
+
+    expect(() => send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG)).not.toThrow();
+    send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockError).toHaveBeenCalledExactlyOnceWith(
+      new Error("Analytics event could not be sent: no label"),
+      { tags: { category: "analytics", event: "$pageview" } },
+    );
+  });
+
+  it("reports a build failure of another event even after one event's builder failed", async () => {
+    const send = await freshTrackEvent();
+    const build = (): { $pathname: string } => {
+      throw new Error("no label");
+    };
+    const broken = {
+      get chain(): "eth" {
+        throw new Error("no chain");
+      },
+      restored: false,
+    };
+
+    send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG);
+    send(ANALYTICS_EVENT.WALLET_CONNECTED, broken, CONFIG);
+
+    expect(mockError).toHaveBeenCalledTimes(2);
+    expect(mockError).toHaveBeenLastCalledWith(
+      new Error("Analytics event could not be sent: no chain"),
+      { tags: { category: "analytics", event: "wallet_connected" } },
+    );
+  });
+
+  it("does not call the property builder when analytics is off", () => {
+    const build = vi.fn(() => ({ $pathname: "/" }));
+
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, build, { enabled: false });
+
+    expect(build).not.toHaveBeenCalled();
   });
 
   it("logs a network failure instead of throwing", async () => {

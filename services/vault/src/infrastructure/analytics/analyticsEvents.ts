@@ -12,6 +12,8 @@ export const ANALYTICS_EVENT = {
   VAULT_REGISTERED: "vault_registered",
   DEPOSIT_BROADCAST: "deposit_broadcast",
   VAULT_ACTIVATED: "vault_activated",
+  BORROW_STARTED: "borrow_started",
+  BORROW_SUCCEEDED: "borrow_succeeded",
 } as const;
 
 export type AnalyticsEventName =
@@ -47,4 +49,14 @@ export interface AnalyticsEventProperties {
    * returned at activation are not counted.
    */
   [ANALYTICS_EVENT.VAULT_ACTIVATED]: { vault_id: string };
+  /**
+   * Token symbol of the borrowed reserve, and the account that submitted the
+   * borrow (in place of the session's address, which can change before it is
+   * mined).
+   */
+  [ANALYTICS_EVENT.BORROW_STARTED]: { reserve: string; wallet_address: string };
+  [ANALYTICS_EVENT.BORROW_SUCCEEDED]: {
+    reserve: string;
+    wallet_address: string;
+  };
 }
