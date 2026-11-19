@@ -20,6 +20,8 @@ const REQUEST = {
 };
 const DEMO_DEPOSITOR_ETH_ADDRESS = "0x" + "00".repeat(19) + "01";
 const DEMO_SESSION_NAME = `sessions/${"ab".repeat(32)}.cbor`;
+/** A full kit hashes the 8 MB session two or three times; fake timers do not skip CPU work. */
+const FULL_KIT_TIMEOUT_MS = 20_000;
 
 /** Records what the demo writes, the same way the real service's target does. */
 function fakeSaveTarget() {
@@ -103,46 +105,55 @@ describe("demoFetchAndDownloadArtifacts", () => {
   const claimOf = (written: Uint8Array[]) =>
     JSON.parse(new TextDecoder().decode(parseTar(concat(written))[1]!.data));
 
-  it("streams a valid kit through the real pipeline and commits a tar ending in claim.json", async () => {
-    const { target, commit, discard, written } = fakeSaveTarget();
-    const onProgress = vi.fn();
+  it(
+    "streams a valid kit through the real pipeline and commits a tar ending in claim.json",
+    async () => {
+      const { target, commit, discard, written } = fakeSaveTarget();
+      const onProgress = vi.fn();
 
-    const result = await run(
-      demoFetchAndDownloadArtifacts(target, REQUEST, { onProgress }),
-    );
+      const result = await run(
+        demoFetchAndDownloadArtifacts(target, REQUEST, { onProgress }),
+      );
 
-    expect(result).toMatchObject({ ok: true, value: undefined });
-    expect(commit).toHaveBeenCalledTimes(1);
-    expect(discard).not.toHaveBeenCalled();
-    const entries = parseTar(concat(written));
-    expect(entries.map((e) => e.name)).toEqual([
-      DEMO_SESSION_NAME,
-      "claim.json",
-    ]);
-    expect(claimOf(written).vault_id).toBe(
-      "0x" + derivePeginVaultId(REQUEST.peginTxid, DEMO_DEPOSITOR_ETH_ADDRESS),
-    );
-    // Paced, not one blob: progress moves through the session.
-    const received = onProgress.mock.calls.map(([bytes]) => bytes as number);
-    expect(new Set(received).size).toBeGreaterThan(2);
-    expect(received).toEqual([...received].sort((a, b) => a - b));
-  });
+      expect(result).toMatchObject({ ok: true, value: undefined });
+      expect(commit).toHaveBeenCalledTimes(1);
+      expect(discard).not.toHaveBeenCalled();
+      const entries = parseTar(concat(written));
+      expect(entries.map((e) => e.name)).toEqual([
+        DEMO_SESSION_NAME,
+        "claim.json",
+      ]);
+      expect(claimOf(written).vault_id).toBe(
+        "0x" +
+          derivePeginVaultId(REQUEST.peginTxid, DEMO_DEPOSITOR_ETH_ADDRESS),
+      );
+      // Paced, not one blob: progress moves through the session.
+      const received = onProgress.mock.calls.map(([bytes]) => bytes as number);
+      expect(new Set(received).size).toBeGreaterThan(2);
+      expect(received).toEqual([...received].sort((a, b) => a - b));
+    },
+    FULL_KIT_TIMEOUT_MS,
+  );
 
-  it("uses the wallet address when the request carries one", async () => {
-    const wallet = "0x" + "12".repeat(20);
-    const { target, written } = fakeSaveTarget();
+  it(
+    "uses the wallet address when the request carries one",
+    async () => {
+      const wallet = "0x" + "12".repeat(20);
+      const { target, written } = fakeSaveTarget();
 
-    await run(
-      demoFetchAndDownloadArtifacts(target, {
-        ...REQUEST,
-        depositorEthAddress: wallet,
-      }),
-    );
+      await run(
+        demoFetchAndDownloadArtifacts(target, {
+          ...REQUEST,
+          depositorEthAddress: wallet,
+        }),
+      );
 
-    expect(claimOf(written).vault_id).toBe(
-      "0x" + derivePeginVaultId(REQUEST.peginTxid, wallet),
-    );
-  });
+      expect(claimOf(written).vault_id).toBe(
+        "0x" + derivePeginVaultId(REQUEST.peginTxid, wallet),
+      );
+    },
+    FULL_KIT_TIMEOUT_MS,
+  );
 
   it.each([
     "truncated",
