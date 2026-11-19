@@ -468,6 +468,26 @@ describe("deriveAttribution", () => {
     expect(result.utm_term).toBe("ref_[BTC_ADDR][ETH_ADDR]");
   });
 
+  it("scrubs a legacy Bitcoin address joined directly before a bc1 address", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref_1BoatSLRHtKNngkdXEeobR76b53LETtpyTbc1${"q".repeat(24)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR][BTC_ADDR]");
+  });
+
+  it("scrubs a bc1 address with exactly 24 characters after the prefix", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref_bc1${"q".repeat(24)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
   it("scrubs a 25-character legacy Bitcoin address", () => {
     const result = deriveAttribution({
       search: `?utm_term=ref_1${"A".repeat(24)}`,
@@ -567,6 +587,16 @@ describe("deriveAttribution", () => {
     expect(result.gclid).toBe(gclid);
   });
 
+  it("sends a click id that contains a hyphen", () => {
+    const result = deriveAttribution({
+      search: "?gclid=Cj0-KCQ_iA",
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.gclid).toBe("Cj0-KCQ_iA");
+  });
+
   it("drops a click id with a dot", () => {
     const result = deriveAttribution({
       search: "?gclid=a.b",
@@ -616,6 +646,27 @@ describe("deriveAttribution", () => {
       ownHost: APP_HOST,
     });
     expect(result.$referring_domain).toBe("btc-vaults.evil.com");
+  });
+
+  it("counts a babylonlabs.io btc-vaults name under another domain as an external referrer", () => {
+    const result = deriveAttribution({
+      search: "",
+      referrer: "https://btc-vaults.babylonlabs.io.evil.com/",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.$referring_domain).toBe("btc-vaults.babylonlabs.io.evil.com");
+  });
+
+  it("does not count a btc-vaults subdomain host as a referrer from another app host", () => {
+    expect(
+      deriveAttribution({
+        search: "",
+        referrer: "https://btc-vaults.testnet.babylonlabs.io/",
+        cookie: "",
+        ownHost: "btc-vaults.babylonlabs.io",
+      }),
+    ).toEqual({ $referring_domain: "$direct", via: "other" });
   });
 
   it("truncates a referrer hostname to 100 characters", () => {
