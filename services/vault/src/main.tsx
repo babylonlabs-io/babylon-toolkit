@@ -1,6 +1,8 @@
-// Must come first — env validation initializes the network config
-// runtime (`@/config/network`) at module load, before any other module
-// reads from it.
+// Sets `globalThis.Buffer` before any module can read it; it reads no config.
+import "@/polyfills/globalBuffer";
+// Must come before every other app module — env validation initializes the
+// network config runtime (`@/config/network`) at module load, before any
+// other module reads from it.
 import "@/config/env";
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";

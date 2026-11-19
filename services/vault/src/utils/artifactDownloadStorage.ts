@@ -13,10 +13,16 @@
  * evidence. Affected users see the artifact warning again and can re-download.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  stripHexPrefix,
+  X_ONLY_PUBKEY_HEX_LEN,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { logger } from "@/infrastructure";
 import type { ArtifactSaveMethod } from "@/services/artifacts";
+// Leaf modules, not the barrel: the barrel loads the VP client and with it the env config.
+import { SHA256_HEX_LENGTH } from "@/services/artifacts/claimFile";
+import { MAX_SESSIONS } from "@/services/artifacts/httpArtifactDownload";
 
 const ARTIFACTS_DOWNLOADED_KEY_PREFIX = "tbv:artifacts-downloaded:";
 
@@ -35,20 +41,16 @@ const GRAPH_MISMATCH_KEY_PREFIX = "tbv:artifacts-graph-mismatch:";
 const SIGNED_GRAPH_FINGERPRINT_KEY_PREFIX = "tbv:signed-graph-fingerprint:";
 
 /**
- * Bumped whenever the receipt shape changes. A receipt from a different
- * version is discarded rather than migrated — re-downloading is safe, and
- * guessing at an old record's meaning is not.
+ * Version 2 adds the per-session hashes of the tar kit; version 1 receipts
+ * (the hex-JSON kit) stay valid as evidence that a complete kit was saved.
+ * Any other version is discarded rather than migrated.
  */
-export const ARTIFACT_RECEIPT_VERSION = 1;
+export const ARTIFACT_RECEIPT_VERSION = 2;
 
-/** Length of a hex-encoded SHA-256 digest. */
-const SHA256_HEX_LENGTH = 64;
+const LOWERCASE_HEX_PATTERN = /^[0-9a-f]+$/;
 
-const SHA256_HEX_PATTERN = /^[0-9a-f]+$/;
-
-export interface ArtifactDownloadReceipt {
-  version: number;
-  /** Pegin txid the bundle was fetched for, without 0x prefix, lowercased. */
+interface ArtifactDownloadReceiptBase {
+  /** Pegin txid the kit was fetched for, without 0x prefix, lowercased. */
   peginTxid: string;
   filename: string;
   byteLength: number;
@@ -57,6 +59,22 @@ export interface ArtifactDownloadReceipt {
   savedAt: number;
   method: ArtifactSaveMethod;
 }
+
+/** The hex-JSON kit; still accepted as evidence that a kit was saved. */
+export interface ArtifactDownloadReceiptV1 extends ArtifactDownloadReceiptBase {
+  version: 1;
+}
+
+/** The tar kit, with the hash and length of every session entry. */
+export interface ArtifactDownloadReceiptV2 extends ArtifactDownloadReceiptBase {
+  version: 2;
+  /** Keyed by challenger x-only key, lowercase hex. */
+  sessions: Record<string, { sha256: string; byteLength: number }>;
+}
+
+export type ArtifactDownloadReceipt =
+  | ArtifactDownloadReceiptV1
+  | ArtifactDownloadReceiptV2;
 
 function isBrowserStorageAvailable(): boolean {
   return (
@@ -76,8 +94,16 @@ function signedGraphFingerprintKey(vaultId: string): string {
   return `${SIGNED_GRAPH_FINGERPRINT_KEY_PREFIX}${vaultId.toLowerCase()}`;
 }
 
+function isLowercaseHex(value: unknown, length: number): value is string {
+  return (
+    typeof value === "string" &&
+    value.length === length &&
+    LOWERCASE_HEX_PATTERN.test(value)
+  );
+}
+
 function isSha256Hex(value: string): boolean {
-  return value.length === SHA256_HEX_LENGTH && SHA256_HEX_PATTERN.test(value);
+  return isLowercaseHex(value, SHA256_HEX_LENGTH);
 }
 
 export function normalizePeginTxid(peginTxid: string): string {
@@ -92,22 +118,57 @@ function isValidReceipt(value: unknown): value is ArtifactDownloadReceipt {
     return false;
   }
   const receipt = value as Record<string, unknown>;
-  return (
-    receipt.version === ARTIFACT_RECEIPT_VERSION &&
+  const baseValid =
     typeof receipt.peginTxid === "string" &&
     receipt.peginTxid.length > 0 &&
     typeof receipt.filename === "string" &&
     typeof receipt.byteLength === "number" &&
     Number.isFinite(receipt.byteLength) &&
     receipt.byteLength > 0 &&
-    typeof receipt.sha256 === "string" &&
-    receipt.sha256.length === SHA256_HEX_LENGTH &&
-    SHA256_HEX_PATTERN.test(receipt.sha256) &&
+    isLowercaseHex(receipt.sha256, SHA256_HEX_LENGTH) &&
     typeof receipt.savedAt === "number" &&
     Number.isFinite(receipt.savedAt) &&
     (receipt.method === "file-system-access" ||
-      receipt.method === "browser-download")
-  );
+      receipt.method === "browser-download");
+  if (!baseValid) return false;
+  switch (receipt.version) {
+    case 1:
+      return true;
+    case 2:
+      return isValidSessions(receipt.sessions);
+    default:
+      return false;
+  }
+}
+
+/**
+ * 1..MAX_SESSIONS entries keyed by challenger x-only key, each with a
+ * SHA-256 and a positive integer length.
+ */
+function isValidSessions(value: unknown): boolean {
+  // `typeof null === "object"`, as with the receipt itself.
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0 || entries.length > MAX_SESSIONS) return false;
+  return entries.every(([key, session]) => {
+    if (!isLowercaseHex(key, X_ONLY_PUBKEY_HEX_LEN)) return false;
+    if (
+      session === null ||
+      typeof session !== "object" ||
+      Array.isArray(session)
+    ) {
+      return false;
+    }
+    const { sha256, byteLength } = session as Record<string, unknown>;
+    return (
+      isLowercaseHex(sha256, SHA256_HEX_LENGTH) &&
+      typeof byteLength === "number" &&
+      Number.isSafeInteger(byteLength) &&
+      byteLength > 0
+    );
+  });
 }
 
 /**
@@ -168,9 +229,9 @@ export function hasArtifactsDownloaded(
 /**
  * Drop every stored receipt, returning how many were removed.
  *
- * Dev-only affordance: once a vault's gate is satisfied the card hides its
- * download button, so there is otherwise no way to re-run the flow against
- * the same vault. Exposed through the god-mode panel.
+ * Dev-only affordance: once a vault's gate is satisfied the activation dialog
+ * offers no further download, so there is otherwise no way to re-run that
+ * flow against the same vault. Exposed through the god-mode panel.
  */
 export function clearArtifactDownloadReceipts(): number {
   if (!isBrowserStorageAvailable()) return 0;

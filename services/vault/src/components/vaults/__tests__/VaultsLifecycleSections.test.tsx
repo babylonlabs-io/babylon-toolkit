@@ -20,10 +20,7 @@ import {
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
-import {
-  getSignedGraphFingerprint,
-  type RemovePendingPeginsResult,
-} from "@/storage/peginStorage";
+import type { RemovePendingPeginsResult } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import { truncateHash } from "@/utils/addressUtils";
@@ -61,7 +58,7 @@ vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => ({
   ),
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWidgetState: () => ({ visible: false }),
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
   useChainConnector: () => undefined,
@@ -109,13 +106,6 @@ vi.mock("@/hooks/useReclaimVaultChainData", () => ({
 // resolves is driven per test.
 vi.mock("@/hooks/useRedeemClaimTxids", () => ({
   useRedeemClaimTxids: vi.fn(() => new Map<string, string>()),
-}));
-
-// No presign fingerprint by default, so no row offers a download unless a
-// test opts in.
-vi.mock("@/storage/peginStorage", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/storage/peginStorage")>()),
-  getSignedGraphFingerprint: vi.fn(() => ({ status: "no-entry" })),
 }));
 
 // The decode itself is covered in utils/btc; here only the row's use of it.
@@ -1499,19 +1489,7 @@ describe("VaultsLifecycleSections expired artifact download", () => {
     expirationReason: "activation_timeout",
   };
 
-  beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_FF_HTTP_ARTIFACT_DOWNLOADS", "true");
-    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
-      status: "found",
-      fingerprint: "ee".repeat(32),
-    });
-  });
-
   afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.mocked(getSignedGraphFingerprint).mockReturnValue({
-      status: "no-entry",
-    });
     window.localStorage.clear();
   });
 
@@ -1585,7 +1563,7 @@ describe("VaultsLifecycleSections expired artifact download", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the download once this pegin's artifacts are saved", () => {
+  it("offers the download again once this pegin's artifacts are saved", () => {
     saveArtifactDownloadReceipt(EXPIRED_ID, {
       version: 1,
       peginTxid: PEGIN_TXID,
@@ -1596,12 +1574,21 @@ describe("VaultsLifecycleSections expired artifact download", () => {
       method: "browser-download",
     });
 
-    renderExpiredRow();
+    const onDownloadArtifacts = renderExpiredRow();
 
     expect(
       screen.queryByRole("button", {
         name: COPY.vaults.actions.downloadArtifacts,
       }),
     ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.actions.downloadArtifactsAgain,
+      }),
+    );
+
+    expect(onDownloadArtifacts).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultId: EXPIRED_ID }),
+    );
   });
 });

@@ -20,10 +20,7 @@ import { useMemo, type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
-import {
-  NEUTRAL_ROW_BUTTON_CLASS,
-  PRIMARY_ROW_BUTTON_CLASS,
-} from "@/components/shared/buttonClasses";
+import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { CopyableHash } from "@/components/shared/CopyableHash";
 import {
   LIST_ROW_COLUMN_CLASS,
@@ -33,6 +30,7 @@ import {
   LIST_ROW_TRAILING_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
+import { ArtifactDownloadRowButton } from "@/components/vaults/ArtifactDownloadRowButton";
 import { ArtifactReminderCard } from "@/components/vaults/ArtifactReminderCard";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -41,7 +39,6 @@ import {
   getArtifactDownloadParams,
   type ArtifactDownloadParams,
 } from "@/utils/artifactDownloadParams";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
@@ -50,8 +47,8 @@ interface VaultsActiveSectionProps {
   onWithdraw: (vaultId: string) => void;
   onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
   isWithdrawDisabled: boolean;
-  /** The connected Ethereum account; the presign fingerprints that gate
-   *  Download artifacts are stored under it. */
+  /** The connected Ethereum account; Download artifacts binds the kit's
+   *  vault id to it. */
   ethAddress?: string;
   /** Shown under a plain "Vaults" heading while no vault is active yet —
    *  the page reaches this section with pending deposits only. */
@@ -71,7 +68,7 @@ function ActiveVaultRow({
   onDownloadArtifacts: (params: ArtifactDownloadParams) => void;
   isWithdrawDisabled: boolean;
   isTouchFirst: boolean;
-  /** Set only while the row offers Download artifacts. */
+  /** Set while the vault's artifacts can be downloaded, saved before or not. */
   downloadParams: ArtifactDownloadParams | null;
 }) {
   // Peg-in first: once a vault is active the peg-in tx is the canonical
@@ -180,13 +177,10 @@ function ActiveVaultRow({
         )}
       >
         {showDownloadParams && (
-          <button
-            type="button"
-            onClick={() => onDownloadArtifacts(showDownloadParams)}
-            className={`${PRIMARY_ROW_BUTTON_CLASS} max-md:w-full`}
-          >
-            {COPY.vaults.actions.downloadArtifacts}
-          </button>
+          <ArtifactDownloadRowButton
+            params={showDownloadParams}
+            onDownload={onDownloadArtifacts}
+          />
         )}
         {/* This control's data-testid is a real-wallet E2E hook
             (e2e/real/actions/withdraw.ts) — carry it over if you move or rename
@@ -224,9 +218,9 @@ export function VaultsActiveSection({
   emptyState,
 }: VaultsActiveSectionProps) {
   const isTouchFirst = useIsTouchFirst();
-  // One pass over pending storage per vault-list change, not one per row per
-  // render. The receipt check below stays per render, so a row drops its
-  // button as soon as the modal saves the artifacts.
+  // Derived once per vault-list change, so each row's params keep their
+  // identity across renders. The row button reads the receipt per render, so
+  // its label changes as soon as the modal saves the artifacts.
   const artifactParamsById = useMemo(() => {
     const byId = new Map<string, ArtifactDownloadParams>();
     for (const vault of vaults) {
@@ -272,15 +266,7 @@ export function VaultsActiveSection({
               onDownloadArtifacts={onDownloadArtifacts}
               isWithdrawDisabled={isWithdrawDisabled}
               isTouchFirst={isTouchFirst}
-              downloadParams={
-                artifactParams &&
-                !hasArtifactsDownloaded(
-                  artifactParams.vaultId,
-                  artifactParams.peginTxid,
-                )
-                  ? artifactParams
-                  : null
-              }
+              downloadParams={artifactParams ?? null}
             />
           );
         })}

@@ -87,6 +87,12 @@ export interface UtxoRef {
   vout: number;
 }
 
+/**
+ * The ETH registration after the wallet took it and before it confirmed:
+ * `pending` at first, `slow` once it has waited longer than usual.
+ */
+export type RegistrationConfirmationWait = "pending" | "slow";
+
 // ============================================================================
 // DepositFlowStep.SIGN_POP + SUBMIT_PEGIN — shared params for PoP signing
 // and the batch ETH tx (both operations reuse the same PopSignature and

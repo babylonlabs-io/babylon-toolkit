@@ -31,7 +31,7 @@ vi.mock("@/context/wallet", () => ({
   useETHWallet: () => wallets.eth,
 }));
 
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWalletConnect: () => wallets.session,
 }));
 

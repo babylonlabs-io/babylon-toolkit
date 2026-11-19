@@ -87,7 +87,7 @@ export const UNJOINED_BABE_SESSIONS_JSON = "{}";
  * @experimental
  */
 export interface ClaimerArtifactsSource {
-  /** `tx_graph_json` from `requestDepositorClaimerArtifacts`. */
+  /** `tx_graph_json` from the provider's recovery-artifact payload. */
   txGraphJson: string;
   /**
    * `verifying_key_hex` from the same response — the vault provider's own

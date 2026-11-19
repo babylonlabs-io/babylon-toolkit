@@ -15,8 +15,8 @@
  * - USD display is enabled
  */
 
-import type { BTCConfig } from "@babylonlabs-io/wallet-connector";
-import { Network } from "@babylonlabs-io/wallet-connector";
+import type { BTCConfig } from "@babylonlabs-io/wallet-connector/btc-eth";
+import { Network } from "@babylonlabs-io/wallet-connector/btc-eth";
 
 import {
   BTC_SIGNET,

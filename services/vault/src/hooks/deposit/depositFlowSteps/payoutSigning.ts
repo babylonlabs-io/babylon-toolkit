@@ -194,7 +194,7 @@ export async function signAndSubmitPayouts(
         ) {
           // Neither this device's entry nor its per-vault record took the
           // fingerprint. The submit goes on, and the artifact download for
-          // this vault then fails closed.
+          // this vault is then saved unchecked, with no receipt.
           logger.warn(
             "Could not store the presign fingerprint on this device",
             {

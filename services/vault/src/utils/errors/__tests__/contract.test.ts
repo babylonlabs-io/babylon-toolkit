@@ -504,6 +504,25 @@ describe("Contract Error Mapping", () => {
       );
     });
 
+    it("names both deposit limits when an activation reverts with ActivationCapExceeded", () => {
+      const error = {
+        message: "execution reverted",
+        cause: {
+          name: "ContractFunctionRevertedError",
+          // ActivationCapExceeded() selector
+          raw: "0xed50eefa",
+        },
+      };
+      const result = mapViemErrorToContractError(error, "vault activation", [
+        TEST_ABI,
+      ]);
+
+      expect(result.reason).toBe("ActivationCapExceeded");
+      expect(result.message).toBe(
+        "This BTCVault would exceed the application's deposit limit or your per-address limit, so it was not activated.",
+      );
+    });
+
     it("returns an already-mapped ContractError unchanged", () => {
       const mapped = mapViemErrorToContractError(
         {

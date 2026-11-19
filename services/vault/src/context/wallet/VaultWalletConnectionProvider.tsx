@@ -9,7 +9,7 @@ import {
   useWalletConnect,
   useWidgetState,
   type IChain,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useTheme } from "next-themes";
 import {
   useCallback,
@@ -262,7 +262,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
           BTC: getNetworkConfigBTC(),
           ETH: getNetworkConfigETH(),
         },
-        disableTomo: true,
       }),
     [],
   );
@@ -282,13 +281,11 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       persistent
       ttl={WALLET_SESSION_TTL_MS}
       lifecycleHooks={LIFECYCLE_HOOKS}
-      theme={theme}
       config={config}
       context={context}
       onError={onError}
       disabledWallets={disabledWallets}
       requiredChains={REQUIRED_CHAINS}
-      disableTomo
       dialogActions={
         <StandardSettingsMenu
           theme={theme}

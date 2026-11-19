@@ -1,14 +1,13 @@
 export {
-  PresignFingerprintUnavailableError,
   PresignGraphMismatchError,
-  assertBundleBoundToVault,
-  type VaultBindingContext,
+  ServedGraphUnreadableError,
 } from "./artifactBinding";
 export {
-  downloadArtifactsFromResponse,
+  downloadRecoveryKit,
   fetchAndDownloadArtifacts,
   type ArtifactDownloadOutcome,
   type FetchArtifactsOptions,
+  type RecoveryKitDownloadIdentity,
 } from "./artifactDownloadService";
 export {
   isFileSystemAccessSupported,
@@ -20,9 +19,6 @@ export {
   ArtifactDownloadCancelledError,
   ArtifactDownloadTooLargeError,
   ArtifactFileAccessError,
+  ArtifactIdentityMismatchError,
 } from "./errors";
 export { ArtifactsNotReadyError } from "./httpArtifactDownload";
-// The validator itself stays internal to this service; only the error-value
-// cap is published, so fixtures that must sit under it (the god-mode demo)
-// can derive their size instead of hardcoding one that silently drifts.
-export { MAX_ERROR_VALUE_BYTES } from "./streamingArtifactValidator";

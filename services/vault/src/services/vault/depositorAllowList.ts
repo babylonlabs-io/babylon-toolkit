@@ -7,8 +7,8 @@
  * (vault-contracts-aave-v4@99a4e3e7:src/protocol/lib/PeginLogic.sol:269-272).
  * Without this check the depositor learns that only at the registration's gas
  * estimate, after the vault-secret derivation, PegIn and proof-of-possession
- * prompts. The deposit form reads the same view, but its answer can be up to a
- * minute old and can still be loading when the depositor clicks.
+ * prompts. The deposit form reads the same view, but its answer can predate the
+ * latest change to the list and can still be loading when the depositor clicks.
  *
  * Fails open, unlike the position-capacity check: the registry is the control,
  * and it refuses before anything is broadcast or any ETH is spent, so an

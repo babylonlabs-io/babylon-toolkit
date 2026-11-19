@@ -181,13 +181,13 @@ export function WithdrawReviewContent({
 
   return (
     <div className="w-full">
-      <div className="rounded-t-2xl border border-b-0 border-secondary-strokeLight p-6">
+      <div className="rounded-t-2xl border border-b-0 border-secondary-strokeLight px-4 py-6 sm:px-6">
         <Heading variant="h5" className="font-normal text-accent-primary">
           {REVIEW_COPY.heading}
         </Heading>
       </div>
 
-      <div className="rounded-b-2xl border border-secondary-strokeLight p-6">
+      <div className="rounded-b-2xl border border-secondary-strokeLight px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-6">
             {rows.map((row) => (
@@ -243,7 +243,7 @@ export function WithdrawReviewContent({
                   WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1),
                 )}
               </Text>
-              <label className="flex w-full cursor-pointer items-center gap-4">
+              <label className="flex w-full cursor-pointer items-center gap-2">
                 {/* This control's data-testid is a real-wallet E2E hook
                     (e2e/real/actions/withdraw.ts) — carry it over if you move
                     or rename the element. */}

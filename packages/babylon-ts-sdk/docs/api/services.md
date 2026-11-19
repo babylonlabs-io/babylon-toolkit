@@ -2777,7 +2777,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 **`Experimental`**
 
-`tx_graph_json` from `requestDepositorClaimerArtifacts`.
+`tx_graph_json` from the provider's recovery-artifact payload.
 
 ##### verifyingKeyHex
 
@@ -3334,38 +3334,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 ###### Returns
 
 `Promise`\<`void`\>
-
-***
-
-### ClaimerArtifactsReader
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
-
-VP operations for depositor-as-claimer artifacts (separate from payout signing).
-
-#### Methods
-
-##### requestDepositorClaimerArtifacts()
-
-```ts
-requestDepositorClaimerArtifacts(params, signal?): Promise<RequestDepositorClaimerArtifactsResponse>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
-
-###### Parameters
-
-###### params
-
-[`RequestDepositorClaimerArtifactsParams`](clients.md#requestdepositorclaimerartifactsparams)
-
-###### signal?
-
-`AbortSignal`
-
-###### Returns
-
-`Promise`\<[`RequestDepositorClaimerArtifactsResponse`](clients.md#requestdepositorclaimerartifactsresponse)\>
 
 ***
 

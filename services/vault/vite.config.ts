@@ -28,11 +28,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // 'self' does not reliably match the ws: scheme), and http://localhost:<port> covers the
 // cross-port Playwright mock servers (playwright.config.ts). Removing them breaks HMR and
 // the e2e suite with silent CSP blocks, not build errors.
+//
+// camera=(self): Keystone sync scans the device's QR code with the webcam; camera=() makes
+// the scanner fail with "Permission denied". Embedded frames from other origins stay blocked.
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=()",
 };
 
 // Dev-server-only proxy for the sidecar API. The sidecar sends no
@@ -148,7 +151,7 @@ export default defineConfig(({ mode, command }) => ({
     include: [
       "bitcoinjs-lib",
       "@bitcoin-js/tiny-secp256k1-asmjs",
-      "@babylonlabs-io/wallet-connector",
+      "@babylonlabs-io/wallet-connector/btc-eth",
       // BOTH signer entries MUST accompany wallet-connector above: the dep
       // optimizer would otherwise give the E2E bootstrap (which imports the
       // `/testing` subpath) a different dmkSession module instance than the

@@ -312,9 +312,8 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
    * Read the VP operation key selected by `epoch`.
    *
    * This is public rather than hidden inside `OperationKeyReader` because
-   * subject-specific VP authentication needs exactly one participant: the
-   * gRPC bootstrap is signed by the key frozen into the vault, while the
-   * JSON-RPC bootstrap is signed by the provider's live key.
+   * VP authentication pins both token subjects to the key selected by the
+   * vault's frozen VP epoch (btc-vault #2984).
    */
   async getVaultProviderOperationBtcKeyAtEpoch(
     vpAddress: Address,
@@ -365,9 +364,8 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
    * rotated, so this returns the same value as
    * `getVaultProviderGenesisBtcPubKey` until the first rotation.
    *
-   * This is the key the VP's server uses for JSON-RPC-subject authentication.
-   * The gRPC-subject bootstrap is instead bound to the existing vault's frozen
-   * epoch and resolves through `getVaultProviderOperationBtcKeyAtEpoch`.
+   * Read for payout and refund participant checks. It is not a token-subject
+   * pin: those resolve through `getVaultProviderOperationBtcKeyAtEpoch`.
    */
   async getCurrentVaultProviderOperationBtcKey(
     vpAddress: Address,
