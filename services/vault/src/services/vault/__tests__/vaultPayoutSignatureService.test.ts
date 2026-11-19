@@ -316,10 +316,10 @@ describe("vaultPayoutSignatureService", () => {
     });
 
     it("throws when VP commission is below the protocol floor", async () => {
-      // The registry never accepts a commission below 10.
+      // The registry never accepts a commission below 1 bps.
       (getVaultFromChain as Mock).mockResolvedValue({
         ...ON_CHAIN_VAULT,
-        vaultProviderCommissionBps: 5,
+        vaultProviderCommissionBps: 0,
       });
 
       await expect(
@@ -329,7 +329,7 @@ describe("vaultPayoutSignatureService", () => {
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
-        /VP commission 5 bps out of protocol range \[10, 10000\)/,
+        /VP commission 0 bps out of protocol range \[1, 10000\)/,
       );
     });
 
@@ -346,7 +346,7 @@ describe("vaultPayoutSignatureService", () => {
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
-        /VP commission 10000 bps out of protocol range \[10, 10000\)/,
+        /VP commission 10000 bps out of protocol range \[1, 10000\)/,
       );
     });
 

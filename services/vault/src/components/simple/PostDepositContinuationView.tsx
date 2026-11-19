@@ -80,6 +80,7 @@ function StatusView({
   successMessage,
   btcConfirmationDetail = null,
   vaultCount = 1,
+  vaultIds,
   currentVaultIndex = null,
   perVaultSteps,
   offchainParamsVersion,
@@ -93,6 +94,7 @@ function StatusView({
   successMessage?: string;
   btcConfirmationDetail?: BtcConfirmationDetailData | null;
   vaultCount?: number;
+  vaultIds?: readonly string[];
   currentVaultIndex?: number | null;
   perVaultSteps?: DepositFlowStep[];
   offchainParamsVersion?: number;
@@ -108,6 +110,7 @@ function StatusView({
       payoutSigningProgress={null}
       peginSigningProgress={null}
       vaultCount={vaultCount}
+      vaultIds={vaultIds}
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
@@ -147,7 +150,7 @@ export function PostDepositContinuationView({
     usePeginPolling();
   const navigate = useNavigate();
 
-  // Refresh on open because the shared poll can stop before this view mounts.
+  // Refresh on open without waiting for the next polling interval.
   // Use a ref: a changed refetch callback must not start another request.
   const refetchRef = useRef(refetch);
   refetchRef.current = refetch;
@@ -183,17 +186,35 @@ export function PostDepositContinuationView({
   };
 
   // Prefer a vault with an available action over a waiting sibling.
-  // Keep that vault selected while its action remains available, or while its
-  // poll failed or has not answered yet. A new action on a sibling must not
-  // unmount active signing. Release on a resolved snapshot without an action.
+  // Keep that vault selected while its action or payout submission is active,
+  // or while its poll has not answered. Release a settled step with no action.
   const [stickyVaultId, setStickyVaultId] = useState<string | null>(null);
+  const [signingVaultId, setSigningVaultId] = useState<string | null>(null);
+  const handleSigningChange = useCallback(
+    (vaultId: string, signing: boolean) => {
+      setSigningVaultId((current) =>
+        signing ? vaultId : current === vaultId ? null : current,
+      );
+    },
+    [],
+  );
+  const heldState =
+    stickyVaultId === null
+      ? undefined
+      : getPollingResult(stickyVaultId)?.peginState;
+  const signingPending =
+    signingVaultId === stickyVaultId &&
+    heldState?.contractStatus === ContractStatus.PENDING &&
+    isCandidateVault(heldState);
   const heldActionsRef = useRef<readonly PeginAction[]>([]);
   const heldActivityRef = useRef<VaultActivity | undefined>(undefined);
   const heldDepositorBtcPubkeyRef = useRef<string | undefined>(undefined);
   const heldVaultId =
     stickyVaultId !== null &&
     vaultIds.includes(stickyVaultId as Hex) &&
-    (isActionable(stickyVaultId) || isUnresolved(stickyVaultId))
+    (isActionable(stickyVaultId) ||
+      isUnresolved(stickyVaultId) ||
+      signingPending)
       ? stickyVaultId
       : null;
   const actionableVaultId = heldVaultId ?? vaultIds.find(isActionable) ?? null;
@@ -228,8 +249,8 @@ export function PostDepositContinuationView({
     ? activities.find((a) => a.id === currentVaultId)
     : undefined;
   const liveActions = pollingResult?.peginState.availableActions ?? [];
-  // While the held vault's poll is unresolved, keep its last actions, and its
-  // last activity and key for a tick that drops it, so the step stays mounted.
+  // Keep the active submission mounted if a poll drops its action before the
+  // submit response returns. Keep its activity and key through a missing tick.
   const holdThrough = heldVaultId !== null && !isActionable(heldVaultId);
   if (!holdThrough) {
     heldActionsRef.current = liveActions;
@@ -274,6 +295,7 @@ export function PostDepositContinuationView({
           isComplete
           onClose={onClose}
           vaultCount={vaultCount}
+          vaultIds={vaultIds}
           currentVaultIndex={null}
         />
       );
@@ -318,6 +340,7 @@ export function PostDepositContinuationView({
           )}
           onClose={onClose}
           vaultCount={vaultCount}
+          vaultIds={vaultIds}
           currentVaultIndex={warningIndex >= 0 ? warningIndex : null}
           perVaultSteps={perVaultSteps}
         />
@@ -390,6 +413,7 @@ export function PostDepositContinuationView({
           canContinueInBackground
           onClose={onClose}
           vaultCount={vaultCount}
+          vaultIds={vaultIds}
           currentVaultIndex={null}
           perVaultSteps={perVaultSteps}
           offchainParamsVersion={batchParamsVersion}
@@ -443,6 +467,7 @@ export function PostDepositContinuationView({
       <StatusView
         currentStep={demoStep}
         vaultCount={vaultCount}
+        vaultIds={vaultIds}
         currentVaultIndex={currentVaultIndex >= 0 ? currentVaultIndex : null}
         perVaultSteps={demoPerVaultSteps}
         isProcessing
@@ -494,6 +519,7 @@ export function PostDepositContinuationView({
         activity={activity}
         btcPublicKey={btcPublicKey}
         autoStart={autoStart(PeginAction.SIGN_PAYOUT_TRANSACTIONS)}
+        onSigningChange={handleSigningChange}
         depositorEthAddress={depositorEthAddress}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}
@@ -544,6 +570,7 @@ export function PostDepositContinuationView({
     <StatusView
       currentStep={waitStep}
       vaultCount={vaultCount}
+      vaultIds={vaultIds}
       currentVaultIndex={currentVaultIndex >= 0 ? currentVaultIndex : null}
       perVaultSteps={perVaultSteps}
       isProcessing

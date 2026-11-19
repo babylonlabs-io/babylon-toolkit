@@ -53,3 +53,42 @@ describe("featureFlags.allowedVaultProviders", () => {
     );
   });
 });
+
+describe("featureFlags.waitlistFormUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is undefined when the variable is unset, so the form button stays disabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_TBV_WAITLIST_FORM_URL", undefined);
+    expect(featureFlags.waitlistFormUrl).toBeUndefined();
+  });
+
+  it("is undefined for a value that is not a URL", () => {
+    vi.stubEnv("NEXT_PUBLIC_TBV_WAITLIST_FORM_URL", "not a url");
+    expect(featureFlags.waitlistFormUrl).toBeUndefined();
+  });
+
+  it("is undefined for an http URL", () => {
+    vi.stubEnv(
+      "NEXT_PUBLIC_TBV_WAITLIST_FORM_URL",
+      "http://forms.example.com/apply",
+    );
+    expect(featureFlags.waitlistFormUrl).toBeUndefined();
+  });
+
+  it("is undefined for a javascript URL", () => {
+    vi.stubEnv("NEXT_PUBLIC_TBV_WAITLIST_FORM_URL", "javascript:alert(1)");
+    expect(featureFlags.waitlistFormUrl).toBeUndefined();
+  });
+
+  it("returns an https URL", () => {
+    vi.stubEnv(
+      "NEXT_PUBLIC_TBV_WAITLIST_FORM_URL",
+      "https://forms.example.com/apply",
+    );
+    expect(featureFlags.waitlistFormUrl).toBe(
+      "https://forms.example.com/apply",
+    );
+  });
+});

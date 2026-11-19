@@ -8,8 +8,9 @@ export type ArtifactSurface = "activation" | "vault";
 export const CANCEL_DOWNLOAD_TITLE = "Cancel artifact download?";
 export const ARTIFACT_QUOTA_MESSAGE =
   "Too many artifact download requests. Wait and try again later.";
-export const ARTIFACT_LEGACY_QUOTA_MESSAGE =
-  "The vault provider limits downloads for this BTCVault. Wait before you try again. Contact the vault provider if the problem continues.";
+
+/** Lead on the page clock so the pause target is still ahead when it lands. */
+const PAUSE_LEAD_MS = 1_000;
 
 /** Use the existing demo stream and the selected browser save path. */
 export async function openArtifactDownload(
@@ -63,9 +64,7 @@ export async function openArtifactDownload(
     .click();
   if (scenario === "quota") {
     await expect(
-      page
-        .getByText(ARTIFACT_QUOTA_MESSAGE, { exact: true })
-        .or(page.getByText(ARTIFACT_LEGACY_QUOTA_MESSAGE, { exact: true })),
+      page.getByText(ARTIFACT_QUOTA_MESSAGE, { exact: true }),
     ).toBeVisible();
     return;
   }
@@ -75,8 +74,12 @@ export async function openArtifactDownload(
       exact: true,
     }),
   ).toBeVisible();
+  // The clock keeps running until paused; a 10 ms lead lost the race on CI.
   await page.clock.pauseAt(
-    await page.evaluate(() => performance.timeOrigin + performance.now() + 10),
+    await page.evaluate(
+      (lead) => performance.timeOrigin + performance.now() + lead,
+      PAUSE_LEAD_MS,
+    ),
   );
   await page.clock.runFor(2_000);
   await expect(artifactProgress(page)).toBeVisible();

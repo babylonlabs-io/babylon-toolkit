@@ -66,8 +66,7 @@ export interface JsonRpcClientConfig {
   /** Initial retry delay in milliseconds (default: 1000) */
   retryDelay?: number;
   /**
-   * Maximum response body size, in bytes, for typed JSON-RPC calls.
-   * `callRaw` intentionally returns the unparsed Response and is not capped here.
+   * Maximum response body size, in bytes, for JSON-RPC calls.
    * Default: 2 MiB.
    */
   maxResponseBytes?: number;
@@ -84,7 +83,6 @@ export interface JsonRpcClientConfig {
    * `Authorization: Bearer <token>`; `null` skips auth. `call`
    * additionally retries once when the server rejects the bearer
    * (invalidate + refetch + retry) — see {@link isAuthRejectedError}.
-   * `callRaw` skips reactive refresh.
    */
   tokenProvider?: BearerTokenProvider;
 }
@@ -128,16 +126,8 @@ const DEFAULT_RETRY_ATTEMPTS = 3;
 /** Default initial retry delay in milliseconds */
 const DEFAULT_RETRY_DELAY_MS = 1000;
 
-/** Default maximum JSON-RPC response size for typed calls (2 MiB) */
+/** Default maximum JSON-RPC response size (2 MiB) */
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-
-/**
- * TODO: Temporary typed-call exceptions for methods that currently return large
- * artifact payloads as JSON-RPC results.
- */
-const UNCAPPED_TYPED_RESPONSE_METHODS: ReadonlySet<string> = new Set([
-  "vaultProvider_requestDepositorClaimerArtifacts",
-]);
 
 /** HTTP status codes that indicate transient server errors and are safe to retry */
 const RETRYABLE_HTTP_STATUS_CODES: ReadonlySet<number> = new Set([
@@ -331,9 +321,10 @@ export class JsonRpcClient {
 
     let jsonResponse: unknown;
     try {
-      const responseText = UNCAPPED_TYPED_RESPONSE_METHODS.has(method)
-        ? await response.text()
-        : await readResponseTextWithLimit(response, this.maxResponseBytes);
+      const responseText = await readResponseTextWithLimit(
+        response,
+        this.maxResponseBytes,
+      );
       jsonResponse = JSON.parse(responseText);
     } catch (error) {
       if (error instanceof JsonRpcError) {
@@ -383,24 +374,6 @@ export class JsonRpcClient {
     }
 
     return rpcResponse.result as TResult;
-  }
-
-  /**
-   * Make a JSON-RPC request returning the raw Response (unparsed body).
-   *
-   * Bearer tokens are injected identically to `call`. **Reactive refresh
-   * is NOT performed here** — the response body may be unbounded (e.g.
-   * claimer-artifact downloads), so the client refuses to parse it to
-   * detect auth errors. Callers relying on token-expired retries for
-   * large downloads must read the body themselves and re-invoke
-   * `callRaw` after `tokenProvider.invalidate()`.
-   */
-  async callRaw<TParams>(
-    method: string,
-    params: TParams,
-    signal?: AbortSignal,
-  ): Promise<Response> {
-    return this.fetchWithRetry(method, params, signal);
   }
 
   private async fetchWithRetry<TParams>(

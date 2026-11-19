@@ -167,29 +167,55 @@ test.describe("native artifact saving", () => {
     }) => {
       const readSavedFile = () =>
         page.evaluate(async () => {
+          const hex = (buffer: ArrayBuffer) =>
+            Array.from(new Uint8Array(buffer), (byte) =>
+              byte.toString(16).padStart(2, "0"),
+            ).join("");
           const directory = await navigator.storage.getDirectory();
           const handle = await directory.getFileHandle(
-            "babylon-vault-artifacts-d1d1d1d1.json",
+            "babylon-vault-d1d1d1d1.tar",
           );
           const file = await handle.getFile();
-          const bytes = await file.arrayBuffer();
-          const result = JSON.parse(new TextDecoder().decode(bytes));
-          const graph = JSON.parse(result.tx_graph_json);
-          const hex =
-            result.babe_sessions["ab".repeat(32)].decryptor_artifacts_hex;
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          // Walk the ustar headers independently of the app's writer.
+          const decoder = new TextDecoder();
+          const entries: { name: string; data: Uint8Array }[] = [];
+          let offset = 0;
+          while (!bytes.subarray(offset, offset + 512).every((b) => b === 0)) {
+            const header = bytes.subarray(offset, offset + 512);
+            const nameEnd = header.indexOf(0);
+            const name = decoder.decode(
+              header.subarray(0, nameEnd === -1 ? 100 : Math.min(nameEnd, 100)),
+            );
+            const size = parseInt(decoder.decode(header.subarray(124, 135)), 8);
+            const start = offset + 512;
+            entries.push({ name, data: bytes.slice(start, start + size) });
+            offset = start + Math.ceil(size / 512) * 512;
+          }
+          const session = entries[0]!;
+          const claimEntry = entries[entries.length - 1]!;
+          const claim = JSON.parse(decoder.decode(claimEntry.data));
+          const graph = JSON.parse(claim.tx_graph_json);
           return {
             byteLength: file.size,
             modified: file.lastModified,
-            sha256: Array.from(
-              new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-              (byte) => byte.toString(16).padStart(2, "0"),
-            ).join(""),
-            fields: Object.keys(result).sort(),
-            completeHex: hex === "ab".repeat((8 * 1024 * 1024) / 2),
-            verifyingKey: result.verifying_key_hex,
-            depositorPk: graph.depositor_pubkey,
-            claimOutpoint: graph.claim_tx.tx.input[0].previous_output,
-            payoutOutpoint: graph.payout_tx.tx.input[0].previous_output,
+            sha256: hex(await crypto.subtle.digest("SHA-256", bytes)),
+            names: entries.map((entry) => entry.name),
+            claimFields: Object.keys(claim).sort(),
+            claim: {
+              vaultId: claim.vault_id,
+              verifyingKey: claim.verifying_key_hex,
+              depositorPk: graph.depositor_pubkey,
+              claimOutpoint: graph.claim_tx.tx.input[0].previous_output,
+              payoutOutpoint: graph.payout_tx.tx.input[0].previous_output,
+              sessionHash: claim.sessions["ab".repeat(32)].sha256,
+            },
+            sessionSha256: hex(
+              await crypto.subtle.digest("SHA-256", session.data),
+            ),
+            trailerZero:
+              bytes.byteLength === offset + 1024 &&
+              bytes.subarray(offset).every((b) => b === 0),
           };
         });
       let browserDownloads = 0;
@@ -204,10 +230,29 @@ test.describe("native artifact saving", () => {
       await expect(download).toBeVisible({ timeout: 30_000 });
       await expect(error).toHaveCount(0);
       const saved = await readSavedFile();
-      expect(saved.byteLength).toBeGreaterThan(8 * 1024 * 1024);
-      expect(saved).toMatchObject({
-        fields: ["babe_sessions", "tx_graph_json", "verifying_key_hex"],
-        completeHex: true,
+      // One 8 MiB session plus its header and the claim entry.
+      expect(saved.byteLength).toBeGreaterThan(8 * 1024 * 1024 + 512);
+      expect(saved.names).toEqual([
+        `sessions/${"ab".repeat(32)}.cbor`,
+        "claim.json",
+      ]);
+      expect(saved.claimFields).toEqual(
+        [
+          "format",
+          "format_version",
+          "pegin_txid",
+          "vault_id",
+          "depositor_pk",
+          "vault_provider",
+          "signed_graph_fingerprint",
+          "tx_graph_json",
+          "verifying_key_hex",
+          "sessions",
+        ].sort(),
+      );
+      expect(saved.claim.sessionHash).toBe(saved.sessionSha256);
+      expect(saved.trailerZero).toBe(true);
+      expect(saved.claim).toMatchObject({
         verifyingKey: "abcdef01",
         depositorPk: "a".repeat(64),
         claimOutpoint: `${"d1".repeat(32)}:1`,

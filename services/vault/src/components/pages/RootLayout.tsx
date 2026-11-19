@@ -54,6 +54,7 @@ import { resolveBannerStatus } from "../shared/protocolStatus";
 import { ProtocolStatusBanner } from "../shared/ProtocolStatusBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
+import { WaitlistDialog } from "../Wallet/WaitlistDialog";
 
 export interface RootLayoutContext {
   openDeposit: (initialAmountBtc?: string) => void;
@@ -342,6 +343,7 @@ export default function RootLayout() {
                     </FullScreenDialog>
                   }
                 >
+                  <WaitlistDialog depositOpen={isDepositOpen} />
                   <SimpleDeposit
                     open={isDepositOpen}
                     onClose={closeDeposit}

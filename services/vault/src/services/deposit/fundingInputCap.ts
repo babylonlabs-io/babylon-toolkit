@@ -17,8 +17,9 @@ export function resolveFundingInputCap(
   return maxFundingInputCount;
 }
 
-// The global Buffer, not the `buffer` polyfill imported above: polyfill
-// instances fail bitcoinjs/typeforce's `Buffer.isBuffer` (see btcUtils.ts:52).
+// The global Buffer, which bitcoinjs/typeforce's `Buffer.isBuffer` accepts in
+// every runtime. In the browser bundle `@/polyfills/globalBuffer` sets it to the
+// npm `buffer` package imported above; under Node it is Node's own Buffer.
 function hasValidScript(scriptPubKey: string): boolean {
   const GlobalBuffer = (globalThis as { Buffer: typeof Buffer }).Buffer;
   return !!bitcoinScript.decompile(GlobalBuffer.from(scriptPubKey, "hex"));

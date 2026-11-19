@@ -50,7 +50,7 @@ const CLOSE_LABEL = "Close";
 /** `COPY.wallet.locked.unlockButton`. */
 const UNLOCK_LABEL = "Unlock wallet";
 /** core-ui `useIsTouchFirst` query: the phone projects must emulate a touch-first device. */
-const TOUCH_FIRST_QUERY = "(pointer: coarse) and (hover: none)";
+const TOUCH_FIRST_QUERY = "(pointer: coarse) and (any-hover: none)";
 /** The deposit form's amount field (core-ui `AmountSlider`). */
 const AMOUNT_INPUT = 'input[inputmode="decimal"]';
 /**

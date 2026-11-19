@@ -1,10 +1,23 @@
 import type {
   ArtifactSaveTarget,
   FetchArtifactsOptions,
-  VaultBindingContext,
 } from "@/services/artifacts";
 
 import { createOverrideStore } from "./store";
+
+/**
+ * What the hook knows about the deposit before it has an Ethereum wallet or
+ * an indexer vault id; the demo derives the rest itself.
+ */
+export interface DemoArtifactRequest {
+  /** Pegin txid, hex without `0x`. */
+  peginTxid: string;
+  /** x-only, 64 hex, no prefix. */
+  depositorPk: string;
+  providerAddress: string;
+  /** The connected Ethereum address, or undefined without a wallet. */
+  depositorEthAddress: string | undefined;
+}
 
 /**
  * Stands in for the real `fetchAndDownloadArtifacts`. Resolves to nothing
@@ -14,7 +27,7 @@ import { createOverrideStore } from "./store";
  */
 export type ArtifactDownloadFn = (
   target: ArtifactSaveTarget,
-  binding: VaultBindingContext,
+  request: DemoArtifactRequest,
   options?: FetchArtifactsOptions,
 ) => Promise<void>;
 

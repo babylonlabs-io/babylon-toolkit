@@ -7,7 +7,7 @@
 import type {
   DeviceAppState,
   IBTCProvider,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 
 type DeviceAppStateListener = (state: DeviceAppState) => void;
 

@@ -27,7 +27,7 @@ vi.mock("wagmi/actions", () => ({
   switchChain: actions.switchChain,
   getWalletClient: actions.getWalletClient,
 }));
-vi.mock("@babylonlabs-io/wallet-connector", () => ({
+vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   getSharedWagmiConfig: () => ({}),
 }));
 

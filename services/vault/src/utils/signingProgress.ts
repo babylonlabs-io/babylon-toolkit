@@ -8,7 +8,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type {
   IBTCProvider,
   SigningProgress,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 
 type SigningProgressListener = (progress: SigningProgress) => void;
 

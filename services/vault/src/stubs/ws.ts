@@ -2,7 +2,7 @@
  * Browser stub for Node.js 'ws' package
  *
  * WHY THIS EXISTS:
- * - Wallet libraries (@reown/appkit, @tomo-inc/wallet-connect-sdk) import 'ws' as a transitive dependency
+ * - Wallet libraries (@reown/appkit) import 'ws' as a transitive dependency
  * - These libraries conditionally use 'ws' only in Node.js/SSR environments
  * - In browsers, they use the native window.WebSocket API instead
  *

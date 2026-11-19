@@ -1,4 +1,4 @@
-import { useInscriptionProvider } from "@babylonlabs-io/wallet-connector";
+import { useInscriptionProvider } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
 

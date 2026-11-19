@@ -1,4 +1,4 @@
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
 
 import { useUTXOs } from "@/hooks/useUTXOs";
 

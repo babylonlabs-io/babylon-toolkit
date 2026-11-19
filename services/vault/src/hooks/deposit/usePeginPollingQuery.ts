@@ -33,6 +33,7 @@ import type { VaultActivity } from "../../types/activity";
 import type {
   DepositsByProvider,
   DepositToPoll,
+  ProviderVerificationProgress,
 } from "../../types/peginPolling";
 import {
   getDepositsNeedingPolling,
@@ -64,6 +65,8 @@ interface PollingQueryData {
    * new vaults against an errors map that could not contain them.
    */
   polledIds: string[];
+  /** Display-only ACK counts and provider health, keyed by deposit id. */
+  verificationProgress: Map<string, ProviderVerificationProgress>;
   /** Map of depositId -> error (for deposits with provider connectivity issues) */
   errors: Map<string, Error>;
   /** Set of depositIds where vault provider needs the depositor's WOTS key */
@@ -77,6 +80,8 @@ interface PollingQueryData {
 interface UsePeginPollingQueryResult {
   /** DepositIds observed by the resolved poll — same snapshot as `errors`. */
   polledIds: string[] | undefined;
+  /** Display-only ACK counts and provider health, keyed by deposit id. */
+  verificationProgress: Map<string, ProviderVerificationProgress> | undefined;
   /** Map of depositId -> error */
   errors: Map<string, Error> | undefined;
   /** Set of depositIds needing WOTS key submission */
@@ -107,6 +112,7 @@ async function fetchFromProvider(
   needsWotsKey: Set<string>,
   pendingIngestion: Set<string>,
   pendingDepositorSignatures: Set<string>,
+  verificationProgress: Map<string, ProviderVerificationProgress>,
 ): Promise<void> {
   const rpcClient = createVpClient(providerAddress);
   await batchPollByProvider<DepositToPoll, GetPeginStatusResponse>({
@@ -136,6 +142,7 @@ async function fetchFromProvider(
         needsWotsKey,
         pendingIngestion,
         pendingDepositorSignatures,
+        verificationProgress,
       });
     },
     onMissing: (deposit) =>
@@ -207,7 +214,10 @@ interface DepositSets {
 export function applyPerDepositResult(
   statusResponse: GetPeginStatusResponse,
   deposit: DepositToPoll,
-  sets: DepositSets & { pendingDepositorSignatures: Set<string> },
+  sets: DepositSets & {
+    pendingDepositorSignatures: Set<string>;
+    verificationProgress: Map<string, ProviderVerificationProgress>;
+  },
 ): void {
   const depositId = deposit.activity.id;
   const expectedTxid = canonicalizeTxid(deposit.activity.peginTxHash);
@@ -263,9 +273,13 @@ export function applyPerDepositError(
 export function applyPerDepositStatus(
   statusResponse: GetPeginStatusResponse,
   depositId: string,
-  sets: DepositSets & { pendingDepositorSignatures: Set<string> },
+  sets: DepositSets & {
+    pendingDepositorSignatures: Set<string>;
+    verificationProgress: Map<string, ProviderVerificationProgress>;
+  },
 ): void {
   const status = statusResponse.status;
+  sets.verificationProgress.delete(depositId);
 
   if (status === DaemonStatus.PENDING_DEPOSITOR_WOTS_PK) {
     sets.needsWotsKey.add(depositId);
@@ -281,6 +295,18 @@ export function applyPerDepositStatus(
   }
 
   if (VP_TRANSIENT_STATUSES.has(status as DaemonStatus)) {
+    const ackCollection = statusResponse.progress.ack_collection;
+    const validAckCounts =
+      ackCollection !== null &&
+      typeof ackCollection === "object" &&
+      Number.isSafeInteger(ackCollection.completed_challengers) &&
+      Number.isSafeInteger(ackCollection.total_challengers) &&
+      ackCollection.completed_challengers >= 0 &&
+      ackCollection.completed_challengers <= ackCollection.total_challengers;
+    sets.verificationProgress.set(depositId, {
+      ackCollection: validAckCounts ? ackCollection : undefined,
+      healthInfo: statusResponse.health_info,
+    });
     sets.errors.delete(depositId);
     sets.needsWotsKey.delete(depositId);
     return;
@@ -355,6 +381,7 @@ export function usePeginPollingQuery({
 
       if (currentDeposits.length === 0) {
         return {
+          verificationProgress: new Map(),
           polledIds: [],
           errors: new Map<string, Error>(),
           needsWotsKey: new Set<string>(),
@@ -366,6 +393,10 @@ export function usePeginPollingQuery({
       // Group by provider using current values
       const depositsByProvider = groupDepositsByProvider(currentDeposits);
 
+      const verificationProgress = new Map<
+        string,
+        ProviderVerificationProgress
+      >();
       const errors = new Map<string, Error>();
       const needsWotsKey = new Set<string>();
       const pendingIngestion = new Set<string>();
@@ -381,11 +412,13 @@ export function usePeginPollingQuery({
             needsWotsKey,
             pendingIngestion,
             pendingDepositorSignatures,
+            verificationProgress,
           ),
       );
 
       await Promise.all(fetchPromises);
       return {
+        verificationProgress,
         polledIds: currentDeposits.map((d) => d.activity.id),
         errors,
         needsWotsKey,
@@ -399,15 +432,11 @@ export function usePeginPollingQuery({
       const currentDeposits = depositsRef.current;
       if (currentDeposits.length === 0) return false;
 
-      const readySet = query.state.data?.pendingDepositorSignatures;
       const errorMap = query.state.data?.errors;
 
-      // Stop polling only when every deposit is resolved:
-      // either reached the depositor-signing state (VP has presign txs ready)
-      // or hit a terminal error.
+      // Keep polling through signing so completed split lanes show live verification.
       const allResolved = currentDeposits.every((d) => {
         const depositId = d.activity.id;
-        if (readySet?.has(depositId)) return true;
         const error = errorMap?.get(depositId);
         if (error && isTerminalPollingError(error)) return true;
         return false;
@@ -432,6 +461,7 @@ export function usePeginPollingQuery({
   }, [isEnabled, refetch]);
 
   return {
+    verificationProgress: data?.verificationProgress,
     polledIds: data?.polledIds,
     errors: data?.errors,
     needsWotsKey: data?.needsWotsKey,

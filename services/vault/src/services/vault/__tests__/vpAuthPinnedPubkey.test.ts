@@ -1,22 +1,14 @@
-/** Subject-specific auth pins across an RFC-006 operation-key rotation. */
+/** Both VP token-subject pins come from the vault's frozen VP epoch. */
 
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetCurrentVaultProviderOperationBtcKey = vi.hoisted(() => vi.fn());
 const mockGetVaultProviderOperationBtcKeyAtEpoch = vi.hoisted(() => vi.fn());
 const mockGetVaultKeyEpochs = vi.hoisted(() => vi.fn());
 const mockGetVaultBasicInfo = vi.hoisted(() => vi.fn());
-const featureFlagsMock = vi.hoisted(() => ({
-  isHttpArtifactDownloadsEnabled: false,
-}));
-
-vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
 
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
-    getCurrentVaultProviderOperationBtcKey:
-      mockGetCurrentVaultProviderOperationBtcKey,
     getVaultProviderOperationBtcKeyAtEpoch:
       mockGetVaultProviderOperationBtcKeyAtEpoch,
     getVaultKeyEpochs: mockGetVaultKeyEpochs,
@@ -29,16 +21,11 @@ import { resolveVpAuthPins } from "../vpAuthPinnedPubkey";
 const VAULT_ID = `0x${"f".repeat(64)}` as Hex;
 const VP_ADDRESS = `0x${"1".repeat(40)}` as Address;
 const OTHER_VP_ADDRESS = `0x${"2".repeat(40)}` as Address;
-const CURRENT_OPERATION_KEY = "a".repeat(64);
 const FROZEN_OPERATION_KEY = "b".repeat(64);
 const FROZEN_EPOCH = 17n;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  featureFlagsMock.isHttpArtifactDownloadsEnabled = false;
-  mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
-    CURRENT_OPERATION_KEY,
-  );
   mockGetVaultProviderOperationBtcKeyAtEpoch.mockResolvedValue(
     FROZEN_OPERATION_KEY,
   );
@@ -51,50 +38,17 @@ beforeEach(() => {
 });
 
 describe("resolveVpAuthPins", () => {
-  it("uses the live key for JSON-RPC and the vault's frozen key for gRPC", async () => {
-    const pins = await resolveVpAuthPins(VP_ADDRESS, VAULT_ID);
-
-    expect(pins).toMatchObject({
-      pinnedServerPubkey: CURRENT_OPERATION_KEY,
-      grpcPinnedServerPubkey: FROZEN_OPERATION_KEY,
-      grpcKeyEpoch: FROZEN_EPOCH,
-    });
-    expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledWith(
-      VP_ADDRESS,
-    );
-    expect(mockGetVaultKeyEpochs).toHaveBeenCalledWith(VAULT_ID);
-    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).toHaveBeenCalledWith(
-      VP_ADDRESS,
-      FROZEN_EPOCH,
-    );
-  });
-
-  it("refreshes only the live JSON-RPC key", async () => {
-    const { refreshJsonRpcPinnedServerPubkey } = await resolveVpAuthPins(
-      VP_ADDRESS,
-      VAULT_ID,
-    );
-    vi.clearAllMocks();
-
-    await expect(refreshJsonRpcPinnedServerPubkey?.()).resolves.toBe(
-      CURRENT_OPERATION_KEY,
-    );
-    expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledWith(
-      VP_ADDRESS,
-    );
-    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
-    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).not.toHaveBeenCalled();
-  });
-
-  it("pins JSON-RPC to the frozen key with no refresh when HTTP downloads are on", async () => {
-    featureFlagsMock.isHttpArtifactDownloadsEnabled = true;
-
+  it("pins both token subjects to the operation key frozen at the vault's VP epoch", async () => {
     await expect(resolveVpAuthPins(VP_ADDRESS, VAULT_ID)).resolves.toEqual({
       pinnedServerPubkey: FROZEN_OPERATION_KEY,
       grpcPinnedServerPubkey: FROZEN_OPERATION_KEY,
       grpcKeyEpoch: FROZEN_EPOCH,
     });
-    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
+    expect(mockGetVaultKeyEpochs).toHaveBeenCalledWith(VAULT_ID);
+    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).toHaveBeenCalledWith(
+      VP_ADDRESS,
+      FROZEN_EPOCH,
+    );
   });
 
   it("throws before any key read when the address is not the vault's on-chain provider", async () => {
@@ -107,7 +61,7 @@ describe("resolveVpAuthPins", () => {
     );
 
     expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
-    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
+    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
     expect(mockGetVaultProviderOperationBtcKeyAtEpoch).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ import {
   Button,
   Callout,
   Heading,
+  Loader,
   SubSection,
   Text,
   WarningIcon,
@@ -330,8 +331,10 @@ export function Borrow() {
 
   // A single status callout, rendered once below the action button. Highest
   // priority first: why borrowing is unavailable (so it matches the button),
-  // then a current input/validation error, then the last failed transaction
-  // or the last outcome that is not a failure, then the standing warnings.
+  // then a current input/validation error (hidden while a borrow is in flight:
+  // the position refreshes before the amount clears, so the verdict is stale),
+  // then the last failed transaction or the last outcome that is not a
+  // failure, then the standing warnings.
   const statusCallout: {
     variant: "error" | "warning";
     title?: string;
@@ -340,7 +343,7 @@ export function Borrow() {
     ? { variant: "warning", body: COPY.loans.borrowingUnavailable }
     : hubBlockMessage
       ? { variant: "warning", body: hubBlockMessage }
-      : errorMessage
+      : errorMessage && !isProcessing
         ? { variant: "error", title: buttonText, body: errorMessage }
         : txError
           ? {
@@ -486,7 +489,15 @@ export function Borrow() {
         className="mt-2 disabled:!bg-accent-disabled disabled:!opacity-100 max-md:order-2"
         data-testid="borrow-submit-button"
       >
-        {getBorrowButtonText()}
+        {!isBorrowUnavailable &&
+        (unconfirmedWrite || isConfirming || isProcessing || pendingWrite) ? (
+          <span className="flex items-center justify-center gap-2">
+            <Loader size={16} className="text-accent-contrast" />
+            <span>{getBorrowButtonText()}</span>
+          </span>
+        ) : (
+          getBorrowButtonText()
+        )}
       </Button>
 
       {/* Single status callout (validation / transaction / availability),

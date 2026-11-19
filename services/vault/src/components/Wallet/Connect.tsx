@@ -11,7 +11,7 @@ import {
   useChainConnector,
   useWalletConnect,
   useWidgetState,
-} from "@babylonlabs-io/wallet-connector";
+} from "@babylonlabs-io/wallet-connector/btc-eth";
 import { useMemo } from "react";
 
 import { useAddressScreening } from "@/context/addressScreening";
