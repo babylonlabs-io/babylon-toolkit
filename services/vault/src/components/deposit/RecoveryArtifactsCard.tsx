@@ -56,7 +56,8 @@ function RecoveryArtifactsIcon() {
 /**
  * The vault surface's wording for each activation-phrased message. An active
  * vault has no activation, risk acknowledgement or artifact warning left, so
- * those clauses are dropped there.
+ * those clauses are dropped there. The activation dialog takes the unchecked
+ * note from here too, over a receipt: the acknowledgement is not asked then.
  */
 const VAULT_MESSAGES = new Map<string, string>([
   [
@@ -102,7 +103,7 @@ interface RecoveryArtifactsCardProps {
    */
   unsignedPrePeginTxHex?: string;
   /**
-   * Fired the first time a download within this card completes with proof:
+   * Fired once for each download within this card that completes with proof:
    * a validated bundle written to a file the user chose, and receipted. This
    * is what satisfies the activation gate, so the unverifiable anchor
    * fallback deliberately does NOT fire it.
@@ -116,7 +117,7 @@ interface RecoveryArtifactsCardProps {
    */
   onStateChange?: (state: ArtifactDownloadProgress) => void;
   /**
-   * Fired the first time a download finds that the provider served a graph
+   * Fired once for each download that finds the provider served a graph
    * other than the one signed at presign. The activation gate must then stop
    * offering the risk opt-out for this vault.
    */
@@ -310,8 +311,8 @@ export const RecoveryArtifactsCard = forwardRef<
               <span className="text-accent-primary">
                 {COPY.deposit.recoveryArtifacts.uncheckedGraphTitle}
               </span>{" "}
-              {/* An older receipt already satisfies the gate, so the
-                  wording that asks for the acknowledgement would be false. */}
+              {/* Over a receipt the dialog never asks for the acknowledgement,
+                  so the wording that says it stays required would be false. */}
               {persisted
                 ? COPY.deposit.artifactDownload.uncheckedGraphNotice
                 : message(COPY.deposit.recoveryArtifacts.uncheckedGraphNotice)}

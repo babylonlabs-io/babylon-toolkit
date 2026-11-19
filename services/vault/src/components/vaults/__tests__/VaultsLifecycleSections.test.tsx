@@ -1576,14 +1576,9 @@ describe("VaultsLifecycleSections expired artifact download", () => {
 
     const onDownloadArtifacts = renderExpiredRow();
 
-    expect(
-      screen.queryByRole("button", {
-        name: COPY.vaults.actions.downloadArtifacts,
-      }),
-    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
-        name: COPY.vaults.actions.downloadArtifactsAgain,
+        name: COPY.vaults.actions.downloadArtifacts,
       }),
     );
 

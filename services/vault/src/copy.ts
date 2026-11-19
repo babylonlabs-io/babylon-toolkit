@@ -994,7 +994,8 @@ export const COPY = {
       // Variants of the recoveryArtifacts messages that speak about
       // activation, the risk acknowledgement, or the artifact warning, for a
       // vault that is active or expired after Verified, where those clauses
-      // do not apply.
+      // do not apply. The activation dialog also shows uncheckedGraphNotice
+      // from here when a receipt for the deposit already exists.
       fallbackSaveHint:
         "This browser must hold the entire file in memory and may run out on a smaller device. It also cannot confirm the file was saved. For a reliable download, use a Chromium-based browser such as Chrome or Brave.",
       unverifiedSaveNotice:
@@ -3069,10 +3070,8 @@ export const COPY = {
     progressPercent: (percent: number) => `${percent}%`,
     actions: {
       reorder: "Reorder",
+      // Same label before and after a save; only the button style changes.
       downloadArtifacts: "Download artifacts",
-      // Shown in place of downloadArtifacts once this browser saved the kit.
-      // Names the artifacts: a row gives no other hint of what is downloaded.
-      downloadArtifactsAgain: "Download artifacts again",
       withdraw: "Withdraw",
       redeem: "Redeem",
       viewDetails: "View Details",

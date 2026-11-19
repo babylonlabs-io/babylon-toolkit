@@ -329,20 +329,37 @@ describe("ActivateConfirmationModal", () => {
     expect(screen.queryByText("Continue without")).toBeNull();
   });
 
-  it("keeps Activate disabled after a mismatch even with an earlier download receipt", () => {
+  it("returns to the download state with no way to activate after a mismatch over a receipt", () => {
     seedReceipt();
-    render(
-      <ActivateConfirmationModal
-        open
-        {...COMMON_PROPS}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+    renderModal();
+    expect(screen.getByTestId("activate-vault-button")).toBeEnabled();
 
     fireEvent.click(screen.getByTestId("card-graph-mismatch"));
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+
+    // The earlier receipt must not keep the saved state or its Activate.
+    expect(screen.getByText("Download BTCVault artifacts")).toBeTruthy();
+    expect(screen.queryByText("Artifacts downloaded")).toBeNull();
+    expect(screen.queryByTestId("artifact-icon")).toBeNull();
+    expect(screen.queryByTestId("activate-vault-button")).toBeNull();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByText("Continue without")).toBeNull();
+    expect(screen.queryByTestId("risk-checkbox")).toBeNull();
+    expect(
+      screen.queryByTestId("download-artifacts-again-button"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("recovery-card")).toBeVisible();
+  });
+
+  it("restores the saved state with Activate enabled once a matching download follows a mismatch over a receipt", () => {
+    seedReceipt();
+    const { props } = renderModal();
+    fireEvent.click(screen.getByTestId("card-graph-mismatch"));
+
+    fireEvent.click(screen.getByTestId("card-download-complete"));
+
+    expect(screen.getByText("Artifacts downloaded")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("activate-vault-button"));
+    expect(props.onConfirm).toHaveBeenCalledTimes(1);
   });
 
   it("disables the Activate button until the risk checkbox is ticked when not downloaded", () => {
@@ -596,15 +613,15 @@ describe("ActivateConfirmationModal", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps the repeat download after a mismatch over a receipt, with Activate disabled", () => {
+  it("offers Download Artifacts after a mismatch over a receipt, which starts the card download", () => {
     seedReceipt();
     renderModal();
-
     fireEvent.click(screen.getByTestId("card-graph-mismatch"));
 
     // Only a matching repeat download can clear the mismatch.
-    expect(screen.getByTestId("download-artifacts-again-button")).toBeVisible();
-    expect(screen.getByTestId("activate-vault-button")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("download-artifacts-button"));
+
+    expect(cardDownloadSpy).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the repeat download and Activate enabled after a failed repeat once the probe has settled", () => {
@@ -897,20 +914,24 @@ describe("ActivateConfirmationModal", () => {
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the neutral downloaded body, the card and Cancel when a mismatch already withholds Activate under an unconfirmed provider", () => {
+  it("blocks with Cancel and Check again, card hidden, when a mismatch over a receipt meets an unconfirmed provider", () => {
     seedReceipt();
     liveness.status = "vp-unconfirmed";
-    renderModal();
+    const { props } = renderModal();
     fireEvent.click(screen.getByTestId("card-graph-mismatch"));
 
-    expect(screen.getByTestId("activate-vault-button")).toBeDisabled();
     expect(
-      screen.getByText(/Your files are stored locally and never uploaded/),
+      screen.getByText("Could not confirm your vault provider"),
     ).toBeTruthy();
-    expect(screen.queryByText(/you can still activate/)).toBeNull();
-    expect(screen.getByTestId("recovery-card")).toBeVisible();
-    // Re-probing could not enable Activate here, so the footer keeps Cancel.
-    expect(screen.queryByTestId("retry-vp-probe-button")).toBeNull();
-    expect(screen.getByText("Cancel")).toBeTruthy();
+    expect(screen.getByText(/Do not activate this BTCVault/)).toBeTruthy();
+    expect(screen.queryByText("Artifacts downloaded")).toBeNull();
+    expect(screen.queryByTestId("activate-vault-button")).toBeNull();
+    expect(screen.queryByTestId("download-artifacts-button")).toBeNull();
+    expect(screen.getByTestId("recovery-card")).not.toBeVisible();
+
+    fireEvent.click(screen.getByTestId("retry-vp-probe-button"));
+    expect(liveness.retry).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 });

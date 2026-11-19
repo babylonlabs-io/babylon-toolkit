@@ -121,7 +121,7 @@ describe("VaultsActiveSection", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("keeps the download on a row whose artifacts are saved, as Download artifacts again", () => {
+  it("keeps the download on a row whose artifacts are saved", () => {
     const vaultId = `0x${"aa".repeat(32)}`;
     const peginTxid = "bb".repeat(32);
     saveArtifactDownloadReceipt(vaultId, {
@@ -154,7 +154,7 @@ describe("VaultsActiveSection", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: COPY.vaults.actions.downloadArtifactsAgain,
+        name: COPY.vaults.actions.downloadArtifacts,
       }),
     );
 

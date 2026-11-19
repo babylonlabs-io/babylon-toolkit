@@ -163,10 +163,12 @@ export function ActivateConfirmationModal({
 
   const blockedByProbe = vpUnconfirmed || proxyUnreachable;
 
-  // Keep the card visible if a mismatch or pause blocks activation.
-  const activateWithheld = graphMismatch || activationBlocked;
+  // A receipt outlives a mismatched repeat, so the saved presentation must
+  // not: the dialog returns to its download state until a matching download.
+  const showSaved = downloaded && !graphMismatch;
+  // Keep the card visible while a pause blocks activation.
   const showUnconfirmedDownloadedWarning =
-    downloaded && vpUnconfirmed && !activateWithheld;
+    showSaved && vpUnconfirmed && !activationBlocked;
 
   // Drop download state when missing inputs unmount the card.
   useEffect(() => {
@@ -226,7 +228,7 @@ export function ActivateConfirmationModal({
           />
         ) : (
           <div className="flex flex-col items-center gap-6">
-            {downloaded && !dataIncomplete ? (
+            {showSaved && !dataIncomplete ? (
               <ArtifactModalIcon variant="downloaded" />
             ) : (
               !isConfirmSkip && (
@@ -257,7 +259,7 @@ export function ActivateConfirmationModal({
               <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
                 {dataIncomplete
                   ? COPY.deposit.activateConfirmation.dataIncompleteTitle
-                  : downloaded
+                  : showSaved
                     ? COPY.deposit.activateConfirmation.titleDownloaded
                     : isConfirmSkip
                       ? COPY.deposit.activateConfirmation.confirmSkipTitle
@@ -276,7 +278,7 @@ export function ActivateConfirmationModal({
               >
                 {dataIncomplete
                   ? COPY.deposit.activateConfirmation.dataIncompleteBody
-                  : downloaded
+                  : showSaved
                     ? showUnconfirmedDownloadedWarning
                       ? COPY.deposit.activateConfirmation
                           .vpUnconfirmedBodyDownloaded
@@ -318,7 +320,7 @@ export function ActivateConfirmationModal({
               isConfirmSkip ||
               isDownloading ||
               showUnconfirmedDownloadedWarning ||
-              (blockedByProbe && !downloaded)
+              (blockedByProbe && !showSaved)
             }
           >
             <RecoveryArtifactsCard
@@ -336,7 +338,7 @@ export function ActivateConfirmationModal({
               onStateChange={setDownloadState}
               onGraphMismatch={() => setGraphMismatch(true)}
             />
-            {downloaded && !blockedByProbe && (
+            {showSaved && !blockedByProbe && (
               <button
                 type="button"
                 className="mx-auto mt-4 block text-sm leading-[1.43] tracking-[0.17px] text-secondary-main underline"
@@ -390,7 +392,7 @@ export function ActivateConfirmationModal({
           >
             {COPY.deposit.activateConfirmation.cancelDownloadButton}
           </Button>
-        ) : downloaded ? (
+        ) : showSaved ? (
           <>
             {showUnconfirmedDownloadedWarning ? (
               // data-testid is a real-wallet E2E hook (e2e/real/actions/stepMachine.ts) — carry it over if you move or rename the element.
@@ -419,7 +421,7 @@ export function ActivateConfirmationModal({
               size="medium"
               className="h-10 flex-1 rounded-lg"
               onClick={onConfirm}
-              disabled={graphMismatch || activationBlocked || !probeSettled}
+              disabled={activationBlocked || !probeSettled}
               data-testid="activate-vault-button"
             >
               {COPY.deposit.activateConfirmation.activateButton}

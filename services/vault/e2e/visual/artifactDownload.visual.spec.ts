@@ -23,10 +23,10 @@ import {
   ACTIVATION_WARNING_STOPS,
   ARTIFACT_DOWNLOAD_STOPS,
   ARTIFACT_QUOTA_STOPS,
+  ARTIFACT_SAVED_ACTIVATION_STOP,
   ARTIFACT_SAVED_ROW_STOP,
   ARTIFACT_SAVED_STOP,
   flowScreenshotFileName,
-  HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW,
   HAS_ARTIFACT_DOWNLOAD_CONFIRMATION,
   VISUAL_VIEWPORTS,
 } from "./targets";
@@ -145,6 +145,38 @@ for (const viewport of VISUAL_VIEWPORTS) {
     await writeCaptures([shot]);
   });
 
+  test(`capture the saved activation dialog at ${viewport.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.install({ time: VISUAL_FIXED_TIME });
+    const backend = await preparePage(page);
+    await injectPageWallets(page, recordedPageWallets());
+    await page.goto(
+      "/e2e/fixtures/artifactDownload.html?saved&surface=activation",
+      { waitUntil: "domcontentloaded" },
+    );
+    await connectInjectedWallets(page);
+    await page.getByTestId("open-artifact-download").click();
+    await expect(
+      page.getByRole("heading", { name: "Artifacts downloaded", exact: true }),
+    ).toBeVisible();
+    // Enabled once the pause state is read, so the capture is the rest state.
+    await expect(page.getByTestId("activate-vault-button")).toBeEnabled();
+    const shot = await capture(
+      page,
+      flowScreenshotFileName(ARTIFACT_SAVED_ACTIVATION_STOP, viewport),
+      { fullPage: false },
+    );
+    assertRecordingCovered(backend, "saved activation dialog", [
+      "eth-rpc",
+      "graphql",
+      "vp-health",
+      "mempool",
+    ]);
+    await writeCaptures([shot]);
+  });
+
   test(`capture the saved vault row at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.clock.install({ time: VISUAL_FIXED_TIME });
@@ -165,13 +197,10 @@ for (const viewport of VISUAL_VIEWPORTS) {
     await expect(
       row.getByRole("button", { name: "Withdraw", exact: true }),
     ).toBeVisible();
-    // The merge-base hides the action on a saved vault, so the label is only
-    // asserted where the source has it.
-    if (HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW)
-      await expect(
-        // The merge-base still labels it "Download again".
-        row.getByRole("button", { name: /^Download (artifacts )?again$/ }),
-      ).toBeVisible();
+    await expect(
+      // The merge-base labels it "Download again".
+      row.getByRole("button", { name: /^Download (artifacts|again)$/ }),
+    ).toBeVisible();
     const shot = await capture(
       page,
       flowScreenshotFileName(ARTIFACT_SAVED_ROW_STOP, viewport),

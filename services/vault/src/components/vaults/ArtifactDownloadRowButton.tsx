@@ -26,9 +26,7 @@ export function ArtifactDownloadRowButton({
       onClick={() => onDownload(params)}
       className={`${saved ? NEUTRAL_ROW_BUTTON_CLASS : PRIMARY_ROW_BUTTON_CLASS} max-md:w-full`}
     >
-      {saved
-        ? COPY.vaults.actions.downloadArtifactsAgain
-        : COPY.vaults.actions.downloadArtifacts}
+      {COPY.vaults.actions.downloadArtifacts}
     </button>
   );
 }
