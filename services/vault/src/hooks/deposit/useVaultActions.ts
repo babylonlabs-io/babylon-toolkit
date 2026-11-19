@@ -73,6 +73,7 @@ import {
   isVaultRecordEmptyError,
   mapResumeBroadcastError,
   SendOutcomeUnknownError,
+  WithdrawUnconfirmedError,
   type ActivationFailureKind,
   type DepositErrorContent,
 } from "@/utils/errors";
@@ -768,6 +769,8 @@ export function useVaultActions(): UseVaultActionsReturn {
     let revealed = false;
     // Withdraw only: whether the PegIn was proven to have spent the HTLC.
     let peginSpendProven = false;
+    // Withdraw only: set when that proof could not be read from Bitcoin.
+    let peginProofUnavailable: { cause: unknown } | null = null;
 
     try {
       // Read basic + protocol info in one parallel call. Indexer is
@@ -953,7 +956,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // way: the vault then expires with `ActivationTimeout`, and anyone can
       // broadcast the PegIn with that secret.
       //
-      // Terminal, not retryable — the margin only shrinks.
+      // Terminal, not retryable — the margin only shrinks. The exception is a
+      // Withdraw whose PegIn proof could not be read: a later read may prove
+      // the spend, which needs no margin.
       const assertDeadlineMargin = (head: bigint, timeout: bigint): void => {
         const remaining = activationDeadlineBlocksRemaining({
           currentBlock: head,
@@ -961,6 +966,13 @@ export function useVaultActions(): UseVaultActionsReturn {
           pegInActivationTimeout: timeout,
         });
         if (remaining <= ACTIVATION_INCLUSION_MARGIN_BLOCKS) {
+          // A passed deadline stays terminal: the contract refuses then too.
+          if (peginProofUnavailable && remaining > 0) {
+            throw new Error(
+              COPY.pegin.messages.withdrawWindowClosingUnchecked,
+              { cause: peginProofUnavailable.cause },
+            );
+          }
           throw new ActivationNotPossibleError(
             redeemImmediately
               ? COPY.pegin.messages.withdrawWindowClosing
@@ -1064,6 +1076,9 @@ export function useVaultActions(): UseVaultActionsReturn {
           getMempoolApiUrl(),
         );
         peginSpendProven = proof.status === "proven";
+        if (proof.status === "unavailable") {
+          peginProofUnavailable = { cause: proof.cause };
+        }
         if (!peginSpendProven) {
           const [head, timeout] = await heldWithdrawWindow;
           if (head.status === "rejected") throw head.reason;
@@ -1126,6 +1141,20 @@ export function useVaultActions(): UseVaultActionsReturn {
       let minActivationGasAtSend: bigint | null = null;
       if (redeemImmediately) {
         revealResult = await activateVaultWithSecretAndRedeem(revealArgs);
+        // The escape hatch always emits the depositor's redeem log, so a
+        // confirmed receipt without it (a replacement transaction, a contract
+        // wallet whose inner call failed) is not a Withdraw: no success, no mark.
+        if (
+          !activationRedeemedForDepositor(
+            revealResult,
+            ensureHexPrefix(vaultId),
+            expectedDepositorBtcPubkey,
+          )
+        ) {
+          throw new WithdrawUnconfirmedError(
+            COPY.deposit.emergencyWithdraw.errors.withdrawUnconfirmed,
+          );
+        }
       } else {
         const result = await activateVaultWithSecret(revealArgs);
         revealResult = result;
@@ -1219,12 +1248,16 @@ export function useVaultActions(): UseVaultActionsReturn {
       // only when it is the error that actually surfaced.
       const floorUnavailable =
         err instanceof Error && err.name === FLOOR_UNAVAILABLE_ERROR_NAME;
-      const outcomeUnknown = err instanceof SendOutcomeUnknownError;
+      const sendOutcomeUnknown = err instanceof SendOutcomeUnknownError;
+      // An unconfirmed Withdraw is captured, unlike a send that may have gone
+      // through: its receipt is in hand and shows no redeem.
+      const outcomeUnknown =
+        sendOutcomeUnknown || err instanceof WithdrawUnconfirmedError;
       if (
         !expectedInterruption &&
         !floorUnavailable &&
         !revealed &&
-        !outcomeUnknown
+        !sendOutcomeUnknown
       ) {
         captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
       }

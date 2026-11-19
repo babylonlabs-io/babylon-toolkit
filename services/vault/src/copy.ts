@@ -336,6 +336,10 @@ export const COPY = {
       // claim about the secret, which an earlier mined revert may have published.
       withdrawWindowClosing:
         "Too little time remains to withdraw this BTCVault before its activation deadline, so nothing was submitted. This BTCVault will expire. If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault before its grace window closes. Otherwise, refund your BTC once the refund timelock has passed.",
+      // The same margin, but the Bitcoin check that would lift it could not
+      // be read. Retryable: a later read may show the peg-in transaction.
+      withdrawWindowClosingUnchecked:
+        "Too little time remains to withdraw this BTCVault before its activation deadline, unless the peg-in transaction already spent this deposit, and this deposit's Bitcoin transactions could not be read to check. Nothing was submitted. Please try again.",
       // The window state could not be read at all. Distinct from the countdown
       // above: we cannot say how long, only that we will not reveal the secret
       // against an unverifiable gate.
@@ -893,6 +897,9 @@ export const COPY = {
         btcWalletNotConnected: "BTC wallet is not connected",
         ethWalletNotConnected: "ETH wallet is not connected",
         withdrawFailed: "Failed to withdraw BTCVault",
+        // The transaction confirmed but the receipt does not show the redeem.
+        withdrawUnconfirmed:
+          "Your withdrawal transaction was confirmed, but it does not show that this BTCVault was redeemed. Check this BTCVault's status before trying again. If it was not redeemed, close this window and open it again to retry.",
       },
       success: {
         heading: "Withdrawal submitted",

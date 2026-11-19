@@ -142,7 +142,11 @@ export function EmergencyWithdrawConfirmContent({
               variant="warning"
               title={COPY.deposit.errors.sendOutcomeUnknown.title}
             >
-              {COPY.deposit.errors.sendOutcomeUnknown.body}
+              {/* The send notice gains its reopen hint; an unconfirmed
+                  Withdraw's message already says what to do. */}
+              {error === COPY.common.classifiedErrors.sendOutcomeUnknown
+                ? COPY.deposit.errors.sendOutcomeUnknown.body
+                : error}
             </Callout>
           ) : (
             <Callout variant="error">{error}</Callout>

@@ -52,6 +52,7 @@ import {
   PositionCapacityUnavailableError,
   SendOutcomeUnknownError,
   tagMinedRevert,
+  WithdrawUnconfirmedError,
 } from "@/utils/errors";
 
 import { useVaultActions } from "../useVaultActions";
@@ -460,6 +461,8 @@ beforeEach(() => {
   // drops one-shot values a test queued but never consumed.
   mockGetBlockNumber.mockReset().mockResolvedValue(1_000n);
   mockProvePeginSpendsHtlc.mockReset().mockResolvedValue({ status: "proven" });
+  // A Withdraw test sets this true for the whole test; it must not leak.
+  vi.mocked(activationRedeemedForDepositor).mockReset().mockReturnValue(false);
   mockHeadAgeSeconds.value = 0n;
   mockGetTBVProtocolParams.mockResolvedValue(WIDE_PROTOCOL_PARAMS);
   mockGetOffchainParamsByVersion.mockResolvedValue({ minPrepeginDepth: 6 });
@@ -1725,7 +1728,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       receipt: { logs: [] },
     } as never);
     vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
-    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -1870,7 +1873,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       transactionHash: "0xtx",
       receipt: { logs: [] },
     } as never);
-    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
     // Stubbed file-wide; an activation's next status is CONFIRMED.
     vi.mocked(getNextLocalStatus).mockReturnValueOnce("confirmed" as never);
     const updatePendingPeginStatus = vi.fn();
@@ -1959,7 +1962,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       receipt: { logs: [] },
     } as never);
     vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
-    vi.mocked(activationRedeemedForDepositor).mockReturnValueOnce(true);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -1999,6 +2002,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       transactionHash: "0xtx",
       receipt: { logs: [] },
     } as never);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -2033,6 +2037,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     mockActivateVaultWithSecretAndRedeem.mockResolvedValue(
       redeemResult as never,
     );
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -2102,6 +2107,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       transactionHash: "0xtx",
       receipt: { logs: [] },
     } as never);
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
 
     const { result } = renderHook(() => useVaultActions());
 
@@ -2114,6 +2120,51 @@ describe("useVaultActions — handleActivation hashlock source", () => {
 
     expect(mockActivateVaultWithSecretAndRedeem).toHaveBeenCalledTimes(1);
     expect(result.current.activationError).toBeNull();
+  });
+
+  it("refuses to report a Withdraw whose receipt lacks the depositor's redeem as success", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      }),
+    );
+    const withdrawResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue(
+      withdrawResult as never,
+    );
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(false);
+    vi.mocked(getNextLocalStatus).mockReturnValueOnce("confirmed" as never);
+    const updatePendingPeginStatus = vi.fn();
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+        pendingPegin: { ...basePendingPegin },
+        updatePendingPeginStatus,
+      });
+    });
+
+    expect(activationRedeemedForDepositor).toHaveBeenCalledWith(
+      withdrawResult,
+      "0xvaultId",
+      DEPOSITOR_BTC_KEY,
+    );
+    expect(baseActivationParams.onShowSuccessModal).not.toHaveBeenCalled();
+    expect(updatePendingPeginStatus).not.toHaveBeenCalled();
+    expect(baseActivationParams.onRefetchActivities).toHaveBeenCalledTimes(1);
+    expect(result.current.activationError).toBe(
+      COPY.deposit.emergencyWithdraw.errors.withdrawUnconfirmed,
+    );
+    expect(result.current.activationOutcomeUnknown).toBe(true);
+    expect(result.current.activationErrorTerminal).toBe(false);
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(WithdrawUnconfirmedError),
+      expect.anything(),
+    );
   });
 
   it("sends a Withdraw whose proof is unavailable while the window has room", async () => {
@@ -3721,6 +3772,7 @@ describe("useVaultActions — activation deadline margin", () => {
 
   it("sends a proven Withdraw when the head cannot be read", async () => {
     mockGetBlockNumber.mockRejectedValue(new Error("RPC down"));
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
@@ -3737,6 +3789,7 @@ describe("useVaultActions — activation deadline margin", () => {
   it("sends a proven Withdraw when the activation timeout cannot be read", async () => {
     mockGetBlockNumber.mockResolvedValue(1_000n);
     mockGetTBVProtocolParams.mockRejectedValue(new Error("RPC down"));
+    vi.mocked(activationRedeemedForDepositor).mockReturnValue(true);
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
@@ -3775,12 +3828,36 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(result.current.activationFailureKind).toBe("other");
   });
 
-  it("refuses a Withdraw whose proof is unavailable inside the margin, terminally", async () => {
+  it("refuses a Withdraw whose proof is unavailable inside the margin, retryably", async () => {
+    const proofCause = new Error("Mempool API error (503)");
+    mockProvePeginSpendsHtlc.mockResolvedValueOnce({
+      status: "unavailable",
+      cause: proofCause,
+    });
+    mockGetBlockNumber.mockResolvedValue(1_075n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation({
+        ...params,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.withdrawWindowClosingUnchecked,
+    );
+    expect(result.current.activationErrorTerminal).toBe(false);
+  });
+
+  it("refuses a Withdraw whose proof is unavailable once the deadline has passed, terminally", async () => {
     mockProvePeginSpendsHtlc.mockResolvedValueOnce({
       status: "unavailable",
       cause: new Error("Mempool API error (503)"),
     });
-    mockGetBlockNumber.mockResolvedValue(1_075n);
+    // createdAt 1000 + timeout 100: head 1100 leaves no block to include in.
+    mockGetBlockNumber.mockResolvedValue(1_100n);
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
@@ -3795,6 +3872,30 @@ describe("useVaultActions — activation deadline margin", () => {
       COPY.pegin.messages.withdrawWindowClosing,
     );
     expect(result.current.activationErrorTerminal).toBe(true);
+  });
+
+  it("captures the unreadable proof's cause when the margin refuses a Withdraw", async () => {
+    const proofCause = new Error("Mempool API error (503)");
+    mockProvePeginSpendsHtlc.mockResolvedValueOnce({
+      status: "unavailable",
+      cause: proofCause,
+    });
+    mockGetBlockNumber.mockResolvedValue(1_075n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation({
+        ...params,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const captured = mockLoggerError.mock.calls[0][0] as Error;
+    expect(captured.message).toBe(
+      COPY.pegin.messages.withdrawWindowClosingUnchecked,
+    );
+    expect(captured.cause).toBe(proofCause);
   });
 
   it("sends a not-proven Withdraw on the last head that clears the margin", async () => {
@@ -3839,10 +3940,11 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(result.current.activationErrorTerminal).toBe(true);
   });
 
-  it("refuses a Withdraw whose proof is unavailable when the fresh head crossed the margin before the write", async () => {
+  it("refuses a Withdraw whose proof is unavailable when the fresh head crossed the margin before the write, retryably", async () => {
+    const proofCause = new Error("Mempool API error (503)");
     mockProvePeginSpendsHtlc.mockResolvedValueOnce({
       status: "unavailable",
-      cause: new Error("Mempool API error (503)"),
+      cause: proofCause,
     });
     mockGetBlockNumber
       .mockResolvedValueOnce(1_000n)
@@ -3858,9 +3960,11 @@ describe("useVaultActions — activation deadline margin", () => {
 
     expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
     expect(result.current.activationError).toBe(
-      COPY.pegin.messages.withdrawWindowClosing,
+      COPY.pegin.messages.withdrawWindowClosingUnchecked,
     );
-    expect(result.current.activationErrorTerminal).toBe(true);
+    expect(result.current.activationErrorTerminal).toBe(false);
+    const captured = mockLoggerError.mock.calls[0][0] as Error;
+    expect(captured.cause).toBe(proofCause);
   });
 
   it("refuses a not-proven Withdraw when the head cannot be read", async () => {

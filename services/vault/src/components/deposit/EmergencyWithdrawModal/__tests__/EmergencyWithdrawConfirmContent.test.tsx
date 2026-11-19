@@ -162,6 +162,40 @@ describe("EmergencyWithdrawConfirmContent — gating", () => {
     );
   });
 
+  it("shows an unconfirmed withdraw's own message in the status-unknown warning", () => {
+    render(
+      <EmergencyWithdrawConfirmContent
+        stuckProof="proven"
+        splitProtectionLost={false}
+        withdrawing={false}
+        error={COPY.deposit.emergencyWithdraw.errors.withdrawUnconfirmed}
+        errorTerminal={false}
+        errorOutcomeUnknown={true}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        COPY.deposit.emergencyWithdraw.errors.withdrawUnconfirmed,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.errors.sendOutcomeUnknown.body),
+    ).not.toBeInTheDocument();
+    acknowledge();
+    expect(
+      screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.title),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const button = screen.getByTestId("emergency-withdraw-button");
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent(
+      COPY.deposit.emergencyWithdraw.confirmButton,
+    );
+  });
+
   it("offers Retry after a withdraw that failed", () => {
     render(
       <EmergencyWithdrawConfirmContent
