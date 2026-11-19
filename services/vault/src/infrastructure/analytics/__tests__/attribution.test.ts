@@ -475,7 +475,37 @@ describe("deriveAttribution", () => {
       cookie: "",
       ownHost: APP_HOST,
     });
-    expect(result.utm_term).toBe("ref_[BTC_ADDR][BTC_ADDR]");
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("scrubs a legacy Bitcoin address whose hex-digit tail a bare hex run joined after it takes", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref_1BoatSLRHtKNngkdXEeobR76abcdef1234${"ab".repeat(20)}`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[BTC_ADDR]");
+  });
+
+  it("scrubs a legacy Bitcoin address whose first digit a 0x address joined before it takes", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref_0x${"ab".repeat(20)}1BoatSLRHtKNngkdXEeobR76b53LETtpyT_x`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[HEX_REDACTED]_x");
+  });
+
+  it("scrubs a P2SH address whose first digit a bare hex run joined before it takes", () => {
+    const result = deriveAttribution({
+      search: `?utm_term=ref_${"ab".repeat(20)}3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy`,
+      referrer: "",
+      cookie: "",
+      ownHost: APP_HOST,
+    });
+    expect(result.utm_term).toBe("ref_[ETH_ADDR]");
   });
 
   it("scrubs a bc1 address with exactly 24 characters after the prefix", () => {

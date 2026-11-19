@@ -842,12 +842,10 @@ What bounds it:
   span is replaced, so an address glued to hex is never sent minus the part a hex match took. A
   `bc1`, `tb1` or `bbn1` match takes the whole run of letters and digits it starts, so an address
   joined after another is caught with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet
-  `m`/`n`/`2`, 25 to 35 characters) is caught only between non-alphanumeric characters or next to
-  an address already replaced, so one joined directly to any other letter or digit is sent. One
-  exception: a legacy address joined directly before a bare hex run, whose own last characters are
-  hex digits, loses those characters to the hex match, and its start is sent when what remains is
-  under 25 characters. A campaign word shaped like a legacy address is replaced; scrubbing too much
-  is the accepted direction. No scrub pattern uses lookbehind, which Safari before 16.4 rejects:
+  `m`/`n`/`2`, 25 to 35 characters) is caught when each end meets a non-alphanumeric character, the
+  edge of the value or one of the matches above, which also takes the hex digits it shares with the
+  address; one joined directly to any other letter or digit is sent. A campaign word shaped like a
+  legacy address is replaced; scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which Safari before 16.4 rejects:
   the module runs at startup, so an unsupported pattern would stop the app.
 - **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
   value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
