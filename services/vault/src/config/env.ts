@@ -119,8 +119,9 @@ export function resolveAnalyticsConfig(
   network: string,
   errors: string[],
 ): AnalyticsConfig {
-  const host = (rawHost ?? "").trim().replace(/\/$/, "");
-  if (!host) return ANALYTICS_DISABLED;
+  const trimmed = (rawHost ?? "").trim();
+  if (!trimmed) return ANALYTICS_DISABLED;
+  const host = trimmed.replace(/\/$/, "");
   let parsed: URL;
   try {
     parsed = new URL(host);

@@ -155,7 +155,8 @@ To add an environment:
 2. `pnpm sync-env <name> --kind test|internal|production`, review `networks/<name>.json`,
    add an `overrides` block only if the registry entry is wrong, and open a PR.
 3. Create the GitHub Environment with the override variables it needs (`NEXT_PUBLIC_REOWN_PROJECT_ID`,
-   Sentry, `NEXT_PUBLIC_CANONICAL`, flags, and the PostHog pair if the environment sends analytics).
+   Sentry, `NEXT_PUBLIC_CANONICAL`, flags, and `NEXT_PUBLIC_POSTHOG_HOST` if the environment sends
+   analytics).
    Never add a contract address or endpoint there.
 4. Add a matrix entry to `service-release-vault.yml` with `"network":"<name>"` and
    `"expected_kind":"<kind>"`, plus the AWS account and, for a main-only environment, its role.
