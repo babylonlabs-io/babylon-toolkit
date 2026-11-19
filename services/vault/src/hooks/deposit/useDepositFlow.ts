@@ -66,6 +66,7 @@ import { DEPOSITOR_ALLOWED_QUERY_KEY } from "@/hooks/useDepositorAllowed";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
+import { ANALYTICS_EVENT, trackEvent } from "@/infrastructure/analytics";
 import {
   amountBucket,
   shortId,
@@ -746,6 +747,10 @@ export function useDepositFlow(
           vaultCount: vaultAmounts.length,
           amountBucket: amountBucket(satoshiToBtcNumber(depositAmountTotal)),
         });
+        trackEvent(ANALYTICS_EVENT.DEPOSIT_STARTED, {
+          amount_bucket: amountBucket(satoshiToBtcNumber(depositAmountTotal)),
+          vault_count: vaultAmounts.length,
+        });
 
         // ========================================================================
         // Step 1: Get shared resources
@@ -1219,6 +1224,9 @@ export function useDepositFlow(
             ethTxHash: shortId(batchRegistration.ethTxHash),
             vaultCount: peginResults.length,
           });
+          trackEvent(ANALYTICS_EVENT.VAULT_REGISTERED, {
+            vault_id: peginResult.vaultId,
+          });
         }
 
         // ========================================================================
@@ -1516,6 +1524,9 @@ export function useDepositFlow(
             batchId,
             prePeginTxid: shortId(prePeginBroadcastTxid),
             vaultCount: peginResults.length,
+          });
+          trackEvent(ANALYTICS_EVENT.DEPOSIT_BROADCAST, {
+            vault_id: peginResult.vaultId,
           });
         }
 

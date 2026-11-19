@@ -1,5 +1,6 @@
+export { ANALYTICS_EVENT } from "./analyticsEvents";
 export { captureAttribution } from "./attribution";
-export { reportAnalyticsConfigError } from "./trackEvent";
+export { reportAnalyticsConfigError, trackEvent } from "./trackEvent";
 export {
   forgetBtcConnection,
   markUserConfirmation,
