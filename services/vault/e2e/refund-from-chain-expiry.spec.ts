@@ -96,7 +96,7 @@ const WITHDRAW_LABEL = "Withdraw";
 /** `COPY.vaults.actions.redeem`. */
 const REDEEM_LABEL = "Redeem";
 /** `COPY.vaults.actions.viewDetails`. */
-const VIEW_DETAILS_LABEL = "View Details";
+const VIEW_DETAILS_LABEL = "View details";
 /** `COPY.pegin.labels.EXPIRED`. */
 const EXPIRED_LABEL = "Expired";
 /** `COPY.pegin.labels.REDEEM_IN_PROGRESS`. */
@@ -118,7 +118,7 @@ const PENDING_PEGINS_STORAGE_PREFIX = "vault-pending-pegins";
 const VAULT_ROW_WAIT_MS = 20_000;
 
 /** `COPY.deposit.refundReview.heading`. */
-const REFUND_REVIEW_HEADING = "Review Refund";
+const REFUND_REVIEW_HEADING = "Review refund";
 /** The HTLC output of {@link PRE_PEGIN_TX_HEX}. */
 const REFUND_AMOUNT = /^0\.02 \w*BTC$/;
 /** `COPY.deposit.refundNotBroadcast.heading`. */

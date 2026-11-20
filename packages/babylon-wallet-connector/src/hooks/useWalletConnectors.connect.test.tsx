@@ -4,7 +4,7 @@
  * `wallet.taproot.test.ts` covers the derivation helpers in isolation. This
  * covers the path that actually broke: the BTC connect handler calls
  * `validateAddressWithPK` to rebuild the wallet's address, and when that threw
- * for want of a registered curve the catch turned it into a "Connection Failed"
+ * for want of a registered curve the catch turned it into a "Connection failed"
  * screen and dropped the wallet. These cases drive that handler cold.
  */
 
@@ -35,8 +35,8 @@ const COMPRESSED_PUBLIC_KEY = "03cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf12
 /** A different valid key, so a mismatch is rejected on the address, not on parsing. */
 const OTHER_COMPRESSED_PUBLIC_KEY = "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
-const CONNECT_FAILED_TITLE = "Connection Failed";
-const PUBLIC_KEY_MISMATCH_TITLE = "Public Key Mismatch";
+const CONNECT_FAILED_TITLE = "Connection failed";
+const PUBLIC_KEY_MISMATCH_TITLE = "Public key mismatch";
 
 type ConnectHandler = (wallet: IWallet) => void | Promise<void>;
 type ErrorHandler = (error: Error) => void;
@@ -191,7 +191,7 @@ describe("connect-time errors the user must see in the dialog", () => {
     await fireError(new WalletError({ code: ERROR_CODES.DEVICE_WRONG_APP, message, wallet: "Ledger Vault" }));
 
     expect(harness.displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Wrong App on Device", description: message }),
+      expect.objectContaining({ title: "Wrong app on device", description: message }),
     );
     expect(harness.displayChains).not.toHaveBeenCalled();
   });
@@ -202,7 +202,7 @@ describe("connect-time errors the user must see in the dialog", () => {
     );
 
     expect(harness.displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Signing Device Locked", description: "Device is locked" }),
+      expect.objectContaining({ title: "Signing device locked", description: "Device is locked" }),
     );
     expect(harness.displayChains).not.toHaveBeenCalled();
   });
@@ -213,7 +213,7 @@ describe("connect-time errors the user must see in the dialog", () => {
     );
 
     expect(harness.displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Signing Device Busy", description: "Device is busy" }),
+      expect.objectContaining({ title: "Signing device busy", description: "Device is busy" }),
     );
     expect(harness.displayChains).not.toHaveBeenCalled();
   });

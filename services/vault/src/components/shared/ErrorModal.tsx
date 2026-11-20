@@ -8,6 +8,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { useError } from "@/context/error";
+import { COPY } from "@/copy";
 import { ErrorCode } from "@/utils/errors/types";
 
 const ERROR_TITLES: Record<ErrorCode, string> = {
@@ -127,7 +128,7 @@ export function ErrorModal() {
           )}
           {retryAction && (
             <Button className="px-2" fluid onClick={handleRetry}>
-              Try Again
+              {COPY.common.tryAgain}
             </Button>
           )}
           {!retryAction && noCancel && (

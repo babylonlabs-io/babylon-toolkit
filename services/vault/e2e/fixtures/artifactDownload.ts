@@ -1,10 +1,17 @@
 import { expect, type Page } from "@playwright/test";
 
 import { recordedPageWallets } from "../visual/capture";
+import { checkedOutCopy } from "../visual/targets";
 
 import { connectInjectedWallets, injectPageWallets } from "./pageWallets";
 
 export type ArtifactSurface = "activation" | "vault";
+// Read from the checked-out copy: the visual baseline runs this fixture
+// against the merge-base app, which may still carry the older label.
+export const DOWNLOAD_BUTTON_LABEL = checkedOutCopy("downloadButton", [
+  "Download artifacts",
+  "Download Artifacts",
+]);
 export const CANCEL_DOWNLOAD_TITLE = "Cancel artifact download?";
 export const ARTIFACT_QUOTA_MESSAGE =
   "Too many artifact download requests. Wait and try again later.";
@@ -60,7 +67,7 @@ export async function openArtifactDownload(
       .click();
   else await page.getByTestId("open-artifact-download").click();
   await page
-    .getByRole("button", { name: "Download Artifacts", exact: true })
+    .getByRole("button", { name: DOWNLOAD_BUTTON_LABEL, exact: true })
     .click();
   if (scenario === "quota") {
     await expect(

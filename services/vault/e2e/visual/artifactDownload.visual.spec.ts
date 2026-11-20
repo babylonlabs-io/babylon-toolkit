@@ -3,6 +3,7 @@ import {
   ARTIFACT_QUOTA_MESSAGE,
   artifactProgress,
   CANCEL_DOWNLOAD_TITLE,
+  DOWNLOAD_BUTTON_LABEL,
   openArtifactDownload,
 } from "../fixtures/artifactDownload";
 import {
@@ -25,11 +26,17 @@ import {
   ARTIFACT_QUOTA_STOPS,
   ARTIFACT_SAVED_ROW_STOP,
   ARTIFACT_SAVED_STOP,
+  checkedOutCopy,
   flowScreenshotFileName,
   HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW,
   HAS_ARTIFACT_DOWNLOAD_CONFIRMATION,
   VISUAL_VIEWPORTS,
 } from "./targets";
+
+const RISK_ACKNOWLEDGEMENT_TEXT = checkedOutCopy("riskAcknowledgement", [
+  "I understand that without the artifacts",
+  "I understand the risks",
+]);
 
 test.beforeAll(ensureOutputDir);
 test.skip(
@@ -47,7 +54,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
       const backend = await preparePage(page);
       await openArtifactDownload(page, surface, "quota");
       const download = page.getByRole("button", {
-        name: "Download Artifacts",
+        name: DOWNLOAD_BUTTON_LABEL,
         exact: true,
       });
       const quotaError = page.getByText(ARTIFACT_QUOTA_MESSAGE, {
@@ -227,7 +234,7 @@ test.describe("activation risk warning", () => {
         await expect(checkbox).not.toBeChecked();
         await modal
           .locator("label")
-          .filter({ hasText: "I understand the risks" })
+          .filter({ hasText: RISK_ACKNOWLEDGEMENT_TEXT })
           .click();
         await expect(checkbox).toBeChecked();
         await expect(activate).toBeEnabled();

@@ -6,7 +6,7 @@ import { FeesSection, type FeeRow } from "../FeesSection";
 const rows: FeeRow[] = [
   { label: "Min deposit", value: "0.0005 BTC" },
   {
-    label: "Collateral Factor",
+    label: "Collateral factor",
     value: "72%",
     tooltip: "Share of your collateral you can borrow against.",
   },
@@ -18,16 +18,16 @@ describe("FeesSection", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("uses the title-case Protocol Parameters title", () => {
+  it("uses the sentence-case Protocol parameters title", () => {
     render(<FeesSection rows={rows} />);
-    expect(screen.getByText("Protocol Parameters")).toBeInTheDocument();
+    expect(screen.getByText("Protocol parameters")).toBeInTheDocument();
   });
 
   it("collapses the panel by default with a valid, hidden controlled region", () => {
     render(<FeesSection rows={rows} />);
 
     const toggle = screen.getByRole("button", {
-      name: /Protocol Parameters/,
+      name: /Protocol parameters/,
     });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
 
@@ -42,13 +42,13 @@ describe("FeesSection", () => {
     render(<FeesSection rows={rows} />);
 
     const toggle = screen.getByRole("button", {
-      name: /Protocol Parameters/,
+      name: /Protocol parameters/,
     });
     fireEvent.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Min deposit")).toBeVisible();
-    expect(screen.getByText("Collateral Factor")).toBeVisible();
+    expect(screen.getByText("Collateral factor")).toBeVisible();
   });
 
   it("gives a row with a tooltip its own trigger and leaves the others bare", () => {
@@ -67,7 +67,7 @@ describe("FeesSection", () => {
     render(<FeesSection rows={rows} />);
 
     const toggle = screen.getByRole("button", {
-      name: /Protocol Parameters/,
+      name: /Protocol parameters/,
     });
     const panel = document.getElementById(
       toggle.getAttribute("aria-controls") as string,

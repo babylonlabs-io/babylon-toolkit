@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 
 import type { ChainId, IChain } from "@/core/types";
 // Connector ids come from the shared constants module, not from each chain's
@@ -26,6 +26,7 @@ function openAppKitModal() {
 interface ContainerProps {
   className?: string;
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  connectNotice?: ReactNode;
   isChainHidden?: (chain: IChain) => boolean;
   onConfirm?: () => void;
 }

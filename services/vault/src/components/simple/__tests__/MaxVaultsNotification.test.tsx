@@ -75,7 +75,7 @@ describe("MaxVaultsNotification", () => {
       "data-tone",
       "too-many",
     );
-    expect(screen.getByText("Maximum vaults reached")).toBeInTheDocument();
+    expect(screen.getByText("Maximum BTCVaults reached")).toBeInTheDocument();
     expect(
       screen.getByText(/maximum number of BTCVaults \(10\)/),
     ).toBeInTheDocument();

@@ -43,7 +43,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   ActivationCapExceeded:
     "This BTCVault would exceed the application's deposit limit or your per-address limit, so it was not activated.",
   InvalidSecret:
-    "The secret does not match the BTCVault's hashlock. Please verify your secret and try again.",
+    "The secret doesn't match this BTCVault. Connect the Bitcoin wallet and account that created this deposit, then try again.",
   InvalidHashlock: "The BTCVault does not have a valid hashlock configured.",
   // Fires at vault REGISTRATION (per-depositor hashlock uniqueness in
   // BTCVaultRegistry). Hashlocks are deterministic from BTC wallet +
@@ -51,7 +51,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // produces the same hashlock and reverts here. Kept in sync with the
   // SDK signature-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
   DuplicateHashlock:
-    "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs. Use different UTXOs to create a unique deposit.",
+    "Duplicate deposit: an earlier deposit from this wallet used the same Bitcoin, so this one can't be registered. Change the amount, or wait until your earlier deposit finishes or expires, then try again.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
   PeginTransactionExpired: "The peg-in transaction has expired.",
@@ -65,7 +65,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   NoUniversalChallengersConfigured: "No universal challengers are configured.",
   NoAppVaultKeepersConfigured: "No app vault keepers are configured.",
-  EmptyVaultKeepers: "Vault Keepers list cannot be empty.",
+  EmptyVaultKeepers: "Vault keepers list cannot be empty.",
 
   // ============================================================================
   // Application Registry errors
@@ -83,11 +83,10 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Reserve state and risk checks a borrow, a repay or an activation can hit.
   ReservePaused:
     "This market is on hold, so it can't be used right now. Try again later.",
-  ReserveFrozen:
-    "This market is frozen, so it isn't accepting new collateral or borrows right now.",
+  ReserveFrozen: "This market isn't accepting new borrows right now.",
   ReserveNotBorrowable: "This asset can't be borrowed from this market.",
   MaximumUserReservesExceeded:
-    "This position already borrows as many assets as it can. Fully repay a loan to borrow a different asset.",
+    "This position already borrows as many assets as it can.",
   HealthFactorBelowThreshold:
     "This would drop your health factor below the liquidation threshold. Repay some debt, or borrow or withdraw less, and try again.",
 
@@ -125,7 +124,8 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   Unauthorized: "You are not authorized to perform this action.",
   TBV_Unauthorized: "You are not authorized to perform this action.",
-  TBV_Paused: "The system is currently paused. Please try again later.",
+  TBV_Paused:
+    "The protocol is paused, so this action isn't available. Try again once the pause is lifted.",
   TBV_Frozen: "This action isn't available while the system is frozen.",
   TBV_AlreadyPaused: "The system is already paused.",
   TBV_NotPaused: "The system is not paused.",
@@ -174,7 +174,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   ERC20InsufficientBalance:
     "Insufficient token balance. You don't have enough tokens to complete this transaction.",
   ERC20InsufficientAllowance:
-    "Insufficient token allowance. Please approve the contract to spend your tokens.",
+    "Token allowance too low. When your wallet asks to approve spending, approve at least the full amount, then try again.",
   ERC20InvalidApprover: "Invalid approver address.",
   ERC20InvalidReceiver: "Invalid receiver address.",
   ERC20InvalidSender: "Invalid sender address.",
@@ -184,7 +184,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Pegin / commission / VP-management errors (aave-v4)
   // ============================================================================
   VaultProviderCommissionExceeded:
-    "The vault provider's commission rate exceeds your acceptable maximum. Please try again.",
+    "The vault provider raised its commission above the maximum you accepted. Refresh to see the new commission and start the deposit again.",
   // Phase-agnostic by necessity: this map is consulted for BOTH a pre-broadcast
   // simulation failure (nothing signed or sent) and a mined revert, so it must
   // not assert anything about whether a transaction reached the chain.

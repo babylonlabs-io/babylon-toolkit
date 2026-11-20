@@ -73,7 +73,8 @@ const WITHDRAW_LABEL = "Withdraw";
 /** `COPY.deposit.emergencyWithdraw.confirmButton`. */
 const CONFIRM_WITHDRAW_LABEL = "Withdraw without activating";
 /** The head of `COPY.deposit.errors.invalidSecret`: the derivation ran to completion. */
-const INVALID_SECRET_MESSAGE = "Invalid secret: SHA256(secret) does not match";
+const INVALID_SECRET_MESSAGE =
+  "The secret derived from your Bitcoin wallet doesn't match this BTCVault";
 const PENDING_ROW_TEST_ID = "pending-deposit-row";
 const PARTIAL_LOAD_WARNING_TEST_ID = "vaults-partial-load-error";
 

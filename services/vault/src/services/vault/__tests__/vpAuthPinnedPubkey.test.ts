@@ -57,7 +57,7 @@ describe("resolveVpAuthPins", () => {
     });
 
     await expect(resolveVpAuthPins(VP_ADDRESS, VAULT_ID)).rejects.toThrow(
-      /Vault provider mismatch/,
+      /The vault provider doesn't match the one registered on-chain/,
     );
 
     expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);

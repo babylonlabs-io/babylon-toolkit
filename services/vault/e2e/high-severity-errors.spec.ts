@@ -13,17 +13,17 @@ test("app loads without error UI or unhandled errors with the recorded backend",
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
-      name: "Borrow against native Bitcoin, trustlessly.",
+      name: "Borrow against native Bitcoin with Trustless Bitcoin Vaults.",
     }),
   ).toBeVisible({ timeout: 30_000 });
 
   await expect(
     page.getByRole("heading", {
-      name: /Configuration Error|Service Unavailable/i,
+      name: /Configuration error|Service unavailable/i,
     }),
   ).not.toBeVisible();
   await expect(
-    page.getByText(/Protocol is (soft-paused|fully paused)/),
+    page.getByText(/Protocol is (soft-paused|paused)/),
   ).not.toBeVisible();
   expect(backend.served.graphql).toBeGreaterThan(0);
   expect(backend.served["eth-rpc"]).toBeGreaterThan(0);

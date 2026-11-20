@@ -1,4 +1,4 @@
-import { type JSX } from "react";
+import { type JSX, type ReactNode } from "react";
 
 import { ChainsContainer as Chains } from "@/components/Chains/container";
 import { ConnectGuideContainer as ConnectGuide } from "@/components/ConnectGuide/container";
@@ -15,12 +15,18 @@ interface ScreenProps {
   onConnectWallet?: (chain: IChain, wallet: IWallet) => void;
   onConfirm?: () => void;
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  connectNotice?: ReactNode;
   isChainHidden?: (chain: IChain) => boolean;
 }
 
 const SCREENS = {
-  CHAINS: ({ onConfirm, chainDescriptions, isChainHidden }: ScreenProps) => (
-    <Chains onConfirm={onConfirm} chainDescriptions={chainDescriptions} isChainHidden={isChainHidden} />
+  CHAINS: ({ onConfirm, chainDescriptions, connectNotice, isChainHidden }: ScreenProps) => (
+    <Chains
+      onConfirm={onConfirm}
+      chainDescriptions={chainDescriptions}
+      connectNotice={connectNotice}
+      isChainHidden={isChainHidden}
+    />
   ),
   WALLETS: ({ widgets, onSelectWallet }: ScreenProps) => <Wallets widgets={widgets} onSelectWallet={onSelectWallet} />,
   CONNECT_GUIDE: ({ onConnectWallet }: ScreenProps) => <ConnectGuide onConnect={onConnectWallet} />,

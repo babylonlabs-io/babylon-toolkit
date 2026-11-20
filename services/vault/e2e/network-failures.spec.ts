@@ -116,7 +116,7 @@ test.describe("Network failure mode coverage", () => {
       // blocked). What we DO require is that no JS error escapes and
       // that the simulated failure actually fired.
       expect(abortCount).toBeGreaterThan(0);
-      await expect(page).toHaveTitle(/Babylon|Vault/i);
+      await expect(page).toHaveTitle(/Trustless Bitcoin Vaults/i);
     });
 
     test("RPC server-error (500) does not throw unhandled errors", async ({
@@ -138,7 +138,7 @@ test.describe("Network failure mode coverage", () => {
       await page.waitForTimeout(PAGEERROR_SETTLE_TIMEOUT_MS);
 
       expect(errorResponseCount).toBeGreaterThan(0);
-      await expect(page).toHaveTitle(/Babylon|Vault/i);
+      await expect(page).toHaveTitle(/Trustless Bitcoin Vaults/i);
     });
   });
 
@@ -162,7 +162,7 @@ test.describe("Network failure mode coverage", () => {
       // If this is 0 the regression target was never exercised - the
       // test would otherwise pass vacuously.
       expect(vpHealthHitCount).toBeGreaterThan(0);
-      await expect(page).toHaveTitle(/Babylon|Vault/i);
+      await expect(page).toHaveTitle(/Trustless Bitcoin Vaults/i);
     });
   });
 

@@ -110,7 +110,7 @@ export const VISUAL_TARGETS: readonly VisualTarget[] = [
  */
 export const DEPOSIT_FLOW_STOPS = {
   /**
-   * The Connect Wallets dialog with both wallets chosen, just before Connect
+   * The Connect wallets dialog with both wallets chosen, just before Connect
    * commits the session. One of two stops that photograph wallet-connector's
    * own screens (the other is {@link CONNECT_GUIDE_STOP}): the core-ui
    * Storybook capture does not build its stories.
@@ -205,19 +205,33 @@ const withdrawalCopy = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),
   "utf8",
 );
-if (
-  !withdrawalCopy.includes(
-    'continueAnyway: "I understand the liquidation risk"',
-  ) &&
-  !withdrawalCopy.includes('continueAnyway: "Continue anyway"')
-) {
-  throw new Error("The withdrawal risk acknowledgement copy is unknown.");
+const checkedOutCopySource = withdrawalCopy.replace(/\s+/g, " ");
+
+/**
+ * The first of `candidates` (newest first) that the checked-out `src/copy.ts`
+ * assigns to `key`. The baseline capture runs these specs against the
+ * merge-base, which may still carry the older text.
+ */
+export function checkedOutCopy(
+  key: string,
+  candidates: readonly string[],
+): string {
+  const found = candidates.find((candidate) =>
+    checkedOutCopySource.includes(`${key}: "${candidate}`),
+  );
+  if (found === undefined) {
+    throw new Error(
+      `src/copy.ts assigns none of these to ${key}: ${candidates.join(" | ")}`,
+    );
+  }
+  return found;
 }
-export const WITHDRAW_RISK_ACKNOWLEDGEMENT =
-  process.env.CAPTURE_ROOT?.endsWith("/baseline") === true &&
-  withdrawalCopy.includes('continueAnyway: "Continue anyway"')
-    ? "Continue anyway"
-    : "I understand the liquidation risk";
+/** `COPY.withdraw.select.continueAnyway`. */
+export const WITHDRAW_RISK_ACKNOWLEDGEMENT = checkedOutCopy("continueAnyway", [
+  "I understand this withdrawal puts my position at risk of liquidation, which can seize a whole BTCVault.",
+  "I understand the liquidation risk",
+  "Continue anyway",
+]);
 export const WITHDRAW_RISK_STOPS = ["light", "dark"].flatMap((theme) => [
   `withdraw-risk-select-${theme}-unchecked`,
   `withdraw-risk-select-${theme}-checked`,

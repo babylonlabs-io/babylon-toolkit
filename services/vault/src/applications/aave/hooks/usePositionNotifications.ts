@@ -343,7 +343,7 @@ export function usePositionNotifications(
     const vaults: Vault[] = indexedVaults.map((entry) => ({
       id: entry.vaultId,
       btc: entry.amountBtc,
-      name: `Vault ${entry.liquidationIndex + 1}`,
+      name: COPY.liquidationWarnings.vaultName(entry.liquidationIndex + 1),
     }));
 
     const calculatorParams: CalculatorParams = {

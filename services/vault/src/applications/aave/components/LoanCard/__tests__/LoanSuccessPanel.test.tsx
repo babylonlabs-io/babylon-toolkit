@@ -28,7 +28,7 @@ describe("LoanSuccessPanel", () => {
     );
 
     expect(container).toHaveTextContent(
-      "20,000 USDC on Babylon Hub has been credited to your wallet.",
+      "You borrowed 20,000 USDC on Babylon Hub. It was sent to your connected wallet. Interest accrues at a variable rate until you repay.",
     );
   });
 

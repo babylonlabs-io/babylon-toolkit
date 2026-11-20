@@ -302,7 +302,7 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.VERIFIED);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE);
       expect(state.availableActions).toContain(PeginAction.ACTIVATE_VAULT);
-      expect(state.message).toContain("Reveal your HTLC secret");
+      expect(state.message).toContain("Activation reveals your secret");
     });
 
     it("shows ready to activate when BTC tx is broadcast", () => {
@@ -331,8 +331,10 @@ describe("peginStateMachine", () => {
       expect(state.displayVariant).toBe("warning");
       expect(state.availableActions).toEqual([PeginAction.ACTIVATE_AND_REDEEM]);
       // Reassuring tone: the state looks like lost funds but is recoverable.
-      expect(state.message).toContain("not lost");
-      expect(state.inlineSubtext).toContain("not lost");
+      expect(state.message).toContain("never activated");
+      expect(state.inlineSubtext).toContain(
+        "withdraw before the activation deadline",
+      );
       // warning variant → no progress step
       expect(getPeginDisplayStep(state)).toBeNull();
     });
@@ -768,7 +770,7 @@ describe("peginStateMachine", () => {
     });
 
     it.each([
-      ["unknown", "Checking when your refund will be claimable..."],
+      ["unknown", "Checking when your refund will be available..."],
       ["notFound", "Pre-Pegin transaction not found on this Bitcoin network."],
     ] as const)(
       "shows the %s maturity message without an action",
@@ -848,13 +850,13 @@ describe("peginStateMachine", () => {
   });
 
   describe("getPrimaryActionButton", () => {
-    it("returns Submit WOTS Key for WOTS key", () => {
+    it("returns Submit WOTS key for WOTS key", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         needsWotsKey: true,
       });
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
-        label: "Submit WOTS Key",
+        label: "Submit WOTS key",
         action: PeginAction.SUBMIT_WOTS_KEY,
       });
     });
@@ -866,7 +868,7 @@ describe("peginStateMachine", () => {
       });
       const button = getPrimaryActionButton(state);
       expect(button).toEqual({
-        label: "Sign Payouts",
+        label: "Sign payouts",
         action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
       });
     });
@@ -1113,7 +1115,7 @@ describe("peginStateMachine", () => {
 
     it("maps a pending payout-signing action to SIGN_AUTH_ANCHOR (the next step)", () => {
       // A deposit waiting to sign payouts is resting before it acts: clicking
-      // "Sign Payouts" runs the auth-anchor step first, so the deposit is
+      // "Sign payouts" runs the auth-anchor step first, so the deposit is
       // positioned on SIGN_AUTH_ANCHOR, not SIGN_PAYOUTS (which would count the
       // auth-anchor step as already done).
       const state = getPeginState(ContractStatus.PENDING, {

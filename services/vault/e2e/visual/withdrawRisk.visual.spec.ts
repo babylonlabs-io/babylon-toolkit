@@ -19,6 +19,9 @@ import {
   WITHDRAW_RISK_ACKNOWLEDGEMENT,
 } from "./targets";
 
+/** The acknowledgement text's line height (`leading-[1.5]` on 16px text). */
+const LABEL_LINE_HEIGHT_PX = 24;
+
 test.beforeAll(ensureOutputDir);
 
 for (const viewport of VISUAL_VIEWPORTS) {
@@ -73,7 +76,12 @@ for (const viewport of VISUAL_VIEWPORTS) {
           await expect(page.locator(".tsqd-parent-container")).toBeHidden();
           await expect(acknowledgement).toBeChecked({ checked });
           await expect(action).toBeEnabled({ enabled: checked });
-          await expect(label).toHaveCSS("height", "24px");
+          // The acknowledgement wraps: its height is whole text lines, with no padding.
+          const labelHeight = await label.evaluate(
+            (element) => element.getBoundingClientRect().height,
+          );
+          expect(labelHeight).toBeGreaterThanOrEqual(LABEL_LINE_HEIGHT_PX);
+          expect(labelHeight % LABEL_LINE_HEIGHT_PX).toBe(0);
           await expect(label.locator("span").last()).toHaveCSS(
             "font-size",
             "16px",

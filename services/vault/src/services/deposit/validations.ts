@@ -52,7 +52,7 @@ export function validateProviderSelection(
   if (selectedProviders?.length > 1) {
     return {
       valid: false,
-      error: "Multiple providers not yet supported",
+      error: COPY.deposit.form.providerSelectOne,
     };
   }
   return sdkValidateProviderSelection(selectedProviders, availableProviders);
@@ -372,7 +372,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   }
 
   if (params.isGeoBlocked) {
-    return { disabled: true, label: "Service unavailable in your region" };
+    return { disabled: true, label: COPY.deposit.form.ctaGeoBlocked };
   }
 
   if (params.isAddressBlocked) {
@@ -424,8 +424,8 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     return {
       disabled: params.isReconnectingWallet,
       label: params.isReconnectingWallet
-        ? "Reconnecting Wallet..."
-        : "Reconnect Wallet",
+        ? COPY.deposit.form.ctaReconnectingWallet
+        : COPY.deposit.form.ctaReconnectWallet,
     };
   }
 

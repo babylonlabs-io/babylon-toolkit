@@ -403,7 +403,7 @@ describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
 
     await waitFor(() => {
       expect(getByTestId("progress-view").textContent).toContain(
-        "Pre-Pegin transaction hash mismatch",
+        "doesn't match the hash recorded on-chain",
       );
     });
 
@@ -725,7 +725,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
 
     await waitFor(() => {
       expect(getByTestId("progress-view").textContent).toContain(
-        "Pre-Pegin transaction hash mismatch",
+        "doesn't match the hash recorded on-chain",
       );
     });
 

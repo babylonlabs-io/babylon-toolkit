@@ -35,7 +35,7 @@ const metadata: WalletMetadata<IETHProvider, ETHConfig> = {
     Network.TESTNET, // ETH testnet (chainId: 11155111 - Sepolia)
     Network.SIGNET, // Also allow SIGNET/devnet/localhost environments
   ],
-  label: "Connect ETH Wallet",
+  label: "Connect Ethereum wallet",
 };
 
 export default metadata;

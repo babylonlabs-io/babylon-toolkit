@@ -77,7 +77,7 @@ describe("VaultsActiveSection", () => {
     expect(screen.getByTestId("vault-withdraw-button")).toBeDisabled();
   });
 
-  it("reads Total Collateral (1) in the heading for a single active vault", () => {
+  it("reads Total collateral (1) in the heading for a single active vault", () => {
     render(
       <VaultsActiveSection
         vaults={[activeVault]}
@@ -88,11 +88,11 @@ describe("VaultsActiveSection", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Total Collateral (1)" }),
+      screen.getByRole("heading", { name: "Total collateral (1)" }),
     ).toBeInTheDocument();
   });
 
-  it("counts every rendered row in the Total Collateral heading, withdrawing included", () => {
+  it("counts every rendered row in the Total collateral heading, withdrawing included", () => {
     render(
       <VaultsActiveSection
         vaults={[

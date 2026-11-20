@@ -1,5 +1,5 @@
 /**
- * Whether to show the "Using Inscriptions" toggle in the wallet menu.
+ * Whether to show the "Spend inscribed BTC" toggle in the wallet menu.
  *
  * Shown when the wallet holds inscription UTXOs (`inscriptionCount > 0`), or when
  * the user has opted into including them (`!ordinalsExcluded`) so the persisted

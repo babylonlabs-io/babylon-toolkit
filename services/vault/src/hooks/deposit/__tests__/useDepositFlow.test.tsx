@@ -2958,7 +2958,7 @@ describe("useDepositFlow", () => {
     });
 
     it("records a WOTS completion marker for every vault whose submission resolved", async () => {
-      // The dashboard row suppresses "Submit WOTS Key" off these markers. The
+      // The dashboard row suppresses "Submit WOTS key" off these markers. The
       // resume path is covered separately; this pins the first-run path, whose
       // marker is written per vault inside the retry loop.
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
@@ -3041,7 +3041,7 @@ describe("useDepositFlow", () => {
         expect.arrayContaining([
           expect.objectContaining({
             message: expect.stringContaining(
-              "BTCVault 1: WOTS key submission skipped - vault provider was not ready",
+              "BTCVault 1: the vault provider wasn't ready for the next step yet",
             ),
           }),
         ]),
@@ -3080,7 +3080,7 @@ describe("useDepositFlow", () => {
         expect.arrayContaining([
           expect.objectContaining({
             message: expect.stringContaining(
-              "BTCVault 1: WOTS key submission skipped - vault provider reported this BTCVault cannot continue",
+              "BTCVault 1: the vault provider reported that this BTCVault can't be completed",
             ),
           }),
         ]),

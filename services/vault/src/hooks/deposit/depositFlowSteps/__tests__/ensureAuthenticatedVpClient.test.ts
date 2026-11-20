@@ -129,7 +129,9 @@ describe("ensureAuthenticatedVpClient", () => {
         providerAddress: PROVIDER_ADDRESS,
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
       }),
-    ).rejects.toThrow(/Pre-Pegin transaction hash mismatch/);
+    ).rejects.toThrow(
+      /The Pre-Pegin transaction doesn't match the hash recorded on-chain/,
+    );
 
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
     expect(deriveVaultRoot).not.toHaveBeenCalled();
@@ -147,7 +149,9 @@ describe("ensureAuthenticatedVpClient", () => {
         providerAddress: INDEXER_NAMED_ADDRESS,
         depositorBtcPubkey: "ab".repeat(32),
       }),
-    ).rejects.toThrow(/Vault provider mismatch/);
+    ).rejects.toThrow(
+      /The vault provider doesn't match the one registered on-chain/,
+    );
 
     expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
     expect(deriveVaultRoot).not.toHaveBeenCalled();

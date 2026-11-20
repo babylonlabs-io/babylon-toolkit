@@ -194,7 +194,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
     // The last stop the injected wallets can reach. Submitting runs the
     // wallet-liveness probe - a `requestAccounts` round-trip the fake UniSat
     // answers - and opens the progress view in its pre-sign entry state; the
-    // "Sign Transaction" click that would follow is the first thing they
+    // "Sign transaction" click that would follow is the first thing they
     // refuse. The CTA relabels as the form validates and estimates fees and
     // stays disabled throughout, so enabled is the one signal it is
     // submittable; the first step marker is the progress view having taken

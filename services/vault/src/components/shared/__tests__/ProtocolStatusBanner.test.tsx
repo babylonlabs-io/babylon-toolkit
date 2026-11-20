@@ -45,9 +45,7 @@ describe("ProtocolStatusBanner", () => {
     render(<ProtocolStatusBanner />);
 
     expect(screen.getByText("Protocol is soft-paused")).toBeInTheDocument();
-    expect(
-      screen.getByText(/repay, withdraw, and activation/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Repay stays available/)).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByText("Protocol is frozen")).not.toBeInTheDocument();
   });
@@ -57,9 +55,9 @@ describe("ProtocolStatusBanner", () => {
 
     render(<ProtocolStatusBanner />);
 
-    expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
+    expect(screen.getByText("Protocol is paused")).toBeInTheDocument();
     expect(
-      screen.getByText(/Debt continues accruing interest/),
+      screen.getByText(/Debt keeps accruing interest/),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
@@ -69,7 +67,7 @@ describe("ProtocolStatusBanner", () => {
 
     render(<ProtocolStatusBanner />);
 
-    expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
+    expect(screen.getByText("Protocol is paused")).toBeInTheDocument();
     expect(
       screen.queryByText("Protocol is soft-paused"),
     ).not.toBeInTheDocument();
@@ -97,7 +95,7 @@ describe("ProtocolStatusBanner", () => {
 
     setProtocolStatusOverride("paused");
     render(<ProtocolStatusBanner />);
-    expect(screen.getByText("Protocol is fully paused")).toBeInTheDocument();
+    expect(screen.getByText("Protocol is paused")).toBeInTheDocument();
   });
 
   it("falls back to the live gate once the override is released", () => {

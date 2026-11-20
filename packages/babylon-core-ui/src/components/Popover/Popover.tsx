@@ -15,6 +15,8 @@ export interface PopoverProps extends PropsWithChildren {
   offset?: [number, number];
   onClickOutside?: () => void;
   style?: CSSProperties;
+  /** Also shift along the placement axis to stay in the viewport, even if it covers the anchor. */
+  shiftIntoView?: boolean;
 }
 
 export function Popover({
@@ -26,11 +28,15 @@ export function Popover({
   children,
   style,
   onClickOutside,
+  shiftIntoView = false,
 }: PopoverProps) {
   const [tooltipRef, setTooltipRef] = useState<HTMLElement | null>(null);
   const { styles } = usePopper(anchorEl, tooltipRef, {
     placement,
-    modifiers: [{ name: "offset", options: { offset } }],
+    modifiers: [
+      { name: "offset", options: { offset } },
+      ...(shiftIntoView ? [{ name: "preventOverflow", options: { altAxis: true, tether: false } }] : []),
+    ],
   });
 
   useClickOutside([tooltipRef, anchorEl], onClickOutside, { enabled: open });

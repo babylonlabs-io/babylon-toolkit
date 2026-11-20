@@ -5,7 +5,7 @@
  * bitcoinjs-lib's curve implementation at start-up. A host that loads its
  * Bitcoin dependencies lazily therefore broke every taproot wallet connection:
  * `validateAddressWithPK` rebuilds the wallet's address during connect, that
- * threw, and the connect handler reported "Connection Failed" and dropped the
+ * threw, and the connect handler reported "Connection failed" and dropped the
  * wallet. Nothing in the suite loaded the connector cold, so it went unnoticed.
  *
  * These tests clear bitcoinjs-lib's curve registration before each case and

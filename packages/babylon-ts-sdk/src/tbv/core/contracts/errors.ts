@@ -36,7 +36,7 @@ export const DEPOSIT_NOT_ALLOWED_SELECTOR = "0x3d90e2a0";
  * the wording claims neither.
  */
 export const EMPTY_REVERT_MESSAGE =
-  "The contract rejected this deposit without giving a reason. " +
+  "The deposit was rejected without a reason. " +
   "Refresh the app and try again; if it keeps happening, contact support.";
 
 /** `"0x"` + 4-byte selector + two abi-encoded `bytes32` words. */
@@ -137,11 +137,11 @@ function decodeFingerprints(
  */
 const PEGIN_ERROR_MESSAGES: Record<string, string> = {
   "VaultAlreadyExists()":
-    "Vault already exists: This Bitcoin transaction has already been registered. " +
-    "Please select different UTXOs or use a different amount to create a unique transaction.",
+    "BTCVault already exists: This Bitcoin transaction has already been registered. " +
+    "Use a different amount, or wait until your earlier deposit finishes or expires, then try again.",
   "InvalidBTCProofOfPossession()":
     "Invalid BTC proof of possession: The signature has an invalid length. " +
-    "Please ensure you're signing with the correct Bitcoin wallet.",
+    "Please make sure you're signing with the correct Bitcoin wallet.",
   "InvalidBTCPublicKey()":
     "Invalid BTC public key: The Bitcoin public key format is invalid.",
   "InvalidAmount()":
@@ -153,37 +153,37 @@ const PEGIN_ERROR_MESSAGES: Record<string, string> = {
   "Unauthorized()":
     "Unauthorized: The vault registry rejected this request. Please try again later or contact support.",
   "InvalidPeginFee(uint256,uint256)":
-    "Invalid pegin fee: The ETH fee sent does not match the required amount. " +
-    "This may indicate a fee rate change during the transaction.",
+    "Deposit fee changed: the ETH fee sent does not match the current fee. " +
+    "Refresh to see the new fee and try again.",
   "PrePeginOutputAlreadyUsed()":
-    "This Bitcoin output is already registered for one of your vaults. " +
-    "Select different UTXOs to create a new deposit.",
+    "This Bitcoin output is already registered for one of your BTCVaults. " +
+    "Change the amount, or wait until your earlier deposit finishes or expires, then try again.",
   // keccak256(abi.encodePacked(hashlock, msg.sender)) collision in
   // BTCVaultRegistry.hashlockToVaultId. Hashlocks are derived from the
   // depositor's BTC wallet and selected UTXOs, so reusing the same UTXOs from
   // the same wallet (even after a previous vault expires) reverts here.
   "DuplicateHashlock()":
-    "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
+    "Duplicate deposit: an earlier deposit from this wallet used the same Bitcoin, so this one can't be registered. Change the amount, or wait until your earlier deposit finishes or expires, then try again.",
   "DepositorWotsPkHashAlreadyUsed()":
     "Duplicate deposit: these deposit keys are already registered to your wallet. " +
-    "Select different UTXOs to create a new deposit.",
+    "Change the amount, or wait until your earlier deposit finishes or expires, then try again.",
   "TooManyFundingInputs(uint256,uint256)":
     "Too many Bitcoin inputs: This deposit spends more UTXOs than the protocol allows. " +
     "Select fewer, larger UTXOs and try again.",
   "TooManyHtlcOutputs(uint256,uint256)":
-    "Too many vaults in one deposit: Split this deposit into fewer vaults and try again.",
+    "Too many BTCVaults in one deposit: Split this deposit into fewer BTCVaults and try again.",
   "VaultBelowMinimum(uint256,uint256)":
-    "Deposit too small: Each vault must be at least the protocol minimum. Increase the amount and try again.",
+    "Deposit too small: Each BTCVault must be at least the protocol minimum. Increase the amount and try again.",
   "VaultAboveMaximum(uint256,uint256)":
-    "Deposit too large: Each vault must be at most the protocol maximum. Reduce the amount and try again.",
+    "Deposit too large: Each BTCVault must be at most the protocol maximum. Reduce the amount and try again.",
   "VaultProviderCommissionExceeded(uint16,uint16)":
     "Vault provider commission changed: The provider's commission is now above the limit you accepted. " +
-    "Review the new commission and try again.",
+    "Refresh to see the new commission and start the deposit again.",
   "CapExceeded()":
     "Deposit cap reached: This deposit would exceed the application's total deposit cap " +
     "or your wallet's deposit cap. Try a smaller amount.",
   "LiveVaultCapExceeded()":
-    "Vault limit reached: The protocol has no vault capacity left right now. Please try again later.",
+    "BTCVault limit reached: The protocol has no BTCVault capacity left right now. Please try again later.",
   "ApplicationNotActive()":
     "Application unavailable: This application is not accepting deposits right now. Please try again later.",
   "TBV_Paused()":

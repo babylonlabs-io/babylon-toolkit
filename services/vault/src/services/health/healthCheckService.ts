@@ -1,5 +1,6 @@
 import { ENV } from "@/config/env";
 import type { AppError } from "@/context/error";
+import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 import { ApiError, isError451 } from "@/utils/errors/types";
 
@@ -68,35 +69,17 @@ export async function checkGraphQLEndpoint(): Promise<HealthCheckResult> {
     });
 
     if (!response.ok) {
-      return {
-        healthy: false,
-        error: {
-          title: "Service Unavailable",
-          message:
-            "Unable to connect to the backend services. Please check your internet connection and try again later.",
-        },
-      };
+      return { healthy: false, error: COPY.appHealth.serviceUnavailable };
     }
 
     return { healthy: true };
   } catch {
-    return {
-      healthy: false,
-      error: {
-        title: "Service Unavailable",
-        message:
-          "Unable to connect to the backend services. Please check your internet connection and try again later.",
-      },
-    };
+    return { healthy: false, error: COPY.appHealth.serviceUnavailable };
   }
 }
 
 export function createWagmiInitError(): AppError {
-  return {
-    title: "Wallet Configuration Error",
-    message:
-      "Failed to initialize wallet connections. Please refresh the page or contact support if the issue persists.",
-  };
+  return COPY.appHealth.walletConfigError;
 }
 
 export function createEnvConfigError(details: string): AppError {
@@ -104,9 +87,5 @@ export function createEnvConfigError(details: string): AppError {
     data: { details },
   });
 
-  return {
-    title: "Configuration Error",
-    message:
-      "The application is missing required configuration. Please contact support.",
-  };
+  return COPY.appHealth.configError;
 }

@@ -35,8 +35,8 @@ describe("Ethereum-only state", () => {
   it("renders no settings section when the host supplies none", () => {
     renderMenu({ ethAddress: "0xdepositor", settingsSection: null });
 
-    expect(screen.queryByText("Using Inscriptions")).not.toBeInTheDocument();
-    expect(screen.queryByText("Bitcoin Public Key")).not.toBeInTheDocument();
+    expect(screen.queryByText("Spend inscribed BTC")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bitcoin public key")).not.toBeInTheDocument();
   });
 
   it("offers the connect action with the label the app supplied", () => {
@@ -75,7 +75,7 @@ describe("disconnecting", () => {
       perChainDisconnect: true,
     });
 
-    fireEvent.click(screen.getByText("Disconnect Wallets"));
+    fireEvent.click(screen.getByText("Disconnect wallets"));
 
     expect(onDisconnect).toHaveBeenCalledExactlyOnceWith();
   });
@@ -84,6 +84,6 @@ describe("disconnecting", () => {
     renderMenu({ btcAddress: "bc1pdepositor", ethAddress: "0xdepositor" });
 
     expect(screen.queryByLabelText("Disconnect Bitcoin wallet")).not.toBeInTheDocument();
-    expect(screen.getByText("Disconnect Wallets")).toBeInTheDocument();
+    expect(screen.getByText("Disconnect wallets")).toBeInTheDocument();
   });
 });

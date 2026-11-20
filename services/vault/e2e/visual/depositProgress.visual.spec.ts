@@ -43,6 +43,7 @@ import {
   writeCaptures,
 } from "./capture";
 import {
+  checkedOutCopy,
   DEPOSIT_FLOW_STEP_COUNT,
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_PROGRESS_STOPS,
@@ -89,7 +90,10 @@ const DOWNLOAD_BUTTON_TESTID = "download-artifacts-button";
  * goToDashboard`), the finish line the real-wallet step machine waits on
  * (`e2e/real/actions/stepMachine.ts`).
  */
-const GO_TO_DASHBOARD = /go to dashboard/i;
+const GO_TO_OVERVIEW = new RegExp(
+  checkedOutCopy("goToDashboard", ["Go to Overview", "Go to Dashboard"]),
+  "i",
+);
 
 /**
  * What opening a seeded deposit's row shows, and so what proves it rendered:
@@ -243,7 +247,7 @@ async function openDeposit(
       ? modal.locator(STEP_MARKER).first()
       : opens === "activation-gate"
         ? modal.getByTestId(DOWNLOAD_BUTTON_TESTID)
-        : modal.getByRole("button", { name: GO_TO_DASHBOARD });
+        : modal.getByRole("button", { name: GO_TO_OVERVIEW });
   await shown.waitFor();
   // The click scrolls the row into view and the modal is fixed to the
   // viewport, so a full-page photograph would place it wherever the page

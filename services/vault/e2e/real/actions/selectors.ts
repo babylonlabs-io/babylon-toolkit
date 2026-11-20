@@ -13,7 +13,7 @@ export const FLUID_CTA_SELECTOR = "button.bbn-btn-fluid";
 /**
  * The DepositProgressView's recoverable-error CTA: the submit relabels to "Retry" (and calls `onRetry`)
  * whenever a step fails with a retryable error (COPY.deposit.progress.buttons.retry). It's only rendered
- * in that error state — during signing the CTA is "Sign Transaction"/processing/"Done" — so its visible
+ * in that error state — during signing the CTA is "Sign transaction"/processing/"Done" — so its visible
  * text is a safe, state-specific target.
  */
 const RETRY_BUTTON_RX = /^retry$/i;
@@ -46,10 +46,10 @@ export const POSITION_CAPACITY_UNAVAILABLE_TITLE =
 /**
  * The deposit's end screen when the registry redeemed a vault at activation instead of activating it
  * (COPY.deposit.vaultReturnedSuccess.full.heading / .partial.heading). It keeps the activated screen's
- * "Go to Dashboard" label, so the walk alone cannot tell the two apart.
+ * "Go to Overview" label, so the walk alone cannot tell the two apart.
  */
 export const VAULT_RETURNED_HEADING_RX =
-  /your btc is being returned|part of your deposit is being returned/i;
+  /collateral not added to your position|part of your collateral was not added to your position/i;
 
 /**
  * Locate a control by its `data-testid` OR a tolerant fallback `Locator`, resolving to the FIRST match

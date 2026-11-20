@@ -1216,7 +1216,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (outcomeUnknown) onRefetchActivities();
       if (mountedRef.current) {
         const rawMessage =
-          err instanceof Error ? err.message : "Failed to activate BTC Vault";
+          err instanceof Error
+            ? err.message
+            : COPY.deposit.activationFailedFallback;
         // Normalize the empty-record error so we don't leak the raw vault id
         // into the UI, and don't claim the vault is gone when a lagging RPC
         // node is the likelier cause.

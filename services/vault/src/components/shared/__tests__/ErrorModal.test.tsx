@@ -69,7 +69,7 @@ describe("ErrorModal", () => {
 
     render(<ErrorModal />);
 
-    expect(screen.getByText("Try Again")).toBeInTheDocument();
+    expect(screen.getByText("Try again")).toBeInTheDocument();
   });
 
   it("shows blocking message and hides buttons when blocking is true", () => {
@@ -91,6 +91,6 @@ describe("ErrorModal", () => {
 
     expect(screen.queryByText("Cancel")).not.toBeInTheDocument();
     expect(screen.queryByText("Done")).not.toBeInTheDocument();
-    expect(screen.queryByText("Try Again")).not.toBeInTheDocument();
+    expect(screen.queryByText("Try again")).not.toBeInTheDocument();
   });
 });

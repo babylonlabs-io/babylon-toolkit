@@ -298,7 +298,7 @@ export async function connectInjectedWallets(
   const dialog = page.locator(".portal-root");
   // Every control below is driven by the SAME testid the real-wallet CLI uses
   // (`e2e/real/actions/walletConnect.ts`), not by its label. Matching on
-  // "Select Bitcoin Wallet" / "Unisat" / "Connect" would mean a copy edit
+  // "Select Bitcoin wallet" / "Unisat" / "Connect" would mean a copy edit
   // breaks this capture with a bare timeout while that runner keeps passing -
   // the opposite of the guarantee the deposit spec claims when it deliberately
   // reuses `deposit-button`.

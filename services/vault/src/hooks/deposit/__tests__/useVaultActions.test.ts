@@ -555,7 +555,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError?.body).toContain(
-      "Transaction mismatch",
+      "differs from the copy stored in this browser",
     );
   });
 
@@ -581,7 +581,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     });
 
     expect(result.current.broadcastError?.body).toContain(
-      "Transaction integrity check failed",
+      "does not match the hash stored on-chain",
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
@@ -905,7 +905,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     });
 
     expect(result.current.broadcastError?.body).toContain(
-      "Transaction integrity check failed",
+      "does not match the hash stored on-chain",
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(mockSignPsbt).not.toHaveBeenCalled();
@@ -1493,7 +1493,9 @@ describe("useVaultActions — handleActivation hashlock source", () => {
 
     expect(reader.getVaultData).toHaveBeenCalled();
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
-    expect(result.current.activationError).toContain("Invalid secret");
+    expect(result.current.activationError).toContain(
+      "doesn't match this BTCVault",
+    );
   });
 
   it("rejects when on-chain hashlock is missing with a specific diagnostic", async () => {

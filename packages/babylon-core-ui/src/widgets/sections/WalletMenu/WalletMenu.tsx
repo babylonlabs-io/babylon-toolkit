@@ -96,7 +96,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   const isPhonePopover = isMobile && mobileMode === "popover";
   const cardLayout = isPhonePopover ? "row" : "card";
   const connectedWalletCount = [btcAddress, bbnAddress, ethAddress].filter(Boolean).length;
-  const disconnectLabel = connectedWalletCount === 1 ? "Disconnect Wallet" : "Disconnect Wallets";
+  const disconnectLabel = connectedWalletCount === 1 ? "Disconnect wallet" : "Disconnect wallets";
 
   const handleOpenChange = useCallback((open: boolean) => {
     setIsOpen(open);

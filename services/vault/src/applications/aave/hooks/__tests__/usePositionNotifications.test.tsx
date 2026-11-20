@@ -475,7 +475,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(result.current.params?.vaults.map((v) => v.id)).toEqual([VAULT_A]);
     // The sentinel index would otherwise surface as "Vault 9007199254740992".
     expect(result.current.params?.vaults.map((v) => v.name)).toEqual([
-      "Vault 1",
+      "BTCVault 1",
     ]);
   });
 

@@ -16,9 +16,15 @@ import {
 } from "./capture";
 import {
   BORROW_HINT_STOPS,
+  checkedOutCopy,
   flowScreenshotFileName,
   VISUAL_VIEWPORTS,
 } from "./targets";
+
+const AVAILABLE_TO_BORROW_LABEL = checkedOutCopy("availableToBorrowLabel", [
+  "Available to borrow",
+  "Available to Borrow",
+]);
 
 const HAS_BORROW_HINT = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),
@@ -70,7 +76,7 @@ for (const theme of ["light", "dark"] as const) {
             ).toBeVisible();
           }
           const label = page
-            .getByText("Available to Borrow", { exact: true })
+            .getByText(AVAILABLE_TO_BORROW_LABEL, { exact: true })
             .first();
           await expect(label).toBeVisible();
           await label.scrollIntoViewIfNeeded();
@@ -78,13 +84,13 @@ for (const theme of ["light", "dark"] as const) {
             if (viewport.width < 768) {
               await page
                 .getByRole("button", {
-                  name: "Available to Borrow",
+                  name: AVAILABLE_TO_BORROW_LABEL,
                   exact: true,
                 })
                 .click();
               await expect(
                 page.getByRole("dialog", {
-                  name: "Available to Borrow",
+                  name: AVAILABLE_TO_BORROW_LABEL,
                   exact: true,
                 }),
               ).toBeVisible();

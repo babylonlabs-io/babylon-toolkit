@@ -119,7 +119,7 @@ describe("mapDepositError", () => {
     );
     const result = mapDepositError(err);
     expect(result.title).toBe("Vault provider syncing");
-    expect(result.body).toContain("hasn't ingested");
+    expect(result.body).toContain("hasn't registered your deposit");
   });
 
   it("maps a BTC wallet liveness failure to the wallet-not-responding callout", () => {
@@ -380,10 +380,10 @@ describe("mapDepositError", () => {
   });
 
   it("maps the resume 'wallet is not connected' phrasing to the wallet callout", () => {
-    // Resume WOTS/activation set "BTC wallet is not connected" (note the "is").
-    expect(mapDepositError(new Error("BTC wallet is not connected"))).toEqual(
-      ERRORS.walletNotConnected,
-    );
+    // Resume WOTS/activation set "Bitcoin wallet is not connected" (note the "is").
+    expect(
+      mapDepositError(new Error("Bitcoin wallet is not connected")),
+    ).toEqual(ERRORS.walletNotConnected);
   });
 
   it("maps the resume Ethereum-wallet check copy to the wallet callout", () => {

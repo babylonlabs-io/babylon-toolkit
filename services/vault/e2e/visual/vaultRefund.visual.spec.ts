@@ -15,12 +15,18 @@ import {
   writeCaptures,
 } from "./capture";
 import {
+  checkedOutCopy,
   flowScreenshotFileName,
   HAS_CONFIRMED_REFUND,
   HAS_REFUND_TX_LINK,
   VAULT_REFUND_STOPS,
   VISUAL_VIEWPORTS,
 } from "./targets";
+
+const INACTIVE_VAULTS_TITLE = checkedOutCopy("inactiveVaultsTitle", [
+  "Inactive vaults",
+  "Inactive Vaults",
+]);
 
 async function seedRefund(page: Page, phase: keyof typeof VAULT_REFUND_STOPS) {
   return page.evaluate(
@@ -102,7 +108,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
       );
       const section = page.locator("section").filter({
         has: page.getByRole("heading", {
-          name: "Inactive Vaults (1)",
+          name: `${INACTIVE_VAULTS_TITLE} (1)`,
           exact: true,
         }),
       });
@@ -139,7 +145,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
       } else {
         // Keep the earlier UI's hidden refund row in the comparison.
         await expect(
-          page.getByRole("heading", { name: /Inactive Vaults/ }),
+          page.getByRole("heading", { name: INACTIVE_VAULTS_TITLE }),
         ).toHaveCount(0);
         await expect(page.getByText(displayLabel, { exact: true })).toHaveCount(
           0,

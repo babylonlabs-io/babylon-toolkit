@@ -575,16 +575,20 @@ function ResumeWotsContentConnected({
       // so a real WOTS-submission / derivation-drift failure is worth knowing
       // even if the user has already closed the modal. Only the UI update below
       // is mount-gated. A mismatch is flagged for faceting.
+      // The VP reports a mismatch in its own words; the local pre-flight
+      // above throws the callout body itself.
+      const wotsMismatch =
+        isWotsMismatchError(err) ||
+        (err instanceof Error &&
+          err.message === COPY.deposit.resume.wotsMismatchError);
       captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_WOTS, err, activity.id, {
-        extra: { wotsMismatch: isWotsMismatchError(err) },
+        extra: { wotsMismatch },
       });
       if (mountedRef.current) {
         // VP-side mismatch gets the same wording as the local pre-flight
         // so the user can act on either path.
         setError({
-          raw: isWotsMismatchError(err)
-            ? COPY.deposit.resume.wotsMismatchError
-            : err,
+          raw: wotsMismatch ? COPY.deposit.resume.wotsMismatchError : err,
         });
         setLoading(false);
       }

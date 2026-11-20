@@ -63,7 +63,7 @@ describe("ActivityRowV3", () => {
     render(<ActivityRowV3 row={baseRow} />);
 
     // BTC rows link to mempool.space, so the label is derived as "Mempool".
-    expect(screen.getByText("Mempool Explorer :")).toBeInTheDocument();
+    expect(screen.getByText("Mempool explorer:")).toBeInTheDocument();
     expect(screen.getByText("Time:")).toBeInTheDocument();
 
     const anchor = screen.getByRole("link");
@@ -159,7 +159,7 @@ describe("ActivityRowV3", () => {
       />,
     );
 
-    expect(screen.getByText("Pending…")).toBeInTheDocument();
+    expect(screen.getByText("Pending...")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

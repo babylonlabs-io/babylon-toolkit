@@ -615,7 +615,9 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByRole("button", { name: "Close & track in Vault Page" }),
+        screen.getByRole("button", {
+          name: "Close & track on the Vaults page",
+        }),
       ).toBeInTheDocument();
     });
 
@@ -1742,12 +1744,12 @@ describe("DepositProgressView", () => {
 
       expect(
         screen.getByText(
-          "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Sign Transaction.",
+          "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.",
         ),
       ).toBeInTheDocument();
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Sign Transaction",
+          name: "Continue",
         }),
       );
       expect(onContinue).toHaveBeenCalledTimes(1);

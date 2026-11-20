@@ -273,15 +273,15 @@ describe("RefundModal", () => {
       </Wrapper>,
     );
 
-    expect(await screen.findByText("Review Refund")).toBeInTheDocument();
+    expect(await screen.findByText("Review refund")).toBeInTheDocument();
 
     // The shared review row splits each figure across an amount line and a
     // secondary conversion line; the figures themselves are unchanged.
     // 1,000,000 sats = 0.01 BTC at $50,000 = $500.00.
-    expect(screen.getByText("Refund Amount")).toBeInTheDocument();
+    expect(screen.getByText("Refund amount")).toBeInTheDocument();
     expect(screen.getByText("0.01 sBTC")).toBeInTheDocument();
     expect(await screen.findByText("$500.00 USD")).toBeInTheDocument();
-    expect(screen.getByText("Recommended: 5 sats/vB")).toBeInTheDocument();
+    expect(screen.getByText("Estimated: 5 sat/vB")).toBeInTheDocument();
   });
 
   it.each([null, 0])(
@@ -296,9 +296,9 @@ describe("RefundModal", () => {
       renderRefundModal();
 
       expect(
-        await screen.findByText("Recommendation unavailable"),
+        await screen.findByText("Estimate unavailable"),
       ).toBeInTheDocument();
-      expect(screen.queryByText(/Recommended:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Estimated:/)).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
     },
   );
@@ -325,7 +325,7 @@ describe("RefundModal", () => {
 
     rerender(<RefundReviewContent {...props} defaultFeeRateSatsVb={9} />);
 
-    expect(screen.getByText("Recommended: 9 sats/vB")).toBeInTheDocument();
+    expect(screen.getByText("Estimated: 9 sat/vB")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "7 sats/vB" }),
     ).toBeInTheDocument();
@@ -402,7 +402,7 @@ describe("RefundModal", () => {
       </Wrapper>,
     );
 
-    expect(screen.queryByText("Review Refund")).not.toBeInTheDocument();
+    expect(screen.queryByText("Review refund")).not.toBeInTheDocument();
     expect(screen.queryByText("Nothing to refund")).not.toBeInTheDocument();
   });
 
@@ -426,7 +426,7 @@ describe("RefundModal", () => {
     );
 
     expect(await screen.findByText("Nothing to refund")).toBeInTheDocument();
-    expect(screen.queryByText("Review Refund")).not.toBeInTheDocument();
+    expect(screen.queryByText("Review refund")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /confirm/i }),
     ).not.toBeInTheDocument();

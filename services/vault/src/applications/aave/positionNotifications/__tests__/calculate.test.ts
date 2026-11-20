@@ -173,7 +173,7 @@ describe("calculate", () => {
     const result = calculate(makeParams([v(1.0)]));
     const urgent = getWarning(result.warnings, "urgent");
     expect(urgent).toBeDefined();
-    expect(urgent?.title).toContain("away");
+    expect(urgent?.title).toContain("BTC price drop can trigger liquidation");
   });
 
   it("no urgent when comfortably above the trigger", () => {
@@ -340,7 +340,7 @@ describe("golden vectors (reference scenario suite)", () => {
     // 1.0 × 0.3979 / (1 − 0.3979) = 0.66084, rounded up to 0.0001 BTC
     expect(result.suggestedNewVaultBtc).toBe(0.6609);
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "Adding a new BTCVault of 0.6609 BTC enables partial-position liquidation.",
+      "A new BTCVault of 0.6609 BTC, placed first in your BTCVault order, could allow a partial liquidation.",
     );
   });
 
@@ -375,7 +375,7 @@ describe("golden vectors (reference scenario suite)", () => {
 
     expect(result.suggestedNewVaultBtc).toBe(0.0344);
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "Adding a new BTCVault of 0.0344 BTC",
+      "A new BTCVault of 0.0344 BTC",
     );
   });
 
@@ -397,7 +397,7 @@ describe("golden vectors (reference scenario suite)", () => {
 
     expect(result.suggestedNewVaultBtc).toBe(0.0546);
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "Adding a new BTCVault of 0.0546 BTC",
+      "A new BTCVault of 0.0546 BTC",
     );
   });
 
@@ -525,7 +525,7 @@ describe("golden vectors (reference scenario suite)", () => {
     );
 
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "add ≥ 0.6 BTC alongside",
+      "add a BTCVault of at least 0.6 BTC",
     );
   });
 
@@ -583,7 +583,9 @@ describe("golden vectors (reference scenario suite)", () => {
   it("C1 — [0.35, 0.65] wrong order: reorder notification, single group", () => {
     const result = calculate(makeParams([v(0.35), v(0.65)]));
     const reorder = getWarning(result.warnings, "reorder");
-    expect(reorder?.title).toBe("Reorder BTCVaults to lose less");
+    expect(reorder?.title).toBe(
+      "A different BTCVault order may reduce the BTC seized",
+    );
     expect(result.optimalVaultOrder).not.toBeNull();
     expect(result.groups).toHaveLength(1);
   });
@@ -599,7 +601,7 @@ describe("golden vectors (reference scenario suite)", () => {
     const cliff = getWarning(result.warnings, "cliff");
     expect(cliff?.title).toBe("First liquidation takes everything");
     // The deficit detail moved into the suggestion now that the body is shared.
-    expect(cliff?.suggestion).toContain("Neither BTCVault");
+    expect(cliff?.suggestion).toContain("Neither of your two BTCVaults");
     expect(hasWarning(result.warnings, "reorder")).toBe(false);
     expect(result.groups).toHaveLength(1);
   });

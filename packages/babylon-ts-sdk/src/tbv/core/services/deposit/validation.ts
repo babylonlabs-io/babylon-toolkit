@@ -228,7 +228,7 @@ export function validateVaultAmounts(
   if (!amounts || amounts.length === 0) {
     return {
       valid: false,
-      error: "At least one vault amount required",
+      error: "At least one BTCVault amount required",
     };
   }
 
@@ -237,19 +237,19 @@ export function validateVaultAmounts(
     if (amount <= 0n) {
       return {
         valid: false,
-        error: `Vault ${i + 1} amount must be positive`,
+        error: `BTCVault ${i + 1} amount must be positive`,
       };
     }
     if (minDeposit && amount < minDeposit) {
       return {
         valid: false,
-        error: `Vault ${i + 1} amount ${formatSatoshisToBtc(amount)} BTC is below minimum deposit ${formatSatoshisToBtc(minDeposit)} BTC`,
+        error: `BTCVault ${i + 1} amount ${formatSatoshisToBtc(amount)} BTC is below minimum deposit ${formatSatoshisToBtc(minDeposit)} BTC`,
       };
     }
     if (maxDeposit && amount > maxDeposit) {
       return {
         valid: false,
-        error: `Vault ${i + 1} amount ${formatSatoshisToBtc(amount)} BTC exceeds maximum deposit ${formatSatoshisToBtc(maxDeposit)} BTC`,
+        error: `BTCVault ${i + 1} amount ${formatSatoshisToBtc(amount)} BTC exceeds maximum deposit ${formatSatoshisToBtc(maxDeposit)} BTC`,
       };
     }
   }

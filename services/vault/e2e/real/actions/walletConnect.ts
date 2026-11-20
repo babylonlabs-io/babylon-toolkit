@@ -2,8 +2,8 @@
  * The shared wallet-connection sequence, reused by every action that needs a connected app
  * (`connect`, `pegin`, `observe`). It drives the vault app's connect flow up to the connected state:
  *
- *   Connect (connect-wallet-button) → Select Bitcoin Wallet (select-bitcoin-wallet-button) →
- *   wallet-option-<id> → approve in the BTC extension popup → Select Ethereum Wallet
+ *   Connect (connect-wallet-button) → Select Bitcoin wallet (select-bitcoin-wallet-button) →
+ *   wallet-option-<id> → approve in the BTC extension popup → Select Ethereum wallet
  *   (select-ethereum-wallet-button) → MetaMask (Reown AppKit) → approve MetaMask popup →
  *   Connect (chains-connect-button) → the header wallet menu (data-testid="wallet-menu-trigger")
  *   appears.
@@ -205,10 +205,10 @@ export async function connectWallets(ctx: ActionContext): Promise<void> {
   const waitedS = Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND);
   if (chainScreenSeen && !bitcoinReady)
     throw new Error(
-      `connect: the Connect Wallets modal never showed a connected Bitcoin wallet within ${waitedS}s — the ${ctx.btc.id} connect failed or was rejected. The app accepts Ethereum alone, so the run stops here instead of at the first Bitcoin signature.`,
+      `connect: the Connect wallets modal never showed a connected Bitcoin wallet within ${waitedS}s — the ${ctx.btc.id} connect failed or was rejected. The app accepts Ethereum alone, so the run stops here instead of at the first Bitcoin signature.`,
     );
   throw new Error(
-    `connect: the Connect Wallets modal did not close into the connected state (header wallet menu) within ${waitedS}s — a wallet approval (e.g. MetaMask "Review permissions") may be unconfirmed.`,
+    `connect: the Connect wallets modal did not close into the connected state (header wallet menu) within ${waitedS}s — a wallet approval (e.g. MetaMask "Review permissions") may be unconfirmed.`,
   );
 }
 

@@ -43,17 +43,16 @@ export interface ExploreApp {
 const EXPLORE_APPS: readonly ExploreAppConfig[] = [
   {
     id: "aave",
-    name: "AAVE Protocol",
+    name: "Aave Protocol",
     description:
-      "Decentralized lending protocol enabling users to borrow and lend digital assets.",
+      "Lending protocol governed by the Aave DAO (third-party service).",
     logoUrl: "/images/explore/aave.svg",
     appUrl: "https://app.aave.com",
   },
   {
     id: "cradle",
     name: "Cradle",
-    description:
-      "Platform building financial products around Bitcoin-backed liquidity.",
+    description: "Bitcoin-backed lending platform (third-party service).",
     logoUrl: "/images/explore/cradle.svg",
     appUrl: "https://cradle.exchange",
   },
@@ -68,8 +67,7 @@ const EXPLORE_APPS: readonly ExploreAppConfig[] = [
   {
     id: "b14g",
     name: "b14g",
-    description:
-      "Bitcoin dual-staking platform that helps BTC holders earn yield while keeping BTC non-custodial.",
+    description: "Bitcoin dual-staking platform (third-party service).",
     logoUrl: "/images/explore/b14g.svg",
     appUrl: "https://app.b14g.xyz",
   },

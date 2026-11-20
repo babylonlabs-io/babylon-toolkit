@@ -7,7 +7,7 @@ describe("AddressScreeningBanner", () => {
   it("links Terms of Use in the ineligible message", () => {
     render(<AddressScreeningBanner visible isUnavailable={false} />);
 
-    expect(screen.getByText("Wallet not eligible")).toBeInTheDocument();
+    expect(screen.getByText("Wallet restricted")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Terms of Use" })).toHaveAttribute(
       "href",
       "https://babylonlabs.io/terms-of-use",
@@ -21,7 +21,7 @@ describe("AddressScreeningBanner", () => {
     expect(
       screen.getByText("Wallet screening unavailable"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Wallet not eligible")).not.toBeInTheDocument();
+    expect(screen.queryByText("Wallet restricted")).not.toBeInTheDocument();
   });
 
   it("renders nothing when not visible", () => {

@@ -40,8 +40,8 @@ describe("recorded depositor", () => {
   it("reports a public key the wallet-connector accepts for its own address", () => {
     // `validateAddressWithPK` (wallet-connector core/utils/wallet.ts) is
     // exactly this comparison, and it sits on the connect path the capture
-    // drives. When the two disagree the connector renders "Public Key
-    // Mismatch" whose only buttons are Cancel / Continue Anyway - which either
+    // drives. When the two disagree the connector renders "Public key
+    // mismatch" whose only buttons are Cancel / Continue anyway - which either
     // times out the capture's Connect wait or gets photographed.
     initEccLib(ecc);
 

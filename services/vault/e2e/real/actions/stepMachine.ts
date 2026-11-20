@@ -58,7 +58,7 @@ function activateButton(page: Page): Locator {
   );
 }
 const RISK_ACK_LABEL =
-  "I understand the risks of continuing without the artifacts."; // riskAcknowledgement
+  "I understand that without the artifacts I may not be able to recover my BTC if the vault provider becomes unavailable."; // COPY.deposit.activateConfirmation.riskAcknowledgement
 const CONTINUE_WITHOUT_LABEL = "Continue without";
 const SKIP_LABEL = "Skip"; // COPY.deposit.inStepArtifact.skip
 // The Activate modal's liveness-gate button, shown with Cancel while the vault provider is unconfirmed
@@ -80,9 +80,9 @@ function checkAgainButton(page: Page): Locator {
 const DATA_INCOMPLETE_TITLE = "Deposit details incomplete";
 // Finish-line matchers are tolerant regexes, NOT exact strings: the deployed build's copy can drift
 // from local source (e.g. the heading renders "Vault activated" on devnet vs "BTC Vault activated" in
-// copy.ts), and we key on the stable actionable control (the "Go to Dashboard" button) rather than the
+// copy.ts), and we key on the stable actionable control (the "Go to Overview" button) rather than the
 // heading text so a wording tweak can't strand the run at the activated screen.
-const GO_TO_DASHBOARD_RX = /go to dashboard/i; // COPY.deposit.vaultActivatedSuccess.goToDashboard
+const GO_TO_OVERVIEW_RX = /go to overview/i; // COPY.deposit.vaultActivatedSuccess.goToDashboard
 // One active-vault row on /vaults, keyed by on-chain vaultId (VaultsActiveSection ActiveVaultRow).
 // v3 renders these inline — the v2 collateral expander they used to hide behind is gone.
 const VAULT_ROW_SELECTOR = '[data-testid^="vault-row-"]';
@@ -90,10 +90,10 @@ const VAULT_ROW_SELECTOR = '[data-testid^="vault-row-"]';
 // mounted, so anything read "from the progress view" must be scoped to this — see readPrePeginTxid.
 const DEPOSIT_DIALOG_SELECTOR = ".bbn-dialog-fullscreen";
 
-/** True once the terminal activated view is showing — detected by its "Go to Dashboard" button. */
+/** True once the terminal activated view is showing — detected by its "Go to Overview" button. */
 function activatedViewReached(page: Page): Promise<boolean> {
   return page
-    .getByRole("button", { name: GO_TO_DASHBOARD_RX })
+    .getByRole("button", { name: GO_TO_OVERVIEW_RX })
     .first()
     .isVisible()
     .catch(() => false);
@@ -101,8 +101,8 @@ function activatedViewReached(page: Page): Promise<boolean> {
 
 /**
  * Handle the `ActivateConfirmationModal` if it's showing: click "Continue without" (we skip the
- * artifact download), acknowledge the risk, then click "Activate Vault". The checkbox toggles on each click, so acknowledgement is
- * idempotent — only ticked when currently unchecked. Returns true once Activate Vault was clicked.
+ * artifact download), acknowledge the risk, then click "Activate BTCVault". The checkbox toggles on each click, so acknowledgement is
+ * idempotent — only ticked when currently unchecked. Returns true once Activate BTCVault was clicked.
  */
 async function handleActivateConfirmation(
   page: Page,
@@ -137,7 +137,7 @@ async function handleActivateConfirmation(
   }
 
   if (!(await activate.isEnabled().catch(() => false))) return false;
-  log("Activate confirmation: risk acknowledged → clicking Activate Vault");
+  log("Activate confirmation: risk acknowledged → clicking Activate BTCVault");
   await activate.click().catch(() => {});
   return true;
 }
@@ -211,14 +211,15 @@ async function readActiveStep(page: Page): Promise<string> {
   return `${labels.length ? labels.join(", ") : "Step ?"} (${percent ?? "?"}%)`;
 }
 
-// The per-vault "WOTS key submission skipped" warning the app shows when the vault provider isn't ready
-// for WOTS-key submission before the readiness timeout (COPY.deposit.warnings.wotsReadinessTimeout /
-// wotsReadinessTerminal). A skipped vault is dropped from payout signing + activation and can NEVER
-// reach the activated view — so it's a hard dead-end for that vault, not a transient. Both variants
-// share this "BTCVault N: WOTS key submission skipped" prefix; the capture group is the vault number.
-// "BTC" is optional so a deployed build still on the old "Vault N:" wording matches too, and the
-// prefix is spelled out rather than left to substring luck so both wordings survive if this is anchored.
-const WOTS_SKIP_RX = /(?:BTC)?Vault\s+(\d+):\s*WOTS key submission skipped/i;
+// The per-vault warning the app shows when the vault provider isn't ready for WOTS-key submission
+// before the readiness timeout (COPY.deposit.warnings.wotsReadinessTimeout / wotsReadinessTerminal).
+// A skipped vault is dropped from payout signing + activation and can NEVER reach the activated view -
+// so it's a hard dead-end for that vault, not a transient. Both variants start "BTCVault N: the vault
+// provider ..." (wasn't ready for the next step yet / reported that this BTCVault can't be completed);
+// the capture group is the vault number. The terminal text is shared with the payout-signing skip
+// (payoutReadinessTerminal), which is the same dead-end, so the count covers both stages.
+const WOTS_SKIP_RX =
+  /BTCVault\s+(\d+):\s*the vault provider (?:wasn't ready for the next step yet|reported that this BTCVault can't be completed)/i;
 
 /**
  * Count DISTINCT per-vault WOTS-key-submission-skip banners on the progress view. Deduped by the vault
@@ -227,7 +228,7 @@ const WOTS_SKIP_RX = /(?:BTC)?Vault\s+(\d+):\s*WOTS key submission skipped/i;
  * false abort). Used by walkStepMachine to fail fast when every expected vault has been skipped.
  */
 async function countWotsSkippedVaults(page: Page): Promise<number> {
-  const banners = page.getByText(/WOTS key submission skipped/i);
+  const banners = page.getByText(WOTS_SKIP_RX);
   const count = await banners.count().catch(() => 0);
   const vaults = new Set<string>();
   for (let i = 0; i < count; i++) {
@@ -313,15 +314,15 @@ function positionCapacityScreens(
  * the event-driven `installPopupApprover` (for NEW wallet windows) and, each tick, an active
  * `sweepApprovals` pass over already-open windows — OKX reuses one approval window, so a later signing
  * prompt fires no `page` event and would otherwise never be clicked. This loop also drives the
- * dapp-page gates the approver can't reach (resume Start card, Activate Vault, Skip) and follows the progress UI, logging
+ * dapp-page gates the approver can't reach (resume Start card, Activate BTCVault, Skip) and follows the progress UI, logging
  * each transition, until the terminal view appears. `onStep` tags the recorder's HTTP fixtures.
  *
  * Returns this run's Pre-PegIn txid (captured once, as soon as the progress view links it) so the
  * finish-line check can target THIS run's vault card among a returning depositor's several.
  *
- * `expectedVaults` (1, or 2 for a split) gates the finish: the terminal "Go to Dashboard" view is
+ * `expectedVaults` (1, or 2 for a split) gates the finish: the terminal "Go to Overview" view is
  * accepted only once we've driven that many activations. The app renders a TRANSIENT per-vault
- * "Go to Dashboard" (scoped to a single vault) that can appear after just one split vault activates —
+ * "Go to Overview" (scoped to a single vault) that can appear after just one split vault activates —
  * so keying on that button alone could finish a split at 1/2. Counting the activations WE drove ties
  * completion to "both vaults activated", which is exactly what we did.
  */
@@ -373,7 +374,7 @@ export async function walkStepMachine(
     await options.onTick?.();
 
     // Finish only when the activated view is up AND we've driven every expected activation. The second
-    // clause rejects the transient per-vault "Go to Dashboard" that can flash after just one split
+    // clause rejects the transient per-vault "Go to Overview" that can flash after just one split
     // vault activates, before the sibling is done. Single-vault (expectedVaults=1) is satisfied by the
     // one activation this fresh deposit always performs.
     if ((await activatedViewReached(page)) && activationCount >= expectedVaults)
@@ -390,7 +391,7 @@ export async function walkStepMachine(
     if (skippedVaults > 0 && activationCount >= expectedVaults - skippedVaults)
       throw new Error(
         `Vault-provider readiness timeout: ${skippedVaults} of ${expectedVaults} vault(s) were skipped ` +
-          `for WOTS-key submission and cannot activate` +
+          `by the vault provider and cannot activate` +
           `${activationCount > 0 ? ` (the other ${activationCount} activated)` : ""}. This is a ` +
           `vault-provider availability issue (not the CLI) — retry once the provider is healthy. The ` +
           `Pre-PegIn is already broadcast, so the deposit can be resumed later rather than re-pegged.`,
@@ -550,7 +551,7 @@ export async function walkStepMachine(
     await page.waitForTimeout(PEGIN_POLL_INTERVAL_MS);
   }
   throw new Error(
-    `Peg-in did not reach the activated view (no "Go to Dashboard" button) within the step-machine budget — see trace.zip + the failure screenshot`,
+    `Peg-in did not reach the activated view (no "Go to Overview" button) within the step-machine budget — see trace.zip + the failure screenshot`,
   );
 }
 
@@ -613,7 +614,7 @@ export async function walkUntilPrePeginBroadcast(
 
 /**
  * Refuse to call a deposit activated when its end screen says the registry redeemed it instead. That
- * screen keeps the activated screen's "Go to Dashboard" label, so `walkStepMachine` returns on it too, and
+ * screen keeps the activated screen's "Go to Overview" label, so `walkStepMachine` returns on it too, and
  * the vault-count check that follows would then blame a missing activation.
  */
 export async function assertNotReturnedAtActivation(page: Page): Promise<void> {
@@ -629,12 +630,12 @@ export async function assertNotReturnedAtActivation(page: Page): Promise<void> {
 }
 
 /**
- * Finish line: click "Go to Dashboard", navigate to /vaults, then best-effort confirm the vault landed
+ * Finish line: click "Go to Overview", navigate to /vaults, then best-effort confirm the vault landed
  * as collateral. The activated view is the definitive success signal (we're only here because its "Go
- * to Dashboard" button appeared); the vault row is a secondary check, so a copy/layout drift on
+ * to Overview" button appeared); the vault row is a secondary check, so a copy/layout drift on
  * /vaults is logged as a warning rather than hanging or failing an otherwise-successful peg-in.
  *
- * "Go to Dashboard" lands on the overview (`/`), which in v3 shows position totals but no per-vault
+ * "Go to Overview" lands on the overview (`/`), which in v3 shows position totals but no per-vault
  * rows — the rows live on /vaults, hence the explicit navigation.
  *
  * `amountBtc` may be undefined (the resume flow doesn't know the original deposit amount) — the
@@ -652,9 +653,9 @@ export async function assertActivatedAndOnDashboard(
   amountBtc: string | undefined,
   prePeginTxid: string | undefined,
 ): Promise<void> {
-  log("✅ Activated view reached — clicking Go to Dashboard");
+  log("✅ Activated view reached — clicking Go to Overview");
   await page
-    .getByRole("button", { name: GO_TO_DASHBOARD_RX })
+    .getByRole("button", { name: GO_TO_OVERVIEW_RX })
     .first()
     .click({ timeout: STEP_TIMEOUT_MS });
 

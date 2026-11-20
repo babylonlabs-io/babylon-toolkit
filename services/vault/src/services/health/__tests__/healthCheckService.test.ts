@@ -169,7 +169,7 @@ describe("healthCheckService", () => {
 
       expect(result.healthy).toBe(false);
       expect(result.error).toBeDefined();
-      expect(result.error?.title).toBe("Service Unavailable");
+      expect(result.error?.title).toBe("Service unavailable");
     });
 
     it("returns error when fetch throws (network error)", async () => {
@@ -179,7 +179,7 @@ describe("healthCheckService", () => {
 
       expect(result.healthy).toBe(false);
       expect(result.error).toBeDefined();
-      expect(result.error?.title).toBe("Service Unavailable");
+      expect(result.error?.title).toBe("Service unavailable");
     });
   });
 
@@ -187,9 +187,9 @@ describe("healthCheckService", () => {
     it("creates a generic error without leaking details to the user", () => {
       const error = createEnvConfigError("MISSING_VAR_1, MISSING_VAR_2");
 
-      expect(error.title).toBe("Configuration Error");
+      expect(error.title).toBe("Configuration error");
       expect(error.message).toBe(
-        "The application is missing required configuration. Please contact support.",
+        "This interface isn't set up correctly. Refresh the page later, or contact support.",
       );
       expect(error.message).not.toContain("MISSING_VAR_1");
     });
@@ -207,7 +207,7 @@ describe("healthCheckService", () => {
     it("creates an error with the correct title", () => {
       const error = createWagmiInitError();
 
-      expect(error.title).toBe("Wallet Configuration Error");
+      expect(error.title).toBe("Wallet configuration error");
       expect(error.message).toContain("wallet connections");
     });
   });

@@ -77,7 +77,7 @@ async function openPendingDepositDetails(page: Page): Promise<void> {
   await page
     .getByTestId("pending-deposit-row")
     .first()
-    .getByRole("button", { name: "View Details" })
+    .getByRole("button", { name: "View details" })
     .click();
 }
 

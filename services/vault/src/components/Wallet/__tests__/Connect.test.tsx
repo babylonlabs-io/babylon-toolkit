@@ -195,12 +195,12 @@ describe("Connect current wallet requirements", () => {
     expect(result.current.isConnected).toBe(true);
     expect(screen.getByText("Ethereum Wallet")).toBeInTheDocument();
     expect(screen.queryByText("Bitcoin Wallet")).not.toBeInTheDocument();
-    expect(screen.queryByText("Bitcoin Public Key")).not.toBeInTheDocument();
-    expect(screen.queryByText("Using Inscriptions")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bitcoin public key")).not.toBeInTheDocument();
+    expect(screen.queryByText("Spend inscribed BTC")).not.toBeInTheDocument();
     expect(wallet.useUTXOs).toHaveBeenLastCalledWith(undefined, {
       enabled: false,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect Wallet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect wallet" }));
     expect(wallet.disconnect).toHaveBeenCalledExactlyOnceWith();
   });
 
@@ -282,7 +282,7 @@ describe("Connect current wallet requirements", () => {
       </AddressScreeningProvider>,
     );
     fireEvent.click(screen.getByTestId("wallet-menu-trigger"));
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect Wallet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect wallet" }));
 
     expect(wallet.disconnect).toHaveBeenCalledExactlyOnceWith();
   });

@@ -679,7 +679,7 @@ describe("Error Formatting", () => {
       const result = formatPayoutSignatureError(error);
 
       expect(result.title).toBe("Vault provider syncing");
-      expect(result.message).toContain("hasn't ingested");
+      expect(result.message).toContain("hasn't registered your deposit");
     });
 
     it("maps an empty vault record to the shared registration-confirming copy", () => {

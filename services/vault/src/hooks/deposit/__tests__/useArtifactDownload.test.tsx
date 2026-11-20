@@ -1079,7 +1079,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
 
     await waitFor(() =>
-      expect(result.current.progress).toBe("Sign Transaction"),
+      expect(result.current.progress).toBe("Sign transaction"),
     );
 
     await act(async () => {

@@ -416,9 +416,7 @@ function SimpleDepositContent({
       // The underlying provider throws dev-facing strings (e.g. "BTC wallet
       // provider returned an empty address"). Surface a single polished
       // message so users always see a consistent recovery instruction.
-      setWalletConnectionError(
-        "Could not reconnect your BTC wallet. Please open the wallet extension to confirm it is unlocked and authorized, then try again.",
-      );
+      setWalletConnectionError(COPY.deposit.form.reconnectWalletFailed);
     } finally {
       setIsReconnectingWallet(false);
     }

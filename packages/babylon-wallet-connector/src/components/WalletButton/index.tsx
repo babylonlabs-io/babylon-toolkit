@@ -36,7 +36,7 @@ export function WalletButton({
 }: WalletButtonProps) {
   // Hardware wallets are always reachable through the connect flow (they have no
   // browser-extension detection step), so they show a yellow "available" badge
-  // instead of the detection-based Installed/Uninstalled one, and are clickable
+  // instead of the detection-based Installed / Not installed one, and are clickable
   // even when no provider is detected.
   const reachable = installed || hardware;
   const btnProps = reachable
@@ -76,7 +76,7 @@ export function WalletButton({
           <span className={twMerge("size-2 rounded-full", hardware ? HARDWARE_DOT : INSTALLED_DOT)} />
         )}
         <span className={hardware ? HARDWARE_ACCENT : installed ? INSTALLED_ACCENT : "text-accent-secondary"}>
-          {hardware ? label : installed ? "Installed" : "Uninstalled"}
+          {hardware ? label : installed ? "Installed" : "Not installed"}
         </span>
       </Chip>
     </Text>

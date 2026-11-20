@@ -342,8 +342,8 @@ describe("PositionNotificationBanner", () => {
       screen.getByText(/Your position can still be liquidated/),
     ).toBeTruthy();
     expect(banner.dataset.variant).toBe("info");
-    expect(screen.getByText("BTCVault ordering is optimal")).toBeTruthy();
-    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
+    expect(screen.getByText("No better BTCVault order found")).toBeTruthy();
+    expect(screen.queryByText("Apply this order")).toBeNull();
   });
 
   it("renders soft banner for a weird-params advisory with no actions", () => {
@@ -351,7 +351,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "weird-params",
-          title: "Protocol parameters don't compute",
+          title: "Liquidation estimates unavailable",
           detail: "THF must be greater than expected HF.",
           tone: "soft",
         },
@@ -362,9 +362,9 @@ describe("PositionNotificationBanner", () => {
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("soft");
     expect(banner.dataset.variant).toBe("info");
-    expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
-    expect(screen.queryByText("Add Collateral")).toBeNull();
-    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
+    expect(screen.getByText("Liquidation estimates unavailable")).toBeTruthy();
+    expect(screen.queryByText("Add collateral")).toBeNull();
+    expect(screen.queryByText("Apply this order")).toBeNull();
   });
 
   it("hides the weird-params advisory after its dismiss control is clicked", () => {
@@ -372,7 +372,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "weird-params",
-          title: "Protocol parameters don't compute",
+          title: "Liquidation estimates unavailable",
           detail: "THF must be greater than expected HF.",
           tone: "soft",
         },
@@ -419,7 +419,7 @@ describe("PositionNotificationBanner", () => {
     ).toBeNull();
   });
 
-  it("shows Add Collateral, Repay Debt and Apply Optimal Order when urgent + suboptimal", () => {
+  it("shows Add collateral, Repay debt and Apply this order when urgent + suboptimal", () => {
     const result = makeBaseResult({
       warnings: [
         { type: "urgent", title: "Liquidation is 4.3% away", detail: "..." },
@@ -428,9 +428,9 @@ describe("PositionNotificationBanner", () => {
     });
     renderBanner(result, onDeposit, onRepay);
 
-    expect(screen.getByText("Add Collateral")).toBeTruthy();
-    expect(screen.getByText("Repay Debt")).toBeTruthy();
-    expect(screen.getByText("Apply Optimal Order")).toBeTruthy();
+    expect(screen.getByText("Add collateral")).toBeTruthy();
+    expect(screen.getByText("Repay debt")).toBeTruthy();
+    expect(screen.getByText("Apply this order")).toBeTruthy();
   });
 
   it("shows the waiting callout on the urgent card while an Aave transaction is unconfirmed", () => {
@@ -452,7 +452,7 @@ describe("PositionNotificationBanner", () => {
     ).toBe("0x5555");
   });
 
-  it("shows why Apply Optimal Order was refused on a cliff card", () => {
+  it("shows why Apply this order was refused on a cliff card", () => {
     reorderVaultsMock.value.notice = COPY.common.transactionInFlight;
     const result = makeBaseResult({
       warnings: [
@@ -472,12 +472,12 @@ describe("PositionNotificationBanner", () => {
     );
   });
 
-  it("shows no reorder notice on the green card, which offers no Apply Optimal Order", () => {
+  it("shows no reorder notice on the green card, which offers no Apply this order", () => {
     reorderVaultsMock.value.notice =
       COPY.common.unconfirmedTransaction.inProgress;
     renderBanner(makeBaseResult(), onDeposit, onRepay);
 
-    expect(screen.getByText("BTCVault ordering is optimal")).toBeTruthy();
+    expect(screen.getByText("No better BTCVault order found")).toBeTruthy();
     expect(screen.queryByRole("note")).toBeNull();
   });
 
@@ -494,47 +494,47 @@ describe("PositionNotificationBanner", () => {
     ).toBe("0x5555");
   });
 
-  it("calls onDeposit when Add Collateral is clicked", () => {
+  it("calls onDeposit when Add collateral is clicked", () => {
     const result = makeBaseResult({
       warnings: [{ type: "urgent", title: "Critical", detail: "..." }],
     });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Add Collateral"));
+    fireEvent.click(screen.getByText("Add collateral"));
     expect(onDeposit).toHaveBeenCalled();
   });
 
-  it("calls onRepay when Repay Debt is clicked", () => {
+  it("calls onRepay when Repay debt is clicked", () => {
     const result = makeBaseResult({
       warnings: [{ type: "urgent", title: "Critical", detail: "..." }],
     });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Repay Debt"));
+    fireEvent.click(screen.getByText("Repay debt"));
     expect(onRepay).toHaveBeenCalled();
   });
 
-  it("calls executeReorder with vault IDs and verification context when Apply Optimal Order is clicked", () => {
+  it("calls executeReorder with vault IDs and verification context when Apply this order is clicked", () => {
     const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
-    fireEvent.click(screen.getByText("Apply Optimal Order"));
+    fireEvent.click(screen.getByText("Apply this order"));
     expect(mockExecuteReorder).toHaveBeenCalledWith(["0xabc", "0xdef"], {
       kind: "optimal",
       optimalOrderContext: mockReorderVerificationContext,
     });
   });
 
-  it("enables Apply Optimal Order when the verification context is present", () => {
+  it("enables Apply this order when the verification context is present", () => {
     const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
     expect(
-      screen.getByRole("button", { name: "Apply Optimal Order" }),
+      screen.getByRole("button", { name: "Apply this order" }),
     ).not.toBeDisabled();
   });
 
-  it("disables Apply Optimal Order when the verification context is unavailable", () => {
+  it("disables Apply this order when the verification context is unavailable", () => {
     mockUsePositionNotifications.mockReturnValue({
       result: null,
       liveUrgentWarning: null,
@@ -545,7 +545,7 @@ describe("PositionNotificationBanner", () => {
     const result = makeBaseResult({ optimalVaultOrder: OPTIMAL_ORDER });
     renderBanner(result, onDeposit, onRepay);
 
-    const apply = screen.getByRole("button", { name: "Apply Optimal Order" });
+    const apply = screen.getByRole("button", { name: "Apply this order" });
     expect(apply).toBeDisabled();
 
     fireEvent.click(apply);
@@ -558,7 +558,7 @@ describe("PositionNotificationBanner", () => {
         { type: "urgent", title: "Liquidation can trigger now", detail: "..." },
         {
           type: "weird-params",
-          title: "Protocol parameters don't compute",
+          title: "Liquidation estimates unavailable",
           detail: "...",
           tone: "soft",
         },
@@ -567,7 +567,7 @@ describe("PositionNotificationBanner", () => {
     renderBanner(result, onDeposit, onRepay);
 
     expect(screen.getByText("Liquidation can trigger now")).toBeTruthy();
-    expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
+    expect(screen.getByText("Liquidation estimates unavailable")).toBeTruthy();
   });
 
   it("renders yellow stale-price banner when statusOverride is stale-price", () => {
@@ -600,9 +600,9 @@ describe("PositionNotificationBanner", () => {
       </Wrapper>,
     );
 
-    expect(screen.queryByText("Add Collateral")).toBeNull();
-    expect(screen.queryByText("Repay Debt")).toBeNull();
-    expect(screen.queryByText("Apply Optimal Order")).toBeNull();
+    expect(screen.queryByText("Add collateral")).toBeNull();
+    expect(screen.queryByText("Repay debt")).toBeNull();
+    expect(screen.queryByText("Apply this order")).toBeNull();
   });
 
   it("defers the live stale-price banner until the grace window elapses", () => {
@@ -667,7 +667,7 @@ describe("PositionNotificationBanner", () => {
           type: "cliff",
           title: "First liquidation takes everything",
           detail:
-            "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
+            "With your current BTCVaults, a single liquidation event would seize all your BTC collateral.",
           suggestion: "Adding a 0.72 BTCVault enables partial liquidation",
         },
       ],
@@ -679,8 +679,8 @@ describe("PositionNotificationBanner", () => {
     expect(banner.dataset.severity).toBe("red");
     // Safety actions still lead, and the pre-filled cliff CTA rides along with
     // its amount in the label so the two buttons stay distinguishable.
-    expect(screen.getByText("Add Collateral")).toBeTruthy();
-    expect(screen.getByText("Repay Debt")).toBeTruthy();
+    expect(screen.getByText("Add collateral")).toBeTruthy();
+    expect(screen.getByText("Repay debt")).toBeTruthy();
     fireEvent.click(screen.getByText("Add 0.72 BTC"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
@@ -761,7 +761,7 @@ describe("PositionNotificationBanner", () => {
 
   // A price poll can land below the trigger while a reorder is in flight, which
   // is when the contract refuses it.
-  it("keeps a failed reorder's error below a trigger, where Apply Optimal Order is gone", () => {
+  it("keeps a failed reorder's error below a trigger, where Apply this order is gone", () => {
     reorderVaultsMock.value.error = "You can't reorder BTCVaults right now";
 
     renderBanner(belowTrigger(), onDeposit, onRepay);
@@ -772,7 +772,7 @@ describe("PositionNotificationBanner", () => {
     );
   });
 
-  it("keeps a reorder's notice below a trigger, where Apply Optimal Order is gone", () => {
+  it("keeps a reorder's notice below a trigger, where Apply this order is gone", () => {
     reorderVaultsMock.value.notice =
       COPY.common.unconfirmedTransaction.inProgress;
 
@@ -816,8 +816,8 @@ describe("PositionNotificationBanner v3", () => {
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("red");
     expect(banner.dataset.tone).toBe("urgent");
-    expect(screen.getByText("Add Collateral")).toBeTruthy();
-    expect(screen.getByText("Repay Debt")).toBeTruthy();
+    expect(screen.getByText("Add collateral")).toBeTruthy();
+    expect(screen.getByText("Repay debt")).toBeTruthy();
   });
 
   it("selects CLIFF A (affordable add) when suggestedNewVaultBtc is set", () => {
@@ -863,7 +863,7 @@ describe("PositionNotificationBanner v3", () => {
       screen.getByText(COPY.liquidationWarnings.cliff.noSplitSuggestion),
     ).toBeTruthy();
     expect(screen.queryByText(/^Add .* BTC$/)).toBeNull();
-    expect(screen.queryByText("Add Collateral")).toBeNull();
+    expect(screen.queryByText("Add collateral")).toBeNull();
   });
 
   it("labels the add CTA and pre-fills the deposit with the same 0.0001 BTC amount", () => {
@@ -1144,7 +1144,7 @@ describe("PositionNotificationBanner v3", () => {
     expect(screen.getByText("Suggested order")).toBeTruthy();
     expect(screen.getByText(/Vault 2 ·/)).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Apply Optimal Order" }),
+      screen.getByRole("button", { name: "Apply this order" }),
     ).not.toBeDisabled();
   });
 
@@ -1154,7 +1154,7 @@ describe("PositionNotificationBanner v3", () => {
     renderBanner(result, onDeposit, onRepay);
 
     expect(
-      screen.getByRole("button", { name: "Apply Optimal Order" }),
+      screen.getByRole("button", { name: "Apply this order" }),
     ).toBeDisabled();
   });
 
@@ -1163,7 +1163,7 @@ describe("PositionNotificationBanner v3", () => {
       warnings: [
         {
           type: "weird-params",
-          title: "Protocol parameters don't compute",
+          title: "Liquidation estimates unavailable",
           detail: "THF must be greater than expected HF.",
           tone: "soft",
         },

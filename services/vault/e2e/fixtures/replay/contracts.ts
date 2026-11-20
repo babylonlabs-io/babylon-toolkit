@@ -73,7 +73,7 @@ export const RECORDED_DEPOSITOR = {
    * `getTaprootAddress` feeds what it is handed in as the INTERNAL key - so a
    * key that is already an output key gets tweaked twice and the pair fails
    * the connector's own check. It sits on the connect path, and it fired: the
-   * capture reached a "Public Key Mismatch" screen and only survived because
+   * capture reached a "Public key mismatch" screen and only survived because
    * the auto-confirm effect overwrote it a tick later, once both chains were
    * connected. One effect-ordering change away from a timeout, or from
    * photographing the mismatch modal.

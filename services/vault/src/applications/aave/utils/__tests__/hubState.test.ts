@@ -104,7 +104,7 @@ describe("hub block messages", () => {
     expect(
       describeHubBlock({ status: "halted", via: "reserve", reserve: usdcCore }),
     ).toBe(
-      "Core Hub has halted USDC, so it can't be borrowed or repaid on this hub until the halt is lifted. Your debt stays as it is.",
+      "Core Hub has halted USDC, so it can't be borrowed or repaid on this hub until the halt is lifted. Your debt remains outstanding and interest may keep accruing.",
     );
   });
 

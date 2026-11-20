@@ -16,7 +16,7 @@ export interface BtcEthWalletMenuProps extends Omit<WalletMenuProps, "settingsSe
   /** Bitcoin public key (no coordinates) */
   publicKeyNoCoord: string;
   /**
-   * Show the "Using Inscriptions" toggle. Defaults to true. Pass false to hide
+   * Show the "Spend inscribed BTC" toggle. Defaults to true. Pass false to hide
    * it when the connected wallet has no inscription UTXOs, so users without
    * Ordinals/Runes aren't shown a control that does nothing.
    */
@@ -29,8 +29,8 @@ export interface BtcEthWalletMenuProps extends Omit<WalletMenuProps, "settingsSe
  * Features:
  * - BTC wallet card
  * - ETH wallet card
- * - Using Inscriptions toggle
- * - Bitcoin Public Key display
+ * - Spend inscribed BTC toggle
+ * - Bitcoin public key display
  *
  * Does NOT include:
  * - Linked Wallet Stakes toggle
@@ -57,7 +57,7 @@ export const BtcEthWalletMenu: React.FC<BtcEthWalletMenuProps> = ({
               <UsingInscriptionIcon />
             </ThemedIcon>
           }
-          title="Using Inscriptions"
+          title="Spend inscribed BTC"
           status={ordinalsExcluded ? "Off" : "On"}
           value={!ordinalsExcluded}
           onChange={(value) => (value ? onIncludeOrdinals() : onExcludeOrdinals())}
@@ -65,7 +65,7 @@ export const BtcEthWalletMenu: React.FC<BtcEthWalletMenuProps> = ({
       )}
 
       <WalletMenuInfoItem
-        title="Bitcoin Public Key"
+        title="Bitcoin public key"
         value={publicKeyNoCoord}
         isCopied={isCopied("publicKey")}
         onCopy={() => copyToClipboard("publicKey", publicKeyNoCoord)}

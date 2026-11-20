@@ -162,8 +162,8 @@ describe("RecoveryArtifactsCard — idle card", () => {
     render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
 
     expect(screen.getByText("Recovery artifacts")).toBeTruthy();
-    expect(screen.getByText("Encrypted backup files")).toBeTruthy();
-    expect(screen.getByText("About 700 MB")).toBeTruthy();
+    expect(screen.getByText("Recovery file for this BTCVault")).toBeTruthy();
+    expect(screen.getByText("Up to ~1 GB")).toBeTruthy();
   });
 
   it("starts the download for this deposit when the parent calls download", () => {

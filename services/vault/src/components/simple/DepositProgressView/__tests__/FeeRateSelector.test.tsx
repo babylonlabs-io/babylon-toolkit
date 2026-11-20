@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEstimatedBtcFee } from "@/hooks/deposit/useEstimatedBtcFee";
@@ -76,7 +76,9 @@ describe("FeeRateSelector", () => {
     expect(screen.getByText("~1 hour")).toBeInTheDocument();
     expect(screen.getByText("5 sat/vB")).toBeInTheDocument();
     expect(screen.getByText("~30 min")).toBeInTheDocument();
-    expect(screen.getByText("10 sat/vB")).toBeInTheDocument();
+    expect(
+      within(buttonFor("Fast")).getByText("10 sat/vB"),
+    ).toBeInTheDocument();
     expect(screen.getByText("~10 min")).toBeInTheDocument();
 
     expect(buttonFor("Fast")).toHaveAttribute("aria-pressed", "true");

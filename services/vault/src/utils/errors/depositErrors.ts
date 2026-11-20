@@ -597,8 +597,10 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // 4b. Wrong BTC wallet connected on resume: the submitted WOTS key hash
   // doesn't match the on-chain commitment. Specific and recoverable (switch
   // accounts), so it gets its own title instead of the generic fallback.
+  // Resume throws the callout body verbatim (COPY.deposit.resume.wotsMismatchError);
+  // the vault provider reports the mismatch in its own words.
   if (
-    msg.includes("wrong wallet is connected") ||
+    msg.includes(ERRORS.wrongWalletAccount.body.toLowerCase()) ||
     msg.includes("wots public key hash does not match")
   ) {
     return ERRORS.wrongWalletAccount;

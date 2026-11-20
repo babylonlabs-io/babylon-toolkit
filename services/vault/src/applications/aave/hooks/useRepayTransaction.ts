@@ -327,9 +327,7 @@ export function useRepayTransaction({
       // repay failure.
       const mappedError =
         error instanceof ReserveMismatchError
-          ? new Error(
-              "Asset integrity check failed: the debt asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
-            )
+          ? new Error(COPY.loans.repay.assetIntegrityError)
           : error instanceof ProxyMismatchError
             ? new Error(COPY.loans.repay.integrityError)
             : error instanceof Error

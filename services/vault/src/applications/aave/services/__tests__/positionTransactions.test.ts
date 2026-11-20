@@ -331,7 +331,7 @@ describe("positionTransactions", () => {
           onIncluded,
         ),
       ).rejects.toThrow(
-        "Repaying 1 USDC needs more than your balance of 0.999999 USDC. Lower the amount or acquire more and try again.",
+        "Repaying 1 USDC needs more than your balance of 0.999999 USDC. Lower the amount or add more to your wallet and try again.",
       );
       expect(mockApproveERC20).not.toHaveBeenCalled();
     });

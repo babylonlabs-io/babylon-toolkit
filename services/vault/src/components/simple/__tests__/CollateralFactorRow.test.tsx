@@ -31,7 +31,7 @@ describe("CollateralFactorRow", () => {
         btcPriceUsd={88_400}
       />,
     );
-    expect(screen.getByText("Max to Borrow:")).toBeInTheDocument();
+    expect(screen.getByText("Max to borrow:")).toBeInTheDocument();
     expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
     expect(screen.getByText("--")).toBeInTheDocument();
     expect(screen.queryByText(/USD/)).not.toBeInTheDocument();

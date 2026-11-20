@@ -19,7 +19,7 @@
  * the WOTS keys and verify them against the on-chain hash. That dialog is the same one normal peg-in
  * step 1 (DERIVE_VAULT_SECRET) fires, so the shared pop-up approver already handles it. Only the step the
  * row CTA named auto-starts; each later step waits on a named Start card, which `walkStepMachine` clicks
- * along with the Activate gate and "Go to Dashboard".
+ * along with the Activate gate and "Go to Overview".
  *
  * v3 note (markdown/e2e-v3/06-resume.md): pending deposits are flat, always-visible rows — the v2
  * expander they used to hide behind is gone, so there is nothing to expand.
@@ -256,7 +256,7 @@ async function peginUntilInterrupt(
 
 /**
  * Resume the pending deposit through to activation: open its resume flow, then hand off to the shared
- * step machine (WOTS → Sign → Activate → Go to Dashboard) and the /vaults collateral cross-check.
+ * step machine (WOTS → Sign → Activate → Go to Overview) and the /vaults collateral cross-check.
  *
  * `targetTxid` (the just-created deposit's Pre-PegIn txid under `--interrupt-fresh`) takes precedence
  * over `--txid`; when neither is set, `openPendingDeposit` falls back to the first actionable row.

@@ -210,6 +210,8 @@ interface WalletDialogProps {
   actionsClassName?: string;
   /** The line under each chain's name on the chain list, keyed by chain id. */
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  /** Replaces the default legal notice under the Connect button on the connect screen. */
+  connectNotice?: ReactNode;
   isChainHidden?: (chain: IChain) => boolean;
 }
 
@@ -223,6 +225,7 @@ export function WalletDialog({
   closeButtonClassName,
   actionsClassName,
   chainDescriptions,
+  connectNotice,
   isChainHidden,
 }: WalletDialogProps) {
   const {
@@ -408,7 +411,7 @@ export function WalletDialog({
       onError?.(normalizedError);
       if (!isCurrentAttempt()) return;
       displayError?.({
-        title: "Connection Failed",
+        title: "Connection failed",
         description: normalizedError.message,
         submitButton: "",
         cancelButton: "Done",
@@ -466,6 +469,7 @@ export function WalletDialog({
           onSelectWallet={chooseWallet}
           onConnectWallet={connect}
           chainDescriptions={chainDescriptions}
+          connectNotice={connectNotice}
           isChainHidden={isChainHidden}
         />
       </div>

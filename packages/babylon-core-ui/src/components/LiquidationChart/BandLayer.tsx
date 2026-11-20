@@ -213,6 +213,7 @@ export function BandLayer({
         placement="right-start"
         offset={[0, popoverOffsetPx]}
         className="bbn-liq-popover"
+        shiftIntoView
         onClickOutside={() => setHovered(null)}
       >
         {hovered ? (

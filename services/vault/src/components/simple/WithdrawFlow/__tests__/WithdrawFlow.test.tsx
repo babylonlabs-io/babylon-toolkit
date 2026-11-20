@@ -229,7 +229,11 @@ describe("WithdrawFlow selection step", () => {
     ).toBeInTheDocument();
     expect(continueButton()).toBeDisabled();
 
-    fireEvent.click(screen.getByLabelText("I understand the liquidation risk"));
+    fireEvent.click(
+      screen.getByLabelText(
+        "I understand this withdrawal puts my position at risk of liquidation, which can seize a whole BTCVault.",
+      ),
+    );
 
     expect(continueButton()).toBeEnabled();
   });
@@ -353,7 +357,7 @@ describe("WithdrawFlow selection step", () => {
 
     fireEvent.click(rowCheckbox(SECOND_VAULT));
     fireEvent.click(continueButton());
-    expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
+    expect(screen.getByText("Review withdrawal")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
@@ -379,7 +383,7 @@ describe("WithdrawFlow selection step", () => {
     fireEvent.click(rowCheckbox(SECOND_VAULT));
     fireEvent.click(continueButton());
 
-    expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
+    expect(screen.getByText("Review withdrawal")).toBeInTheDocument();
     expect(screen.getByText("0.8 sBTC")).toBeInTheDocument();
 
     await vi.waitFor(() =>
@@ -410,7 +414,7 @@ describe("WithdrawFlow when the withdrawal's outcome is unknown", () => {
     fireEvent.click(screen.getByTestId("withdraw-confirm-button"));
 
     await vi.waitFor(() =>
-      expect(screen.queryByText("Review Withdraw")).not.toBeInTheDocument(),
+      expect(screen.queryByText("Review withdrawal")).not.toBeInTheDocument(),
     );
     expect(rowCheckbox(FIRST_VAULT)).not.toBeChecked();
     expect(rowCheckbox(SECOND_VAULT)).not.toBeChecked();
@@ -455,7 +459,7 @@ describe("WithdrawFlow after a successful withdrawal", () => {
 
     fireEvent.click(continueButton());
 
-    expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
+    expect(screen.getByText("Review withdrawal")).toBeInTheDocument();
     expect(
       screen.queryByText(COPY.withdraw.initiated.reserveReminder),
     ).not.toBeInTheDocument();

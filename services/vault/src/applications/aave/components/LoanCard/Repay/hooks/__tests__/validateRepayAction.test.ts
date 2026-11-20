@@ -82,7 +82,7 @@ describe("validateRepayAction", () => {
       expect(result.isDisabled).toBe(true);
       expect(result.buttonText).toBe("Insufficient balance");
       expect(result.errorMessage).toBe(
-        "Your WBTC balance is 0. Acquire at least 0.00000003 WBTC to repay your debt.",
+        "Your WBTC balance is 0. Add more to this wallet to repay. Your debt is 0.00000003 WBTC.",
       );
     });
 
@@ -107,7 +107,7 @@ describe("validateRepayAction", () => {
     it("falls back to 'tokens' when no symbol is supplied", () => {
       const result = validateRepayAction(0, 0, 0.00000003, 0, 8);
       expect(result.errorMessage).toBe(
-        "Your balance is 0. Acquire at least 0.00000003 tokens to repay your debt.",
+        "Your balance is 0. Add tokens to this wallet to repay. Your debt is 0.00000003 tokens.",
       );
     });
 

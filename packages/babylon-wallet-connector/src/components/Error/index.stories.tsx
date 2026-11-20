@@ -22,7 +22,7 @@ export const Default: Story = {
         />
       </svg>
     ),
-    title: "Public Key Mismatch",
+    title: "Public key mismatch",
     description:
       "The Bitcoin address and Public Key for this wallet do not match. Please contact your wallet provider for support.",
     onCancel: () => console.log("cancel"),

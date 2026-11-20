@@ -125,7 +125,7 @@ export const VP_PROBE_CHECK_AGAIN_LIMIT = 3;
  */
 export const VP_PROBE_VERDICT_WINDOW_MS = 20_000;
 /**
- * The activated vault to surface as an active-vault row on /vaults after "Go to Dashboard" — it
+ * The activated vault to surface as an active-vault row on /vaults after "Go to Overview" — it
  * appears optimistically ("Activating collateral…") but can lag the indexer catching up.
  */
 export const DASHBOARD_VAULT_TIMEOUT_MS = 60_000;

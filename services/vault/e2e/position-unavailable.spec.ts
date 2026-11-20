@@ -33,13 +33,13 @@ const GET_POSITION_SELECTOR = toFunctionSelector(
 const NOTICE_TEST_ID = "position-unavailable-notice";
 /** `COPY.risk.status.unavailable` and `.noPosition`. */
 const STATUS_UNAVAILABLE = "Unavailable";
-const STATUS_NO_POSITION = "No Position";
+const STATUS_NO_POSITION = "No position";
 /** `COPY.liquidations.empty.noDepositTitle`. */
 const NO_DEPOSIT_TITLE = "No deposit yet";
 /** `COPY.liquidations.empty.unavailableTitle`. */
 const ANALYSIS_UNAVAILABLE_TITLE = "Liquidation analysis unavailable";
 /** `COPY.overview.borrowedAssetEmpty`: shown only once a read has settled. */
-const NOTHING_BORROWED = "Not Selected";
+const NOTHING_BORROWED = "Not selected";
 
 const POLL_INTERVAL_MS = 30_000;
 const STALENESS_THRESHOLD_MS = 90_000;

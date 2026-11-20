@@ -19,9 +19,10 @@ import {
 /** core-ui `Portal` root. Every dialog renders inside one. */
 const PORTAL_ROOT = ".portal-root";
 /** Entry page hero heading, shown before any wallet connects. */
-const ENTRY_HEADING = "Borrow against native Bitcoin, trustlessly.";
+const ENTRY_HEADING =
+  "Borrow against native Bitcoin with Trustless Bitcoin Vaults.";
 /** wallet-connector wallet list heading for the Bitcoin chain. */
-const BTC_WALLET_LIST_HEADING = "Select Bitcoin Wallet";
+const BTC_WALLET_LIST_HEADING = "Select Bitcoin wallet";
 /** Deposit dialog heading. */
 const DEPOSIT_HEADING = "Deposit";
 /** First vite compile of a cold server. */

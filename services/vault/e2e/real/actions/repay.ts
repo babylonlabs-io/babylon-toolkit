@@ -91,11 +91,11 @@ const REPAY_BUTTON_RX = /^repay$/i; // COPY.loans.repayButton
 const REPAY_SUBMIT_TESTID = '[data-testid="repay-submit-button"]';
 const REPAY_SUBMIT_ENABLED_LABEL = "Repay"; // COPY.loans.repay.action (enabled state)
 // Submit labels that won't resolve by waiting — fail fast with the callout (COPY.loans.repay.*).
-// "Repaying Unavailable" is protocol-gated; the rest are fixed properties of the entered amount vs the
+// "Repaying unavailable" is protocol-gated; the rest are fixed properties of the entered amount vs the
 // wallet balance / debt, none of which change while we wait (repay has no collateral-propagation
 // transient like borrow does).
 const REPAY_INSTANT_FAIL_LABELS = new Set([
-  "Repaying Unavailable",
+  "Repaying unavailable",
   "Amount too small",
   "Amount exceeds debt",
   "Insufficient balance",

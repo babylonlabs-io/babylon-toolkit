@@ -51,9 +51,9 @@ async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
  */
 const TERMINAL_CONNECT_ERROR_TITLES: ReadonlyMap<string, (walletName: string) => string> = new Map([
   [ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, (walletName: string) => `Update ${walletName}`],
-  [ERROR_CODES.DEVICE_WRONG_APP, () => "Wrong App on Device"],
-  [ERROR_CODES.DEVICE_LOCKED, () => "Signing Device Locked"],
-  [ERROR_CODES.DEVICE_BUSY, () => "Signing Device Busy"],
+  [ERROR_CODES.DEVICE_WRONG_APP, () => "Wrong app on device"],
+  [ERROR_CODES.DEVICE_LOCKED, () => "Signing device locked"],
+  [ERROR_CODES.DEVICE_BUSY, () => "Signing device busy"],
   [ERROR_CODES.UNSUPPORTED_NETWORK, () => "Wrong Network"],
 ]);
 
@@ -163,9 +163,9 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
             )
           ) {
             displayError?.({
-              title: "Public Key Mismatch",
+              title: "Public key mismatch",
               description:
-                "The Bitcoin address and Public Key for this wallet do not match. Please contact your wallet provider for support.",
+                "The Bitcoin address and public key for this wallet do not match. Please contact your wallet provider for support.",
               onSubmit: goToNextScreen,
               onCancel: () => {
                 void dropRejectedWallet(connector);
@@ -196,7 +196,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
         } catch (e: any) {
           void dropRejectedWallet(connector);
           displayError?.({
-            title: "Connection Failed",
+            title: "Connection failed",
             description: e.message,
             submitButton: "",
             cancelButton: "Done",

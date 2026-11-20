@@ -29,7 +29,7 @@ export function Error({
   cancelButton = "Cancel",
   submitButton = (
     <>
-      Continue <span className="hidden md:inline">Anyway</span>
+      Continue <span className="hidden md:inline">anyway</span>
     </>
   ),
   onCancel,

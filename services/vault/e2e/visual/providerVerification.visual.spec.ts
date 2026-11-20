@@ -18,6 +18,7 @@ import {
   writeCaptures,
 } from "./capture";
 import {
+  checkedOutCopy,
   DEPOSIT_PROGRESS_STOPS,
   flowScreenshotFileName,
   VISUAL_VIEWPORTS,
@@ -32,7 +33,10 @@ const EXPECT_VERIFICATION_PROGRESS =
     ),
     "utf8",
   ).includes("collectingAcknowledgments");
-const VERIFYING = "Verifying signatures and collecting ACKs";
+const VERIFYING = checkedOutCopy("verifyingDeposit", [
+  "Verifying signatures and collecting acknowledgments",
+  "Verifying signatures and collecting ACKs",
+]);
 const STUCK =
   "The vault provider is not responding. Your funds are not affected.";
 const COUNTS = [
@@ -171,7 +175,11 @@ for (const viewport of VISUAL_VIEWPORTS) {
               : COUNTS[index]
             : VERIFYING;
         const visibleDetail = lane.getByText(text, { exact: true });
-        await visibleDetail.scrollIntoViewIfNeeded();
+        // Centre it: scrolled only "if needed" it lands flush with the
+        // viewport edge, where sub-pixel layout clips it below the ratio.
+        await visibleDetail.evaluate((el) =>
+          el.scrollIntoView({ block: "center" }),
+        );
         await expect(visibleDetail).toBeInViewport({ ratio: 0.999 });
         shots.push(
           await capture(page, flowScreenshotFileName(stop, viewport), {

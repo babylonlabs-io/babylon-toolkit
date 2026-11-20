@@ -500,7 +500,7 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       expect(result.reason).toBe("TBV_Paused");
       expect(result.message).toBe(
-        "The system is currently paused. Please try again later.",
+        "The protocol is paused, so this action isn't available. Try again once the pause is lifted.",
       );
     });
 
@@ -533,11 +533,11 @@ describe("Contract Error Mapping", () => {
             args: [1n, 2n],
           }),
         },
-        "Reorder Vaults",
+        "Reorder BTCVaults",
         [TEST_ABI],
       );
 
-      const remapped = mapViemErrorToContractError(mapped, "Reorder Vaults");
+      const remapped = mapViemErrorToContractError(mapped, "Reorder BTCVaults");
 
       expect(remapped).toBe(mapped);
       expect(remapped.reason).toBe("CustomErrorWithArgs");

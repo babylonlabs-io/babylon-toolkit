@@ -70,7 +70,7 @@ describe("Deposit Validations", () => {
       );
 
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("Multiple providers not yet supported");
+      expect(result.error).toContain("Select one vault provider");
     });
 
     it("should handle empty available providers list", () => {
@@ -406,18 +406,18 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Service unavailable in your region",
+        label: "Not available in your region",
       });
     });
 
-    it("returns 'Wallet not eligible' when address is blocked", () => {
+    it("returns 'Wallet restricted' when address is blocked", () => {
       const result = getDepositCtaState({
         ...readyParams,
         isAddressBlocked: true,
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Wallet not eligible",
+        label: "Wallet restricted",
       });
     });
 
@@ -439,7 +439,7 @@ describe("Deposit Validations", () => {
         isGeoBlocked: true,
         isAddressBlocked: true,
       });
-      expect(result.label).toBe("Service unavailable in your region");
+      expect(result.label).toBe("Not available in your region");
     });
 
     it("returns 'Connect your wallet' when wallet is not connected", () => {
@@ -465,15 +465,15 @@ describe("Deposit Validations", () => {
       });
     });
 
-    it("returns enabled 'Reconnect Wallet' when wallet liveness probe failed", () => {
+    it("returns enabled 'Reconnect wallet' when wallet liveness probe failed", () => {
       const result = getDepositCtaState({
         ...readyParams,
         hasWalletConnectionError: true,
       });
-      expect(result).toEqual({ disabled: false, label: "Reconnect Wallet" });
+      expect(result).toEqual({ disabled: false, label: "Reconnect wallet" });
     });
 
-    it("returns disabled 'Reconnecting Wallet...' while reconnect is in flight", () => {
+    it("returns disabled 'Reconnecting wallet...' while reconnect is in flight", () => {
       const result = getDepositCtaState({
         ...readyParams,
         hasWalletConnectionError: true,
@@ -481,7 +481,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Reconnecting Wallet...",
+        label: "Reconnecting wallet...",
       });
     });
 
@@ -682,7 +682,7 @@ describe("Deposit Validations", () => {
         isGeoBlocked: true,
         isWalletConnected: false,
       });
-      expect(result.label).toBe("Service unavailable in your region");
+      expect(result.label).toBe("Not available in your region");
     });
 
     it("prioritizes fee error over fee loading", () => {
@@ -818,7 +818,7 @@ describe("Deposit Validations", () => {
         amountSats: 600_000n,
       });
       expect(result.label).toBe(
-        "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+        "Deposit cap almost reached: only 0.003 BTC can still be deposited, below the minimum deposit of 0.005 BTC",
       );
     });
 
@@ -834,7 +834,8 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Peg-in TVL cap reached: only 0.005 BTC remains",
+        label:
+          "Deposit cap almost reached: only 0.005 BTC can still be deposited",
       });
     });
 
@@ -1022,11 +1023,12 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Supply cap reached. Deposits temporarily paused",
+        label:
+          "Supply cap reached. New deposits can't be accepted until there is room.",
       });
     });
 
-    it("returns 'Peg-in TVL cap reached' when amount > effectiveRemaining", () => {
+    it("returns 'Deposit cap almost reached' when amount > effectiveRemaining", () => {
       // Amount + fee + claim (806_000) still fits readyParams.btcBalance
       // (1_000_000), so this test isolates the cap branch from the balance
       // check. effectiveRemaining 500_000 sats = "0.005" via
@@ -1038,7 +1040,8 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Peg-in TVL cap reached: only 0.005 BTC remains",
+        label:
+          "Deposit cap almost reached: only 0.005 BTC can still be deposited",
       });
     });
 
@@ -1064,7 +1067,7 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label:
-          "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+          "Deposit cap almost reached: only 0.003 BTC can still be deposited, below the minimum deposit of 0.005 BTC",
       });
     });
 
@@ -1078,7 +1081,7 @@ describe("Deposit Validations", () => {
         amountSats: 0n,
       });
       expect(result.label).toBe(
-        "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+        "Deposit cap almost reached: only 0.003 BTC can still be deposited, below the minimum deposit of 0.005 BTC",
       );
     });
 
@@ -1123,7 +1126,7 @@ describe("Deposit Validations", () => {
         amountSats: 100_000n,
       });
       expect(result.label).toBe(
-        "Peg-in TVL cap reached: only 0.003 BTC remains, below the minimum deposit of 0.01 BTC",
+        "Deposit cap almost reached: only 0.003 BTC can still be deposited, below the minimum deposit of 0.01 BTC",
       );
     });
 
@@ -1137,7 +1140,8 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "Supply cap reached. Deposits temporarily paused",
+        label:
+          "Supply cap reached. New deposits can't be accepted until there is room.",
       });
     });
 
@@ -1248,7 +1252,8 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         valid: false,
-        error: "Supply cap reached. Deposits temporarily paused",
+        error:
+          "Supply cap reached. New deposits can't be accepted until there is room.",
       });
     });
   });

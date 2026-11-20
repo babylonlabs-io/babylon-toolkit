@@ -83,7 +83,7 @@ export const BtcEth: StoryObj = {
       <div className="space-y-4 p-4">
         <h3 className="text-lg font-semibold">BtcEthWalletMenu - For Vault (BTC + ETH)</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Includes: BTC card, ETH card, Using Inscriptions toggle, Bitcoin Public Key.
+          Includes: BTC card, ETH card, Spend inscribed BTC toggle, Bitcoin public key.
         </p>
         <BtcEthWalletMenu
           trigger={trigger}
@@ -142,7 +142,7 @@ export const BtcEthNoInscriptions: StoryObj = {
       <div className="space-y-4 p-4">
         <h3 className="text-lg font-semibold">BtcEthWalletMenu - no inscriptions (toggle hidden)</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          showInscriptionsToggle=false: the "Using Inscriptions" row is omitted and the Bitcoin Public Key item takes the
+          showInscriptionsToggle=false: the "Spend inscribed BTC" row is omitted and the Bitcoin public key item takes the
           single-item rounded-lg styling.
         </p>
         <BtcEthWalletMenu

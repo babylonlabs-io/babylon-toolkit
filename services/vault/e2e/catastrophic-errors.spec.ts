@@ -29,7 +29,7 @@ async function assertBlockingModal(
   await expect(page.getByRole("button", { name: "Cancel" })).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Done" })).not.toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Try Again" }),
+    page.getByRole("button", { name: "Try again" }),
   ).not.toBeVisible();
 }
 
@@ -42,8 +42,8 @@ test.describe("Catastrophic Error Handling", () => {
 
       await assertBlockingModal(
         page,
-        "Configuration Error",
-        /missing required configuration/i,
+        "Configuration error",
+        /isn't set up correctly/i,
       );
     });
   });
@@ -67,8 +67,8 @@ test.describe("Catastrophic Error Handling", () => {
 
       await assertBlockingModal(
         page,
-        "Service Unavailable",
-        /Unable to connect to the backend services/i,
+        "Service unavailable",
+        /can't reach this interface's data services/i,
       );
     });
 
@@ -110,8 +110,8 @@ test.describe("Catastrophic Error Handling", () => {
 
       await assertBlockingModal(
         page,
-        "Service Unavailable",
-        /Unable to connect to the backend services/i,
+        "Service unavailable",
+        /can't reach this interface's data services/i,
       );
     });
 
@@ -189,8 +189,8 @@ test.describe("Catastrophic Error Handling", () => {
       const banner = page.getByTestId("protocol-status-banner");
       await expect(banner).toBeVisible();
       await expect(banner).toHaveAttribute("role", "alert");
-      await expect(banner).toContainText("Protocol is fully paused");
-      await expect(banner).toContainText("Debt continues accruing interest");
+      await expect(banner).toContainText("Protocol is paused");
+      await expect(banner).toContainText("Debt keeps accruing interest");
       expect(pauseReadCount).toBeGreaterThan(0);
     });
   });

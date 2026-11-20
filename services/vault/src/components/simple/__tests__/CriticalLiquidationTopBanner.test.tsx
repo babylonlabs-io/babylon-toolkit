@@ -79,7 +79,9 @@ describe("CriticalLiquidationTopBanner", () => {
     );
 
     expect(
-      screen.getByText("Critical: liquidation in 4.3%"),
+      screen.getByText(
+        "Critical: a 4.3% BTC price drop can trigger liquidation",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -201,7 +203,9 @@ describe("CriticalLiquidationTopBanner", () => {
     );
 
     expect(
-      screen.getByText("Critical: liquidation in 4.3%"),
+      screen.getByText(
+        "Critical: a 4.3% BTC price drop can trigger liquidation",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Critical - health factor 1.03"),

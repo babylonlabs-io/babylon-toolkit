@@ -112,7 +112,7 @@ describe("BTC validation failure with a refused shared-session disconnect", () =
       useWalletConnectors({ persistent: true, accountStorage, btcValidation: rejectEveryKey }),
     );
     await harness.connectHandler!(rejectedWallet);
-    expect(harness.displayError).toHaveBeenCalledWith(expect.objectContaining({ title: "Public Key Mismatch" }));
+    expect(harness.displayError).toHaveBeenCalledWith(expect.objectContaining({ title: "Public key mismatch" }));
 
     await harness.displayError.mock.calls[0][0].onCancel();
 

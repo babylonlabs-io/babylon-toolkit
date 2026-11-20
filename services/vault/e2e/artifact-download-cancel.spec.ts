@@ -71,13 +71,13 @@ for (const viewport of [
           .click();
         await expect(artifactProgress(page)).toBeHidden();
         await expect(
-          page.getByRole("button", { name: "Download Artifacts", exact: true }),
+          page.getByRole("button", { name: "Download artifacts", exact: true }),
         ).toBeVisible();
         await page.clock.runFor(15_000);
         expect(downloads).toBe(0);
         await page.keyboard.press("Escape");
         await expect(
-          page.getByRole("button", { name: "Download Artifacts", exact: true }),
+          page.getByRole("button", { name: "Download artifacts", exact: true }),
         ).toHaveCount(0);
 
         await (
@@ -91,14 +91,14 @@ for (const viewport of [
         ).click();
 
         await page
-          .getByRole("button", { name: "Download Artifacts", exact: true })
+          .getByRole("button", { name: "Download artifacts", exact: true })
           .click();
         await artifactClose(page, surface).click();
         await page
           .getByRole("button", { name: "Yes, cancel download", exact: true })
           .click();
         await expect(
-          page.getByRole("button", { name: "Download Artifacts", exact: true }),
+          page.getByRole("button", { name: "Download artifacts", exact: true }),
         ).toHaveCount(0);
         await page.clock.runFor(15_000);
         expect(downloads).toBe(0);
@@ -125,14 +125,14 @@ for (const viewport of [
           await expect(artifactProgress(page)).toBeHidden();
           await expect(
             page.getByRole("button", {
-              name: "Download Artifacts",
+              name: "Download artifacts",
               exact: true,
             }),
           ).toBeVisible();
           await page.mouse.click(2, 2);
           await expect(
             page.getByRole("button", {
-              name: "Download Artifacts",
+              name: "Download artifacts",
               exact: true,
             }),
           ).toHaveCount(0);
@@ -223,7 +223,7 @@ test.describe("native artifact saving", () => {
       await openArtifactDownload(page, "vault", "valid", true);
       await page.clock.resume();
       const download = page.getByRole("button", {
-        name: "Download Artifacts",
+        name: "Download artifacts",
         exact: true,
       });
       const error = page.locator(".bbn-dialog .text-error-main");

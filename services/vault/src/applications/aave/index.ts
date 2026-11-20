@@ -11,7 +11,7 @@ const aaveApp: ApplicationRegistration = {
     name: "Aave V4",
     type: "Lending",
     description:
-      "Aave is a decentralized non-custodial liquidity protocol where users can participate as suppliers or borrowers.",
+      "Aave V4 is a third-party lending protocol governed by the Aave DAO, which sets borrowing rates and risk parameters.",
     logoUrl: "/images/aave.svg",
     websiteUrl: "https://aave.com",
   },

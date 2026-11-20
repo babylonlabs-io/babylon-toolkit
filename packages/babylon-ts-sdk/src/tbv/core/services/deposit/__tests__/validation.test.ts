@@ -429,7 +429,7 @@ describe("Deposit Validations", () => {
     it("rejects empty amounts array", () => {
       const result = validateVaultAmounts([]);
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("At least one vault amount required");
+      expect(result.error).toContain("At least one BTCVault amount required");
     });
 
     it("rejects zero amount", () => {

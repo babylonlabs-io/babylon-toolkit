@@ -132,9 +132,9 @@ describe("buildLiquidationChartData", () => {
     expect(bands).toHaveLength(3);
     expect(bands.map((b) => b.tone)).toEqual(["1", "2", "3"]);
     expect(bands.map((b) => b.label)).toEqual([
-      "Liq Event 1",
-      "Liq Event 2",
-      "Liq Event 3",
+      "Liquidation event 1",
+      "Liquidation event 2",
+      "Liquidation event 3",
     ]);
   });
 
@@ -202,7 +202,7 @@ describe("buildLiquidationChartData", () => {
     const rows = bands[0].popoverMetrics ?? [];
     expect(rows.map((r) => r.label)).toEqual([
       "At price",
-      "% to Liquidation",
+      "% to liquidation",
       "Vaults",
       "Seizes",
     ]);
@@ -292,9 +292,9 @@ describe("buildLiquidationChartData", () => {
       collateralFactor: CF,
     });
 
-    expect(bands[0].label).toBe("Liq Event 1");
-    expect(cards[0].title).toBe("Liq Event 1");
-    expect(cards[1].title).toBe("Liq Event 2");
+    expect(bands[0].label).toBe("Liquidation event 1");
+    expect(cards[0].title).toBe("Liquidation event 1");
+    expect(cards[1].title).toBe("Liquidation event 2");
   });
 
   it("prices the aftermath of a gapped event at its execution price, not its trigger", () => {
@@ -622,14 +622,14 @@ describe("buildLiquidationChartData", () => {
     });
 
     expect(cards.map((c) => c.title)).toEqual([
-      "Liq Event 1",
-      "Liq Event 2",
-      "Liq Event 3",
+      "Liquidation event 1",
+      "Liquidation event 2",
+      "Liquidation event 3",
     ]);
     expect(cards.map((c) => c.tone)).toEqual(["1", "2", "3"]);
   });
 
-  it("titles the first event 'Liq Event 1' regardless of the group's index field", () => {
+  it("titles the first event 'Liquidation event 1' regardless of the group's index field", () => {
     const result = makeResult([makeGroup(1), makeGroup(2), makeGroup(3)]);
     const { cards } = buildLiquidationChartData(result, {
       vaultsTotal: vaultCount(result),
@@ -638,9 +638,9 @@ describe("buildLiquidationChartData", () => {
     });
 
     expect(cards.map((c) => c.title)).toEqual([
-      "Liq Event 1",
-      "Liq Event 2",
-      "Liq Event 3",
+      "Liquidation event 1",
+      "Liquidation event 2",
+      "Liquidation event 3",
     ]);
   });
 
@@ -673,7 +673,7 @@ describe("buildLiquidationChartData", () => {
       collateralFactor: REAL_CF,
     });
 
-    expect(cards[0].title).toBe("Liq Event 1");
+    expect(cards[0].title).toBe("Liquidation event 1");
     expect(cards.map((c) => c.tone)).toEqual(bands.map((b) => b.tone));
     expect(cards.map((c) => c.key)).toEqual(bands.map((b) => b.key));
   });
@@ -695,7 +695,7 @@ describe("buildLiquidationChartData", () => {
       collateralFactor: CF,
     });
 
-    expect(cards[0].fairness.label).toBe("Fairness Payment (wBTC)");
+    expect(cards[0].fairness.label).toBe("Fairness payment (WBTC)");
     expect(cards[0].fairness.value).toContain("$81");
     // Converted at the event's trigger price: 81 / 40500 = 0.002 BTC.
     expect(cards[0].fairness.value).toContain("0.002");

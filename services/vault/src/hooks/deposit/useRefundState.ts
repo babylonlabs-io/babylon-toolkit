@@ -225,7 +225,7 @@ export function useRefundState({
             err instanceof Error ? err.message : "Refund transaction failed";
           setError(
             message.includes("non-BIP68-final")
-              ? "The Bitcoin timelock has not expired yet. Your refund will be claimable once enough blocks have been mined since the deposit transaction. Please try again later."
+              ? COPY.deposit.refundTimelockNotOpen
               : message,
           );
           setRefunding(false);

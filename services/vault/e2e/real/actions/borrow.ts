@@ -93,11 +93,11 @@ const BORROW_BUTTON_RX = /^borrow$/i; // COPY.loans.borrowButton
 const BORROW_SUBMIT_TESTID = '[data-testid="borrow-submit-button"]';
 const BORROW_SUBMIT_ENABLED_LABEL = "Borrow"; // COPY.loans.borrow.action (enabled state)
 // Submit labels that won't resolve by waiting — fail fast with the callout (COPY.loans.borrow.*).
-// "Borrowing Unavailable" is protocol- or hub-gated; "Amount too small" / "…exceeds available liquidity" /
+// "Borrowing unavailable" is protocol- or hub-gated; "Amount too small" / "…exceeds available liquidity" /
 // "…exceeds borrow limit" are fixed properties of the entered amount + reserve (and its hub), not of how
 // much collateral has propagated.
 const BORROW_INSTANT_FAIL_LABELS = new Set([
-  "Borrowing Unavailable",
+  "Borrowing unavailable",
   "Amount too small",
   "Amount exceeds available liquidity",
   "Amount exceeds borrow limit",

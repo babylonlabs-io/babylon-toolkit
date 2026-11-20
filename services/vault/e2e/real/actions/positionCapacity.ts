@@ -106,9 +106,9 @@ export interface CapacityDeposit {
 
 /** The pegin action's own form steps, so this module drives the same form without importing it. */
 export interface DepositFormDriver {
-  /** Fill and submit the deposit form, up to the "Sign Transaction" entry. */
+  /** Fill and submit the deposit form, up to the "Sign transaction" entry. */
   fill(): Promise<void>;
-  /** Click "Sign Transaction", calling `beforeClick` right before the click. */
+  /** Click "Sign transaction", calling `beforeClick` right before the click. */
   sign(beforeClick: () => void): Promise<void>;
 }
 

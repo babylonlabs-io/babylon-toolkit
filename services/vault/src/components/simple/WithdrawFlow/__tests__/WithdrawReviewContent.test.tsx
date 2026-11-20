@@ -1,5 +1,5 @@
 /**
- * Review Withdraw card (issue #2067). The restyle moved every row onto the
+ * Review withdrawal card (issue #2067). The restyle moved every row onto the
  * shared v3 review row, so these pin what the rows must still say: the same
  * amounts, the same conversions, and a projected health factor coloured by its
  * own status rather than always green.
@@ -47,16 +47,16 @@ describe("WithdrawReviewContent", () => {
   it("renders each row's amount with its USD conversion on a second line", () => {
     render(<WithdrawReviewContent {...baseProps} />);
 
-    expect(screen.getByText("Withdraw Amount")).toBeInTheDocument();
+    expect(screen.getByText("Withdrawal amount")).toBeInTheDocument();
     expect(screen.getByText("0.6 sBTC")).toBeInTheDocument();
     expect(screen.getByText("$21,686.17 USD")).toBeInTheDocument();
 
-    expect(screen.getByText("Network Fee Rate")).toBeInTheDocument();
+    expect(screen.getByText("Network fee rate")).toBeInTheDocument();
     expect(screen.getByText("3 sats/vB")).toBeInTheDocument();
 
     // 1_500_000 sats = 0.015 BTC, 2.5% of 0.6 BTC, so $542.15.
     // (The test env is signet, so the coin symbol renders as sBTC.)
-    expect(screen.getByText("VP Commission")).toBeInTheDocument();
+    expect(screen.getByText("Vault provider commission")).toBeInTheDocument();
     expect(screen.getByText("0.015 sBTC")).toBeInTheDocument();
     expect(screen.getByText("$542.15 USD")).toBeInTheDocument();
   });
@@ -98,7 +98,7 @@ describe("WithdrawReviewContent", () => {
 
     const banner = screen.getByTestId("withdraw-hf-block-warning");
     expect(banner).toHaveAttribute("role", "alert");
-    expect(banner).toHaveTextContent("Withdraw unavailable");
+    expect(banner).toHaveTextContent("Withdrawal unavailable");
     // The warning triangle, not the error variant's default close glyph:
     // the two icons are only distinguishable in the DOM by their viewBox.
     expect(banner.querySelector('svg[viewBox="0 0 22 20"]')).not.toBeNull();

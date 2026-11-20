@@ -72,7 +72,7 @@ export class KeystoneProvider implements IBTCProvider {
     const decodedResult = await keystoneContainer.read([SupportedResult.UR_CRYPTO_ACCOUNT], {
       title: "Sync Keystone with Babylon Staking App",
       description:
-        "Please scan the QR code displayed on your Keystone, Currently only the first Taproot Address will be used",
+        "Please scan the QR code displayed on your Keystone. Currently only the first Taproot address will be used.",
       renderInitial: {
         walletMode: "",
         link: "",
@@ -80,7 +80,7 @@ export class KeystoneProvider implements IBTCProvider {
           `Requires Keystone firmware ${MIN_KEYSTONE_FIRMWARE_VERSION} or later.`,
           "1. Turn on your Keystone 3.",
           "2. Click connect software wallet and select Bitcoin Wallets.",
-          '3. Press the "Sync Keystone" button and scan the QR Code displayed on your Keystone hardware wallet',
+          '3. Press the "Sync Keystone" button and scan the QR code displayed on your Keystone hardware wallet.',
           "4. The first Taproot address will be used for staking.",
         ],
       },
@@ -308,7 +308,7 @@ export class KeystoneProvider implements IBTCProvider {
       origin: "babylon staking app",
     });
 
-    const signMessage = composeQRProcess(SupportedResult.UR_BTC_SIGNATURE);
+    const signMessage = composeQRProcess(SupportedResult.UR_BTC_SIGNATURE, SCAN_DESCRIPTION);
 
     const keystoneContainer = await this.viewSDK.getSdk();
     const signedMessageUR = await signMessage(keystoneContainer, ur);
@@ -354,7 +354,11 @@ export class KeystoneProvider implements IBTCProvider {
     const ur = this.dataSdk.btc.generatePSBT(Buffer.from(psbtHex, "hex"));
 
     // compose the signing process for the Keystone device
-    const signPsbt = composeQRProcess(SupportedResult.UR_PSBT, options?.displayMessage);
+    const signPsbt = composeQRProcess(
+      SupportedResult.UR_PSBT,
+      SCAN_AND_CHECK_TRANSACTION_DESCRIPTION,
+      options?.displayMessage,
+    );
 
     const keystoneContainer = await this.viewSDK.getSdk();
     const signePsbtUR = await signPsbt(keystoneContainer, ur);
@@ -444,7 +448,7 @@ export class KeystoneProvider implements IBTCProvider {
       origin: "babylon staking app",
     });
 
-    const getContextHash = composeQRProcess(SupportedResult.UR_BYTES);
+    const getContextHash = composeQRProcess(SupportedResult.UR_BYTES, SCAN_DESCRIPTION);
     const keystoneContainer = await this.viewSDK.getSdk();
     const contextHashUR = await getContextHash(keystoneContainer, ur);
     const contextHash = this.dataSdk.parseURBytes(contextHashUR).toString("hex");
@@ -465,23 +469,30 @@ export class KeystoneProvider implements IBTCProvider {
   };
 }
 
+// Message signing and context-hash requests show no amounts or addresses,
+// so only the PSBT request asks the user to check them.
+const SCAN_DESCRIPTION = "Please scan the QR code with your Keystone device.";
+const SCAN_AND_CHECK_TRANSACTION_DESCRIPTION =
+  "Scan this QR code with your Keystone, then check the amounts and addresses on the Keystone screen before you sign.";
+
 /**
  * High order function to compose the QR generation and scanning process for specific data types.
  * Composes the QR code process for the Keystone device.
  * @param destinationDataType - The type of data to be read from the QR code.
+ * @param scanDescription - Text under the QR code the device scans.
  * @param titleEnhance - Optional context appended to the modal titles (e.g.
  *   "Transaction 3 of 12") so the user can track progress through a batch.
  * @returns A function that plays the UR in the QR code and reads the result.
  */
 const composeQRProcess =
-  (destinationDataType: SupportedResult, titleEnhance?: string) =>
+  (destinationDataType: SupportedResult, scanDescription: string, titleEnhance?: string) =>
   async (container: SDK, ur: UR): Promise<UR> => {
     const suffix = titleEnhance ? ` · ${titleEnhance}` : "";
 
     // make the container play the UR in the QR code
     const status: PlayStatus = await container.play(ur, {
-      title: `Scan the QR Code${suffix}`,
-      description: "Please scan the QR code with your Keystone device.",
+      title: `Scan the QR code${suffix}`,
+      description: scanDescription,
     });
 
     // if the QR code is scanned successfully, read the result
@@ -493,9 +504,9 @@ const composeQRProcess =
       });
 
     const urResult = await container.read([destinationDataType], {
-      title: `Get the Signature from Keystone${suffix}`,
+      title: `Get the signature from Keystone${suffix}`,
       description: "Please scan the QR code displayed on your Keystone",
-      URTypeErrorMessage: "The scanned QR code can't be read. please verify and try again.",
+      URTypeErrorMessage: "The scanned QR code can't be read. Please verify and try again.",
     });
 
     // return the result if the QR code data(UR) of scanned successfully

@@ -958,7 +958,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     const button = screen.getByTestId("vault-reclaim-button");
     expect(button).toBeEnabled();
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (1)" }),
     ).toBeInTheDocument();
     fireEvent.click(button);
     expect(deposits.reclaimModal.handleReclaimClick).toHaveBeenCalledWith(
@@ -990,7 +990,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     );
 
     expect(
-      screen.queryByRole("heading", { name: /Inactive Vaults/ }),
+      screen.queryByRole("heading", { name: /Inactive vaults/ }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: COPY.reclaim.rowButton }),
@@ -1002,7 +1002,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     const { container } = renderReclaim();
 
     expect(
-      screen.queryByRole("heading", { name: /Inactive Vaults/ }),
+      screen.queryByRole("heading", { name: /Inactive vaults/ }),
     ).not.toBeInTheDocument();
     expect(container.querySelector("section")).toBeNull();
   });
@@ -1020,7 +1020,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       const { container } = renderReclaim();
 
       expect(
-        screen.queryByRole("heading", { name: /Inactive Vaults/ }),
+        screen.queryByRole("heading", { name: /Inactive vaults/ }),
       ).not.toBeInTheDocument();
       expect(container.querySelector("section")).toBeNull();
     },
@@ -1031,7 +1031,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     renderReclaim();
 
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (1)" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: COPY.reclaim.rowButton }),
@@ -1057,7 +1057,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (1)" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: COPY.reclaim.rowButton }),
@@ -1109,7 +1109,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     });
 
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (1)" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("0.2 BTC")).not.toBeInTheDocument();
   });
@@ -1145,7 +1145,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     gate.value = { protocol: "paused", aave: null };
     renderReclaim();
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (1)" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: COPY.wallet.btcAction.connect }),
@@ -1216,7 +1216,7 @@ describe("VaultsLifecycleSections returned vault", () => {
     renderReturnedRow();
 
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (1)" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS),
@@ -1324,7 +1324,7 @@ describe("VaultsLifecycleSections expired refunds", () => {
       );
 
       expect(
-        screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+        screen.getByRole("heading", { name: "Inactive vaults (1)" }),
       ).toBeInTheDocument();
       expect(
         screen.getByText(
@@ -1360,7 +1360,7 @@ describe("VaultsLifecycleSections expired refunds", () => {
       );
 
       expect(
-        screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+        screen.getByRole("heading", { name: "Inactive vaults (1)" }),
       ).toBeInTheDocument();
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
       expect(
@@ -1409,7 +1409,7 @@ describe("VaultsLifecycleSections expired refunds", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (2)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (2)" }),
     ).toBeInTheDocument();
     expect(screen.getByText("0.2 BTC")).toBeInTheDocument();
     expect(screen.getByRole("link")).toHaveAttribute(
@@ -1438,7 +1438,7 @@ describe("VaultsLifecycleSections expired redeem", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive vaults (1)" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: COPY.vaults.actions.withdraw }),

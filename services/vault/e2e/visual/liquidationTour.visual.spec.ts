@@ -8,6 +8,7 @@ import {
   writeCaptures,
 } from "./capture";
 import {
+  checkedOutCopy,
   flowScreenshotFileName,
   HAS_LIQUIDATION_TOUR,
   LIQUIDATION_TOUR_STOPS,
@@ -15,11 +16,38 @@ import {
 } from "./targets";
 
 const STEPS = [
-  [LIQUIDATION_TOUR_STOPS.position, "Position Overview"],
-  [LIQUIDATION_TOUR_STOPS.health, "Monitor Your Health Factor"],
-  [LIQUIDATION_TOUR_STOPS.simulation, "Simulate BTC Price Changes"],
-  [LIQUIDATION_TOUR_STOPS.events, "Understand Liquidation Events"],
-  [LIQUIDATION_TOUR_STOPS.outcomes, "Explore Liquidation Outcomes"],
+  [
+    LIQUIDATION_TOUR_STOPS.position,
+    checkedOutCopy("title", ["Position overview", "Position Overview"]),
+  ],
+  [
+    LIQUIDATION_TOUR_STOPS.health,
+    checkedOutCopy("title", [
+      "Monitor your health factor",
+      "Monitor Your Health Factor",
+    ]),
+  ],
+  [
+    LIQUIDATION_TOUR_STOPS.simulation,
+    checkedOutCopy("title", [
+      "Simulate BTC price changes",
+      "Simulate BTC Price Changes",
+    ]),
+  ],
+  [
+    LIQUIDATION_TOUR_STOPS.events,
+    checkedOutCopy("title", [
+      "Understand liquidation events",
+      "Understand Liquidation Events",
+    ]),
+  ],
+  [
+    LIQUIDATION_TOUR_STOPS.outcomes,
+    checkedOutCopy("title", [
+      "Explore liquidation outcomes",
+      "Explore Liquidation Outcomes",
+    ]),
+  ],
 ] as const;
 
 test.beforeAll(ensureOutputDir);
@@ -52,7 +80,10 @@ for (const viewport of VISUAL_VIEWPORTS) {
     await popup.getByRole("button", { name: "Simulated", exact: true }).click();
     await expect(page.getByTestId("liq-candle").first()).toBeVisible();
     const welcome = page.getByRole("dialog", {
-      name: "Welcome to Liquidation Analysis",
+      name: checkedOutCopy("welcomeTitle", [
+        "Welcome to liquidation analysis",
+        "Welcome to Liquidation Analysis",
+      ]),
       exact: true,
     });
     await expect(welcome).toBeVisible();

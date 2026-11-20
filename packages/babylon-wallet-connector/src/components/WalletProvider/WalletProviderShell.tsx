@@ -66,6 +66,8 @@ export interface WalletProviderCommonProps {
   dialogActionsClassName?: string;
   /** A short line under each chain's name on the connect screen that says why the app needs that wallet. */
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  /** Replaces the default legal notice under the Connect button on the connect screen. */
+  connectNotice?: ReactNode;
   isChainHidden?: (chain: IChain) => boolean;
 }
 
@@ -98,6 +100,7 @@ export function WalletProviderShell({
   dialogCloseButtonClassName,
   dialogActionsClassName,
   chainDescriptions,
+  connectNotice,
   isChainHidden,
   metadata,
   connectors,
@@ -173,6 +176,7 @@ export function WalletProviderShell({
           closeButtonClassName={dialogCloseButtonClassName}
           actionsClassName={dialogActionsClassName}
           chainDescriptions={chainDescriptions}
+          connectNotice={connectNotice}
           isChainHidden={isChainHidden}
         />
       </ChainProvider>

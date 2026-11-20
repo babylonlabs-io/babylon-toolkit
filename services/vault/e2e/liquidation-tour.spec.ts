@@ -4,18 +4,18 @@ import { installRecordedBackend } from "./fixtures/replay";
 import { assertRecordingCovered, blockOffsiteRequests } from "./visual/capture";
 
 const SEEN_KEY = "tbv-liquidation-tour-seen";
-const WELCOME_TITLE = "Welcome to Liquidation Analysis";
+const WELCOME_TITLE = "Welcome to liquidation analysis";
 /**
  * The global reduced-motion reset in core-ui shortens every animation and
  * transition to this length instead of removing it.
  */
 const REDUCED_MOTION_RESET_DURATION_MS = 0.01;
 const STEPS = [
-  ["position", "Position Overview"],
-  ["health", "Monitor Your Health Factor"],
-  ["simulation", "Simulate BTC Price Changes"],
-  ["events", "Understand Liquidation Events"],
-  ["outcomes", "Explore Liquidation Outcomes"],
+  ["position", "Position overview"],
+  ["health", "Monitor your health factor"],
+  ["simulation", "Simulate BTC price changes"],
+  ["events", "Understand liquidation events"],
+  ["outcomes", "Explore liquidation outcomes"],
 ] as const;
 
 async function showAnalysis(page: Page): Promise<void> {

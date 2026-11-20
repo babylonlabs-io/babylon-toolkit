@@ -4,9 +4,9 @@
  *
  * The work splits cleanly in two:
  *   - DAPP actions (this file drives them on `ctx.page`): open the deposit form, enter the amount,
- *     select a vault provider, submit, click "Sign Transaction" to start signing, then — mid-flow —
- *     "Continue without" the artifact download, acknowledge + "Activate Vault", "Skip" the in-step
- *     artifact download, and finally "Go to Dashboard".
+ *     select a vault provider, submit, click "Sign transaction" to start signing, then — mid-flow —
+ *     "Continue without" the artifact download, acknowledge + "Activate BTCVault", "Skip" the in-step
+ *     artifact download, and finally "Go to Overview".
  *   - WALLET actions (the shared pop-up approver handles them on the chrome-extension pop-ups): the
  *     UniSat BTC signing prompts and the MetaMask ETH transactions. The approver is installed for
  *     the WHOLE run (unlike observe, which uninstalls it) so every pop-up auto-approves.
@@ -95,7 +95,7 @@ export const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid bu
 const MAX_VAULTS_CTA_LABEL = "Maximum BTCVaults reached"; // COPY.deposit.maxVaultsReached.cta
 const VAULT_COUNT_UNAVAILABLE_CTA_LABEL =
   "Unable to verify BTCVault count. Please try again"; // COPY.deposit.maxVaultsReached.unavailableCta
-const SIGN_TRANSACTION_LABEL = "Sign Transaction"; // COPY.deposit.progress.buttons.signTransaction
+const SIGN_TRANSACTION_LABEL = "Sign transaction"; // COPY.deposit.progress.buttons.signTransaction
 // Two-vault split: the UtxoSplitSelector is an Accordion with NO testids (rows are `role="button"`
 // divs), so it's driven by role + visible text. The selector header shows "Do not split" while
 // single-vault (the default) and relabels to the split option once enabled.
@@ -308,7 +308,7 @@ export async function waitForDepositCta(
 }
 
 /**
- * Click the single "Sign Transaction" start button that kicks off the whole signing sequence.
+ * Click the single "Sign transaction" start button that kicks off the whole signing sequence.
  * `beforeClick` runs right before the click, once the button is there (the capacity watch marks it).
  */
 export async function startSigning(
@@ -321,7 +321,7 @@ export async function startSigning(
     .first();
   await signButton.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
   log(
-    "Deposit progress open — starting the signing sequence (Sign Transaction)",
+    "Deposit progress open — starting the signing sequence (Sign transaction)",
   );
   beforeClick?.();
   await signButton.click();
@@ -418,7 +418,7 @@ function assertRegisteredPeginWitnesses(
 }
 
 /**
- * The pegin flow proper: deposit form → "Sign Transaction" → the 15-step signing machine → activated
+ * The pegin flow proper: deposit form → "Sign transaction" → the 15-step signing machine → activated
  * vault on the dashboard, with the registered PegIn witness of every vault checked on chain. Assumes
  * the caller has ALREADY connected the wallets and installed the
  * pop-up approver + recorder for the run (so a composite like `borrow --pegin-first` keeps a single

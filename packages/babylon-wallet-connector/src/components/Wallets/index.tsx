@@ -65,7 +65,7 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
     <div className={twMerge("flex flex-col overflow-hidden rounded-2xl border border-secondary-strokeLight", className)}>
       <div className="flex flex-col gap-2 border-b border-secondary-strokeLight p-6">
         <Heading variant="h5" className="text-accent-primary">
-          {`Select ${chain.name} Wallet`}
+          {`Select ${chain.name} wallet`}
         </Heading>
         {btcHint && (
           <Text variant="body2" className="text-accent-secondary">

@@ -19,6 +19,7 @@ import {
   type PropsWithChildren,
 } from "react";
 
+import { ConnectNotice } from "@/components/Wallet/ConnectNotice";
 import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
@@ -29,6 +30,10 @@ import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
 import { LEDGER_VAULT_WALLET_ID } from "./ledgerVaultConnector";
+
+// Built once: the connect screen is memoized, so a fresh element each render
+// would re-render it for nothing.
+const CONNECT_NOTICE = <ConnectNotice />;
 
 // Vault deposits need the BTC wallet's `deriveContextHash`.
 // ALWAYS_DISABLED_WALLETS keeps non-conforming adapters (appkit/injectable/ledger) permanently out
@@ -268,6 +273,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}
       dialogActionsClassName={WALLET_DIALOG_RIGHT_INSET_CLASS}
       chainDescriptions={COPY.wallet.chainDescriptions}
+      connectNotice={CONNECT_NOTICE}
       isChainHidden={isBtcChainHiddenOnTouch}
     >
       <WalletProviders>{children}</WalletProviders>

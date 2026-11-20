@@ -1,6 +1,8 @@
 import { Text } from "@babylonlabs-io/core-ui";
 import { PiWarningOctagonFill } from "react-icons/pi";
 
+import { COPY } from "@/copy";
+
 interface AddressTypeBannerProps {
   visible: boolean;
 }
@@ -15,10 +17,9 @@ export function AddressTypeBanner({ visible }: AddressTypeBannerProps) {
       <div className="flex flex-row items-center gap-2">
         <PiWarningOctagonFill className="flex-shrink-0" />
         <Text variant="body1">
-          <strong>Taproot Address Required</strong>
+          <strong>{COPY.wallet.addressTypeBanner.title}</strong>
           <br />
-          This application requires a Taproot (P2TR) Bitcoin address. Please
-          switch your wallet to use a Taproot address to deposit.
+          {COPY.wallet.addressTypeBanner.body}
         </Text>
       </div>
     </div>

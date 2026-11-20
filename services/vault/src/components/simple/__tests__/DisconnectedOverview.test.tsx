@@ -98,7 +98,7 @@ describe("DisconnectedOverview", () => {
     const headline = screen.getByRole("heading", { level: 1 });
 
     expect(headline).toHaveAccessibleName(
-      "Borrow against native Bitcoin, trustlessly.",
+      "Borrow against native Bitcoin with Trustless Bitcoin Vaults.",
     );
     expect(headline.querySelector("[aria-hidden='true']")).toHaveClass(
       "select-none",

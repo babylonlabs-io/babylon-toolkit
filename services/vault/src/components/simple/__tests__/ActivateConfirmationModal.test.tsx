@@ -554,7 +554,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("starts the card download when Download Artifacts is clicked", () => {
+  it("starts the card download when Download artifacts is clicked", () => {
     render(
       <ActivateConfirmationModal
         open
@@ -564,7 +564,7 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Download Artifacts"));
+    fireEvent.click(screen.getByText("Download artifacts"));
 
     expect(cardDownloadSpy).toHaveBeenCalledTimes(1);
   });
@@ -831,7 +831,9 @@ describe("ActivateConfirmationModal", () => {
 
     expect(screen.getByTestId("activate-vault-button")).toBeDisabled();
     expect(
-      screen.getByText(/Your files are stored locally and never uploaded/),
+      screen.getByText(
+        /The file is saved on this device only and was not uploaded/,
+      ),
     ).toBeTruthy();
     expect(screen.queryByText(/you can still activate/)).toBeNull();
     expect(screen.getByTestId("recovery-card")).toBeVisible();

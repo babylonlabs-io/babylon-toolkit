@@ -31,7 +31,7 @@ const connectGuide = ({ network }: BTCConfig): ConnectGuide => {
   return {
     steps,
     installSteps: [
-      `In Ledger Wallet, open Settings → Experimental features. Turn on My Ledger provider and set it to ${LEDGER_WALLET_APP_PROVIDER}.`,
+      `The app is not yet in Ledger Wallet's default app list. To install it, in Ledger Wallet open Settings → Experimental features, turn on My Ledger provider and set it to ${LEDGER_WALLET_APP_PROVIDER}. Install apps only from My Ledger inside Ledger Wallet, never from a file or another website.`,
       `Go to My Ledger and install the ${appName} app.`,
       "Then close Ledger Wallet and follow the steps at the top.",
     ],

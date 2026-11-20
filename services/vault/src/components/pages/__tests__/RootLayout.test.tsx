@@ -298,7 +298,7 @@ describe("RootLayout — operator message banner", () => {
       expect(
         screen.getByText(COPY.wallet.walletNotEligibleTooltip),
       ).toBeInTheDocument();
-      expect(screen.getByText("Taproot Address Required")).toBeInTheDocument();
+      expect(screen.getByText("Taproot address required")).toBeInTheDocument();
       expect(
         screen.getByText(COPY.deposit.disabled.bannerMessage),
       ).toBeInTheDocument();
@@ -341,7 +341,7 @@ describe("RootLayout — operator message banner", () => {
         screen.getByText(COPY.deposit.disabled.bannerMessage),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("Taproot Address Required"),
+        screen.queryByText("Taproot address required"),
       ).not.toBeInTheDocument();
     },
   );

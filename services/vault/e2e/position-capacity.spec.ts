@@ -8,7 +8,7 @@
  * registered, unactivated vaults (read from the registry's
  * `getDepositorVaultIds`).
  *
- * The recorded backend serves everything up to the "Sign Transaction" click.
+ * The recorded backend serves everything up to the "Sign transaction" click.
  * The check's own reads are stated by this spec instead: the chain head it
  * pins them to (the recording ends before any was read), the depositor has no
  * other vaults, and the application refuses. The form's own cap check never
@@ -78,7 +78,7 @@ const VAULTS_IN_DEPOSIT = 1n;
 const SELECT_PROVIDER_LABEL = "Select vault provider";
 const SELECTABLE_PROVIDER_ROW = "button[aria-pressed]:not([disabled])";
 /** `COPY.deposit.progress.buttons.signTransaction`. */
-const SIGN_TRANSACTION_LABEL = "Sign Transaction";
+const SIGN_TRANSACTION_LABEL = "Sign transaction";
 /** `COPY.deposit.errors.positionCapacityExceeded.title`. */
 const POSITION_FULL_TITLE = "Not enough room in your position";
 /** `COPY.deposit.progress.buttons.close` / `.retry`. */

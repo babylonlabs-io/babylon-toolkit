@@ -34,7 +34,7 @@ describe("Ledger Vault connect guide", () => {
     const wallet = await createWallet({ metadata, context: {}, config: configFor(Network.SIGNET) });
 
     expect(wallet.connectGuide?.installSteps).toEqual([
-      "In Ledger Wallet, open Settings → Experimental features. Turn on My Ledger provider and set it to 4.",
+      "The app is not yet in Ledger Wallet's default app list. To install it, in Ledger Wallet open Settings → Experimental features, turn on My Ledger provider and set it to 4. Install apps only from My Ledger inside Ledger Wallet, never from a file or another website.",
       "Go to My Ledger and install the Babylon Vault Testnet app.",
       "Then close Ledger Wallet and follow the steps at the top.",
     ]);

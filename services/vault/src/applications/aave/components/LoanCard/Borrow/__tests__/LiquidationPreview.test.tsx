@@ -207,7 +207,7 @@ describe("LiquidationPreview", () => {
 
     // 0.4 + 0.3, including the vault the cascade never has to consume.
     expect(
-      screen.getByText(`${formatBtcAmount(0.7)} (2 vaults)`),
+      screen.getByText(`${formatBtcAmount(0.7)} (2 BTCVaults)`),
     ).toBeInTheDocument();
   });
 
