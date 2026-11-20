@@ -48,6 +48,7 @@ const TRY_AGAIN_LABEL = "Try again";
 const MAX_VAULTS_REACHED_TEXT = "Maximum BTCVaults reached";
 const BORROW_APR_LABEL = "Borrow APR";
 const LIQUIDATION_PRICE_LABEL = "Liquidation price";
+const VP_COMMISSION_LABEL = "Vault provider commission";
 const UTILIZATION_TOOLTIP =
   "Share of the liquidity supplied to this market that is currently borrowed.";
 const LEDGER_SECRET_RETRIEVED_HINT =
@@ -1225,7 +1226,7 @@ export const COPY = {
       btcNetworkFeeLabel: "BTC network fee",
       btcNetworkFeeTooltip:
         "Estimated Bitcoin miner fee for the Pre-Pegin funding transaction at the selected fee rate.",
-      vpCommissionLabel: "Vault provider commission",
+      vpCommissionLabel: VP_COMMISSION_LABEL,
       vpCommissionTooltip:
         "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider, shown here before you deposit, and fixed once you deposit.",
       netPayoutLabel: "Net payout",
@@ -2362,7 +2363,7 @@ export const COPY = {
       withdrawAmountLabel: "Withdrawal amount",
       healthFactorLabel: "Health factor",
       networkFeeRateLabel: "Network fee rate",
-      vpCommissionLabel: "Vault provider commission",
+      vpCommissionLabel: VP_COMMISSION_LABEL,
       vpCommissionUnavailable: "Unavailable",
       // Reopening the dialog reads the commission again.
       vpCommissionError:
@@ -2990,6 +2991,8 @@ export const COPY = {
     borrowAction: "Borrow",
     repayAction: "Repay",
     liquidationPriceLabel: LIQUIDATION_PRICE_LABEL,
+    // Stays a literal, not PCT_TO_LIQUIDATION_LABEL: the visual e2e harness
+    // reads this key's text from this file (`checkedOutCopy` in e2e/visual/targets.ts).
     pctToLiquidationLabel: "% to liquidation",
     disconnected: {
       // Only the dot of the first "i" in Bitcoin is orange. `dotless` (U+0131)

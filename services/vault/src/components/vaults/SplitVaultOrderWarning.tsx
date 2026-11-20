@@ -23,7 +23,7 @@ import {
 } from "@/utils/queryKeys";
 
 /**
- * True when the "Apply Optimal Order" optimizer would move the position away
+ * True when the "Apply this order" optimizer would move the position away
  * from `orderedIds` at once. Restoring such an order would only make the two
  * prompts recommend opposite orders, so the split warning defers to it.
  * Null when the optimizer cannot judge the order yet (no position params, or

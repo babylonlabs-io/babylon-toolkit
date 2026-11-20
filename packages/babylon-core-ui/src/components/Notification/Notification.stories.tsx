@@ -143,7 +143,7 @@ export const SuggestionBelowActions: Story = {
     ),
     actionsPlacement: "below",
     actions: [
-      { label: "Apply Optimal Order", emphasis: "primary", onClick: () => {} },
+      { label: "Apply this order", emphasis: "primary", onClick: () => {} },
     ],
   },
 };

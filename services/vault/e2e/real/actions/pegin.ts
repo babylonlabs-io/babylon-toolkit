@@ -13,7 +13,7 @@
  *
  * With `--split` (`ctx.config.split`) the same flow runs a TWO-VAULT split deposit: the form's
  * "Two-vault split" option is selected (one provider, two HTLC outputs), and from the per-vault phase
- * the progress view shows a lane per vault — so there are more signing pop-ups and TWO Activate-Vault
+ * the progress view shows a lane per vault — so there are more signing pop-ups and TWO Activate BTCVault
  * ETH txs. The step machine handles both (the approver + re-armed Activate/Skip gates), and finishes
  * only when both lanes reach the shared activated view.
  *

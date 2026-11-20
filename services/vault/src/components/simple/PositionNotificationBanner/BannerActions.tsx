@@ -16,13 +16,13 @@ interface BuildBannerActionsArgs {
   isReordering: boolean;
   /**
    * Freeze/Pause blocks `reorderVaults`, or another Aave transaction from this
-   * wallet is still in progress; disables the "Apply Optimal Order" CTA.
+   * wallet is still in progress; disables the "Apply this order" CTA.
    */
   reorderBlocked: boolean;
   /**
    * The optimal order can be submitted only together with the calculator inputs
    * it was derived from. Without them the order cannot be verified, so the
-   * "Apply Optimal Order" CTA is disabled rather than a silent dead click.
+   * "Apply this order" CTA is disabled rather than a silent dead click.
    */
   orderVerifiable: boolean;
   /** Protocol Freeze/Pause blocks new deposits; disables the add-collateral / add-vault CTAs. */
@@ -31,7 +31,7 @@ interface BuildBannerActionsArgs {
   repayBlocked: boolean;
 }
 
-/** Whether the banner card offers "Apply Optimal Order". */
+/** Whether the banner card offers "Apply this order". */
 function offersApplyOrder(
   result: CalculatorResult,
   bannerState: BannerState,
@@ -47,7 +47,7 @@ function offersApplyOrder(
  * - cliff with an affordable actionable size: "Add <amount> BTC" — opens the
  *   deposit flow with that amount pre-filled. The amount sits in the label so
  *   the button stays distinguishable from the urgent "Add collateral" CTA.
- * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
+ * - optimal reorder available: "Apply this order" — filled (primary) on the
  *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
  * The groups can appear together (an urgent position whose order is also

@@ -54,7 +54,7 @@ function build(
 }
 
 // A healthy position whose on-chain order is suboptimal: the only action is the
-// standalone "Apply Optimal Order" reorder CTA.
+// standalone "Apply this order" reorder CTA.
 const REORDER_BANNER_STATE: BannerState = {
   severity: "soft",
   primaryWarning: null,
@@ -75,7 +75,7 @@ const URGENT_BANNER_STATE: BannerState = {
 };
 
 describe("buildBannerActions — reorder gating", () => {
-  it("enables the Apply Optimal Order CTA when reorder is not blocked", () => {
+  it("enables the Apply this order CTA when reorder is not blocked", () => {
     const actions = build(REORDER_BANNER_STATE, makeResult());
     const apply = actions.find(
       (a) => a.label === COPY.banner.applyOptimalOrder,
@@ -83,7 +83,7 @@ describe("buildBannerActions — reorder gating", () => {
     expect(apply?.disabled).toBe(false);
   });
 
-  it("disables the Apply Optimal Order CTA when Freeze/Pause blocks reorder", () => {
+  it("disables the Apply this order CTA when Freeze/Pause blocks reorder", () => {
     const actions = build(REORDER_BANNER_STATE, makeResult(), {
       reorderBlocked: true,
     });
@@ -93,7 +93,7 @@ describe("buildBannerActions — reorder gating", () => {
     expect(apply?.disabled).toBe(true);
   });
 
-  it("disables the Apply Optimal Order CTA when the order cannot be verified", () => {
+  it("disables the Apply this order CTA when the order cannot be verified", () => {
     const actions = build(REORDER_BANNER_STATE, makeResult(), {
       orderVerifiable: false,
     });

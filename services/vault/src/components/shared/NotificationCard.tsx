@@ -60,7 +60,7 @@ const SURFACE_CONTRAST = "bg-background-contrast";
 const ACTION_RADIUS = "rounded-lg";
 const ACTION_SIZE_DEFAULT = "";
 const ACTION_SIZE_TALL = "h-10 text-base"; // Cliff's "Add collateral" (§3)
-const ACTION_SIZE_WIDE = "h-9 px-6"; // "Apply Optimal Order" (§5)
+const ACTION_SIZE_WIDE = "h-9 px-6"; // "Apply this order" (§5)
 
 // From md up, outlined actions take Figma's `stroke/primary` (#5A5A5A in dark);
 // on phone they keep the fainter `stroke/secondary` core-ui defaults to.
@@ -128,7 +128,7 @@ const TONE_ACCENT: Record<NotificationCardTone, ToneAccent> = {
     assertive: false,
   },
   // Reorder splits the gold: the Figma REORDER frame draws the border in the
-  // risk-amber gold but fills the "Apply Optimal Order" CTA with warning/light.
+  // risk-amber gold but fills the "Apply this order" CTA with warning/light.
   // The icon chip never renders (the banner passes icon={null}), so
   // chipBg only mirrors the CTA fill for consistency.
   reorder: {

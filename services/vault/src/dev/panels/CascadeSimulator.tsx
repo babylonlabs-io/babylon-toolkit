@@ -258,7 +258,7 @@ function ResultPanel({ result }: { result: CalculatorResult }) {
         </details>
       )}
 
-      {/* Suggested order (manual "Apply Optimal Order") */}
+      {/* Suggested order (manual "Apply this order") */}
       {result.optimalVaultOrder && (
         <details open>
           <summary className="cursor-pointer font-medium">Suggestions</summary>

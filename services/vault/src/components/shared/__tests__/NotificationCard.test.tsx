@@ -97,7 +97,7 @@ describe("NotificationCard", () => {
     expect(cliffButton.className).toContain("text-base");
     cliff.unmount();
 
-    // Reorder's "Apply Optimal Order" is 36px tall with 24px side padding.
+    // Reorder's "Apply this order" is 36px tall with 24px side padding.
     render(
       <NotificationCard
         tone="reorder"

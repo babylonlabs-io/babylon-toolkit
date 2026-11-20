@@ -27,7 +27,7 @@ export interface BannerState {
   secondaryWarnings: Warning[];
   /**
    * The engine found a safer liquidation order than the current on-chain order.
-   * Drives the manual "Apply Optimal Order" affordance, independent of the
+   * Drives the manual "Apply this order" affordance, independent of the
    * risk warnings — it can accompany an urgent/cliff banner or stand alone on an
    * otherwise-healthy position. False once the next event is below its trigger,
    * where the contract would revert the reorder.

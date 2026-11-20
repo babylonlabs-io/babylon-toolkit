@@ -342,7 +342,7 @@ export function withDistancesAt(
  * Liquidation follows the current on-chain vault order, so the group breakdown
  * is computed against that order. Separately, the optimizer is run and — when
  * it finds a strictly better order — `optimalVaultOrder` is returned so the
- * banner can offer a manual "Apply Optimal Order" action.
+ * banner can offer a manual "Apply this order" action.
  *
  * Groups assume the price reaches each trigger gradually. A trigger already
  * above `btcPrice` can no longer execute there, so that group is priced at
@@ -575,7 +575,7 @@ export function calculate(
     };
   }
 
-  // ── 6. Optimal-order analysis (manual "Apply Optimal Order") ──
+  // ── 6. Optimal-order analysis (manual "Apply this order") ──
   //
   // We never reorder automatically. Score the current order against the
   // optimizer's best order; only when the optimizer strictly improves the
