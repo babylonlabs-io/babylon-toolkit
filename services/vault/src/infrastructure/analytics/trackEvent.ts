@@ -1,6 +1,7 @@
 /**
- * Fire-and-forget product analytics. One event goes straight to the PostHog
- * capture API with `fetch`, so no third-party script runs in the app.
+ * Fire-and-forget product analytics. One event goes to the sidecar PostHog
+ * proxy with `fetch`, so no third-party script runs in the app. The proxy
+ * adds the project key and forwards the batch to PostHog.
  * Analytics must never affect a deposit or a borrow: this function never
  * throws, and a failed send is only logged.
  *
@@ -167,8 +168,8 @@ function post(
           return;
         }
         if (rejectionReported) return;
-        // A host that is not PostHog usually fails CORS instead and lands in
-        // the network-failure branch below, with ad blockers and CSP.
+        // A host that is not the sidecar proxy usually fails CORS instead and
+        // lands in the network-failure branch below, with ad blockers and CSP.
         rejectionReported = true;
         logger.error(
           new Error(`Analytics capture rejected: HTTP ${response.status}`),

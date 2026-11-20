@@ -871,8 +871,10 @@ What bounds it:
 - **No project key in the bundle.** The app sends no `api_key`. The sidecar proxy holds the
   PostHog project key, adds it to each batch and drops any key a client sends. A key that earlier
   builds shipped must be rotated; after that the key cannot be copied from the bundle and used to
-  post to PostHog without the proxy. The proxy route itself
-  is public, so its abuse is bounded by edge rate limiting and the PostHog project's billing limit.
+  post to PostHog without the proxy. The proxy route itself is public and unauthenticated, so
+  anyone can still send fake events through it: treat event data as untrusted for attribution.
+  Its abuse must be bounded by edge rate limiting on the route, a deployment control that is not
+  yet in place, and by the PostHog project's billing limit.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
   and no referrer. The visit and session ids live in memory only. The app only reads the
   website's `bbn_src` cookie, and treats its contents as untrusted input.
