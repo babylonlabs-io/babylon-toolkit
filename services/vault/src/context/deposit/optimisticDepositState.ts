@@ -67,7 +67,7 @@ export interface OptimisticDepositState {
 }
 
 /**
- * How long a resolved WOTS submission keeps suppressing "Submit WOTS Key".
+ * How long a resolved WOTS submission keeps suppressing "Submit WOTS key".
  *
  * The marker exists to bridge one gap: our submission has resolved but the VP
  * daemon has not advanced yet, so the poll still reports

@@ -425,7 +425,7 @@ function SimpleDepositContent({
   const handleDeposit = async () => {
     // Kill-switch / pause guard on the submit path: blocks the deposit flow even
     // if a deposit entry point that bypasses the disabled buttons (e.g. the
-    // Activity empty-state CTA or the urgent Add Collateral banner) opens this
+    // Activity empty-state CTA or the urgent Add collateral banner) opens this
     // dialog.
     if (isDepositBlocked(gate)) return;
 

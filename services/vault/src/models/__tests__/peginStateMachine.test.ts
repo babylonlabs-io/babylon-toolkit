@@ -861,7 +861,7 @@ describe("peginStateMachine", () => {
       });
     });
 
-    it("returns Sign Payouts for payout transactions", () => {
+    it("returns Sign payouts for payout transactions", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         pendingIngestion: false,
         transactionsReady: true,

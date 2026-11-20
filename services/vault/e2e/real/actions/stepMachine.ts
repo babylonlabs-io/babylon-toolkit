@@ -3,7 +3,7 @@
  * transitions (the `role="progressbar"` and each active step's `aria-label="Step N active"`), never
  * fixed sleeps. Extracted from the `pegin` action so both `pegin` (form → sign → walk) and `resume`
  * (/vaults pending row → walk) share ONE implementation of the 15-step `DepositProgressView` walk,
- * the resume Start card, the Activate-Vault / artifact-Skip dapp gates, the transient-tx Retry gate, the WOTS-skip fast-fail,
+ * the resume Start card, the Activate BTCVault / artifact-Skip dapp gates, the transient-tx Retry gate, the WOTS-skip fast-fail,
  * and the /vaults collateral cross-check.
  *
  * The resume flow renders the IDENTICAL `DepositProgressView` stepper as the initial deposit, so the

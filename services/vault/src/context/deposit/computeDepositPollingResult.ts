@@ -139,7 +139,7 @@ export interface DepositPollingInputs {
   /**
    * When each deposit's WOTS submission resolved in this page session. The VP
    * poll keeps reporting `needsWotsKey` until the daemon advances, so without
-   * this the row would re-offer "Submit WOTS Key" — and a second click re-runs
+   * this the row would re-offer "Submit WOTS key" — and a second click re-runs
    * the whole derivation, including a fresh wallet popup, for a no-op
    * submission. The suppression expires; see `isWotsSubmissionWithinTtl`.
    */

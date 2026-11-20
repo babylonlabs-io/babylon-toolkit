@@ -572,10 +572,10 @@ describe("PeginPollingContext", () => {
     );
   });
 
-  it("hides Sign Payouts on the dashboard row when the signing modal records the completion", () => {
+  it("hides Sign payouts on the dashboard row when the signing modal records the completion", () => {
     // The reported bug, now structurally impossible: the modal and the row used
     // to sit under two different providers, so a completion recorded by the
-    // modal never reached the row and "Sign Payouts" stayed live for the rest
+    // modal never reached the row and "Sign payouts" stayed live for the rest
     // of the session. With one provider they share state — this pins that the
     // row actually re-renders on the write rather than reading a stale
     // memoized snapshot.
@@ -633,7 +633,7 @@ describe("PeginPollingContext", () => {
     );
   });
 
-  it("hides Submit WOTS Key once the submission resolves, before the poll clears needsWotsKey", () => {
+  it("hides Submit WOTS key once the submission resolves, before the poll clears needsWotsKey", () => {
     // The VP keeps reporting PENDING_DEPOSITOR_WOTS_PK until its daemon
     // advances, so for up to a full poll interval the row re-offered the
     // button — and clicking it re-runs the whole derivation, wallet popup
@@ -659,7 +659,7 @@ describe("PeginPollingContext", () => {
     ).toEqual([PeginAction.NONE]);
   });
 
-  it("keeps Submit WOTS Key available for a deposit whose submission was never recorded", () => {
+  it("keeps Submit WOTS key available for a deposit whose submission was never recorded", () => {
     // Negative control for the suppression above: the marker is per-deposit,
     // so a sibling still awaiting its key must be unaffected.
     const OTHER_ID = "0xpeginOther" as Hex;
@@ -889,7 +889,7 @@ describe("PeginPollingContext", () => {
     expect(isVaultActivated(state)).toBe(false);
   });
 
-  it("recomputes Submit WOTS Key as available once the suppression window has elapsed and the vault provider is still asking", () => {
+  it("recomputes Submit WOTS key as available once the suppression window has elapsed and the vault provider is still asking", () => {
     // The marker only bridges daemon lag. A VP still asking twenty minutes on
     // is asking for real — a rejected or rotated key, or a submission lost
     // behind a 200 — and an unbounded marker would leave the row with no

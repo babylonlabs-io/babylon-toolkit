@@ -87,7 +87,7 @@ interface CaughtError {
 }
 
 // ---------------------------------------------------------------------------
-// Sign Payouts Content
+// Sign payouts Content
 // ---------------------------------------------------------------------------
 
 export interface ResumeSignContentProps {
@@ -365,7 +365,7 @@ function ResumeBroadcastContentConnected({
 }
 
 // ---------------------------------------------------------------------------
-// Submit WOTS Key Content
+// Submit WOTS key Content
 // ---------------------------------------------------------------------------
 
 export interface ResumeWotsContentProps {
@@ -560,7 +560,7 @@ function ResumeWotsContentConnected({
       });
 
       // Recorded regardless of mount: the submission landed, so the dashboard
-      // row must stop offering "Submit WOTS Key" even if the user already
+      // row must stop offering "Submit WOTS key" even if the user already
       // closed this modal. The store is app-scoped, not tied to this tree.
       markWotsSubmitted(activity.id);
 

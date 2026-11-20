@@ -49,7 +49,7 @@ interface CriticalLiquidationTopBannerProps {
  * parameters, and is the figure the Spoke contradicts. A non-interactive `role="alert"` (core-ui's
  * `critical` Banner variant applies it) so assistive tech announces it;
  * non-dismissible by design — an imminent liquidation warning the user must not
- * be able to hide. The actionable Add Collateral / Repay Debt controls live on
+ * be able to hide. The actionable Add collateral / Repay debt controls live on
  * the detailed position banner below.
  */
 export function CriticalLiquidationTopBanner({

@@ -1774,7 +1774,7 @@ export function useDepositFlow(
               });
               wotsSuccess = true;
               // Mirrors the resume path: the dashboard row polls the VP for
-              // `needsWotsKey` and would keep offering "Submit WOTS Key" until
+              // `needsWotsKey` and would keep offering "Submit WOTS key" until
               // the daemon advances. App-scoped, so it survives this modal.
               markWotsSubmitted(result.vaultId);
               setPerVaultSteps((prev) =>

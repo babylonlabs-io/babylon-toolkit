@@ -54,9 +54,9 @@ describe("NotificationCard", () => {
         tone="urgent"
         title="x"
         actions={[
-          { label: "Add Collateral", onClick: onPrimary, emphasis: "primary" },
+          { label: "Add collateral", onClick: onPrimary, emphasis: "primary" },
           {
-            label: "Repay Debt",
+            label: "Repay debt",
             onClick: vi.fn(),
             emphasis: "secondary",
             disabled: true,
@@ -65,8 +65,8 @@ describe("NotificationCard", () => {
       />,
     );
 
-    const primary = screen.getByRole("button", { name: "Add Collateral" });
-    const secondary = screen.getByRole("button", { name: "Repay Debt" });
+    const primary = screen.getByRole("button", { name: "Add collateral" });
+    const secondary = screen.getByRole("button", { name: "Repay debt" });
 
     // Figma's critical card fills with error/dark (#C62828), not error/main.
     expect(primary.className).toContain("bg-error-dark");
@@ -83,7 +83,7 @@ describe("NotificationCard", () => {
   it("sizes the action button per tone", () => {
     const actions = [{ label: "Go", onClick: vi.fn() }];
 
-    // Cliff's "Add Collateral" is 40px tall with 16px text.
+    // Cliff's "Add collateral" is 40px tall with 16px text.
     const cliff = render(
       <NotificationCard
         tone="cliff"

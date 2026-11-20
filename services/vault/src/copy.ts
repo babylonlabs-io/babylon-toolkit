@@ -45,6 +45,17 @@ const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
 const PCT_TO_LIQUIDATION_LABEL = "% to liquidation";
 const REGION_UNAVAILABLE_TEXT = "Not available in your region";
 const TRY_AGAIN_LABEL = "Try again";
+const MAX_VAULTS_REACHED_TEXT = "Maximum BTCVaults reached";
+const BORROW_APR_LABEL = "Borrow APR";
+const LIQUIDATION_PRICE_LABEL = "Liquidation price";
+const UTILIZATION_TOOLTIP =
+  "Share of the liquidity supplied to this market that is currently borrowed.";
+const LEDGER_SECRET_RETRIEVED_HINT =
+  "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.";
+const MISSING_PROVIDER_SIGNING_MESSAGE =
+  "The vault provider for this deposit can't be found and may no longer be registered, so signing can't continue. If the deposit expires, you can reclaim your BTC once its Bitcoin timelock opens.";
+const vaultCannotCompleteMessage = (vaultNumber: number) =>
+  `BTCVault ${vaultNumber}: the vault provider reported that this BTCVault can't be completed. Your BTC has been sent; once the BTCVault expires you can refund it after its Bitcoin timelock opens.`;
 // Disconnected empty state on every v3 tab (Vaults / Loans / Activity). One
 // builder so the three can't drift apart.
 const connectToView = (subject: string) =>
@@ -446,7 +457,7 @@ export const COPY = {
         "New deposits are currently unavailable. Please try again later.",
     },
     maxVaultsReached: {
-      cta: "Maximum BTCVaults reached",
+      cta: MAX_VAULTS_REACHED_TEXT,
       unavailableCta: "Unable to verify BTCVault count. Please try again",
       splitUnavailable: (used: number, cap: number) =>
         `${used} of ${cap} BTCVaults used. BTCVault split unavailable.`,
@@ -697,11 +708,11 @@ export const COPY = {
       longWait:
         "You can close this window and continue later. When you come back, plug in and unlock your Ledger and open the Babylon Vault app.",
       activationPause: {
-        hint: "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.",
+        hint: LEDGER_SECRET_RETRIEVED_HINT,
         continue: "Continue",
       },
       recoveryActivationPause: {
-        hint: "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.",
+        hint: LEDGER_SECRET_RETRIEVED_HINT,
         continue: "Continue",
       },
       reconnectButton: "Reconnect Ledger",
@@ -814,6 +825,8 @@ export const COPY = {
       activateButton: "Activate BTCVault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
+      // Stays a literal, not a shared constant: the visual e2e harness reads
+      // this key's text from this file (`checkedOutCopy` in e2e/visual/targets.ts).
       downloadButton: "Download artifacts",
       continueWithoutButton: "Continue without",
       confirmSkipTitle: "Are you sure?",
@@ -1324,10 +1337,8 @@ export const COPY = {
           : `This deposit uses the same Bitcoin as ${count} of your other pending deposits. If you continue, those deposits can't be completed and will expire on their own. No BTC was sent for them.`,
       wotsReadinessTimeout: (vaultNumber: number) =>
         `BTCVault ${vaultNumber}: the vault provider wasn't ready for the next step yet. Your BTC has been sent. Finish this step from the Vaults page before the setup deadline, or the deposit expires and you can only refund your BTC after its Bitcoin timelock.`,
-      wotsReadinessTerminal: (vaultNumber: number) =>
-        `BTCVault ${vaultNumber}: the vault provider reported that this BTCVault can't be completed. Your BTC has been sent; once the BTCVault expires you can refund it after its Bitcoin timelock opens.`,
-      payoutReadinessTerminal: (vaultNumber: number) =>
-        `BTCVault ${vaultNumber}: the vault provider reported that this BTCVault can't be completed. Your BTC has been sent; once the BTCVault expires you can refund it after its Bitcoin timelock opens.`,
+      wotsReadinessTerminal: vaultCannotCompleteMessage,
+      payoutReadinessTerminal: vaultCannotCompleteMessage,
       wotsSubmissionFailed: (vaultNumber: number, error: string) =>
         `BTCVault ${vaultNumber}: WOTS key submission failed - ${error}`,
       payoutSigningFailed: (vaultNumber: number, error: string) =>
@@ -1815,8 +1826,7 @@ export const COPY = {
         },
         providerNotFound: {
           title: "Vault provider not found",
-          message:
-            "The vault provider for this deposit can't be found and may no longer be registered, so signing can't continue. If the deposit expires, you can reclaim your BTC once its Bitcoin timelock opens.",
+          message: MISSING_PROVIDER_SIGNING_MESSAGE,
         },
         connectionFailed: {
           title: "Connection failed",
@@ -1873,8 +1883,7 @@ export const COPY = {
       },
       providerNotFound: {
         title: "Vault provider not found",
-        message:
-          "The vault provider for this deposit can't be found and may no longer be registered, so signing can't continue. If the deposit expires, you can reclaim your BTC once its Bitcoin timelock opens.",
+        message: MISSING_PROVIDER_SIGNING_MESSAGE,
       },
       providerLookupUnavailable: {
         title: "Vault provider lookup unavailable",
@@ -2419,7 +2428,7 @@ export const COPY = {
     // its own stored premium and a new borrow the current one, so two figures
     // under this label can differ. The market page and the landing card show the
     // drawn rate alone, labeled "base".
-    borrowRateLabel: "Borrow APR",
+    borrowRateLabel: BORROW_APR_LABEL,
     // Repay detail-card metric: outstanding debt for the selected reserve, in
     // token units (before → after the repayment).
     debtLabel: "Debt",
@@ -2436,8 +2445,7 @@ export const COPY = {
       "Current variable borrow APR on this market, set by Aave V4. A protocol fee on interest is charged on top. Rates can change at any time.",
     activeLoanBorrowAprTooltip:
       "What you pay on this loan: the market's base rate plus your position's risk premium and the interest fee.",
-    utilizationTooltip:
-      "Share of the liquidity supplied to this market that is currently borrowed.",
+    utilizationTooltip: UTILIZATION_TOOLTIP,
     borrowingUnavailable:
       "Borrowing is temporarily unavailable. Please check back later.",
     priceUnavailable:
@@ -2694,7 +2702,7 @@ export const COPY = {
     stats: {
       availableLiquidity: "Available liquidity",
       availableLiquidityTooltip: "Available liquidity to borrow on this market",
-      borrowApr: "Borrow APR",
+      borrowApr: BORROW_APR_LABEL,
       supplied: "Supplied",
       suppliedTooltip: "Provided liquidity on this market",
       totalBorrowed: "Total borrowed",
@@ -2702,8 +2710,7 @@ export const COPY = {
       marketUtilization: "Market utilization",
       // Deliberately not the charts' `utilizationRateTooltip`: that one
       // explains the interest-rate curve, this one the headline figure.
-      marketUtilizationTooltip:
-        "Share of the liquidity supplied to this market that is currently borrowed.",
+      marketUtilizationTooltip: UTILIZATION_TOOLTIP,
     },
     collateral: {
       assetLabel: "Collateral asset",
@@ -2724,7 +2731,7 @@ export const COPY = {
       columns: {
         // The token column; the hub column reuses `loans.hub.label`.
         asset: "Asset",
-        borrowApr: "Borrow APR",
+        borrowApr: BORROW_APR_LABEL,
         available: AVAILABLE_LIQUIDITY_COLUMN,
         utilization: "Utilization",
         borrowed: "Borrowed",
@@ -2739,7 +2746,7 @@ export const COPY = {
     // 10088-61056). Labels follow this file's sentence-case rule;
     // "Utilisation" is respelled to the American form this file mandates.
     charts: {
-      borrowAprLabel: "Borrow APR",
+      borrowAprLabel: BORROW_APR_LABEL,
       // Header caption and the IRM card's legend entry — one string so the
       // two can't drift apart in case.
       utilizationRateLabel: "Utilization rate",
@@ -2885,7 +2892,7 @@ export const COPY = {
       bandLabel: (eventNumber: number, vaultAmounts: string) =>
         `Liquidation event ${eventNumber} | ${vaultAmounts} BTCVaults`,
       legendPrice: "Oracle BTC price",
-      legendLiquidation: "Liquidation price",
+      legendLiquidation: LIQUIDATION_PRICE_LABEL,
     },
     // Screen-reader-only. The band no longer draws this line, but the vault
     // names still belong in the focusable rect's accessible name.
@@ -2905,7 +2912,7 @@ export const COPY = {
         "BTCVaults are seized in order. Each event shows the BTCVaults that would be seized together, by estimate. To change the order, open the Vaults page.",
       liquidatedInSimulation: "Liquidated in simulation",
       collateral: "Collateral",
-      liqPrice: "Liquidation price",
+      liqPrice: LIQUIDATION_PRICE_LABEL,
       distance: PCT_TO_LIQUIDATION_LABEL,
       seizedVaultsSection: "Seized BTCVaults",
       targetSeizure: "Target seizure",
@@ -2982,7 +2989,7 @@ export const COPY = {
     depositAction: "Deposit",
     borrowAction: "Borrow",
     repayAction: "Repay",
-    liquidationPriceLabel: "Liquidation price",
+    liquidationPriceLabel: LIQUIDATION_PRICE_LABEL,
     pctToLiquidationLabel: "% to liquidation",
     disconnected: {
       // Only the dot of the first "i" in Bitcoin is orange. `dotless` (U+0131)
@@ -3164,7 +3171,7 @@ export const COPY = {
     collateralFactorLabel: "Collateral factor",
     chart: {
       pairLabel: "BTC/USD",
-      liquidationPriceLabel: "Liquidation price",
+      liquidationPriceLabel: LIQUIDATION_PRICE_LABEL,
       currentPriceLabel: "Current price",
     },
   },
@@ -3225,7 +3232,7 @@ export const COPY = {
   banner: {
     addCollateral: "Add collateral",
     // Cliff CTA. Carries the amount so it cannot collide with the urgent
-    // "Add Collateral" button when both warnings render together.
+    // "Add collateral" button when both warnings render together.
     addVaultOfSize: (btc: string) => `Add ${btc} BTC`,
     repayDebt: "Repay debt",
     applyOptimalOrder: "Apply this order",
@@ -3439,7 +3446,7 @@ export const COPY = {
     },
     maxVaults: {
       // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body keeps.
-      titleV3: "Maximum BTCVaults reached",
+      titleV3: MAX_VAULTS_REACHED_TEXT,
       detail: (cap: number) =>
         `This position already has the maximum number of BTCVaults (${cap}).`,
     },

@@ -321,7 +321,7 @@ export interface RunConfig {
   /**
    * Resume only: peg in a fresh deposit and interrupt it after Pre-PegIn broadcast (`--interrupt-only`),
    * then STOP without resuming — leaving the deposit pending on the dashboard so it can be resumed later
-   * in stages (verify on-chain it reaches "Submit WOTS Key", then re-run with `--txid=<its Pre-PegIn>`).
+   * in stages (verify on-chain it reaches "Submit WOTS key", then re-run with `--txid=<its Pre-PegIn>`).
    */
   interruptOnly?: boolean;
   /**

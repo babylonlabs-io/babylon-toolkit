@@ -713,7 +713,7 @@ describe("computeDepositPollingResult — WOTS suppression clock", () => {
     });
   }
 
-  it("suppresses Submit WOTS Key while the submission is inside the window", () => {
+  it("suppresses Submit WOTS key while the submission is inside the window", () => {
     const result = computeDepositPollingResult(
       makeAwaitingWotsInputs(INSIDE_WINDOW),
     );
@@ -722,7 +722,7 @@ describe("computeDepositPollingResult — WOTS suppression clock", () => {
     );
   });
 
-  it("re-offers Submit WOTS Key once the injected clock is past the window", () => {
+  it("re-offers Submit WOTS key once the injected clock is past the window", () => {
     const result = computeDepositPollingResult(
       makeAwaitingWotsInputs(PAST_WINDOW),
     );

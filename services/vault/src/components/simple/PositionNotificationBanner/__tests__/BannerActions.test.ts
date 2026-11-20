@@ -62,7 +62,7 @@ const REORDER_BANNER_STATE: BannerState = {
   suggestReorder: true,
 };
 
-// An urgent (near-liquidation) position: shows "Add Collateral" + "Repay Debt".
+// An urgent (near-liquidation) position: shows "Add collateral" + "Repay debt".
 const URGENT_BANNER_STATE: BannerState = {
   severity: "red",
   primaryWarning: {
@@ -105,7 +105,7 @@ describe("buildBannerActions — reorder gating", () => {
 });
 
 describe("buildBannerActions — urgent CTA gating", () => {
-  it("leaves Add Collateral and Repay Debt enabled when nothing is blocked", () => {
+  it("leaves Add collateral and Repay debt enabled when nothing is blocked", () => {
     const actions = build(URGENT_BANNER_STATE, makeResult());
     expect(
       actions.find((a) => a.label === COPY.banner.addCollateral)?.disabled,
@@ -115,7 +115,7 @@ describe("buildBannerActions — urgent CTA gating", () => {
     ).toBe(false);
   });
 
-  it("disables Add Collateral when deposits are blocked (protocol Freeze/Pause)", () => {
+  it("disables Add collateral when deposits are blocked (protocol Freeze/Pause)", () => {
     const actions = build(URGENT_BANNER_STATE, makeResult(), {
       depositBlocked: true,
     });
@@ -128,7 +128,7 @@ describe("buildBannerActions — urgent CTA gating", () => {
     ).toBe(false);
   });
 
-  it("disables Repay Debt when repay is blocked (aave Pause)", () => {
+  it("disables Repay debt when repay is blocked (aave Pause)", () => {
     const actions = build(URGENT_BANNER_STATE, makeResult(), {
       repayBlocked: true,
     });

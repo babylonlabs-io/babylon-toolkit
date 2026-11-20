@@ -270,7 +270,7 @@ export const WITHDRAW_VERIFY_POLL_MS = 3_000;
 export const RESUME_ROW_APPEAR_TIMEOUT_MS = 60_000;
 /**
  * How long to wait for a pending deposit to become ACTIONABLE (its resume CTA rendered). This can be
- * LONG: the vault provider must ingest the confirmed Pre-PegIn before "Submit WOTS Key" appears, and the
+ * LONG: the vault provider must ingest the confirmed Pre-PegIn before "Submit WOTS key" appears, and the
  * Pre-PegIn's Bitcoin confirmation is subject to signet block time (observed up to ~1 h). Budgeted like
  * the step machine so a slow-but-healthy signet confirmation isn't mistaken for a dead deposit.
  */

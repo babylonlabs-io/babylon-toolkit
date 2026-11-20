@@ -147,12 +147,12 @@
  * reads the broadcast transaction back off the chain and asserts its shape, writing the results to
  * `reclaim.json`. `--dry-run` stops before the signature, exercising the gate without spending.
  *
- * Resume recovers an interrupted peg-in from the dashboard's Pending Deposits UI (Submit WOTS Key → Sign
- * Payouts → Activate). By default it resumes an already-pending deposit (`--txid=<prePeginTxid>` targets a
+ * Resume recovers an interrupted peg-in from the dashboard's Pending Deposits UI (Submit WOTS key → Sign
+ * payouts → Activate). By default it resumes an already-pending deposit (`--txid=<prePeginTxid>` targets a
  * specific one, else the first actionable); `--interrupt-fresh` pegs in a fresh deposit, reloads after
  * Pre-PegIn broadcast, and resumes it — a self-contained run (then also honors the pegin extras above).
  * `--interrupt-only` pegs in + broadcasts a fresh deposit then STOPS (no resume), printing its Pre-PegIn
- * txid — for staged manual verification: let it reach "Submit WOTS Key" on-chain, then re-run with
+ * txid — for staged manual verification: let it reach "Submit WOTS key" on-chain, then re-run with
  * `--txid=<that txid>` to resume it in steps.
  *
  * Forged-stuck plays a lying mempool API against a Verified, not yet activated deposit: the page's

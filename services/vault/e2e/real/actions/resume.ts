@@ -4,9 +4,9 @@
  *
  * A real peg-in spans 30 min–2 hr and the app is built to survive interruption: once the Pre-PegIn is
  * broadcast the deposit is on-chain, and /vaults resurfaces it as a pending row with a resume action
- * (Submit WOTS Key → Sign Payouts → Activate) driven from live vault-provider state. This action opens
+ * (Submit WOTS key → Sign payouts → Activate) driven from live vault-provider state. This action opens
  * that pending row and hands off to the SAME `walkStepMachine` the `pegin` action uses — the resume
- * flow renders the IDENTICAL `DepositProgressView` stepper — so the walk, the Activate-Vault gate, and
+ * flow renders the IDENTICAL `DepositProgressView` stepper — so the walk, the Activate BTCVault gate, and
  * the activated-view finish line are shared, not reimplemented.
  *
  * Two shapes:
@@ -340,7 +340,7 @@ export const resumeAction: Action = {
           : undefined;
       if (ctx.config.interruptOnly) {
         log(
-          `--interrupt-only: fresh deposit broadcast + interrupted (Pre-PegIn ${freshTxid}). Stopping before resume. Verify on-chain until it shows "Submit WOTS Key", then run: --action=resume --txid=${freshTxid}${ctx.config.split ? " --split" : ""}`,
+          `--interrupt-only: fresh deposit broadcast + interrupted (Pre-PegIn ${freshTxid}). Stopping before resume. Verify on-chain until it shows "Submit WOTS key", then run: --action=resume --txid=${freshTxid}${ctx.config.split ? " --split" : ""}`,
         );
         return;
       }

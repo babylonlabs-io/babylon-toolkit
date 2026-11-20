@@ -325,7 +325,7 @@ export function applyPerDepositStatus(
   // VP daemon reached the depositor-signing state. The status alone is
   // a sufficient readiness signal — the daemon only enters this state
   // after `all_presigning_phases_complete`, so the depositor-presign RPC
-  // is guaranteed to succeed when the user clicks Sign Payouts.
+  // is guaranteed to succeed when the user clicks Sign payouts.
   if (status === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES) {
     sets.pendingDepositorSignatures.add(depositId);
     sets.errors.delete(depositId);

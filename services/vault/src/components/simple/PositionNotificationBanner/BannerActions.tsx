@@ -27,7 +27,7 @@ interface BuildBannerActionsArgs {
   orderVerifiable: boolean;
   /** Protocol Freeze/Pause blocks new deposits; disables the add-collateral / add-vault CTAs. */
   depositBlocked: boolean;
-  /** An aave Pause blocks repay; disables the "Repay Debt" CTA. */
+  /** An aave Pause blocks repay; disables the "Repay debt" CTA. */
   repayBlocked: boolean;
 }
 
@@ -42,11 +42,11 @@ function offersApplyOrder(
 /**
  * Build the manual action pills for the position banner, fed to the core-ui
  * `Notification` `actions` slot:
- * - urgent: "Add Collateral" (primary, filled) + "Repay Debt" (secondary,
+ * - urgent: "Add collateral" (primary, filled) + "Repay debt" (secondary,
  *   outlined) — the core safety actions, matching the Figma callout.
  * - cliff with an affordable actionable size: "Add <amount> BTC" — opens the
  *   deposit flow with that amount pre-filled. The amount sits in the label so
- *   the button stays distinguishable from the urgent "Add Collateral" CTA.
+ *   the button stays distinguishable from the urgent "Add collateral" CTA.
  * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
  *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
@@ -95,7 +95,7 @@ export function buildBannerActions({
   // rides along as a secondary action so the safety actions lead. The
   // calculator guarantees the amount is positive and no larger than the
   // position. The amount sits in the label so this button never collides
-  // with the urgent "Add Collateral" CTA when both warnings are active.
+  // with the urgent "Add collateral" CTA when both warnings are active.
   const hasCliffWarning = result.warnings.some((w) => w.type === "cliff");
   if (hasCliffWarning && result.suggestedNewVaultBtc !== null) {
     // Same formatting as the suggestion text, so the label, the text and the
@@ -116,7 +116,7 @@ export function buildBannerActions({
         ? COPY.common.applying
         : COPY.banner.applyOptimalOrder,
       // Standalone reorder gets the filled (primary) gold button; when it rides
-      // alongside the urgent callout it stays secondary so "Add Collateral" leads.
+      // alongside the urgent callout it stays secondary so "Add collateral" leads.
       onClick: onApplyOrder,
       emphasis: isUrgent ? "secondary" : "primary",
       // Disabled while a reorder is in flight, when Freeze/Pause blocks
