@@ -1,20 +1,10 @@
 import { isFirstEventGapped } from "./calculate";
 import type { CalculatorResult, Warning, WarningType } from "./types";
 
-/**
- * Calculator warnings map to red (urgent), yellow (cliff / too-many-vaults — the
- * orange warning banner per Figma), soft (everything else advisory), green
- * (none), or hidden (no groups, or a non-urgent dust position). "yellow" also
- * backs the stale-price banner, which is driven separately by a status override
- * rather than a calculator warning.
- */
+/** Display severity for calculator warnings and status overrides. */
 export type BannerSeverity = "red" | "yellow" | "soft" | "green" | "hidden";
 
-/**
- * Per-type severity for the primary warning. Anything not listed renders soft.
- * `cliff` is orange per Figma ("First liquidation takes everything"); it only
- * surfaces as the primary banner when no `urgent` (red) warning is present.
- */
+/** Map primary warnings to severity. Other warning types use soft. */
 const SEVERITY_BY_TYPE: Partial<Record<WarningType, BannerSeverity>> = {
   urgent: "red",
   "wbtc-debt": "yellow",
@@ -37,11 +27,8 @@ export interface BannerState {
 }
 
 /**
- * Primary-warning precedence, highest first. `urgent` is the only red severity;
- * the rest render soft. `dust` is handled before this list — it hides the
- * banner unless `urgent` is present, and suppresses every other warning.
- * `weird-params` is emitted
- * exclusively, but kept here so it is still selected if present.
+ * Primary warning order, highest first. Without WBTC debt, dust suppresses
+ * all warnings except urgent. WBTC debt can accompany weird-params.
  */
 const PRIMARY_ORDER: WarningType[] = [
   "urgent",
@@ -52,16 +39,7 @@ const PRIMARY_ORDER: WarningType[] = [
   "reorder",
 ];
 
-/**
- * Map a CalculatorResult to a banner display state.
- *
- * Red:    urgent warning present (already liquidatable or within 5%)
- * Yellow: cliff or too-many-vaults (the orange warning banner per Figma)
- * Soft:   any other advisory warning (reorder / weird-params), or a
- *         healthy position whose vault order is suboptimal
- * Green:  no warnings and order already optimal
- * Hidden: no groups, or a dust position with no urgent warning
- */
+/** Map calculator warnings to the banner state. */
 export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
   const suggestReorder =

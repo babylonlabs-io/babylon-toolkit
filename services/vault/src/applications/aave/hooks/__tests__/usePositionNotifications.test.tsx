@@ -172,19 +172,34 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     vi.useRealTimers();
   });
 
-  it.each([
-    [["WBTC"], true],
-    [["WBTC", "USDC"], true],
-    [["USDC"], false],
-    [[], false],
-  ] as const)("detects WBTC debt in %j", (symbols, expected) => {
+  it("detects WBTC debt when WBTC is the only borrowed asset", () => {
+    setDashboardState({ borrowedAssets: [{ symbol: "WBTC" }] });
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(true);
+  });
+
+  it("detects WBTC debt alongside USDC debt", () => {
     setDashboardState({
-      borrowedAssets: symbols.map((symbol) => ({ symbol })),
+      borrowedAssets: [{ symbol: "WBTC" }, { symbol: "USDC" }],
     });
-    const { result } = renderHook(() => usePositionNotifications(USER));
-    expect(
-      result.current.result?.warnings.some((w) => w.type === "wbtc-debt"),
-    ).toBe(expected);
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(true);
+  });
+
+  it("does not detect WBTC debt when only USDC is borrowed", () => {
+    setDashboardState({ borrowedAssets: [{ symbol: "USDC" }] });
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(false);
+  });
+
+  it("does not detect WBTC debt without borrowed assets", () => {
+    setDashboardState({ borrowedAssets: [] });
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(false);
   });
 
   it("passes the protocol minimum peg-in to the calculator in BTC", () => {

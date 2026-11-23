@@ -1191,21 +1191,23 @@ describe("withDistancesAt", () => {
 });
 
 describe("WBTC debt notice", () => {
-  it.each([true, false])(
-    "shows the notice only with WBTC debt: %s",
-    (hasWbtcDebt) => {
-      const result = calculate(
-        makeParams([v(1)], { hasWbtcDebt, totalDebtUsd: 30_000 }),
-      );
-      expect(hasWarning(result.warnings, "wbtc-debt")).toBe(hasWbtcDebt);
-      if (hasWbtcDebt) {
-        expect(deriveBannerState(result).severity).toBe("yellow");
-        expect(getWarning(result.warnings, "wbtc-debt")?.detail).toBe(
-          COPY.liquidationWarnings.wbtcDebt.detail,
-        );
-      }
-    },
-  );
+  it("shows the notice with WBTC debt", () => {
+    const result = calculate(
+      makeParams([v(1)], { hasWbtcDebt: true, totalDebtUsd: 30_000 }),
+    );
+    expect(hasWarning(result.warnings, "wbtc-debt")).toBe(true);
+    expect(deriveBannerState(result).severity).toBe("yellow");
+    expect(getWarning(result.warnings, "wbtc-debt")?.detail).toBe(
+      COPY.liquidationWarnings.wbtcDebt.detail,
+    );
+  });
+
+  it("does not show the notice without WBTC debt", () => {
+    const result = calculate(
+      makeParams([v(1)], { hasWbtcDebt: false, totalDebtUsd: 30_000 }),
+    );
+    expect(hasWarning(result.warnings, "wbtc-debt")).toBe(false);
+  });
 
   it("keeps the notice for a small position", () => {
     const result = calculate(
