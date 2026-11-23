@@ -26,7 +26,6 @@ vi.mock("../../logger", () => ({
 const CONFIG: AnalyticsConfig = {
   enabled: true,
   host: "https://us.i.posthog.com",
-  projectKey: "phc_test",
   network: "devnet",
 };
 
@@ -103,7 +102,7 @@ describe("trackEvent", () => {
       referrerPolicy: "no-referrer",
     });
     const body = sentBody();
-    expect(body.api_key).toBe("phc_test");
+    expect(body).not.toHaveProperty("api_key");
     expect(body.batch).toHaveLength(1);
     expect(body.batch[0]).toMatchObject({
       event: "$pageview",
@@ -161,7 +160,7 @@ describe("trackEvent", () => {
       "via",
     ];
     for (const body of bodies) {
-      expect(Object.keys(body).sort()).toEqual(["api_key", "batch"]);
+      expect(Object.keys(body).sort()).toEqual(["batch"]);
       expect(Object.keys(body.batch[0]).sort()).toEqual([
         "distinct_id",
         "event",
