@@ -72,7 +72,7 @@ export function demoBorrowCount(
 }
 
 /**
- * The borrow count a Borrowed Asset card shows, with any god-mode demo folded
+ * The borrow count a Borrowed asset card shows, with any god-mode demo folded
  * in, so every card that shows it agrees.
  *
  * The real count is unknown (null) while the position is still loading or its
@@ -96,7 +96,7 @@ export function cardBorrowCount(
 }
 
 /**
- * The borrowed assets a Borrowed Asset card shows, with any god-mode demo
+ * The borrowed assets a Borrowed asset card shows, with any god-mode demo
  * folded in, so the card names the same assets it counts. Mock rows come
  * first; the real ones follow unless `hideReal` drops them.
  */

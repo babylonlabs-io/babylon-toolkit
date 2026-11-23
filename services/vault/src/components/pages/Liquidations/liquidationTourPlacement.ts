@@ -1,5 +1,5 @@
 /**
- * Where the Liquidation Analysis tour puts its card next to the section a
+ * Where the Liquidation analysis tour puts its card next to the section a
  * step spotlights, and how far the page scrolls first to make room for it.
  * Pure functions of measured rectangles.
  */

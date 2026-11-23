@@ -706,7 +706,7 @@ describe("Liquidation Dashboard — connection and position gates", () => {
     expect(
       screen.queryByTestId("liquidations-empty-state"),
     ).not.toBeInTheDocument();
-    // Position Overview reads straight from useDashboardState, not a fixture
+    // Position overview reads straight from useDashboardState, not a fixture
     // — its USD caption is unique on the page (the analysis header's own
     // "Collateral" stat only ever prints a BTC amount, which can coincide
     // with the position card's BTC value when nothing is liquidated yet).

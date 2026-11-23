@@ -8,7 +8,7 @@ interface ExpandablePanelProps {
 }
 
 /**
- * Animated reveal for the dashboard summary cards (Pending Deposits, Collateral,
+ * Animated reveal for the dashboard summary cards (Pending deposits, Collateral,
  * Loans, etc.). Wraps content in the core-ui Accordion so it opens with the same
  * smooth height + fade motion as the deposit flow's vault provider selector.
  * Content stays unmounted while collapsed, matching the prior conditional render.

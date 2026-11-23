@@ -24,7 +24,7 @@ import {
  * derivation and formatting happens here.
  *
  * Three values are derived (no new financial model — see issue #2043):
- *  - post-liquidation Health Factor: remaining collateral × price × CF ÷ debt.
+ *  - post-liquidation Health factor: remaining collateral × price × CF ÷ debt.
  *    Uses the collateral factor, matching `calculate.ts`, NOT the SDK's
  *    liquidation-threshold HF.
  *  - fairness payment in wBTC: `fairnessPaymentUsd / group.executionPrice`

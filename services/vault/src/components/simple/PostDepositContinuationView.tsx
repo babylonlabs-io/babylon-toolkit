@@ -64,7 +64,7 @@ interface PostDepositContinuationViewProps {
   demoVaultIds?: ReadonlySet<string>;
   /**
    * The action the opener asked for: a branch auto-starts only when it matches.
-   * "any" is the in-flight deposit session; null names nothing (View Details).
+   * "any" is the in-flight deposit session; null names nothing (View details).
    */
   autoStartAction: PeginAction | "any" | null;
   onClose: () => void;

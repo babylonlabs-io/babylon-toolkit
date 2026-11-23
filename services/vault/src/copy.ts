@@ -49,6 +49,12 @@ const MAX_VAULTS_REACHED_TEXT = "Maximum BTCVaults reached";
 const BORROW_APR_LABEL = "Borrow APR";
 const LIQUIDATION_PRICE_LABEL = "Liquidation price";
 const VP_COMMISSION_LABEL = "Vault provider commission";
+const HEALTH_FACTOR_LABEL = "Health factor";
+const CONTINUE_LABEL = "Continue";
+const FEE_RATE_UNIT = "sat/vB";
+const EMPTY_VALUE_DASH = "–";
+const ETH_WALLET_NOT_CONNECTED_MESSAGE = "Ethereum wallet is not connected";
+const BTC_WALLET_NOT_CONNECTED_MESSAGE = "Bitcoin wallet not connected.";
 const UTILIZATION_TOOLTIP =
   "Share of the liquidity supplied to this market that is currently borrowed.";
 const LEDGER_SECRET_RETRIEVED_HINT =
@@ -710,11 +716,11 @@ export const COPY = {
         "You can close this window and continue later. When you come back, plug in and unlock your Ledger and open the Babylon Vault app.",
       activationPause: {
         hint: LEDGER_SECRET_RETRIEVED_HINT,
-        continue: "Continue",
+        continue: CONTINUE_LABEL,
       },
       recoveryActivationPause: {
         hint: LEDGER_SECRET_RETRIEVED_HINT,
-        continue: "Continue",
+        continue: CONTINUE_LABEL,
       },
       reconnectButton: "Reconnect Ledger",
       reconnectFailed:
@@ -787,7 +793,7 @@ export const COPY = {
     // that are genuinely too cheap instead of hiding the hints.
     feeSelector: {
       title: "Network fee rate",
-      headerUnit: "sat/vB",
+      headerUnit: FEE_RATE_UNIT,
       slowLabel: "Slow",
       slowHint: "~1 hour",
       avgLabel: "Avg",
@@ -795,8 +801,8 @@ export const COPY = {
       fastLabel: "Fast",
       fastHint: "~10 min",
       customLabel: "Custom",
-      cardUnit: "sat/vB",
-      customInputSuffix: "sat/vB",
+      cardUnit: FEE_RATE_UNIT,
+      customInputSuffix: FEE_RATE_UNIT,
       clearCustomAria: "Clear custom fee rate",
       lowFeeWarning: "Fees are low; inclusion is not guaranteed",
     },
@@ -895,7 +901,7 @@ export const COPY = {
       // lines rather than the {title, body} shape the error modals use.
       errors: {
         btcWalletNotConnected: "Bitcoin wallet is not connected",
-        ethWalletNotConnected: "Ethereum wallet is not connected",
+        ethWalletNotConnected: ETH_WALLET_NOT_CONNECTED_MESSAGE,
         withdrawFailed: "Failed to withdraw BTCVault",
         peginProofUnavailable: PEGIN_PROOF_UNAVAILABLE,
         peginProofFailed: PEGIN_PROOF_FAILED,
@@ -949,7 +955,7 @@ export const COPY = {
       // that stops before the transaction says nothing was submitted.
       errors: {
         btcWalletNotConnected: "Bitcoin wallet is not connected",
-        ethWalletNotConnected: "Ethereum wallet is not connected",
+        ethWalletNotConnected: ETH_WALLET_NOT_CONNECTED_MESSAGE,
         claimFailed: "Failed to redeem BTCVault",
         hashlockMissing:
           "This BTCVault has no hashlock on chain, so it cannot be redeemed. Nothing was submitted.",
@@ -1234,7 +1240,7 @@ export const COPY = {
         "What you receive at payout: your deposit minus the vault provider's commission.",
       // Placeholder while a metric (commission, active BTC) is loading or
       // could not be fetched.
-      providerMetricPlaceholder: "–",
+      providerMetricPlaceholder: EMPTY_VALUE_DASH,
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
       // Split-option title. "Two-vault split" (not "UTXO split") because the
@@ -1517,7 +1523,7 @@ export const COPY = {
       },
       // Resume's Ethereum-account check. mapDepositError matches
       // "wallet is not connected", so keep that phrase.
-      ethWalletNotConnected: "Ethereum wallet is not connected",
+      ethWalletNotConnected: ETH_WALLET_NOT_CONNECTED_MESSAGE,
       walletAccountChanged: {
         title: "Wallet account or network changed",
         body: "Your wallet's account or network changed during the deposit. Please restart the deposit with the original account and network.",
@@ -1893,7 +1899,7 @@ export const COPY = {
       },
       walletNotConnected: {
         title: "Wallet not connected",
-        message: "Bitcoin wallet not connected.",
+        message: BTC_WALLET_NOT_CONNECTED_MESSAGE,
       },
       missingPeginTransaction: {
         title: "Missing peg-in transaction",
@@ -2018,7 +2024,7 @@ export const COPY = {
     tryAgain: TRY_AGAIN_LABEL,
     // Placeholder shown where a value is not yet available (e.g. an
     // oracle-priced figure still loading after an asset switch).
-    emptyValue: "–",
+    emptyValue: EMPTY_VALUE_DASH,
     // Separator between a metric's current and projected value (before → after).
     valueTransitionArrow: "→",
     loading: "Loading...",
@@ -2163,7 +2169,7 @@ export const COPY = {
       // Shown while a saved wallet session is still being restored.
       resolving: "Checking your Bitcoin wallet...",
       // The inline error for handlers that run outside the prompt panel.
-      error: "Bitcoin wallet not connected.",
+      error: BTC_WALLET_NOT_CONNECTED_MESSAGE,
       connect: "Connect Bitcoin wallet",
       retry: "Retry",
       cancel: "Cancel",
@@ -2361,7 +2367,7 @@ export const COPY = {
     review: {
       heading: "Review withdrawal",
       withdrawAmountLabel: "Withdrawal amount",
-      healthFactorLabel: "Health factor",
+      healthFactorLabel: HEALTH_FACTOR_LABEL,
       networkFeeRateLabel: "Network fee rate",
       vpCommissionLabel: VP_COMMISSION_LABEL,
       vpCommissionUnavailable: "Unavailable",
@@ -2433,8 +2439,8 @@ export const COPY = {
     // Repay detail-card metric: outstanding debt for the selected reserve, in
     // token units (before → after the repayment).
     debtLabel: "Debt",
-    healthFactorLabel: "Health factor",
-    availableLiquidityLabel: "Available liquidity",
+    healthFactorLabel: HEALTH_FACTOR_LABEL,
+    availableLiquidityLabel: AVAILABLE_LIQUIDITY_COLUMN,
     utilizationLabel: "Utilization",
     availableLabel: "Available",
     // Repay amount slider: prefixes the user's wallet balance shown beside Max.
@@ -2701,7 +2707,7 @@ export const COPY = {
     // Stats bar above the fold. Sentence case; the design's "Utilisation"
     // is respelled to the American form this file mandates.
     stats: {
-      availableLiquidity: "Available liquidity",
+      availableLiquidity: AVAILABLE_LIQUIDITY_COLUMN,
       availableLiquidityTooltip: "Available liquidity to borrow on this market",
       borrowApr: BORROW_APR_LABEL,
       supplied: "Supplied",
@@ -2945,7 +2951,7 @@ export const COPY = {
       heading: "Position overview",
       totalCollateralValue: "Total collateral value",
       totalBorrowed: "Total borrowed",
-      healthFactor: "Health factor",
+      healthFactor: HEALTH_FACTOR_LABEL,
       deposit: "Deposit",
       repay: "Repay",
     },
@@ -3104,7 +3110,7 @@ export const COPY = {
     summary: {
       totalCollateralLabel: "Total collateral value",
       activeVaultsLabel: "Active vaults",
-      healthFactorLabel: "Health factor",
+      healthFactorLabel: HEALTH_FACTOR_LABEL,
       vaultCount: (count: number) =>
         count === 1 ? "1 BTCVault" : `${count} BTCVaults`,
       // e.g. "Order: 0.6 → 0.2 → 0.4 sBTC" — liquidation order, seized-first
@@ -3158,7 +3164,7 @@ export const COPY = {
   },
   risk: {
     title: "Risk",
-    healthFactorTitle: "Health factor",
+    healthFactorTitle: HEALTH_FACTOR_LABEL,
     healthFactorInfinity: "∞",
     status: {
       unavailable: "Unavailable",

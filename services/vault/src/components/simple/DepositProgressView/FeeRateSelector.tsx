@@ -1,7 +1,7 @@
 /**
  * FeeRateSelector
  *
- * Inline network fee-rate picker rendered in the Deposit Progress view's
+ * Inline network fee-rate picker rendered in the Deposit progress view's
  * pre-sign entry state (replaces the old DepositFeeModal). Owns its own
  * selection state, seeded once from the committed `feeRate` prop; a selected
  * mempool tier live-follows its tier value on refetch, while a custom rate is

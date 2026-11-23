@@ -1,12 +1,12 @@
 /**
  * VaultsLifecycleSections — the v3 /vaults deposit-lifecycle lists (#2041).
  *
- * Owns two sections sharing one polling tree: "Pending Deposit" (one row per
+ * Owns two sections sharing one polling tree: "Pending deposit" (one row per
  * in-flight deposit, with live step progress and the state's primary action)
- * and "Inactive Vaults" (expired deposits and their refunds, redeemed vaults
+ * and "Inactive vaults" (expired deposits and their refunds, redeemed vaults
  * that never became collateral and are waiting for their payout, plus settled
  * vaults with a reserve to reclaim).
- * `children` (the Active Vaults section) renders between them, giving the
+ * `children` (the Active vaults section) renders between them, giving the
  * page's Pending → Active → Inactive order. Polling state comes from the app's
  * single AppPeginPollingProvider (mounted in RootLayout); this component mounts
  * only the ProtocolParamsProvider its own children need — row state and CTAs
@@ -827,7 +827,7 @@ export function VaultsLifecycleSections({
 
   const rows = [...pendingActivities, ...inactiveActivities];
 
-  // Derived once per list change, as in Active Vaults; the row button reads
+  // Derived once per list change, as in Active vaults; the row button reads
   // the receipt per render so its label changes on save.
   const expiredDownloadParams = useMemo(() => {
     const byId = new Map<string, ArtifactDownloadParams>();
@@ -1039,7 +1039,7 @@ export function VaultsLifecycleSections({
   );
 
   // No lifecycle rows and nothing modal-held: skip the providers entirely but
-  // keep the Active Vaults section (children) rendering.
+  // keep the Active vaults section (children) rendering.
   if (rows.length === 0 && !hasOpenModal) return <>{children}</>;
 
   return (

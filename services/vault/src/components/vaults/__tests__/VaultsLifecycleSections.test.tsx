@@ -859,7 +859,7 @@ describe("VaultsLifecycleSections deposit view", () => {
     expect(screen.queryByTestId("interrupted")).not.toBeInTheDocument();
   });
 
-  it("opens View Details without naming an action to start", () => {
+  it("opens View details without naming an action to start", () => {
     renderPendingRow(pollingResult(PROCESSING_STATE));
 
     fireEvent.click(

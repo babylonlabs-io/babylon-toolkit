@@ -194,7 +194,7 @@ function ResultPanel({ result }: { result: CalculatorResult }) {
         )}
       </div>
 
-      {/* Protocol Parameters */}
+      {/* Protocol parameters */}
       <details open>
         <summary className="cursor-pointer font-medium">
           Protocol Parameters

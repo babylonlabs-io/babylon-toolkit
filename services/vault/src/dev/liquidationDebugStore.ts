@@ -1,5 +1,5 @@
 /**
- * Cross-component store for the Liquidation Analysis debug controls (dev / QA
+ * Cross-component store for the Liquidation analysis debug controls (dev / QA
  * only — surfaced inside the god-mode panel).
  *
  * Same shape as demoDeposit / debugPositionStore: the panel writes, the

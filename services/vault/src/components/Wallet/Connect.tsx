@@ -32,7 +32,7 @@ import { resolveDisplayWallets } from "./resolveDisplayWallets";
 
 interface ConnectProps {
   loading?: boolean;
-  /** Override the default `ConnectButton` label (e.g. "Connect Wallet" for in-page CTAs). */
+  /** Override the default `ConnectButton` label (e.g. "Connect wallet" for in-page CTAs). */
   text?: string;
   /** How a blocked reason shows on touch: text under the button, or a tap-to-open sheet where there is no room. */
   touchFallback?: HintProps["touchFallback"];

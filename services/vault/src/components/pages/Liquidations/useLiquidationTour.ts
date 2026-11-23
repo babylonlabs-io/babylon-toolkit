@@ -55,7 +55,7 @@ function toView(
 }
 
 /**
- * The first-visit Liquidation Analysis tour: the welcome, then one step per
+ * The first-visit Liquidation analysis tour: the welcome, then one step per
  * entry in `LIQUIDATION_TOUR_STEPS`. Every way out marks the tour seen, so it
  * never comes back. While it shows, the rest of the page is inert, Tab stays
  * in the tour and Escape ends it.

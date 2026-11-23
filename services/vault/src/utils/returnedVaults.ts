@@ -5,9 +5,9 @@
  * application's cap is exceeded or its `activateVault` reverts, through the
  * activate-and-redeem escape hatch, and through `claimExpiredVault`. The
  * indexer reports each of them REDEEMED, like an Aave withdrawal — but a
- * withdrawal keeps its collateral row and shows in Active Vaults as
+ * withdrawal keeps its collateral row and shows in Active vaults as
  * `withdrawing` (`utils/collateral.ts`), while these have no row anywhere.
- * Inactive Vaults lists them until the vault output is spent and the indexer
+ * Inactive vaults lists them until the vault output is spent and the indexer
  * reports them DEPOSITOR_WITHDRAWN, or NON_DEPOSITOR_SPEND when a vault keeper
  * claimed the BTC instead, where the reclaim row takes over.
  *
@@ -27,7 +27,7 @@ import type { VaultActivity } from "@/types/activity";
  * @param collateralVaultIds - Lowercased ids of every vault with a collateral
  *   row, whatever its lifecycle, or `null` while the position has never
  *   loaded. Taken from the rows the page renders, cached data included, so a
- *   vault shown in Active Vaults is never duplicated here.
+ *   vault shown in Active vaults is never duplicated here.
  */
 export function selectReturnedRedeemedActivities(
   activities: VaultActivity[],
@@ -35,7 +35,7 @@ export function selectReturnedRedeemedActivities(
   demo: DepositOverride | null,
 ): VaultActivity[] {
   // Before the first position read a withdrawal has no row to exclude it, so
-  // it would show here and then move to Active Vaults.
+  // it would show here and then move to Active vaults.
   if (collateralVaultIds === null) return [];
   // The demo override carries no redeemed rows; it can only hide the real ones.
   if (demo?.hideReal) return [];

@@ -189,7 +189,7 @@ describe("HubSelectionPanel", () => {
     expect(onSelectReserve).toHaveBeenCalledWith(4n);
   });
 
-  it("opens that reserve's market page from Market Info", () => {
+  it("opens that reserve's market page from Market info", () => {
     const onSelectReserve = renderPanel();
 
     fireEvent.click(screen.getByTestId("hub-market-info-4"));

@@ -1,6 +1,6 @@
 /**
  * "Liquidations" god-mode tab (dev / QA only): forces the Overview page's
- * Liquidation Analysis card state, sets the /liquidations page's own
+ * Liquidation analysis card state, sets the /liquidations page's own
  * stat-card figures directly, and hosts the same shared cascade simulator
  * used on the Position tab.
  *

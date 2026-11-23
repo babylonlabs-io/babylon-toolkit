@@ -16,7 +16,7 @@ const LOGO_TILE_CLASS =
   "flex size-[110px] shrink-0 items-center justify-center rounded-lg bg-[#fceade]";
 
 /**
- * A single Explore entry: logo tile, name + description, and a "Go to App"
+ * A single Explore entry: logo tile, name + description, and a "Go to app"
  * button that opens the external destination in a new tab (same tab on
  * touch-first devices). core-ui's Button renders a native <button> with no
  * href, and interactive content can't nest inside an <a>, so navigation goes

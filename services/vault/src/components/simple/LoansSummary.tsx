@@ -1,6 +1,6 @@
 /**
  * LoansSummary Component
- * v3 Loans page summary: Available to Borrow · Borrowed Asset. Reuses the
+ * v3 Loans page summary: Available to borrow · Borrowed asset. Reuses the
  * shared PositionStatCards primitive and the borrow-capacity card builder
  * (same cards the Overview position summary uses).
  */

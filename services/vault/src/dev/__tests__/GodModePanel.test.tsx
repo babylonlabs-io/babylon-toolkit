@@ -768,7 +768,7 @@ describe("GodModePanel", () => {
   });
 
   // The Liquidations tab has exactly one "Live"/"Simulated" pair (its own
-  // Liquidation Analysis segmented control uses "Auto", not "Live"), so the
+  // Liquidation analysis segmented control uses "Auto", not "Live"), so the
   // cascade simulator's buttons are unambiguous there. Presets only show
   // once "Simulated" is selected.
   it("a preset click writes the cascade store; Live clears it", () => {

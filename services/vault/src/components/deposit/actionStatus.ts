@@ -47,7 +47,7 @@ export interface ActionDisabled {
 /**
  * Action status when there's nothing for the user to do — either the state
  * has no current primary action (happy waiting path) or a polling error
- * blocks it. The pending row renders the neutral View Details control, which
+ * blocks it. The pending row renders the neutral View details control, which
  * opens the deposit without starting any wallet action; consumers don't dim
  * the card.
  */

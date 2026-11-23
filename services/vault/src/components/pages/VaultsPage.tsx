@@ -78,8 +78,8 @@ export default function VaultsPage() {
   // disconnected, so the sections can be exercised without a wallet.
   const demo = useDepositOverride();
 
-  // Redeemed vaults with no collateral row, listed in Inactive Vaults
-  // (`utils/returnedVaults`). The id set is every row the Active Vaults
+  // Redeemed vaults with no collateral row, listed in Inactive vaults
+  // (`utils/returnedVaults`). The id set is every row the Active vaults
   // section can render — demo-free, cached data included, whatever the
   // lifecycle — so no vault appears in both; null until the first position
   // read lands. Computed once here and handed to the sections and the

@@ -174,7 +174,7 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   ordinalsCheckPending: boolean;
   /**
    * True when the click-time BTC-wallet liveness probe (or a prior reconnect
-   * attempt) failed. Promotes the CTA to a "Reconnect Wallet" action so the
+   * attempt) failed. Promotes the CTA to a "Reconnect wallet" action so the
    * user can re-authorize the wallet in one click instead of navigating an
    * inline warning. With `needsPageReload` the CTA is "Reload" instead.
    */

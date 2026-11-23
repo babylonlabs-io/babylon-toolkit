@@ -37,7 +37,7 @@ describe("selectReturnedRedeemedActivities", () => {
     );
   });
 
-  it("leaves a redeemed vault to Active Vaults when its collateral row is shown, whatever the id's case", () => {
+  it("leaves a redeemed vault to Active vaults when its collateral row is shown, whatever the id's case", () => {
     // The indexer's vault id and the collateral row's can differ in case; the
     // set is lowercased by the page and the activity id is lowercased here.
     const upperCased = {

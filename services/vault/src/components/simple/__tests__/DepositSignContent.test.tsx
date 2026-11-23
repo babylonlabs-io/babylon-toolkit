@@ -105,7 +105,7 @@ vi.mock("../PostDepositContinuationContent", () => ({
 }));
 
 // DepositProgressView now owns both the pre-sign entry state (started=false,
-// renders the "Sign Transaction" CTA) and the in-flight stepper (started=true).
+// renders the "Sign transaction" CTA) and the in-flight stepper (started=true).
 // The mock captures `onSign` so the double-click race can be exercised, and
 // renders a stable marker so tests can tell the two states apart. On an error
 // it mirrors the real view's button choice: Retry when `onRetry` is handed in,
@@ -374,7 +374,7 @@ describe("DepositSignContent", () => {
     );
   });
 
-  it("renders DepositProgressView in the pre-sign state and only starts the flow on Sign Transaction", () => {
+  it("renders DepositProgressView in the pre-sign state and only starts the flow on Sign transaction", () => {
     mockExecuteDeposit.mockResolvedValue(null);
 
     const { getByTestId, queryByTestId } = renderContent();

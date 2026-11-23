@@ -1,5 +1,5 @@
 /**
- * Persists whether the depositor has seen the Liquidation Analysis tour.
+ * Persists whether the depositor has seen the Liquidation analysis tour.
  *
  * A single boolean flag, not network-namespaced (the tour is a
  * browser/profile concern, not a chain concern). Seeing it is one-way: every

@@ -1236,7 +1236,7 @@ export function submitDemoVaultActivation(vaultId: string) {
  * multistepper should open with, or `null` when the click must stay a no-op.
  *
  * Opens for any OWNED flow-state demo deposit (the 15 flow steps + the
- * activated terminal), so the whole Deposit Progress view can be walked with
+ * activated terminal), so the whole Deposit progress view can be walked with
  * god mode. Stays inert for a different-wallet (unowned) preview and for
  * expired deposits (those live in `expiredActivities`, not the pending list).
  *

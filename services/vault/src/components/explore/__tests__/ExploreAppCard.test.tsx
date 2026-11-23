@@ -29,7 +29,7 @@ describe("ExploreAppCard", () => {
     expect(logo).toHaveAttribute("src", "/images/explore/aave.svg");
   });
 
-  it("opens the destination in a new tab with noopener when Go to App is clicked", () => {
+  it("opens the destination in a new tab with noopener when Go to app is clicked", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
 
     render(<ExploreAppCard app={app} />);

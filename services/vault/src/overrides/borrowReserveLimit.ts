@@ -4,7 +4,7 @@
  * The cap is a Spoke immutable, so a tester cannot change it without a
  * redeploy — and the testnet spoke currently ships unlimited. Forcing it here
  * is how the single-borrow-asset surfaces (notices, greyed reserves, the
- * Borrowed Asset card) get exercised against a real position.
+ * Borrowed asset card) get exercised against a real position.
  */
 
 import { createOverrideStore } from "./store";

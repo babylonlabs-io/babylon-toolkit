@@ -97,7 +97,7 @@ export function PositionStatCards({ cards }: { cards: PositionStatCard[] }) {
   );
 }
 
-/** 48px avatar slot the Borrowed Asset card leads with. */
+/** 48px avatar slot the Borrowed asset card leads with. */
 const BORROWED_ASSET_AVATAR_CLASS = "h-12 w-12 shrink-0 rounded-full";
 
 /** The plus glyph's rendered size and stroke, per the design's 24px icon. */
@@ -132,8 +132,8 @@ function BorrowedAssetPlaceholder() {
 }
 
 /**
- * Builds the two borrow-capacity summary cards — "Available to Borrow" and
- * "Borrowed Asset" — shared by the Overview position summary and the Loans
+ * Builds the two borrow-capacity summary cards — "Available to borrow" and
+ * "Borrowed asset" — shared by the Overview position summary and the Loans
  * page.
  *
  * Aave caps how many reserves a position may borrow, so the second card shows

@@ -57,10 +57,10 @@ interface HubSelectionPanelProps {
 const ASSET_COL_CLASS =
   "flex w-[200px] shrink-0 items-center gap-4 max-md:w-full";
 
-/** Gap between the select control and the Market Info button, in px. */
+/** Gap between the select control and the Market info button, in px. */
 const MARKET_INFO_GAP_PX = 16;
 
-/** Header spacer for the Market Info column, derived from the shared row
+/** Header spacer for the Market info column, derived from the shared row
  *  button so a change to its min-width can't silently misalign the header. */
 const MARKET_INFO_COL_STYLE = {
   width: ROW_BUTTON_MIN_WIDTH_PX + MARKET_INFO_GAP_PX,

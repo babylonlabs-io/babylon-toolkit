@@ -416,13 +416,13 @@ describe("VaultsPage", () => {
       liquidationIndex: 0,
     });
 
-    it("hands the sections the redeemed vaults that Active Vaults does not show", () => {
+    it("hands the sections the redeemed vaults that Active vaults does not show", () => {
       emptinessState.isEmpty = false;
       depositsState.allActivities = [
         redeemed("0xreturned"),
         redeemed("0xABCD"),
       ];
-      // Shown in Active Vaults as withdrawing, under a differently cased id.
+      // Shown in Active vaults as withdrawing, under a differently cased id.
       pageDataState.rawCollateralVaults = [collateralRow("0xabcd")];
 
       renderVaultsPage();

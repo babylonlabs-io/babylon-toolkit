@@ -342,7 +342,7 @@ export function PositionNotificationBanner({
   });
 
   // The Aave write still being waited on shows on every card: the lock it
-  // holds is the account's. How the last "Apply optimal order" ended shows only
+  // holds is the account's. How the last "Apply this order" ended shows only
   // while a better order exists. It stays through a price move below a trigger,
   // which takes the action away but is when a reorder is most likely refused.
   const showsReorderOutcome = result.optimalVaultOrder !== null;

@@ -173,7 +173,7 @@ export default function Loans() {
   }
 
   // Display-only: when the demo changes the rendered rows, the summary must
-  // name what is on screen — otherwise it reads "Not Selected" above a mock
+  // name what is on screen — otherwise it reads "Not selected" above a mock
   // row. The values passed to the borrow/repay actions stay demo-unaware.
   const shownBorrowedAssets = cardBorrowedAssets(demoLoans, borrowedAssets);
 

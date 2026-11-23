@@ -138,7 +138,7 @@ export interface DepositWalletState {
   canConnectBtcWallet?: boolean;
   /**
    * True when the click-time wallet-liveness probe (or a prior reconnect
-   * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect Wallet";
+   * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect wallet";
    * the click handler upstream branches to the reconnect flow, or, with
    * `needsPageReload`, to a page reload.
    */
@@ -149,13 +149,13 @@ export interface DepositWalletState {
    * Detail string for the current wallet connection error. Rendered inline
    * above the CTA so the user sees the underlying cause (locked extension,
    * permission revoked, account changed) instead of just the generic
-   * "Reconnect Wallet" button label.
+   * "Reconnect wallet" button label.
    */
   walletConnectionErrorMessage?: string | null;
   /**
    * True when the silent lock poll flagged the BTC wallet as locked. The CTA is
    * already promoted to a recovery action via `hasWalletConnectionError`; this
-   * relabels it "Unlock Wallet to Deposit" (vs "Reconnect Wallet" for a
+   * relabels it "Unlock wallet to deposit" (vs "Reconnect wallet" for a
    * liveness failure) so the button matches what the user must do.
    */
   isWalletLocked?: boolean;
@@ -602,7 +602,7 @@ export function DepositForm({
       <VaultProviderSelectorV3 {...providerSelectorProps} />
 
       {/* CTA button. A locked wallet shows no inline message — the relabeled CTA
-          ("Unlock Wallet to Deposit") is the affordance. A liveness failure
+          ("Unlock wallet to deposit") is the affordance. A liveness failure
           still surfaces its detail string so the user sees the underlying
           cause. */}
       {hasWalletConnectionError &&

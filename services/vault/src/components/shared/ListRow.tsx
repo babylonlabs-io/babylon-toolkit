@@ -1,5 +1,5 @@
 /**
- * Shared row primitives for the v3 list surfaces (Active Vaults, Active
+ * Shared row primitives for the v3 list surfaces (Active vaults, Active
  * Loans). Both pages render the same row: a bordered 8px-radius card with a
  * leading asset block, fixed-width label/value metrics, and trailing action
  * buttons. Keeping the chrome here stops the two lists drifting apart.
@@ -63,7 +63,7 @@ export const LIST_ROW_ACTION_SLOT_CLASS =
 /**
  * The trailing cell of every vault lifecycle row. Each row reserves the same
  * 300px, so the data columns share identical slack and line up across the
- * Pending / Total Collateral / Inactive sections. 300 is the widest trailing
+ * Pending / Total collateral / Inactive sections. 300 is the widest trailing
  * content a row renders today — Download artifacts beside a 120px action,
  * about 298px — rounded up, so the rows fit without squeezing the data cells
  * from about a 1392px viewport (with the 242px sidebar) up. Content wider

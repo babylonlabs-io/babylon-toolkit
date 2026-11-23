@@ -618,7 +618,7 @@ function SimpleDepositContent({
                   canConnectBtcWallet,
                   // A click-time liveness failure OR the proactive lock poll
                   // promotes the CTA to the reconnect/unlock action. A lock
-                  // relabels the CTA to "Unlock Wallet to Deposit" (see
+                  // relabels the CTA to "Unlock wallet to deposit" (see
                   // getDepositCtaState) instead of showing a red inline string; a
                   // liveness failure keeps its detail message. A dead
                   // extension channel (`needsPageReload`) promotes it to a

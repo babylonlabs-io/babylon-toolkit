@@ -89,7 +89,7 @@ export function DepositSignContent({
 
   // The flow no longer auto-starts on mount: DepositProgressView renders the
   // pre-sign entry state (started=false) and the depositor begins signing by
-  // clicking "Sign Transaction". Once started, the live stepper takes over.
+  // clicking "Sign transaction". Once started, the live stepper takes over.
   const [started, setStarted] = useState(false);
 
   // Tracks the pre-sign fee-rate selector's validity (e.g. an out-of-range

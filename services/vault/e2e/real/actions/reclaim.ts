@@ -6,7 +6,7 @@
  * that output, and it strands. Reclaim is the row action that sweeps it back, and it is offered only
  * once the withdrawal has settled on Bitcoin: PegIn output 0 spent, six confirmations deep.
  *
- * Click path: /vaults → Inactive Vaults → a row's "Reclaim" → Review ("Confirm") → ONE BTC wallet
+ * Click path: /vaults → Inactive vaults → a row's "Reclaim" → Review ("Confirm") → ONE BTC wallet
  * signature (no Ethereum transaction at all) → "Reclaim submitted" → "Done".
  *
  * ⚠️ NEVER run without an explicit go-ahead, and never against a vault that is still live. This spends
