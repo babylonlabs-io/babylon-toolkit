@@ -48,16 +48,15 @@ describe("WithdrawReviewContent", () => {
     render(<WithdrawReviewContent {...baseProps} />);
 
     expect(screen.getByText("Withdraw Amount")).toBeInTheDocument();
-    expect(screen.getByText("0.6 sBTC")).toBeInTheDocument();
+    expect(screen.getByText("0.6 BTC")).toBeInTheDocument();
     expect(screen.getByText("$21,686.17 USD")).toBeInTheDocument();
 
     expect(screen.getByText("Network Fee Rate")).toBeInTheDocument();
     expect(screen.getByText("3 sats/vB")).toBeInTheDocument();
 
     // 1_500_000 sats = 0.015 BTC, 2.5% of 0.6 BTC, so $542.15.
-    // (The test env is signet, so the coin symbol renders as sBTC.)
     expect(screen.getByText("VP Commission")).toBeInTheDocument();
-    expect(screen.getByText("0.015 sBTC")).toBeInTheDocument();
+    expect(screen.getByText("0.015 BTC")).toBeInTheDocument();
     expect(screen.getByText("$542.15 USD")).toBeInTheDocument();
   });
 

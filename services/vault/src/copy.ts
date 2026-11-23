@@ -3047,7 +3047,7 @@ export const COPY = {
       healthFactorLabel: "Health Factor",
       vaultCount: (count: number) =>
         count === 1 ? "1 BTCVault" : `${count} BTCVaults`,
-      // e.g. "Order: 0.6 → 0.2 → 0.4 sBTC" — liquidation order, seized-first
+      // e.g. "Order: 0.6 → 0.2 → 0.4 BTC" — liquidation order, seized-first
       // vault leading.
       liquidationOrder: (amounts: string[], coinSymbol: string) =>
         `Order: ${amounts.join(" → ")} ${coinSymbol}`,

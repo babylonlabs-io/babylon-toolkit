@@ -46,10 +46,9 @@ export function formatBtcValue(btcAmount: number, decimals = 8): string {
 
 /**
  * Format BTC amount for display with suffix
- * Uses network-aware coin symbol (BTC for mainnet, sBTC for signet)
- * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0 BTC/sBTC".
+ * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0 BTC".
  * @param decimals - Number of decimal places (default: 8)
- * @returns Formatted string with trailing zeros removed (e.g., "1.23 BTC" or "0 sBTC")
+ * @returns Formatted string with trailing zeros removed (e.g., "1.23 BTC" or "0 BTC")
  */
 export function formatBtcAmount(btcAmount: number, decimals = 8): string {
   return `${formatBtcValue(btcAmount, decimals)} ${btcConfig.coinSymbol}`;
@@ -66,7 +65,7 @@ const BTC_FRACTIONAL_DIGITS = SATS_PER_BTC.toString().length - 1;
  * JS-safe-integer range stay exact (i.e. no `Number()` round-trip).
  * Trailing zeros are trimmed from the fractional part.
  *
- * @param sats - Total in satoshis. Zero or negative returns "0 BTC/sBTC".
+ * @param sats - Total in satoshis. Zero or negative returns "0 BTC".
  */
 /**
  * Format a satoshi-denominated bigint as a grouped integer, e.g. `33,000`.
@@ -160,7 +159,6 @@ export function formatLiquidationDistancePercent(percent: number): string {
 
 /**
  * Get the current BTC coin symbol based on network
- * @returns "BTC" for mainnet, "sBTC" for signet
  */
 export function getBtcSymbol(): string {
   return btcConfig.coinSymbol;

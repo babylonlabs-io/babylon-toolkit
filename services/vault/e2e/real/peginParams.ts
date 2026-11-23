@@ -85,7 +85,7 @@ export async function fetchMinDepositBtc(
 
 /**
  * Fetch the minimum deposit required to enable a TWO-VAULT split for `network`, formatted as a BTC
- * string — the same value the deposit form shows in its "increase your deposit to at least X sBTC"
+ * string — the same value the deposit form shows in its "increase your deposit to at least X BTC"
  * hint. This is NOT a plain protocol param: it mirrors the app's `useOptimalSplit` / `useVaultSplitParams`
  * chain — `minPegin` from ProtocolParams, the Aave Core Spoke risk params (CF, and LB from the bonus
  * curve at the expected HF), and the SDK's split THF and expected-HF constants — fed through

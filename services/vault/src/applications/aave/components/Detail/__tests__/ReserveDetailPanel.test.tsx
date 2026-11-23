@@ -35,7 +35,7 @@ vi.mock("@/components/shared", () => ({
 
 vi.mock("@/config", () => ({
   FeatureFlags: {},
-  getNetworkConfigBTC: () => ({ icon: "btc.png", name: "sBTC" }),
+  getNetworkConfigBTC: () => ({ icon: "btc.png", name: "Bitcoin" }),
 }));
 
 const walletMock = vi.hoisted(() => ({

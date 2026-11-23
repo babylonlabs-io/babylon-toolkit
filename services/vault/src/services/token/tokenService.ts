@@ -24,7 +24,6 @@ const btcConfig = getNetworkConfigBTC();
  */
 const TOKEN_ICONS: Record<string, string> = {
   BTC: btcConfig.icon,
-  SBTC: btcConfig.icon,
   WBTC: "/images/wbtc.png",
   VBTC: btcConfig.icon,
   USDC: "/images/usdc.svg",
@@ -151,7 +150,6 @@ const tokenMetadataCache = new Map<string, TokenMetadata>();
 
 const tokenBrandColorsMap: Record<string, string> = {
   BTC: "#F7931A",
-  SBTC: "#F7931A",
   TBTC: "#F7931A",
   WBTC: "#F7931A",
   VBTC: "#F7931A",

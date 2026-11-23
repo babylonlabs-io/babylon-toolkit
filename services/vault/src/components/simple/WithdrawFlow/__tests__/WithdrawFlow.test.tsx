@@ -187,7 +187,7 @@ describe("WithdrawFlow selection step", () => {
 
     expect(rowCheckbox(FIRST_VAULT)).toBeChecked();
     expect(rowCheckbox(SECOND_VAULT)).not.toBeChecked();
-    expect(continueButton()).toHaveTextContent("Withdraw 0.6 sBTC");
+    expect(continueButton()).toHaveTextContent("Withdraw 0.6 BTC");
   });
 
   it("adds a newly checked vault's amount to the action total", () => {
@@ -195,7 +195,7 @@ describe("WithdrawFlow selection step", () => {
 
     fireEvent.click(rowCheckbox(SECOND_VAULT));
 
-    expect(continueButton()).toHaveTextContent("Withdraw 0.8 sBTC");
+    expect(continueButton()).toHaveTextContent("Withdraw 0.8 BTC");
   });
 
   it("refuses to continue once the last vault is unchecked", () => {
@@ -281,7 +281,7 @@ describe("WithdrawFlow selection step", () => {
     fireEvent.click(continueButton());
     // Wait for the commission (7% of 0.6 BTC), so only the acknowledgement
     // can hold Confirm below.
-    await screen.findByText("0.042 sBTC");
+    await screen.findByText("0.042 BTC");
 
     rerenderWith({ currentHealthFactor: 4.3 });
 
@@ -359,7 +359,7 @@ describe("WithdrawFlow selection step", () => {
 
     expect(rowCheckbox(FIRST_VAULT)).toBeChecked();
     expect(rowCheckbox(SECOND_VAULT)).toBeChecked();
-    expect(continueButton()).toHaveTextContent("Withdraw 0.8 sBTC");
+    expect(continueButton()).toHaveTextContent("Withdraw 0.8 BTC");
   });
 
   it("omits a vault that no longer backs the position", () => {
@@ -380,7 +380,7 @@ describe("WithdrawFlow selection step", () => {
     fireEvent.click(continueButton());
 
     expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
-    expect(screen.getByText("0.8 sBTC")).toBeInTheDocument();
+    expect(screen.getByText("0.8 BTC")).toBeInTheDocument();
 
     await vi.waitFor(() =>
       expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
@@ -429,8 +429,8 @@ describe("WithdrawFlow review commission (issue #2546)", () => {
 
     // 7% of 0.6 BTC + 3% of 0.2 BTC = 0.048 BTC. The 250 bps minimum of the
     // latest params version would show 0.02.
-    expect(await screen.findByText("0.048 sBTC")).toBeInTheDocument();
-    expect(screen.queryByText("0.02 sBTC")).not.toBeInTheDocument();
+    expect(await screen.findByText("0.048 BTC")).toBeInTheDocument();
+    expect(screen.queryByText("0.02 BTC")).not.toBeInTheDocument();
   });
 
   it("keeps Confirm disabled and never submits when the commission read fails", async () => {

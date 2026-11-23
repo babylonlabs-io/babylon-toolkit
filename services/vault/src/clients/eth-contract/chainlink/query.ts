@@ -125,13 +125,9 @@ function getChainlinkFeed(symbol: string): ChainlinkFeed | null {
     ];
   const normalizedSymbol = symbol.toUpperCase();
 
-  // vBTC: 1:1 synthetic BTC by protocol design. sBTC: FE display symbol for BTC on signet.
+  // vBTC: 1:1 synthetic BTC by protocol design.
   // WBTC is NOT here — it has real depeg risk; Aave borrow flow sources it from the Aave oracle.
-  if (
-    normalizedSymbol === "BTC" ||
-    normalizedSymbol === "VBTC" ||
-    normalizedSymbol === "SBTC"
-  ) {
+  if (normalizedSymbol === "BTC" || normalizedSymbol === "VBTC") {
     if (ENV.BTC_PRICE_FEED) {
       if (!btcPriceFeedOverrideWarned) {
         logger.warn(
@@ -260,12 +256,8 @@ function emitForSymbol(
     metadata["WETH"] = result.metadata;
   }
   if (normalized === "BTC") {
-    if (result.price !== undefined) {
-      prices["vBTC"] = result.price;
-      prices["sBTC"] = result.price;
-    }
+    if (result.price !== undefined) prices["vBTC"] = result.price;
     metadata["vBTC"] = result.metadata;
-    metadata["sBTC"] = result.metadata;
   }
 }
 
@@ -392,7 +384,7 @@ export async function getTokenPrices(
   const prices: Record<string, number> = {};
   const metadata: Record<string, PriceMetadata> = {};
 
-  // Group requested symbols by feed address. BTC + vBTC + sBTC share one
+  // Group requested symbols by feed address. BTC + vBTC share one
   // feed; we want one set of multicall entries per UNIQUE feed and to emit
   // results to every symbol that maps to it.
   const symbolsByFeed = new Map<

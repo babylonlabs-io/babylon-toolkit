@@ -31,8 +31,8 @@ vi.mock("@/config/network", () => ({
     network: "signet",
     mempoolApiUrl: "https://mempool.space/signet/api",
     icon: "btc-icon",
-    name: "sBTC",
-    coinSymbol: "sBTC",
+    name: "Bitcoin",
+    coinSymbol: "BTC",
   })),
   getETHChain: vi.fn(() => ({
     id: 11155111,
@@ -49,8 +49,8 @@ vi.mock("@/config", () => ({
     network: "signet",
     mempoolApiUrl: "https://mempool.space/signet/api",
     icon: "btc-icon",
-    name: "sBTC",
-    coinSymbol: "sBTC",
+    name: "Bitcoin",
+    coinSymbol: "BTC",
   })),
 }));
 

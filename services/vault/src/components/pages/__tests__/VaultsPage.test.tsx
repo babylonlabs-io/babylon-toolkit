@@ -107,7 +107,7 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
   useVaultsPageData: vi.fn(() => ({
     position: vaultsPageState.position,
     summary: {
-      totalCollateralBtc: "0 sBTC",
+      totalCollateralBtc: "0 BTC",
       totalCollateralUsd: "$0 USD",
       activeVaultsCount: 0,
       liquidationOrder: null,

@@ -25,7 +25,7 @@ vi.mock("@/clients/graphql", () => ({
 
 vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({
-    coinSymbol: "sBTC",
+    coinSymbol: "BTC",
     icon: "/images/btc.svg",
   }),
 }));
@@ -69,7 +69,7 @@ function activity(overrides: ActivityOverrides): RawActivity {
     vaultId: VAULT_A,
     depositor: USER,
     type: "deposit",
-    amount: "1000000", // 0.01 sBTC at 8 decimals
+    amount: "1000000", // 0.01 BTC at 8 decimals
     debtReserveId: null,
     timestamp: "1700000000",
     blockNumber: "100",
@@ -765,7 +765,7 @@ describe("fetchUserActivities liquidation grouping", () => {
         logIndex: 0,
         transactionHash: TX_LIQUIDATION,
         vaultId: VAULT_A,
-        amount: "50000000", // 0.5 sBTC at 8 decimals
+        amount: "50000000", // 0.5 BTC at 8 decimals
         timestamp: "1700000100",
       }),
       activity({
@@ -790,7 +790,7 @@ describe("fetchUserActivities liquidation grouping", () => {
     expect(result).toHaveLength(2);
     const group = asGroup(result[0]);
     expect(group.summary.collateral.value).toBe("0.5");
-    expect(group.summary.collateral.symbol).toBe("sBTC");
+    expect(group.summary.collateral.symbol).toBe("BTC");
     expect(group.summary.debt?.value).toBe("10,000");
     expect(group.summary.debt?.symbol).toBe("USDC");
     expect(group.children).toHaveLength(2);
@@ -1074,7 +1074,7 @@ describe("fetchUserActivities expired-vault redemptions", () => {
         logIndex: 0,
         transactionHash: "0x" + "f".repeat(64),
         vaultId: VAULT_A,
-        amount: "100000000", // 1 sBTC
+        amount: "100000000", // 1 BTC
       }),
     ];
     await setupGraphqlMock(rows);
@@ -1087,7 +1087,7 @@ describe("fetchUserActivities expired-vault redemptions", () => {
     expect(result).toHaveLength(1);
     const row = asStandard(result[0]);
     expect(row.type).toBe("Redeem");
-    expect(row.amount).toEqual({ value: "1", symbol: "sBTC", numeric: 1 });
+    expect(row.amount).toEqual({ value: "1", symbol: "BTC", numeric: 1 });
     expect(row.chain).toBe("BTC");
     expect(row.transactionHash).toBe("claimBtcTxid456");
     expect(resolverMock).toHaveBeenCalledWith(

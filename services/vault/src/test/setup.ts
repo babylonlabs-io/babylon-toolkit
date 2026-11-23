@@ -17,13 +17,13 @@ vi.mock("@/config", async () => {
   return {
     getNetworkConfigBTC: () => ({
       coinName: "Signet BTC",
-      coinSymbol: "sBTC",
+      coinSymbol: "BTC",
       networkName: "BTC signet",
       mempoolApiUrl: "https://mempool.space/signet",
       // Adapter returns wallet-connector's Network enum (string-valued).
       network: "signet",
-      icon: "/images/signet_bitcoin.svg",
-      name: "Signet Bitcoin",
+      icon: "/images/btc.svg",
+      name: "Bitcoin",
       displayUSD: false,
     }),
     getBTCNetwork: () => "signet",
@@ -41,7 +41,7 @@ vi.mock("@/config/network", () => ({
   configureBabylonConfig: vi.fn(),
   getNetworkConfigBTC: () => ({
     coinName: "Signet BTC",
-    coinSymbol: "sBTC",
+    coinSymbol: "BTC",
     networkName: "BTC signet",
     mempoolApiUrl: "https://mempool.space/signet",
     network: "signet",

@@ -40,7 +40,7 @@ vi.mock("@/config/featureFlags", () => ({
 }));
 
 vi.mock("@/config/btc", () => ({
-  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getNetworkConfigBTC: () => ({ coinSymbol: "BTC" }),
   getBTCNetwork: () => "signet",
 }));
 

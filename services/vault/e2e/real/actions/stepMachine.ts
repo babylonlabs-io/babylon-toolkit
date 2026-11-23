@@ -700,7 +700,7 @@ export async function assertActivatedAndOnDashboard(
     ? rows
         .filter({
           hasText: new RegExp(
-            `${amountBtc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*sBTC`,
+            `${amountBtc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*BTC`,
           ),
         })
         .first()
@@ -727,7 +727,7 @@ export async function assertActivatedAndOnDashboard(
     );
   else if (rowText.includes(amountBtc))
     log(
-      `/vaults shows this run's vault as collateral (${amountBtc} sBTC, matched by ${matchedBy}).`,
+      `/vaults shows this run's vault as collateral (${amountBtc} BTC, matched by ${matchedBy}).`,
     );
   else
     log(

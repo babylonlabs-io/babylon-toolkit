@@ -59,7 +59,7 @@ const DEPOSITOR_BTC_PUBKEY =
   `0x${RECORDED_DEPOSITOR.BTC_PUBLIC_KEY.slice(2)}` as Hex;
 const AMOUNT_SATS = 1_000_000n;
 /** `AMOUNT_SATS` as a vault's row shows it, in any of the page's lists. */
-const AMOUNT_LABEL = "0.01 sBTC";
+const AMOUNT_LABEL = "0.01 BTC";
 
 const CHAIN_HEAD = 50_000_000n;
 /** Registered just now, so no recorded timeout has elapsed. */

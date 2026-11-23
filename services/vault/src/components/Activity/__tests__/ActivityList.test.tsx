@@ -10,7 +10,7 @@ const DESKTOP_WIDTH = 1024;
 const SEARCH_DEBOUNCE_WAIT_MS = 300;
 
 vi.mock("@/config", () => ({
-  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getNetworkConfigBTC: () => ({ coinSymbol: "BTC" }),
   getBTCNetwork: () => "signet",
 }));
 

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BTC_MAINNET, BTC_SIGNET } from "../constants";
 import { resolveMempoolApiUrl } from "../runtime";
 
+vi.unmock("@/config/network");
+
 // The reader appends `/api`, so these assert the base the network config stores.
 describe("resolveMempoolApiUrl", () => {
   it("appends the /signet path for signet", () => {
@@ -66,6 +68,22 @@ describe("configureBabylonConfig", () => {
     const runtime = await freshRuntime();
     runtime.configureBabylonConfig(BASE_OPTIONS);
     expect(runtime.getDeploymentKind()).toBe("test");
+  });
+
+  it("shows the BTC symbol, orange icon and Bitcoin name on signet", async () => {
+    const runtime = await freshRuntime();
+    runtime.configureBabylonConfig(BASE_OPTIONS);
+    const { getNetworkConfigBTC } = await import("../../btc");
+    expect(getNetworkConfigBTC()).toEqual({
+      coinName: "Signet BTC",
+      coinSymbol: "BTC",
+      networkName: "BTC signet",
+      mempoolApiUrl: "https://mempool.space/signet",
+      network: BTC_SIGNET,
+      icon: "/images/btc.svg",
+      name: "Bitcoin",
+      displayUSD: false,
+    });
   });
 
   it("accepts an internal profile on BTC mainnet + Sepolia", async () => {

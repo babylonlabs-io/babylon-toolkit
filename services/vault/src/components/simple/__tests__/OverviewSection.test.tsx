@@ -6,7 +6,7 @@ import { COPY } from "@/copy";
 import { OverviewSection } from "../OverviewSection";
 
 vi.mock("@/config", () => ({
-  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getNetworkConfigBTC: () => ({ coinSymbol: "BTC" }),
   getBTCNetwork: () => "signet",
 }));
 

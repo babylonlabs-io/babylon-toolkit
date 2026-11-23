@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ActivityLog } from "@/types/activityLog";
 
 vi.mock("@/config", () => ({
-  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getNetworkConfigBTC: () => ({ coinSymbol: "BTC" }),
   getBTCNetwork: () => "signet",
 }));
 

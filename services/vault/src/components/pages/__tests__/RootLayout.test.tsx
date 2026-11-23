@@ -28,7 +28,7 @@ const mobileMock = vi.hoisted(() => ({ value: false }));
 
 vi.mock("@/config", () => ({
   FeatureFlags: featureFlagsMock,
-  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getNetworkConfigBTC: () => ({ coinSymbol: "BTC" }),
   getBTCNetwork: () => networkMock.value,
   getDeploymentKind: vi.fn(() => "test"),
 }));

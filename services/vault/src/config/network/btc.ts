@@ -34,7 +34,7 @@ const STATIC_CONFIG: Record<
   },
   [BTC_SIGNET]: {
     coinName: "Signet BTC",
-    coinSymbol: "sBTC",
+    coinSymbol: "BTC",
     networkName: "BTC signet",
     network: BTC_SIGNET,
   },

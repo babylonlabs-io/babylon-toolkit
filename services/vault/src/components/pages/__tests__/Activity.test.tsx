@@ -43,7 +43,7 @@ vi.mock("../../../hooks/useActivitiesWithPending", () => ({
 }));
 
 vi.mock("@/config", () => ({
-  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC" }),
+  getNetworkConfigBTC: () => ({ coinSymbol: "BTC" }),
   getBTCNetwork: () => "signet",
 }));
 

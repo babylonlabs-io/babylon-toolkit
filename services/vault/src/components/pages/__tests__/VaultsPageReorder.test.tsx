@@ -240,7 +240,7 @@ describe("VaultsPage Reorder without a Bitcoin wallet", () => {
         const vaults = address === undefined ? [] : collateralVaults;
         return {
           summary: {
-            totalCollateralBtc: address === undefined ? "0 sBTC" : "0.9 sBTC",
+            totalCollateralBtc: address === undefined ? "0 BTC" : "0.9 BTC",
             totalCollateralUsd:
               address === undefined ? "$0 USD" : "$90,000 USD",
             // countActiveVaults counts active and activating alike, so with no

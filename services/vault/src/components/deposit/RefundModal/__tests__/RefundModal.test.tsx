@@ -229,7 +229,7 @@ describe("RefundModal", () => {
     });
     renderRefundModal();
 
-    expect(await screen.findByText("0.01 sBTC")).toBeInTheDocument();
+    expect(await screen.findByText("0.01 BTC")).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: COPY.deposit.refundReview.retryButton,
@@ -248,7 +248,7 @@ describe("RefundModal", () => {
     });
     renderRefundModal();
 
-    expect(await screen.findByText("0.01 sBTC")).toBeInTheDocument();
+    expect(await screen.findByText("0.01 BTC")).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: COPY.deposit.refundReview.confirmButton,
@@ -279,7 +279,7 @@ describe("RefundModal", () => {
     // secondary conversion line; the figures themselves are unchanged.
     // 1,000,000 sats = 0.01 BTC at $50,000 = $500.00.
     expect(screen.getByText("Refund Amount")).toBeInTheDocument();
-    expect(screen.getByText("0.01 sBTC")).toBeInTheDocument();
+    expect(screen.getByText("0.01 BTC")).toBeInTheDocument();
     expect(await screen.findByText("$500.00 USD")).toBeInTheDocument();
     expect(screen.getByText("Recommended: 5 sats/vB")).toBeInTheDocument();
   });

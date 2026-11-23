@@ -3,16 +3,6 @@
  *
  * Adapter between vault's plain network config (`@/config/network`) and
  * wallet-connector's `BTCConfig` shape, with extra UI display props.
- *
- * For signet network:
- * - Uses purple signet bitcoin icon
- * - Displays as "sBTC" / "Signet Bitcoin"
- * - USD display is disabled
- *
- * For mainnet:
- * - Uses standard orange bitcoin icon
- * - Displays as "BTC" / "Bitcoin"
- * - USD display is enabled
  */
 
 import type { BTCConfig } from "@babylonlabs-io/wallet-connector/btc-eth";
@@ -31,7 +21,7 @@ import {
 export type ExtendedBTCConfig = BTCConfig & {
   /** Path to the BTC icon asset */
   icon: string;
-  /** Display name (e.g., "Bitcoin" or "Signet Bitcoin") */
+  /** Display name */
   name: string;
   /** Whether to display USD values */
   displayUSD: boolean;
@@ -56,8 +46,8 @@ export function getNetworkConfigBTC(): ExtendedBTCConfig {
     networkName: base.networkName,
     mempoolApiUrl: base.mempoolApiUrl,
     network: NETWORK_BY_NAME[base.network],
-    icon: isSignet ? "/images/signet_bitcoin.svg" : "/images/btc.svg",
-    name: isSignet ? "Signet Bitcoin" : "Bitcoin",
+    icon: "/images/btc.svg",
+    name: "Bitcoin",
     displayUSD: !isSignet,
   };
 }

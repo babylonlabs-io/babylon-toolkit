@@ -61,10 +61,6 @@ export type DemoCta = "primary" | "outlined" | "none";
  *  with, and the unit of the value that mock actually renders. */
 export type DemoAmountUnit = string;
 
-/** Deposit / collateral cards render the literal "BTC" (see `buildActivity`),
- *  while activity rows render the network-aware collateral symbol ("sBTC" on
- *  signet) — so the label a mock's amount field carries has to follow
- *  whichever list builds it, not one global spelling. */
 const BTC_AMOUNT_UNIT = "BTC";
 
 /** The kind of thing a mock item represents. */

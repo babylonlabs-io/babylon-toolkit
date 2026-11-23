@@ -209,15 +209,13 @@ describe("getTokenPrices", () => {
     );
   });
 
-  it("populates alias tokens for BTC (vBTC, sBTC)", async () => {
+  it("populates alias token for BTC (vBTC)", async () => {
     mockFeedResponse(BTC_ANSWER_8_DECIMALS, STANDARD_DECIMALS);
 
     const result = await getTokenPrices(["BTC"]);
 
     expect(result.prices["vBTC"]).toBe(BTC_PRICE_USD);
-    expect(result.prices["sBTC"]).toBe(BTC_PRICE_USD);
     expect(result.metadata["vBTC"]).toEqual(result.metadata["BTC"]);
-    expect(result.metadata["sBTC"]).toEqual(result.metadata["BTC"]);
   });
 
   it("populates alias token for ETH (WETH)", async () => {
@@ -419,7 +417,6 @@ describe("getTokenPrices", () => {
     const result = await getTokenPrices(["BTC"]);
 
     expect(result.metadata["vBTC"].fetchFailed).toBe(true);
-    expect(result.metadata["sBTC"].fetchFailed).toBe(true);
   });
 
   it("throws on non-positive price via getTokenPrices error handling", async () => {
@@ -544,7 +541,7 @@ describe("getTokenPrices", () => {
 
     const result = await getTokenPrices(["BTC", "ETH"]);
 
-    for (const symbol of ["BTC", "vBTC", "sBTC", "ETH", "WETH"]) {
+    for (const symbol of ["BTC", "vBTC", "ETH", "WETH"]) {
       expect(result.prices[symbol]).toBeUndefined();
       expect(result.metadata[symbol].fetchFailed).toBe(true);
       expect(result.metadata[symbol].error).toBe("RPC timeout");
@@ -570,7 +567,6 @@ describe("getTokenPrices", () => {
     expect(callArgs.contracts).toHaveLength(4);
     expect(result.prices["BTC"]).toBe(BTC_PRICE_USD);
     expect(result.prices["vBTC"]).toBe(BTC_PRICE_USD);
-    expect(result.prices["sBTC"]).toBe(BTC_PRICE_USD);
     expect(result.prices["ETH"]).toBe(ETH_PRICE_USD);
     expect(result.prices["WETH"]).toBe(ETH_PRICE_USD);
   });

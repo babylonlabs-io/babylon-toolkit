@@ -149,8 +149,8 @@ describe("rowsOfferActivation", () => {
   it("accepts a split whose later sibling waits, disabled, for the earlier vault", () => {
     expect(
       rowsOfferActivation([
-        { rowText: "0.01 sBTC Ready to activate", ctaText: "Activate" },
-        { rowText: "0.01 sBTC Awaiting earlier BTCVault", ctaText: undefined },
+        { rowText: "0.01 BTC Ready to activate", ctaText: "Activate" },
+        { rowText: "0.01 BTC Awaiting earlier BTCVault", ctaText: undefined },
       ]),
     ).toBe(true);
   });
@@ -158,7 +158,7 @@ describe("rowsOfferActivation", () => {
   it("does not accept rows of which none offers Activate", () => {
     expect(
       rowsOfferActivation([
-        { rowText: "0.01 sBTC Awaiting earlier BTCVault", ctaText: undefined },
+        { rowText: "0.01 BTC Awaiting earlier BTCVault", ctaText: undefined },
       ]),
     ).toBe(false);
     expect(rowsOfferActivation([])).toBe(false);
@@ -167,8 +167,8 @@ describe("rowsOfferActivation", () => {
   it("does not accept a row still waiting for its activation window", () => {
     expect(
       rowsOfferActivation([
-        { rowText: "0.01 sBTC Ready to activate", ctaText: "Activate" },
-        { rowText: "0.01 sBTC Awaiting activation window", ctaText: undefined },
+        { rowText: "0.01 BTC Ready to activate", ctaText: "Activate" },
+        { rowText: "0.01 BTC Awaiting activation window", ctaText: undefined },
       ]),
     ).toBe(false);
   });
