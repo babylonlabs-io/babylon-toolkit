@@ -545,6 +545,45 @@ describe("useDashboardState", () => {
     expect(result.current.displayCollateralBtc).toBe(1);
   });
 
+  it("clears an activating row when the first indexed record is already settled", () => {
+    const settled = withdrawingCollateral(VAULT_A, 0);
+    mockActivatingVaults = new Map([
+      [
+        VAULT_A,
+        { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountSats: 100n },
+      ],
+    ]);
+    mockCollateralBtc = 0.000001;
+    mockChainVaultIds = [VAULT_A];
+    mockCollaterals = [];
+    const { result, rerender } = renderHook(() => useDashboardState("0xabc"));
+    expect(result.current.collateralVaults[0].lifecycle).toBe("activating");
+
+    mockCollateralBtc = 0;
+    mockChainVaultIds = [];
+    mockCollaterals = [
+      {
+        ...settled,
+        vault: {
+          ...settled.vault,
+          status: "depositor_withdrawn",
+          inUse: false,
+        },
+      },
+      withdrawingCollateral(VAULT_B, 1),
+    ];
+    rerender();
+
+    expect(
+      result.current.collateralVaults.map(({ vaultId, lifecycle }) => [
+        vaultId,
+        lifecycle,
+      ]),
+    ).toEqual([[VAULT_B, "withdrawing"]]);
+    expect(result.current.displayCollateralBtc).toBe(0);
+    expect(mockClearActivatingVault).toHaveBeenCalledWith(VAULT_A);
+  });
+
   it("does not surface an activating vault belonging to a different connected address", () => {
     mockCollaterals = null;
     // Entry was recorded while a different wallet was connected.
