@@ -73,13 +73,13 @@ const connectToView = (subject: string) =>
 // amount and token on their own (repay success), which splits the same
 // "<token> on <hub>" wording across segments.
 const tokenOnHub = (symbol: string, hub: string) => `${symbol} on ${hub}`;
-// Names the spoke's borrow-reserve cap. Both Borrowed Asset tooltips open with
+// Names the spoke's borrow-reserve cap. Both Borrowed asset tooltips open with
 // it, so one builder keeps their singular and plural forms from drifting.
 const borrowAssetsPerPosition = (limit: number) =>
   limit === 1
     ? "One borrow asset per position"
     : `${limit} borrow assets per position`;
-// Column header shared by the Select hub picker and the markets table.
+// Label shared by the Select hub picker, the markets table and the market stats.
 const AVAILABLE_LIQUIDITY_COLUMN = "Available liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
@@ -1292,7 +1292,7 @@ export const COPY = {
       // CollateralFactorRow tooltip: why the figure sits below value × CF.
       maxToBorrowTooltip: (minHealthFactor: number) =>
         `Your deposit's value times the collateral factor, less a buffer that keeps your health factor above ${minHealthFactor} if you have no other debt. Existing debt, a market's available liquidity or its borrow limit can lower the amount you can actually borrow.`,
-      // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
+      // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit fee".
       depositFeeLabel: "Deposit fee",
       depositFeeTooltip:
         "A one-time fee set by the protocol, paid in ETH for each BTCVault. It is refunded if setup does not finish in time, but not if you do not activate in time.",
@@ -2145,7 +2145,7 @@ export const COPY = {
     // (clients/eth-contract/walletChain.ts), used by the Aave position hooks
     // and the deposit flow.
     connectToContinue: "Please connect your wallet to continue",
-    // Connect Wallets screen: the line under each wallet row that says why
+    // Connect wallets screen: the line under each wallet row that says why
     // the app needs that wallet.
     chainDescriptions: {
       BTC: "Used to deposit and manage your Bitcoin collateral.",
@@ -2253,7 +2253,7 @@ export const COPY = {
   // inactive-row refund, and ACTIVATE_AND_REDEEM. A fourth sense would make
   // the row labels unreadable.
   reclaim: {
-    // Row action in the Inactive Vaults section.
+    // Row action in the Inactive vaults section.
     rowButton: "Reclaim",
     // Reserve figure on the row. Whole sats rather than BTC — the reserve is
     // ~33,000 sats, which reads as "0.00033 BTC" and loses all shape.
@@ -2363,7 +2363,7 @@ export const COPY = {
       button: (amount: string) => `Withdraw ${amount}`,
     },
     // Review withdrawal card (Figma 10088-38704). Row labels use sentence
-    // case, like the sibling Review Refund card.
+    // case, like the sibling Review refund card.
     review: {
       heading: "Review withdrawal",
       withdrawAmountLabel: "Withdrawal amount",
@@ -2969,7 +2969,7 @@ export const COPY = {
     borrowedAssetLabel: "Borrowed asset",
     // Before the first borrow, when no asset is tied to the position yet.
     borrowedAssetEmpty: "Not selected",
-    // Borrowed Asset tooltip before the first borrow. Phrased from the cap the
+    // Borrowed asset tooltip before the first borrow. Phrased from the cap the
     // Spoke reports, never a hardcoded 1 — Aave may raise it.
     borrowedAssetTooltipBefore: (limit: number) => ({
       title: borrowAssetsPerPosition(limit),
@@ -2978,7 +2978,7 @@ export const COPY = {
           ? "Once you borrow, this position is tied to that asset until you fully repay it."
           : "Once you borrow, this position is tied to the assets you pick until you fully repay them.",
     }),
-    // Borrowed Asset tooltip below the cap with something already borrowed.
+    // Borrowed asset tooltip below the cap with something already borrowed.
     // Distinct from the before-first-borrow copy: "choose carefully once you
     // borrow" contradicts a card that is already showing a borrowed asset.
     borrowedAssetTooltipRemaining: (limit: number, borrowed: number) => ({
@@ -2988,7 +2988,7 @@ export const COPY = {
           ? "One slot left. Repay a loan in full to free another."
           : `${limit - borrowed} slots left. Repay a loan in full to free another.`,
     }),
-    // Borrowed Asset tooltip once the position has used up its reserves.
+    // Borrowed asset tooltip once the position has used up its reserves.
     borrowedAssetTooltipAfter: (limit: number) =>
       limit === 1
         ? "To switch to another asset, fully repay your debt first. Then you can choose a different asset."
@@ -3381,7 +3381,7 @@ export const COPY = {
     },
     // Standalone reorder suggestion (not a risk warning). Surfaced when the
     // engine finds a safer liquidation order than the current on-chain order,
-    // unless BTC is already below the first event's Liq Price, where the contract
+    // unless BTC is already below the first event's liquidation price, where the contract
     // would refuse the reorder.
     // Single reorder notification (matches Figma 6502-111184). Emitted when the
     // calculator finds a strictly safer order than the current one, with the same
@@ -3427,7 +3427,7 @@ export const COPY = {
         suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
           `Neither of your two BTCVaults covers the estimated seizure (${targetSeizureBtc} BTC) on its own, so a first liquidation would take both. ${enablePartialStr}${enablePartialStr ? "You can also add" : "You can add"} collateral or repay part of the debt to lower your liquidation risk. Another option is to repay your debt, withdraw these BTCVaults and deposit again using the two-vault split; withdrawal takes several days.`,
       },
-      // Several BTCVaults, with BTC already below the first event's Liq Price. The
+      // Several BTCVaults, with BTC already below the first event's liquidation price. The
       // contract refuses a reorder there, so the structural suggestions above and
       // below do not apply.
       gappedSuggestion: (nVaults: number) =>

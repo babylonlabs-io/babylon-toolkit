@@ -87,7 +87,7 @@ export function useProtocolFeeRows(connectedAddress?: string): {
 } {
   const { minDeposit } = useProtocolParamsContext();
   // The fee rows describe the position the deposit joins: its stored key, the
-  // one liquidation uses. Max to Borrow uses the reserve's current key,
+  // one liquidation uses. Max to borrow uses the reserve's current key,
   // because `borrow()` applies it — the same query the Borrow form reads.
   const { params, isLoading } = useVaultSplitParams(connectedAddress);
   const { params: borrowSplitParams } = useVaultSplitParams();

@@ -170,7 +170,7 @@ describe("RiskSection rendering", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders a 0-borrowed (no_debt) position as Very Safe with the infinity glyph", () => {
+  it("renders a 0-borrowed (no_debt) position as Lowest liquidation risk with the infinity glyph", () => {
     renderSection({
       healthFactorStatus: "no_debt",
       healthFactor: null,

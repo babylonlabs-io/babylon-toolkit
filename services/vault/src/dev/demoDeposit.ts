@@ -873,15 +873,15 @@ export function amountUnitFor(
  *  type + state). */
 export function itemSectionHint(item: DemoItem): string {
   if (item.type === "collateral") {
-    return "BTC Vaults (v2) / Active Vaults (v3 Vaults)";
+    return "BTC Vaults (v2) / Active vaults (v3 Vaults)";
   }
   if (item.type === "loan") return "Active Loans (v3 Loans)";
   if (item.type === "activity") return "Activity feed (v3 Activity)";
   const scenario = DEPOSIT_SCENARIOS[item.stateIndex];
   if (scenario?.contractStatus === ContractStatus.EXPIRED) {
-    return "Expired Deposits (v2) / Inactive Vaults (v3)";
+    return "Expired Deposits (v2) / Inactive vaults (v3)";
   }
-  return item.batched ? "Pending Deposits (batched group)" : "Pending Deposits";
+  return item.batched ? "Pending deposit (batched group)" : "Pending deposit";
 }
 
 // --- Per-item builders -----------------------------------------------------

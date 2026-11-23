@@ -285,7 +285,7 @@ export function DashboardPage() {
           canRepay={hasLoans}
         />
 
-        {/* "Maximum vaults reached" is a value-protection capacity fact shown
+        {/* "Maximum BTCVaults reached" is a value-protection capacity fact shown
             ALWAYS (independent of BTC price), and decoupled from the cascade
             banner so a stale-price or all-pending position still surfaces
             it. */}

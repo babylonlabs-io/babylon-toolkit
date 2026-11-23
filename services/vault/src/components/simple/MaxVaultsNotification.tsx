@@ -10,7 +10,7 @@ interface MaxVaultsNotificationProps {
 }
 
 /**
- * "Maximum vaults reached" advisory. Rendered independently of the
+ * "Maximum BTCVaults reached" advisory. Rendered independently of the
  * liquidation-cascade banner (and its price/loading gating) because the
  * per-position vault cap is a value-protection capacity fact that holds
  * regardless of BTC price, debt, or position size — and must still show when
