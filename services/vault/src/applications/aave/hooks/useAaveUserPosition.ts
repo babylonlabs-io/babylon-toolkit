@@ -35,6 +35,8 @@ import {
 // Re-export for consumers
 export type { HealthFactorStatus };
 
+const ACTIVATION_REFETCH_INTERVAL_MS = 5 * 1000;
+
 /**
  * Result interface for useAaveUserPosition hook
  *
@@ -93,16 +95,12 @@ export interface UseAaveUserPositionResult {
 }
 
 /**
- * Hook to fetch user's Aave position with live data
- *
- * Values are sourced from Aave's on-chain oracle prices, making them
- * authoritative for liquidation decisions.
- *
- * Also fetches debt positions for all borrowable reserves in the same call,
- * avoiding separate RPC calls when displaying borrowed assets.
+ * Read the position, oracle values, and debt in one query.
+ * Poll faster while a confirmed activation awaits indexing.
  */
 export function useAaveUserPosition(
   connectedAddress: string | undefined,
+  isActivationPending = false,
 ): UseAaveUserPositionResult {
   const { config, allBorrowReserves } = useAaveConfig();
   const spokeAddress = config?.coreSpokeAddress;
@@ -148,7 +146,9 @@ export function useAaveUserPosition(
     refetchOnMount: true,
     // A phone returning from the wallet app must not show the pre-tx position.
     refetchOnWindowFocus: "always",
-    refetchInterval: POSITION_REFETCH_INTERVAL_MS,
+    refetchInterval: isActivationPending
+      ? ACTIVATION_REFETCH_INTERVAL_MS
+      : POSITION_REFETCH_INTERVAL_MS,
     // `"online"` (the default) pauses queries when `navigator.onLine` is
     // false rather than running queryFn — `refetch()` then resolves with
     // stale data and `isError` never flips. `"always"` lets real network
