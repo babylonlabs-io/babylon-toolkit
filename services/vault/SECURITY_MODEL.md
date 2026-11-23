@@ -243,10 +243,8 @@ Specific to this component:
   the per-load ids and the absence of person profiles do not prevent that. Only the project's
   _Discard client IP data_ setting keeps the raw IP off the address. The bounds are in
   [`SECURITY.md` → _Product analytics_](../../SECURITY.md#product-analytics-posthog). Legal has
-  approved sending this data under the Babylon Group Privacy Policy (effective 18 November 2026),
-  which covers connected wallet addresses and usage data. The consent the policy requires where the
-  law does (including the EEA and the UK), with an in-app analytics setting, is not built yet and is
-  tracked in [#3009](https://github.com/babylonlabs-io/babylon-toolkit/issues/3009).
+  approved sending this data. The consent banner and in-app analytics setting that Legal asked for
+  are tracked in [#3009](https://github.com/babylonlabs-io/babylon-toolkit/issues/3009).
 
 ### Known deviations
 
