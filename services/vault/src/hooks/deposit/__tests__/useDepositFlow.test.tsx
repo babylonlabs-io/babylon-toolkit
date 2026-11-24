@@ -2157,9 +2157,22 @@ describe("useDepositFlow", () => {
 
       await waitFor(() => {
         expect(trackEvent.mock.calls).toEqual([
-          ["deposit_started", { amount_bucket: "<0.01", vault_count: 2 }],
-          ["vault_registered", { vault_id: "0xVault0Id" }],
-          ["vault_registered", { vault_id: "0xVault1Id" }],
+          [
+            "deposit_started",
+            {
+              batch_id: "mock-batch-id-uuid",
+              amount_bucket: "<0.01",
+              vault_count: 2,
+            },
+          ],
+          [
+            "vault_registered",
+            { batch_id: "mock-batch-id-uuid", vault_id: "0xVault0Id" },
+          ],
+          [
+            "vault_registered",
+            { batch_id: "mock-batch-id-uuid", vault_id: "0xVault1Id" },
+          ],
           ["deposit_broadcast", { vault_id: "0xVault0Id" }],
           ["deposit_broadcast", { vault_id: "0xVault1Id" }],
         ]);
@@ -2186,8 +2199,38 @@ describe("useDepositFlow", () => {
         expect(result.current.error).not.toBeNull();
       });
       expect(trackEvent.mock.calls).toEqual([
-        ["deposit_started", { amount_bucket: "<0.01", vault_count: 2 }],
+        [
+          "deposit_started",
+          {
+            batch_id: "mock-batch-id-uuid",
+            amount_bucket: "<0.01",
+            vault_count: 2,
+          },
+        ],
       ]);
+    });
+
+    it("sends no deposit_started when the wallet is on another chain", async () => {
+      const { trackEvent } = vi.mocked(
+        await import("@/infrastructure/analytics"),
+      );
+      const { getWalletClientOnExpectedChain } = vi.mocked(
+        await import("@/clients/eth-contract/walletChain"),
+      );
+      getWalletClientOnExpectedChain.mockResolvedValueOnce({
+        ...MOCK_ETH_WALLET,
+        chain: { id: 999_999 },
+      } as any);
+      trackEvent.mockClear();
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toEqual(DEPOSIT_ERRORS.depositChanged);
+      });
+      expect(trackEvent).not.toHaveBeenCalled();
     });
 
     it("sends no deposit_broadcast when the broadcast fails", async () => {
@@ -2211,9 +2254,22 @@ describe("useDepositFlow", () => {
       });
       expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
       expect(trackEvent.mock.calls).toEqual([
-        ["deposit_started", { amount_bucket: "<0.01", vault_count: 2 }],
-        ["vault_registered", { vault_id: "0xVault0Id" }],
-        ["vault_registered", { vault_id: "0xVault1Id" }],
+        [
+          "deposit_started",
+          {
+            batch_id: "mock-batch-id-uuid",
+            amount_bucket: "<0.01",
+            vault_count: 2,
+          },
+        ],
+        [
+          "vault_registered",
+          { batch_id: "mock-batch-id-uuid", vault_id: "0xVault0Id" },
+        ],
+        [
+          "vault_registered",
+          { batch_id: "mock-batch-id-uuid", vault_id: "0xVault1Id" },
+        ],
       ]);
     });
 

@@ -36,12 +36,17 @@ export interface AnalyticsEventProperties {
     chain: WalletChain;
     restored: boolean;
   };
-  /** Coarse BTC band from `amountBucket`, never the exact amount. */
+  /**
+   * One deposit attempt. `batch_id` is a random id per attempt, shared with
+   * that attempt's `vault_registered` events. `amount_bucket` is a coarse BTC
+   * band from `amountBucket`, never the exact amount.
+   */
   [ANALYTICS_EVENT.DEPOSIT_STARTED]: {
+    batch_id: string;
     amount_bucket: string;
     vault_count: number;
   };
-  [ANALYTICS_EVENT.VAULT_REGISTERED]: { vault_id: string };
+  [ANALYTICS_EVENT.VAULT_REGISTERED]: { batch_id: string; vault_id: string };
   [ANALYTICS_EVENT.DEPOSIT_BROADCAST]: { vault_id: string };
   /**
    * Sent only when this session saw the activation add the vault as Aave
