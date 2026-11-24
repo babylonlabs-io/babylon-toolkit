@@ -396,7 +396,7 @@ export function formatCandleTimestamp(timeMs: number): string {
 
 /**
  * Bands with the seized amount folded into the label, e.g.
- * "Liq Event 1 (0.6 BTC)". The dashboard page names the amount inline; the
+ * "Liquidation event 1 (0.6 BTC)". The dashboard page names the amount inline; the
  * overview preview keeps the bare event title. `amountLabel` is dropped so a
  * band tall enough for its own amount line does not print it twice.
  */
@@ -419,7 +419,7 @@ const PREVIEW_VAULT_DECIMALS = 4;
 /**
  * Bands labelled the way the borrow flow's liquidation preview names them: the
  * full event title and the BTCVaults the event seizes, e.g.
- * "Liquidation Event 1 | 0.1 + 0.3 BTCVaults". The bands there span the whole
+ * "Liquidation event 1 | 0.1 + 0.3 BTCVaults". The bands there span the whole
  * plot width, so the vault sizes fit inline; `sublabel` and `amountLabel` are
  * dropped so each event stays one line.
  */

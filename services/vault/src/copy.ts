@@ -79,7 +79,8 @@ const borrowAssetsPerPosition = (limit: number) =>
   limit === 1
     ? "One borrow asset per position"
     : `${limit} borrow assets per position`;
-// Label shared by the Select hub picker, the markets table and the market stats.
+// Shared by every "Available liquidity" label: hub picker, markets table,
+// market stats bar, and the loans list and borrow metrics card.
 const AVAILABLE_LIQUIDITY_COLUMN = "Available liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
@@ -2434,7 +2435,7 @@ export const COPY = {
     // plus the risk premium and the adapter's interest fee. An existing loan pays
     // its own stored premium and a new borrow the current one, so two figures
     // under this label can differ. The market page and the landing card show the
-    // drawn rate alone, labeled "base".
+    // drawn rate alone, under the same label.
     borrowRateLabel: BORROW_APR_LABEL,
     // Repay detail-card metric: outstanding debt for the selected reserve, in
     // token units (before → after the repayment).
