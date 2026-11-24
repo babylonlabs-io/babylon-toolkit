@@ -29,7 +29,7 @@ import type { Hex } from "viem";
 /**
  * How long an in-memory activating-vault entry is held before it is
  * auto-cleared, as a backstop in case the indexer never reflects the
- * activation (e.g. a concurrent position change). Until then the dashboard
+ * activation (e.g. indexer lag or an indexer outage). Until then the dashboard
  * shows the "Activating…" row; reconciliation normally clears it sooner, once
  * the indexer catches up. 90s ≈ 3 × the 30s position poll.
  */
@@ -48,7 +48,8 @@ export interface ActivatingVaultEntry {
   depositorEthAddress?: string;
   /**
    * Optimistic amount in satoshis, parsed losslessly from the deposit record.
-   * Replaced by the indexer value on reconciliation.
+   * Reconciliation replaces it with the indexed amount, or drops it when the
+   * dashboard does not show the indexed record (for example, a settled one).
    */
   amountSats: bigint;
   /** Vault provider Ethereum address (for resolving name/icon in display). */

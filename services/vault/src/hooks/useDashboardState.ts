@@ -127,16 +127,20 @@ export function useDashboardState(connectedAddress: string | undefined) {
     [rawCollateralVaults],
   );
 
+  // Settled rows still confirm that the indexer has seen the activation.
+  const indexedVaultIds = useMemo(
+    () =>
+      new Set(position?.collaterals.map((row) => row.vaultId.toLowerCase())),
+    [position?.collaterals],
+  );
+
   // Show only this account's activations that the indexer has not returned.
   const activatingEntries = useMemo((): CollateralVaultEntry[] => {
     if (activatingVaults.size === 0) return [];
     const connected = connectedAddress?.toLowerCase();
-    const indexedIds = new Set(
-      rawCollateralVaults.map((v) => v.vaultId.toLowerCase()),
-    );
     if (!connected) return [];
     return Array.from(activatingVaults.values())
-      .filter((entry) => !indexedIds.has(entry.vaultId.toLowerCase()))
+      .filter((entry) => !indexedVaultIds.has(entry.vaultId.toLowerCase()))
       .filter((entry) => entry.depositorEthAddress?.toLowerCase() === connected)
       .map((entry): CollateralVaultEntry => {
         const provider = findProvider?.(entry.providerAddress ?? "");
@@ -156,7 +160,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
           liquidationIndex: Number.MAX_SAFE_INTEGER,
         };
       });
-  }, [activatingVaults, rawCollateralVaults, findProvider, connectedAddress]);
+  }, [activatingVaults, indexedVaultIds, findProvider, connectedAddress]);
 
   // Apply the submitted order. Keep withdrawals and new activations last.
   const collateralVaults = useMemo(
@@ -183,19 +187,13 @@ export function useDashboardState(connectedAddress: string | undefined) {
     }
   }, [activeCollateralVaults, reorderedOrder, clearReorderedOrder]);
 
-  // Drop each activating override once the indexer reflects that vault, so the
-  // optimistic row hands off to the real indexer-driven row without duplicating.
   useEffect(() => {
-    if (activatingVaults.size === 0) return;
-    const indexedIds = new Set(
-      rawCollateralVaults.map((v) => v.vaultId.toLowerCase()),
-    );
     for (const entry of activatingVaults.values()) {
-      if (indexedIds.has(entry.vaultId.toLowerCase())) {
+      if (indexedVaultIds.has(entry.vaultId.toLowerCase())) {
         clearActivatingVault(entry.vaultId);
       }
     }
-  }, [rawCollateralVaults, activatingVaults, clearActivatingVault]);
+  }, [indexedVaultIds, activatingVaults, clearActivatingVault]);
 
   // Net the optimistic deltas against the chain snapshot: add the activations it
   // does not include yet, subtract the withdrawals it still counts. Both filters
