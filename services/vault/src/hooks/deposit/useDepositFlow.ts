@@ -747,10 +747,6 @@ export function useDepositFlow(
           vaultCount: vaultAmounts.length,
           amountBucket: amountBucket(satoshiToBtcNumber(depositAmountTotal)),
         });
-        trackEvent(ANALYTICS_EVENT.DEPOSIT_STARTED, {
-          amount_bucket: amountBucket(satoshiToBtcNumber(depositAmountTotal)),
-          vault_count: vaultAmounts.length,
-        });
 
         // ========================================================================
         // Step 1: Get shared resources
@@ -770,6 +766,15 @@ export function useDepositFlow(
         }
         walletChainAligned = true;
         assertDepositIdentity();
+        // Sent once the wallet and chain checks have passed, so an attempt
+        // they reject is not counted. A retry is a new batch with a new
+        // `batch_id`; `vault_registered` carries the same `batch_id`, and the
+        // later milestones join on `vault_id`.
+        trackEvent(ANALYTICS_EVENT.DEPOSIT_STARTED, {
+          batch_id: batchId,
+          amount_bucket: amountBucket(satoshiToBtcNumber(depositAmountTotal)),
+          vault_count: vaultAmounts.length,
+        });
         const walletClient: typeof connectedWalletClient = {
           ...connectedWalletClient,
           sendTransaction: (request) => {
@@ -1225,6 +1230,7 @@ export function useDepositFlow(
             vaultCount: peginResults.length,
           });
           trackEvent(ANALYTICS_EVENT.VAULT_REGISTERED, {
+            batch_id: batchId,
             vault_id: peginResult.vaultId,
           });
         }

@@ -827,9 +827,10 @@ Sentry it **deliberately sends the connected Ethereum address** (`wallet_address
 account that sent it) and the full vault id (`vault_id`); this is not an oversight. It is an
 accepted risk, recorded in the vault model's _Accepted risks_.
 
-**What it links, through public chain data.** The address and the vault id are public keys into
-the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
-amount and the peg-in transaction for them. So anyone with access to the PostHog project can tie a
+**What it links, through public chain data.** The address is a public key into the vault
+registry and the indexer, which return the depositor's vaults and, for each, the BTC public key,
+the exact deposit amount and the peg-in transaction. A vault id is a key to that one vault's
+records. So anyone with access to the PostHog project can tie a
 browsing session and its traffic source to the depositor's identity on **both** chains, not only
 on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
 _Client IP_ below). The full vault id is kept, rather than Sentry's short id, because the revenue join
@@ -872,26 +873,28 @@ What bounds it:
   `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the path
   into `$pathname`, a route template, never a concrete path or query. `wallet_connected` carries the
   chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit events carry
-  a coarse amount band, the number of vaults in a deposit and the vault id; borrow events carry the
-  reserve's symbol: the registry's symbol, or for a token the registry does not list the indexer's
-  label, unscrubbed except that a label starting with lowercase `0x` and at least 42 characters long
-  (the address the indexer returns for a token with no `symbol()`) is replaced by the unknown-token
-  placeholder, and cut to 32 characters (by code point). No other address shape is caught: a `0X`,
-  `bc1` or `bbn1` label, a bare hex run or a legacy Bitcoin address is sent as it is, up to that
-  cut. Borrow events send, as `wallet_address`, the account that sent the transaction rather than
-  whichever wallet is connected when it is mined. The campaign values are
-  the one part taken from the landing URL's query (or the website's cookie): only the allow-listed
-  keys. UTM values have addresses and long hex scrubbed, then are truncated to 100 characters (by
-  code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing, an address with a
-  `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught anywhere, even
-  joined to other text, and so is any bare run of 40 or more hex digits. These matches are taken
-  from the original value and where two overlap the whole span is replaced, so an address glued to
-  hex is never sent minus the part a hex match took. A `bc1`, `tb1` or `bbn1` match takes the whole
-  run of letters and digits it starts, so an address joined after another is caught with it. A
-  legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is caught only
-  between non-alphanumeric characters, so one joined directly to a letter or digit is sent. A
-  campaign word shaped like a legacy address is replaced; scrubbing too much is the accepted
-  direction. No scrub pattern uses lookbehind, which Safari before 16.4 rejects: the module runs at
+  a coarse amount band, the number of vaults in a deposit, a random batch id per deposit attempt and
+  the vault id; borrow events carry the reserve's symbol: the registry's symbol, or for a token the
+  registry does not list the indexer's label, unscrubbed except that a label starting with lowercase
+  `0x` and at least 42 characters long (the address the indexer returns for a token with no
+  `symbol()`) is replaced by the unknown-token placeholder, and cut to 32 characters (by code
+  point). No other address shape is caught: a `0X`, `bc1` or `bbn1` label, a bare hex run or a
+  legacy Bitcoin address is sent as it is, up to that cut. Borrow events send, as `wallet_address`,
+  the account that sent the transaction rather than whichever wallet is connected when it is mined.
+  The campaign values are the one part taken from the landing URL's query (or the website's cookie):
+  only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
+  100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
+  an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
+  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. These
+  matches are taken from the original value and where two overlap the whole span is replaced, so an
+  address glued to hex is never sent minus the part a hex match took. A `bc1`, `tb1` or `bbn1` match
+  takes the whole run of letters and digits it starts, so an address joined after another is caught
+  with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is
+  caught when each end meets a non-alphanumeric character, the edge of the value or one of the
+  matches above, which also takes the hex digits it shares with the address; one joined directly to
+  any other letter or digit is sent. A campaign word shaped like a legacy address is replaced;
+  scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which Safari
+  before 16.4 rejects: the module runs at
   startup, so an unsupported pattern would stop the app. The app does not itself send the BTC
   address, transaction hashes, exact amounts or anything secret-bearing; as above, the address and
   vault id lead to the first three on-chain.
