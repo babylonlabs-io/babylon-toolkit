@@ -17,7 +17,7 @@ import type {
   AnalyticsEventName,
   AnalyticsEventProperties,
 } from "./analyticsEvents";
-import { getSessionId, getVisitId } from "./analyticsSession";
+import { getSessionId, getVisitId, getWalletAddress } from "./analyticsSession";
 import { getAttribution } from "./attribution";
 
 const CAPTURE_PATH = "/batch/";
@@ -83,6 +83,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   properties: AnalyticsEventProperties[E],
   timestamp: string,
 ) {
+  const wallet = getWalletAddress();
   // No api_key: the sidecar proxy holds the project key and adds it.
   return {
     batch: [
@@ -93,6 +94,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         properties: {
           ...getAttribution(),
           ...properties,
+          ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),
           // Events only: PostHog builds no person profile from them.
@@ -111,11 +113,8 @@ export function trackEvent<E extends AnalyticsEventName>(
   try {
     if (!config.enabled || hasOptedOut()) return;
     // Built now, so a held event keeps the time and fields it was sent with.
-    const body = buildCaptureBody(
-      config,
-      event,
-      properties,
-      new Date().toISOString(),
+    const body = JSON.stringify(
+      buildCaptureBody(config, event, properties, new Date().toISOString()),
     );
     if (geofenceOutcome === "passed") {
       post(config, event, body, true);
@@ -142,14 +141,14 @@ export function trackEvent<E extends AnalyticsEventName>(
 function post(
   config: EnabledAnalyticsConfig,
   event: AnalyticsEventName,
-  body: ReturnType<typeof buildCaptureBody>,
+  body: string,
   keepalive: boolean,
 ): void {
   try {
     fetch(`${config.host}${CAPTURE_PATH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body,
       // Delivered even when the event fires just before a navigation.
       keepalive,
       credentials: "omit",
