@@ -26,6 +26,10 @@ export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
 export const TWO_VAULT_SPLIT_DOCS_URL =
   "https://docs.babylonlabs.io/trustless-bitcoin-vault/use-for-lending/create-a-vault/#step-1-decide-how-to-split-your-btc";
 
+// Recovery artifacts docs link, surfaced from the artifact download dialog.
+export const RECOVERY_ARTIFACTS_DOCS_URL =
+  "https://docs.babylonlabs.io/trustless-bitcoin-vault/use-for-lending/recovery-artifacts/";
+
 // Vault provider docs link, surfaced from the v3 provider picker intro. Null
 // until the exact "learn about / create your own vault provider" page exists;
 // the picker hides the link (and its clause) while this is null rather than

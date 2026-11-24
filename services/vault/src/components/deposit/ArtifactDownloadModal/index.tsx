@@ -5,6 +5,7 @@ import {
   DialogFooter,
   ResponsiveDialog,
   useIsMobile,
+  useIsTouchFirst,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 import { IoClose } from "react-icons/io5";
@@ -17,6 +18,7 @@ import {
   type ArtifactDownloadProgress,
   type RecoveryArtifactsCardHandle,
 } from "@/components/deposit/RecoveryArtifactsCard";
+import { RECOVERY_ARTIFACTS_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
 import type { ArtifactDownloadParams } from "@/utils/artifactDownloadParams";
 import {
@@ -80,6 +82,7 @@ export function ArtifactDownloadModal({
   };
 
   const isMobile = useIsMobile();
+  const touchFirst = useIsTouchFirst();
 
   return (
     <ResponsiveDialog
@@ -129,9 +132,21 @@ export function ArtifactDownloadModal({
                   : COPY.deposit.artifactDownload.title}
               </h2>
               <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-                {showDownloaded
-                  ? COPY.deposit.artifactDownload.bodyDownloaded
-                  : COPY.deposit.artifactDownload.body}
+                {showDownloaded ? (
+                  COPY.deposit.artifactDownload.bodyDownloaded
+                ) : (
+                  <>
+                    {COPY.deposit.artifactDownload.body}{" "}
+                    <a
+                      href={RECOVERY_ARTIFACTS_DOCS_URL}
+                      target={touchFirst ? undefined : "_blank"}
+                      rel="noopener noreferrer"
+                      className="text-secondary-main underline"
+                    >
+                      {COPY.deposit.artifactDownload.learnMore}
+                    </a>
+                  </>
+                )}
               </p>
             </div>
           </div>
