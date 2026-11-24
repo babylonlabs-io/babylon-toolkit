@@ -324,6 +324,24 @@ describe("Liquidation Dashboard tour", () => {
     });
   });
 
+  it("shows the position banner for WBTC debt", () => {
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      result: calculate({ ...LIVE_PARAMS, hasWbtcDebt: true }),
+    });
+    render(<Liquidations />);
+    expect(screen.queryByTestId("position-banner") !== null).toBe(true);
+  });
+
+  it("does not show the position banner without WBTC debt", () => {
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      result: calculate({ ...LIVE_PARAMS, hasWbtcDebt: false }),
+    });
+    render(<Liquidations />);
+    expect(screen.queryByTestId("position-banner") !== null).toBe(false);
+  });
+
   it("welcomes the first visitor when the analysis is ready", async () => {
     render(<Liquidations />);
 

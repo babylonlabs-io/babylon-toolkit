@@ -393,6 +393,11 @@ export const WAITLIST_DIALOG_STOPS = {
   dark: "waitlist-dialog-dark",
 } as const;
 
+export const WBTC_NOTICE_STOPS = {
+  overview: "wbtc-notice-overview",
+  liquidations: "wbtc-notice-liquidations",
+} as const;
+
 export const LIQUIDATION_TOUR_STOPS = {
   welcome: "liquidation-tour-welcome",
   position: "liquidation-tour-position",

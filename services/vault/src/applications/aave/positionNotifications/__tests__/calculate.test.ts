@@ -1189,3 +1189,46 @@ describe("withDistancesAt", () => {
     expect(read.warnings).toBe(result.warnings);
   });
 });
+
+describe("WBTC debt notice", () => {
+  it("shows the notice with WBTC debt", () => {
+    const result = calculate(
+      makeParams([v(1)], { hasWbtcDebt: true, totalDebtUsd: 30_000 }),
+    );
+    expect(hasWarning(result.warnings, "wbtc-debt")).toBe(true);
+    expect(deriveBannerState(result).severity).toBe("yellow");
+    expect(getWarning(result.warnings, "wbtc-debt")?.detail).toBe(
+      COPY.liquidationWarnings.wbtcDebt.detail,
+    );
+  });
+
+  it("does not show the notice without WBTC debt", () => {
+    const result = calculate(
+      makeParams([v(1)], { hasWbtcDebt: false, totalDebtUsd: 30_000 }),
+    );
+    expect(hasWarning(result.warnings, "wbtc-debt")).toBe(false);
+  });
+
+  it("keeps the notice for a small position", () => {
+    const result = calculate(
+      makeParams([v(0.01)], { totalDebtUsd: 100, hasWbtcDebt: true }),
+    );
+    expect(deriveBannerState(result).primaryWarning?.type).toBe("wbtc-debt");
+    expect(deriveBannerState(result).severity).toBe("yellow");
+    expect(deriveBannerState(result).secondaryWarnings).toEqual([]);
+  });
+
+  it("does not show the notice without BTC collateral", () => {
+    const result = calculate(
+      makeParams([], { totalDebtUsd: 100, hasWbtcDebt: true }),
+    );
+    expect(hasWarning(result.warnings, "wbtc-debt")).toBe(false);
+  });
+
+  it("does not show the notice after repayment", () => {
+    const result = calculate(
+      makeParams([v(1)], { totalDebtUsd: 0, hasWbtcDebt: true }),
+    );
+    expect(hasWarning(result.warnings, "wbtc-debt")).toBe(false);
+  });
+});

@@ -80,6 +80,7 @@ function makeVault(
 
 interface DashboardStateOverrides {
   collateralVaults?: CollateralVaultEntry[];
+  borrowedAssets?: { symbol: string }[];
   debtValueUsd?: number;
   healthFactor?: number | null;
   isLoading?: boolean;
@@ -100,6 +101,7 @@ function setDashboardState(overrides: DashboardStateOverrides = {}) {
   mockUseDashboardState.mockReturnValue({
     collateralVaults: [makeVault(VAULT_A, 0.5, 0), makeVault(VAULT_B, 0.5, 1)],
     debtValueUsd: 30_000,
+    borrowedAssets: [],
     healthFactor: 2.0,
     isLoading: false,
     indexerError: null,
@@ -168,6 +170,36 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("detects WBTC debt when WBTC is the only borrowed asset", () => {
+    setDashboardState({ borrowedAssets: [{ symbol: "WBTC" }] });
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(true);
+  });
+
+  it("detects WBTC debt alongside USDC debt", () => {
+    setDashboardState({
+      borrowedAssets: [{ symbol: "WBTC" }, { symbol: "USDC" }],
+    });
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(true);
+  });
+
+  it("does not detect WBTC debt when only USDC is borrowed", () => {
+    setDashboardState({ borrowedAssets: [{ symbol: "USDC" }] });
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(false);
+  });
+
+  it("does not detect WBTC debt without borrowed assets", () => {
+    setDashboardState({ borrowedAssets: [] });
+    const warnings = renderHook(() => usePositionNotifications(USER)).result
+      .current.result?.warnings;
+    expect(warnings?.some((w) => w.type === "wbtc-debt")).toBe(false);
   });
 
   it("passes the protocol minimum peg-in to the calculator in BTC", () => {
@@ -467,6 +499,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 0.5, 0), activating],
       debtValueUsd: 30_000,
+      borrowedAssets: [],
     });
 
     const { result } = renderHook(() => usePositionNotifications(USER));
@@ -487,6 +520,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 0.5, 0), withdrawing],
       debtValueUsd: 30_000,
+      borrowedAssets: [],
     });
 
     const { result } = renderHook(() => usePositionNotifications(USER));
@@ -502,6 +536,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
         { ...makeVault(VAULT_A, 0.5, 0), lifecycle: "activating" },
       ],
       debtValueUsd: 30_000,
+      borrowedAssets: [],
       healthFactor: 0.95,
     });
 
@@ -1156,6 +1191,7 @@ describe("usePositionNotifications — position unavailable", () => {
   it("keeps the live warning when nothing else can be calculated", () => {
     setDashboardState({
       debtValueUsd: 30_000,
+      borrowedAssets: [],
       healthFactor: 1.02,
       ...CACHED_READ_FAILING,
     });

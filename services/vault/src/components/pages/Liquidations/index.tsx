@@ -286,15 +286,25 @@ export default function Liquidations() {
   }
 
   const positionOverview = (
-    <PositionOverview
-      collateralBtc={position.collateralBtc}
-      collateralValueUsd={position.collateralValueUsd}
-      debtUsd={position.debtValueUsd}
-      healthFactor={position.healthFactor}
-      healthFactorStatus={position.healthFactorStatus}
-      onDeposit={() => openDeposit()}
-      onRepay={openRepay}
-    />
+    <>
+      <PositionOverview
+        collateralBtc={position.collateralBtc}
+        collateralValueUsd={position.collateralValueUsd}
+        debtUsd={position.debtValueUsd}
+        healthFactor={position.healthFactor}
+        healthFactorStatus={position.healthFactorStatus}
+        onDeposit={() => openDeposit()}
+        onRepay={openRepay}
+      />
+      {result?.warnings.some((warning) => warning.type === "wbtc-debt") && (
+        <PositionNotificationBanner
+          connectedAddress={account}
+          onDeposit={openDeposit}
+          onRepay={openRepay}
+          result={cascadeOverride?.result ?? undefined}
+        />
+      )}
+    </>
   );
 
   if (!isGodMode && !hasLoans) {

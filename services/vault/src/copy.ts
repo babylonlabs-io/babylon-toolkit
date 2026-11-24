@@ -3325,6 +3325,11 @@ export const COPY = {
   // All but dust are shown in the position banner. Wording is ported from the reference
   // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
+    wbtcDebt: {
+      title: "WBTC debt",
+      detail:
+        "Your position uses BTC as collateral and WBTC as the borrowed asset. Since BTC and WBTC prices strongly correlate under normal market conditions, liquidation price estimation and simulation do not apply. However, your position may still be liquidated as interest continues to accrue on your WBTC debt.",
+    },
     incompletePosition: "Indexed collateral data is incomplete",
     liveHealthFactor: {
       title: (healthFactor: string) =>
