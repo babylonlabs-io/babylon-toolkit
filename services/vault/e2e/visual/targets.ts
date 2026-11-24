@@ -194,12 +194,48 @@ export const DEPOSIT_PROGRESS_STOPS = {
   verificationMixedSecond: "deposit-verification-mixed-second",
 } as const;
 
+export const DEPOSIT_SIGNING_HELP_VIEWPORT = {
+  name: "mobile-short",
+  width: 360,
+  height: 640,
+} as const;
+
+export const DEPOSIT_SIGNING_HELP_STOPS = {
+  payoutLight: [
+    "deposit-payout-help-collapsed-light",
+    "deposit-payout-help-expanded-light",
+  ],
+  payoutDark: [
+    "deposit-payout-help-collapsed-dark",
+    "deposit-payout-help-expanded-dark",
+  ],
+  recoveryLight: [
+    "deposit-recovery-help-collapsed-light",
+    "deposit-recovery-help-expanded-light",
+  ],
+  recoveryDark: [
+    "deposit-recovery-help-collapsed-dark",
+    "deposit-recovery-help-expanded-dark",
+  ],
+} as const;
+
 /**
  * An Active Loans row, from the god-mode gallery's demo loan. The route capture
  * photographs /loans disconnected and the recorded depositor holds no position,
  * so no wallet reaches a row. See `activeLoan.visual.spec.ts`.
  */
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
+
+export const LOAN_NOTICE_STOPS = {
+  light: {
+    1: "loans-notice-limit-1-light",
+    2: "loans-notice-limit-2-light",
+  },
+  dark: {
+    1: "loans-notice-limit-1-dark",
+    2: "loans-notice-limit-2-dark",
+  },
+} as const;
 
 const withdrawalCopy = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),

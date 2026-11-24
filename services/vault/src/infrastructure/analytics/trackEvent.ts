@@ -1,6 +1,7 @@
 /**
- * Fire-and-forget product analytics. One event goes straight to the PostHog
- * capture API with `fetch`, so no third-party script runs in the app.
+ * Fire-and-forget product analytics. One event goes to the sidecar PostHog
+ * proxy with `fetch`, so no third-party script runs in the app. The proxy
+ * adds the project key and forwards the batch to PostHog.
  * Analytics must never affect a deposit or a borrow: this function never
  * throws, and a failed send is only logged.
  *
@@ -17,15 +18,16 @@ import type {
   AnalyticsEventProperties,
 } from "./analyticsEvents";
 import { getSessionId, getVisitId } from "./analyticsSession";
+import { getAttribution } from "./attribution";
 
 const CAPTURE_PATH = "/batch/";
 
 const LOG_CATEGORY = "analytics";
 
 /**
- * Statuses PostHog returns when the request itself is wrong: a bad or revoked
- * project key, or a host that is not a PostHog capture API. Rate limiting
- * (429) and server errors (5xx) are PostHog's outages, not ours.
+ * Statuses returned when the request itself is wrong: a proxy whose project key
+ * is bad or revoked, or a host that is not the sidecar PostHog proxy. Rate
+ * limiting (429) and server errors (5xx) are PostHog's outages, not ours.
  */
 const CONFIGURATION_FAULT_STATUSES: ReadonlySet<number> = new Set([
   400, 401, 403, 404,
@@ -81,14 +83,15 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   properties: AnalyticsEventProperties[E],
   timestamp: string,
 ) {
+  // No api_key: the sidecar proxy holds the project key and adds it.
   return {
-    api_key: config.projectKey,
     batch: [
       {
         event,
         distinct_id: getVisitId(),
         timestamp,
         properties: {
+          ...getAttribution(),
           ...properties,
           network: config.network,
           $session_id: getSessionId(),
@@ -150,8 +153,9 @@ function post(
       // Delivered even when the event fires just before a navigation.
       keepalive,
       credentials: "omit",
-      // The event carries the route template only; a same-origin proxy would
-      // otherwise receive the full page URL, query included, as the Referer.
+      // `$pathname` is a route template and the campaign values are an
+      // allow-list read once at startup; a Referer would otherwise send the
+      // full current page URL, query included.
       referrerPolicy: "no-referrer",
     }).then(
       (response) => {
@@ -164,8 +168,8 @@ function post(
           return;
         }
         if (rejectionReported) return;
-        // A host that is not PostHog usually fails CORS instead and lands in
-        // the network-failure branch below, with ad blockers and CSP.
+        // A host that is not the sidecar proxy usually fails CORS instead and
+        // lands in the network-failure branch below, with ad blockers and CSP.
         rejectionReported = true;
         logger.error(
           new Error(`Analytics capture rejected: HTTP ${response.status}`),

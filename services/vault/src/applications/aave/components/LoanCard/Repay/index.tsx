@@ -10,6 +10,7 @@ import {
   Button,
   Callout,
   Heading,
+  Loader,
   SubSection,
 } from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -425,13 +426,24 @@ export function Repay() {
         className="mt-6 max-md:order-2"
         data-testid="repay-submit-button"
       >
-        {isRepayUnavailable
-          ? COPY.loans.repay.unavailable
-          : unconfirmedWrite || isConfirming
-            ? COPY.common.confirming
-            : isProcessing || isSubmitting || pendingWrite
-              ? COPY.loans.repay.processing
-              : buttonText}
+        {isRepayUnavailable ? (
+          COPY.loans.repay.unavailable
+        ) : unconfirmedWrite ||
+          isConfirming ||
+          isProcessing ||
+          isSubmitting ||
+          pendingWrite ? (
+          <span className="flex items-center justify-center gap-2">
+            <Loader size={16} className="text-accent-contrast" />
+            <span>
+              {unconfirmedWrite || isConfirming
+                ? COPY.common.confirming
+                : COPY.loans.repay.processing}
+            </span>
+          </span>
+        ) : (
+          buttonText
+        )}
       </Button>
 
       {/* Single status callout (validation / transaction / balance warning),

@@ -1,5 +1,7 @@
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   BORROW_CAPACITY_HEADROOM,
@@ -8,6 +10,9 @@ import {
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@/applications/aave/constants";
 import type { VaultSplitParams } from "@/applications/aave/hooks";
+import { useAaveUserPosition } from "@/applications/aave/hooks/useAaveUserPosition";
+import { getUserPositionsWithLiveData } from "@/applications/aave/services";
+import { createQueryClient } from "@/config/queryClient";
 
 import { useDashboardState } from "../useDashboardState";
 
@@ -41,8 +46,18 @@ let mockActivatingVaults = new Map<string, ActivatingEntry>();
 let mockPendingVaults = new Map<string, "add" | "withdraw">();
 const mockClearReorderedOrder = vi.fn();
 const mockClearActivatingVault = vi.fn();
+let mockPollingPosition: typeof useAaveUserPosition | undefined;
+let pollingClient: QueryClient | undefined;
+
+vi.mock("@/applications/aave/services", () => ({
+  getUserPositionsWithLiveData: vi.fn(),
+}));
 
 vi.mock("@/applications/aave/context", () => ({
+  useAaveConfig: () => ({
+    config: { coreSpokeAddress: "0xabc", vaultBtcReserveId: 2n },
+    allBorrowReserves: [],
+  }),
   useReorderOverride: () => ({
     reorderedOrder: mockReorderedOrder,
     applyReorderedOrder: vi.fn(),
@@ -61,18 +76,21 @@ vi.mock("@/applications/aave/context", () => ({
 }));
 
 vi.mock("@/applications/aave/hooks", () => ({
-  useAaveUserPosition: () => ({
-    position: mockCollaterals
-      ? { collaterals: mockCollaterals, vaultIds: mockChainVaultIds }
-      : null,
-    collateralBtc: mockCollateralBtc,
-    collateralValueUsd: mockCollateralValueUsd,
-    debtValueUsd: mockDebtValueUsd,
-    healthFactor: null,
-    healthFactorStatus: null,
-    isLoading: false,
-    isPositionUnavailable: mockIsPositionUnavailable,
-  }),
+  useAaveUserPosition: (...args: Parameters<typeof useAaveUserPosition>) =>
+    mockPollingPosition
+      ? mockPollingPosition(...args)
+      : {
+          position: mockCollaterals
+            ? { collaterals: mockCollaterals, vaultIds: mockChainVaultIds }
+            : null,
+          collateralBtc: mockCollateralBtc,
+          collateralValueUsd: mockCollateralValueUsd,
+          debtValueUsd: mockDebtValueUsd,
+          healthFactor: null,
+          healthFactorStatus: null,
+          isLoading: false,
+          isPositionUnavailable: mockIsPositionUnavailable,
+        },
   useAaveBorrowedAssets: () => ({
     borrowedAssets: [],
     hasLoans: false,
@@ -160,6 +178,84 @@ describe("useDashboardState", () => {
     mockReorderedOrder = null;
     mockActivatingVaults = new Map();
     mockPendingVaults = new Map();
+    mockPollingPosition = undefined;
+  });
+
+  afterEach(() => {
+    cleanup();
+    pollingClient?.clear();
+    pollingClient = undefined;
+    vi.useRealTimers();
+  });
+
+  function renderPollingDashboard() {
+    vi.useFakeTimers();
+    mockPollingPosition = useAaveUserPosition;
+    vi.mocked(getUserPositionsWithLiveData).mockResolvedValue([]);
+    pollingClient = createQueryClient();
+    return renderHook(({ account }) => useDashboardState(account), {
+      initialProps: { account: "0xabc" as string | undefined },
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(
+          QueryClientProvider,
+          { client: pollingClient! },
+          children,
+        ),
+    });
+  }
+
+  it("polls this account's activation every five seconds until it clears", async () => {
+    mockActivatingVaults = new Map([
+      [
+        VAULT_A,
+        { vaultId: VAULT_A, depositorEthAddress: "0xABC", amountSats: 100n },
+      ],
+    ]);
+    const { rerender } = renderPollingDashboard();
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(2);
+
+    mockActivatingVaults = new Map();
+    rerender({ account: "0xabc" });
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(25_000));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps thirty-second polling for activations without a matching account", async () => {
+    mockActivatingVaults = new Map([
+      [
+        VAULT_A,
+        { vaultId: VAULT_A, depositorEthAddress: "0xother", amountSats: 100n },
+      ],
+      [VAULT_B, { vaultId: VAULT_B, amountSats: 100n }],
+    ]);
+    renderPollingDashboard();
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(25_000));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops position reads after disconnect while an activation remains", async () => {
+    mockActivatingVaults = new Map([
+      [
+        VAULT_A,
+        { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountSats: 100n },
+      ],
+    ]);
+    const { rerender } = renderPollingDashboard();
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(1);
+
+    expect(() => rerender({ account: undefined })).not.toThrow();
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(getUserPositionsWithLiveData).toHaveBeenCalledTimes(1);
   });
 
   it("exposes whether the position read is unavailable", () => {

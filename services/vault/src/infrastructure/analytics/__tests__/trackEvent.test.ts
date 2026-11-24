@@ -4,6 +4,7 @@ import type { AnalyticsConfig } from "@/config/env";
 
 import { ANALYTICS_EVENT } from "../analyticsEvents";
 import { getSessionId, getVisitId } from "../analyticsSession";
+import { captureAttribution } from "../attribution";
 import {
   reportAnalyticsConfigError,
   settleGeofence,
@@ -21,7 +22,6 @@ vi.mock("../../logger", () => ({
 const CONFIG: AnalyticsConfig = {
   enabled: true,
   host: "https://us.i.posthog.com",
-  projectKey: "phc_test",
   network: "devnet",
 };
 
@@ -97,7 +97,7 @@ describe("trackEvent", () => {
       referrerPolicy: "no-referrer",
     });
     const body = sentBody();
-    expect(body.api_key).toBe("phc_test");
+    expect(body).not.toHaveProperty("api_key");
     expect(body.batch).toHaveLength(1);
     expect(body.batch[0]).toMatchObject({
       event: "$pageview",
@@ -228,6 +228,18 @@ describe("trackEvent", () => {
         { category: "analytics", event: "$pageview" },
       ),
     );
+  });
+
+  it("attaches the attribution captured at startup", () => {
+    window.history.pushState({}, "", "/?utm_source=x&utm_campaign=launch");
+    captureAttribution();
+    window.history.pushState({}, "", "/");
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(sentBody().batch[0].properties).toMatchObject({
+      utm_source: "x",
+      utm_campaign: "launch",
+      via: "other",
+    });
   });
 });
 

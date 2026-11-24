@@ -25,6 +25,7 @@
  */
 
 import type { Locator, Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 
 import { expect, test } from "../fixtures";
 import {
@@ -46,6 +47,8 @@ import {
   DEPOSIT_FLOW_STEP_COUNT,
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_PROGRESS_STOPS,
+  DEPOSIT_SIGNING_HELP_STOPS,
+  DEPOSIT_SIGNING_HELP_VIEWPORT,
   depositProgressStepStop,
   flowScreenshotFileName,
   VISUAL_VIEWPORTS,
@@ -334,3 +337,305 @@ for (const viewport of VISUAL_VIEWPORTS) {
 }
 
 test.beforeAll(ensureOutputDir);
+
+const EXPECT_STEP_HELP =
+  !process.env.CAPTURE_ROOT?.endsWith("/baseline") ||
+  readFileSync(
+    new URL(
+      "../../src/components/simple/DepositProgressView/StepRow.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  ).includes("<details>");
+
+test("capture payout help on short mobile in light", async ({ page }) => {
+  await page.setViewportSize(DEPOSIT_SIGNING_HELP_VIEWPORT);
+  const backend = await preparePage(page);
+  await page.addInitScript(() => localStorage.setItem("theme", "light"));
+  await injectPageWallets(page, recordedPageWallets());
+  await page.goto("/vaults", { waitUntil: "domcontentloaded" });
+  await connectInjectedWallets(page);
+  await seedDemoDeposits(page);
+  const row = SEEDED_DEPOSITS.findIndex(
+    (deposit) => deposit.stop === depositProgressStepStop(10),
+  );
+  const modal = await openDeposit(page, row, "stepper");
+  const card = modal.locator('[class*="max-h-[85vh]"]');
+  const footer = card.locator(":scope > div").last().getByRole("button");
+  const help = modal.getByText(
+    "Provider payouts send BTC to your payout address; keeper payouts send BTC to the keeper's address. These signatures prepare future payouts under the BTCVault rules without broadcasting them.",
+    { exact: true },
+  );
+  const label = modal.getByText("Sign payout transactions", { exact: true });
+  await label.scrollIntoViewIfNeeded();
+  await expect(label).toBeInViewport({ ratio: 0.999 });
+  await expect(card).toBeInViewport({ ratio: 0.999 });
+  await expect(help).toBeHidden();
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/light/);
+  const shots = [
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.payoutLight[0],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  ];
+  if (EXPECT_STEP_HELP) {
+    await label.click();
+    await expect(help).toBeVisible();
+    await help.scrollIntoViewIfNeeded();
+    await expect(help).toBeInViewport({ ratio: 0.999 });
+  }
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  expect(
+    await card.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  shots.push(
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.payoutLight[1],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  );
+  if (EXPECT_STEP_HELP) await expect(help).toBeInViewport({ ratio: 0.999 });
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/light/);
+  assertRecordingCovered(backend, "payout help in light", [
+    "eth-rpc",
+    "graphql",
+    "vp-health",
+    "mempool",
+  ]);
+  await writeCaptures(shots);
+});
+
+test("capture payout help on short mobile in dark", async ({ page }) => {
+  await page.setViewportSize(DEPOSIT_SIGNING_HELP_VIEWPORT);
+  const backend = await preparePage(page);
+  await page.addInitScript(() => localStorage.setItem("theme", "dark"));
+  await injectPageWallets(page, recordedPageWallets());
+  await page.goto("/vaults", { waitUntil: "domcontentloaded" });
+  await connectInjectedWallets(page);
+  await seedDemoDeposits(page);
+  const row = SEEDED_DEPOSITS.findIndex(
+    (deposit) => deposit.stop === depositProgressStepStop(10),
+  );
+  const modal = await openDeposit(page, row, "stepper");
+  const card = modal.locator('[class*="max-h-[85vh]"]');
+  const footer = card.locator(":scope > div").last().getByRole("button");
+  const help = modal.getByText(
+    "Provider payouts send BTC to your payout address; keeper payouts send BTC to the keeper's address. These signatures prepare future payouts under the BTCVault rules without broadcasting them.",
+    { exact: true },
+  );
+  const label = modal.getByText("Sign payout transactions", { exact: true });
+  await label.scrollIntoViewIfNeeded();
+  await expect(label).toBeInViewport({ ratio: 0.999 });
+  await expect(card).toBeInViewport({ ratio: 0.999 });
+  await expect(help).toBeHidden();
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  const shots = [
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.payoutDark[0],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  ];
+  if (EXPECT_STEP_HELP) {
+    await label.click();
+    await expect(help).toBeVisible();
+    await help.scrollIntoViewIfNeeded();
+    await expect(help).toBeInViewport({ ratio: 0.999 });
+  }
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  expect(
+    await card.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  shots.push(
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.payoutDark[1],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  );
+  if (EXPECT_STEP_HELP) await expect(help).toBeInViewport({ ratio: 0.999 });
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  assertRecordingCovered(backend, "payout help in dark", [
+    "eth-rpc",
+    "graphql",
+    "vp-health",
+    "mempool",
+  ]);
+  await writeCaptures(shots);
+});
+
+test("capture recovery help on short mobile in light", async ({ page }) => {
+  await page.setViewportSize(DEPOSIT_SIGNING_HELP_VIEWPORT);
+  const backend = await preparePage(page);
+  await page.addInitScript(() => localStorage.setItem("theme", "light"));
+  await injectPageWallets(page, recordedPageWallets());
+  await page.goto("/vaults", { waitUntil: "domcontentloaded" });
+  await connectInjectedWallets(page);
+  await seedDemoDeposits(page);
+  const row = SEEDED_DEPOSITS.findIndex(
+    (deposit) => deposit.stop === depositProgressStepStop(11),
+  );
+  const modal = await openDeposit(page, row, "stepper");
+  const card = modal.locator('[class*="max-h-[85vh]"]');
+  const footer = card.locator(":scope > div").last().getByRole("button");
+  const help = modal.getByText(
+    "Prepare your Bitcoin payout and the transactions that stop it and pay a challenger if a challenge succeeds. This batch is signed without broadcast and is separate from the timed deposit refund.",
+    { exact: true },
+  );
+  await expect(help).toBeHidden();
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/light/);
+  const shots = [
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.recoveryLight[0],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  ];
+  if (EXPECT_STEP_HELP) {
+    await modal
+      .getByText("Sign recovery transactions", { exact: true })
+      .click();
+    await expect(help).toBeVisible();
+    await help.scrollIntoViewIfNeeded();
+    await expect(help).toBeInViewport({ ratio: 0.999 });
+  }
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  expect(
+    await card.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  shots.push(
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.recoveryLight[1],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  );
+  if (EXPECT_STEP_HELP) await expect(help).toBeInViewport({ ratio: 0.999 });
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/light/);
+  assertRecordingCovered(backend, "recovery help in light", [
+    "eth-rpc",
+    "graphql",
+    "vp-health",
+    "mempool",
+  ]);
+  await writeCaptures(shots);
+});
+
+test("capture recovery help on short mobile in dark", async ({ page }) => {
+  await page.setViewportSize(DEPOSIT_SIGNING_HELP_VIEWPORT);
+  const backend = await preparePage(page);
+  await page.addInitScript(() => localStorage.setItem("theme", "dark"));
+  await injectPageWallets(page, recordedPageWallets());
+  await page.goto("/vaults", { waitUntil: "domcontentloaded" });
+  await connectInjectedWallets(page);
+  await seedDemoDeposits(page);
+  const row = SEEDED_DEPOSITS.findIndex(
+    (deposit) => deposit.stop === depositProgressStepStop(11),
+  );
+  const modal = await openDeposit(page, row, "stepper");
+  const card = modal.locator('[class*="max-h-[85vh]"]');
+  const footer = card.locator(":scope > div").last().getByRole("button");
+  const help = modal.getByText(
+    "Prepare your Bitcoin payout and the transactions that stop it and pay a challenger if a challenge succeeds. This batch is signed without broadcast and is separate from the timed deposit refund.",
+    { exact: true },
+  );
+  await expect(help).toBeHidden();
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  const shots = [
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.recoveryDark[0],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  ];
+  if (EXPECT_STEP_HELP) {
+    await modal
+      .getByText("Sign recovery transactions", { exact: true })
+      .click();
+    await expect(help).toBeVisible();
+    await help.scrollIntoViewIfNeeded();
+    await expect(help).toBeInViewport({ ratio: 0.999 });
+  }
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  expect(
+    await card.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  shots.push(
+    await capture(
+      page,
+      flowScreenshotFileName(
+        DEPOSIT_SIGNING_HELP_STOPS.recoveryDark[1],
+        DEPOSIT_SIGNING_HELP_VIEWPORT,
+      ),
+      { fullPage: false },
+    ),
+  );
+  if (EXPECT_STEP_HELP) await expect(help).toBeInViewport({ ratio: 0.999 });
+  await expect(footer).toBeInViewport({ ratio: 0.999 });
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  assertRecordingCovered(backend, "recovery help in dark", [
+    "eth-rpc",
+    "graphql",
+    "vp-health",
+    "mempool",
+  ]);
+  await writeCaptures(shots);
+});
