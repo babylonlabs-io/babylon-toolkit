@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COPY } from "@/copy";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
 import type { VaultActivity } from "@/types/activity";
+import type { ActivationFailureKind } from "@/utils/errors";
 
 import { EmergencyWithdrawModal } from "../index";
 
@@ -32,6 +33,7 @@ const activationState = vi.hoisted(() => ({
   outcome: null as "activated" | "returned" | "withdrawn" | null,
   error: null as string | null,
   errorOutcomeUnknown: false,
+  errorKind: null as ActivationFailureKind | null,
 }));
 vi.mock("@/hooks/deposit/useActivationState", () => ({
   useActivationState: () => ({
@@ -40,6 +42,7 @@ vi.mock("@/hooks/deposit/useActivationState", () => ({
     error: activationState.error,
     errorTerminal: false,
     errorOutcomeUnknown: activationState.errorOutcomeUnknown,
+    errorKind: activationState.errorKind,
     handleActivation,
   }),
 }));
@@ -112,6 +115,7 @@ beforeEach(() => {
   activationState.outcome = null;
   activationState.error = null;
   activationState.errorOutcomeUnknown = false;
+  activationState.errorKind = null;
   btcActionWallet.connected = true;
   ledgerDevice.isLedgerVault = false;
   vi.clearAllMocks();
@@ -144,8 +148,10 @@ describe("EmergencyWithdrawModal — success", () => {
 
 describe("EmergencyWithdrawModal — outcome unknown", () => {
   it("shows a withdraw the wallet may have broadcast as a status-unknown warning with the action disabled", () => {
-    activationState.error = COPY.common.classifiedErrors.sendOutcomeUnknown;
+    // Not the classified constant: the kind, not the text, picks the body.
+    activationState.error = "The wallet lost track of the send";
     activationState.errorOutcomeUnknown = true;
+    activationState.errorKind = "other";
     render(
       <EmergencyWithdrawModal
         open
@@ -161,8 +167,35 @@ describe("EmergencyWithdrawModal — outcome unknown", () => {
     expect(
       screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.body),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("The wallet lost track of the send"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
+  });
+
+  it("shows an unconfirmed withdraw's own message instead of the send-unknown body", () => {
+    // Not the copy constant: the kind, not the text, picks the body.
+    activationState.error = "Withdraw mined without a redeem log";
+    activationState.errorOutcomeUnknown = true;
+    activationState.errorKind = "withdraw-unconfirmed";
+    render(
+      <EmergencyWithdrawModal
+        open
+        activity={ACTIVITY}
+        stuckProof="proven"
+        splitProtectionLost={false}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Withdraw mined without a redeem log"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.errors.sendOutcomeUnknown.body),
+    ).not.toBeInTheDocument();
   });
 });
 

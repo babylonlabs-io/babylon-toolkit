@@ -1,3 +1,4 @@
+import { VAULT_ERROR_ABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
@@ -15,6 +16,7 @@ import {
   ActivationWouldRedeemError,
   ContractError,
   ErrorCode,
+  WithdrawUnconfirmedError,
 } from "../types";
 
 function revert(reason: string | undefined): ContractError {
@@ -43,9 +45,13 @@ describe("classifyActivationFailure", () => {
 
   it.each([
     "TBV_Paused",
+    "BTCVaultNotFound",
     "Unauthorized",
     "InvalidBTCVaultStatus",
+    "InvalidHashlock",
+    "InvalidSecret",
     "PrePeginOutputAlreadyUsed",
+    "PeginTransactionAlreadyUsed",
   ])("classifies a mined %s, which Withdraw also hits, as other", (reason) => {
     expect(classifyActivationFailure(tagMinedRevert(revert(reason)))).toBe(
       "other",
@@ -115,12 +121,16 @@ describe("classifyActivationFailure", () => {
   });
 
   it.each([
+    "TBV_Paused",
+    "BTCVaultNotFound",
+    "Unauthorized",
+    "InvalidBTCVaultStatus",
+    "InvalidHashlock",
     "InvalidSecret",
     "ActivationDeadlineExpired",
-    "InvalidBTCVaultStatus",
+    "PrePeginOutputAlreadyUsed",
+    "PeginTransactionAlreadyUsed",
     "ActivationDelayNotElapsed",
-    "TBV_Paused",
-    "Unauthorized",
   ])(
     "classifies a simulated %s, which Withdraw also hits, as other",
     (reason) => {
@@ -129,6 +139,28 @@ describe("classifyActivationFailure", () => {
       ).toBe("other");
     },
   );
+
+  // A renamed ABI error would silently drop out of the deny list.
+  it("finds every deny-list name and the delay floor among the vault ABI errors", () => {
+    const abiErrorNames = VAULT_ERROR_ABI.flatMap((item) =>
+      item.type === "error" ? [item.name] : [],
+    );
+
+    expect(abiErrorNames).toEqual(
+      expect.arrayContaining([
+        "TBV_Paused",
+        "BTCVaultNotFound",
+        "Unauthorized",
+        "InvalidBTCVaultStatus",
+        "InvalidHashlock",
+        "InvalidSecret",
+        "ActivationDeadlineExpired",
+        "PrePeginOutputAlreadyUsed",
+        "PeginTransactionAlreadyUsed",
+        "ActivationDelayNotElapsed",
+      ]),
+    );
+  });
 
   it("classifies an unsupported activation check as other", () => {
     expect(
@@ -179,6 +211,12 @@ describe("classifyActivationFailure", () => {
     expect(
       classifyActivationFailure(new SendOutcomeUnknownError(new Error("lost"))),
     ).toBe("other");
+  });
+
+  it("classifies a Withdraw confirmed without its redeem log as withdraw-unconfirmed", () => {
+    expect(
+      classifyActivationFailure(new WithdrawUnconfirmedError("no redeem log")),
+    ).toBe("withdraw-unconfirmed");
   });
 
   it("classifies a wrong depositor wallet as other", () => {

@@ -10,6 +10,7 @@ import {
   ActivationPausedError,
   ActivationWouldRedeemError,
   ErrorCode,
+  WithdrawUnconfirmedError,
 } from "./types";
 
 /**
@@ -21,6 +22,7 @@ import {
  * - `pre-send-refusal`: nothing was sent; a decoded contract error that
  *   Withdraw does not share, or the would-redeem refusal.
  * - `aave-paused`: nothing was sent; only the Aave scope is paused.
+ * - `withdraw-unconfirmed`: a Withdraw confirmed without its redeem log.
  * - `other`: everything else, a mined revert Withdraw would also hit included.
  *
  * Withdraw may be offered after `mined-revert`, `pre-send-refusal` and
@@ -31,6 +33,7 @@ export type ActivationFailureKind =
   | "mined-deadline-expired"
   | "pre-send-refusal"
   | "aave-paused"
+  | "withdraw-unconfirmed"
   | "other";
 
 /** Names of the custom errors the vault contracts can raise. */
@@ -79,6 +82,7 @@ export function classifyActivationFailure(err: unknown): ActivationFailureKind {
       ? "other"
       : "mined-revert";
   }
+  if (err instanceof WithdrawUnconfirmedError) return "withdraw-unconfirmed";
   if (err instanceof ActivationPausedError) {
     return err.scope === "aave" ? "aave-paused" : "other";
   }

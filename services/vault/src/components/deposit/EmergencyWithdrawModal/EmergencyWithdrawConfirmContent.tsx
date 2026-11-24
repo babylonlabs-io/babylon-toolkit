@@ -32,6 +32,8 @@ interface EmergencyWithdrawConfirmContentProps {
    * confirm stays disabled.
    */
   errorOutcomeUnknown: boolean;
+  /** The unknown outcome is a Withdraw confirmed without its redeem log: `error` is shown as is. */
+  errorWithdrawUnconfirmed: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   /**
@@ -58,6 +60,7 @@ export function EmergencyWithdrawConfirmContent({
   error,
   errorTerminal,
   errorOutcomeUnknown,
+  errorWithdrawUnconfirmed,
   onConfirm,
   onCancel,
   ledgerStep = null,
@@ -144,9 +147,9 @@ export function EmergencyWithdrawConfirmContent({
             >
               {/* The send notice gains its reopen hint; an unconfirmed
                   Withdraw's message already says what to do. */}
-              {error === COPY.common.classifiedErrors.sendOutcomeUnknown
-                ? COPY.deposit.errors.sendOutcomeUnknown.body
-                : error}
+              {errorWithdrawUnconfirmed
+                ? error
+                : COPY.deposit.errors.sendOutcomeUnknown.body}
             </Callout>
           ) : (
             <Callout variant="error">{error}</Callout>

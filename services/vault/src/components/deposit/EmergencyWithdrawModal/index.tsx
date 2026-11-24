@@ -106,6 +106,7 @@ export function EmergencyWithdrawModal({
     error: activationError,
     errorTerminal,
     errorOutcomeUnknown,
+    errorKind,
     handleActivation,
   } = useActivationState({
     activity,
@@ -315,6 +316,9 @@ export function EmergencyWithdrawModal({
         error={error}
         errorTerminal={isTerminal}
         errorOutcomeUnknown={isOutcomeUnknown}
+        errorWithdrawUnconfirmed={
+          isOutcomeUnknown && errorKind === "withdraw-unconfirmed"
+        }
         onConfirm={secretStaged ? handleContinue : handleConfirm}
         onCancel={
           awaitingAppName !== null ? ledgerDevice.cancelAppWait : handleClose

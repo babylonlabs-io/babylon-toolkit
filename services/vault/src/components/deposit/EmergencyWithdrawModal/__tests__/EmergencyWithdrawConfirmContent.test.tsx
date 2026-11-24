@@ -33,6 +33,7 @@ function renderConfirm(
       error={null}
       errorTerminal={false}
       errorOutcomeUnknown={false}
+      errorWithdrawUnconfirmed={false}
       onConfirm={vi.fn()}
       onCancel={vi.fn()}
     />,
@@ -138,9 +139,10 @@ describe("EmergencyWithdrawConfirmContent — gating", () => {
         stuckProof="proven"
         splitProtectionLost={false}
         withdrawing={false}
-        error={COPY.common.classifiedErrors.sendOutcomeUnknown}
+        error="The send may have reached the network"
         errorTerminal={false}
         errorOutcomeUnknown={true}
+        errorWithdrawUnconfirmed={false}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -153,6 +155,10 @@ describe("EmergencyWithdrawConfirmContent — gating", () => {
     expect(
       screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.body),
     ).toBeInTheDocument();
+    // The body comes from the flag, not from matching the error string.
+    expect(
+      screen.queryByText("The send may have reached the network"),
+    ).not.toBeInTheDocument();
     // Callout gives the error variant role alert; the warning is a status.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     const button = screen.getByTestId("emergency-withdraw-button");
@@ -168,18 +174,17 @@ describe("EmergencyWithdrawConfirmContent — gating", () => {
         stuckProof="proven"
         splitProtectionLost={false}
         withdrawing={false}
-        error={COPY.deposit.emergencyWithdraw.errors.withdrawUnconfirmed}
+        error="Withdraw mined without a redeem log"
         errorTerminal={false}
         errorOutcomeUnknown={true}
+        errorWithdrawUnconfirmed={true}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
     );
 
     expect(
-      screen.getByText(
-        COPY.deposit.emergencyWithdraw.errors.withdrawUnconfirmed,
-      ),
+      screen.getByText("Withdraw mined without a redeem log"),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(COPY.deposit.errors.sendOutcomeUnknown.body),
@@ -205,6 +210,7 @@ describe("EmergencyWithdrawConfirmContent — gating", () => {
         error="Transaction reverted"
         errorTerminal={false}
         errorOutcomeUnknown={false}
+        errorWithdrawUnconfirmed={false}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,

@@ -321,6 +321,14 @@ export function PostDepositContinuationView({
       ) {
         return getWarningPeginDisplayStep(result.peginState.localStatus);
       }
+      // A withdrawn vault still VERIFIED awaits its redeem's confirmation, like
+      // a returned one, instead of reading COMPLETED.
+      if (
+        isVaultWithdrawnByDepositor(result.peginState) &&
+        result.peginState.contractStatus === ContractStatus.VERIFIED
+      ) {
+        return DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
+      }
       return isVaultPastActivation(result.peginState)
         ? DepositFlowStep.COMPLETED
         : DepositFlowStep.AWAIT_BTC_CONFIRMATION;

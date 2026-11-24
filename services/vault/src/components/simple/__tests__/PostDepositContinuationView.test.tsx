@@ -79,6 +79,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
     AWAIT_BTC_CONFIRMATION: "AWAIT_BTC_CONFIRMATION",
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
     AWAIT_VP_VERIFICATION: "AWAIT_VP_VERIFICATION",
+    AWAIT_ACTIVATION_CONFIRMATION: "AWAIT_ACTIVATION_CONFIRMATION",
     COMPLETED: "COMPLETED",
   },
 }));
@@ -1837,6 +1838,51 @@ describe("PostDepositContinuationView", () => {
     expect(queryByTestId("payout")).toBeNull();
     expect(queryByTestId("activate")).toBeNull();
     expect(getByTestId("progress-view")).not.toBeNull();
+  });
+
+  it("keeps a withdrawn, still-VERIFIED vault's lane on the activation-confirmation step, not COMPLETED, beside a warning sibling", () => {
+    // Neither vault is a candidate, so the stacked view renders; the warning
+    // sibling keeps the batch off the withdrawn screen.
+    vi.mocked(getPeginProgressStep).mockImplementation((state) =>
+      state.displayVariant === "warning" || state.withdrawnByDepositor === true
+        ? null
+        : DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    );
+    const VERIFIED = 1;
+    const EXPIRED = 7;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          withdrawnByDepositor: true,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: EXPIRED,
+          displayVariant: "warning",
+          localStatus: "confirming",
+          message: "This deposit has expired.",
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(getByTestId("per-vault-steps").textContent).toBe(
+      JSON.stringify([
+        DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      ]),
+    );
   });
 
   it("pins the aggregate loading view's estimate to the batch's registered params version", () => {

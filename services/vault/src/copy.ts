@@ -1381,7 +1381,7 @@ export const COPY = {
         "Because the transaction was mined, your HTLC secret is now public. Retry promptly, before the activation deadline.",
       // The same, for a mined Withdraw revert: Withdraw is the action that failed.
       withdrawRevertedSecretPublic:
-        "The withdrawal did not go through and your BTCVault is unchanged. Because the transaction was mined, your HTLC secret is now public. Retry now, before the activation deadline. If the deadline passes, the BTCVault expires and must be redeemed from its row before its grace window closes.",
+        "The withdrawal did not go through and your BTCVault is unchanged. Because the transaction was mined, your HTLC secret is now public. Retry now, before the activation deadline. If the deadline passes, the BTCVault expires. If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault from its row before its grace window closes. Otherwise, refund your BTC once the refund timelock has passed.",
       // The same, when the mined revert was the passed deadline: no retry can land.
       deadlineRevertedSecretPublic: DEADLINE_REVERTED_SECRET_PUBLIC,
       // Surfaced if deposit execution is reached while the protocol is frozen or
