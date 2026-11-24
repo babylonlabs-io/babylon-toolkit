@@ -2434,8 +2434,8 @@ export const COPY = {
     // What a borrower pays, no compounding applied: the Aave Hub's drawn rate,
     // plus the risk premium and the adapter's interest fee. An existing loan pays
     // its own stored premium and a new borrow the current one, so two figures
-    // under this label can differ. The market page and the landing card show the
-    // drawn rate alone, under the same label.
+    // under this label can differ. The market page shows the drawn rate alone
+    // under this label; the landing card shows it under its own heading.
     borrowRateLabel: BORROW_APR_LABEL,
     // Repay detail-card metric: outstanding debt for the selected reserve, in
     // token units (before → after the repayment).
@@ -3019,7 +3019,6 @@ export const COPY = {
       heroBody:
         "Powered by Babylon Trustless Bitcoin Vaults protocol, collateralize native Bitcoin and borrow supported assets directly from Aave V4.",
       connectButton: "Connect wallet",
-      // "Base" sits in the heading: on each value it wraps the row at desktop.
       aprHeading: "Current Borrowing Rates",
       aprSuffix: "APR",
       aprLabels: {
