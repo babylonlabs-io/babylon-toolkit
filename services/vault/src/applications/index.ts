@@ -6,7 +6,6 @@ export type {
 
 export {
   getAppIdByController,
-  getApplication,
   getApplicationMetadataByController,
 } from "./registry";
 

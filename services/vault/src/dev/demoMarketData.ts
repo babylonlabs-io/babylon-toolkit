@@ -15,7 +15,7 @@
  * Same inert-when-off contract as every other god-mode store: `enabled`
  * starts false, so merely enabling the feature flag injects nothing, and
  * `useDemoMarketData` collapses to a compile-time constant `null` in a
- * production build (see `useDemoLoan` in demoDeposit.ts for the same pattern).
+ * production build.
  */
 
 import { useMemo, useSyncExternalStore } from "react";

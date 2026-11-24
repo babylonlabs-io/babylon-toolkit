@@ -85,10 +85,6 @@ vi.mock("@/hooks/useApplicationCap", () => ({
   useApplicationCap: () => ({ snapshot: null, isLoading: false }),
 }));
 
-vi.mock("@/dev/demoDeposit", () => ({
-  useDemoCollateral: () => null,
-}));
-
 vi.mock("@/applications/aave/context", () => ({
   useSyncPendingVaults: () => undefined,
   useAaveConfig: () => ({

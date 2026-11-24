@@ -9,4 +9,3 @@
 // Data fetching hooks
 export { useERC20Balance, type UseERC20BalanceResult } from "./useERC20Balance";
 export { type UseLogosResult } from "./useLogos";
-export { usePrices, type UsePricesResult } from "./usePrices";

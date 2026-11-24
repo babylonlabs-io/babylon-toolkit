@@ -15,14 +15,14 @@
  *    `allActivities`), so they are never polled. Click handlers no-op for them,
  *    with one deliberate exception: owned flow-state deposit cards open the real
  *    deposit multistepper, which walks the flow SAFELY — read-only progress per
- *    step, plus a SIMULATED activation (see {@link getDemoStepperBatch} /
- *    {@link submitDemoVaultActivation} and DemoActivationContent) — never the
- *    real wallet/registry/contract path.
- *  - When the flag is off (or the toggle is off), the hooks return null and
- *    nothing is injected — zero behavioural change.
+ *    step, plus a SIMULATED activation (see `getDemoStepperBatch` in
+ *    `@/overrides/deposits`, {@link submitDemoVaultActivation} and
+ *    DemoActivationContent) — never the real wallet/registry/contract path.
+ *  - When the flag is off (or the toggle is off), the override stores in
+ *    `src/overrides/` return null and nothing is injected.
  */
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import type { Address, Hex } from "viem";
 
 import type { ActiveLoanRow } from "@/applications/aave/hooks/useActiveLoans";
@@ -31,7 +31,6 @@ import {
   getVisualStep,
 } from "@/components/simple/DepositProgressView/steps";
 import { ENV } from "@/config/env";
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import {
@@ -51,7 +50,6 @@ import type {
 } from "@/types/collateral";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { getBatchSiblings } from "@/utils/batchedPegin";
 import { parseBtcToSatoshis, satoshiToBtcNumber } from "@/utils/btcConversion";
 
 /** Whether (and how) a scenario is expected to render the action CTA. */
@@ -1231,33 +1229,6 @@ export function submitDemoVaultActivation(vaultId: string) {
   demoActivationTimers.set(vaultId, timer);
 }
 
-/**
- * Resolve a clicked demo deposit to the batch of owned vault ids the deposit
- * multistepper should open with, or `null` when the click must stay a no-op.
- *
- * Opens for any OWNED flow-state demo deposit (the 15 flow steps + the
- * activated terminal), so the whole Deposit Progress view can be walked with
- * god mode. Stays inert for a different-wallet (unowned) preview and for
- * expired deposits (those live in `expiredActivities`, not the pending list).
- *
- * There is no "would this auto-run real signing?" guard: for every demo id
- * PostDepositContinuationView renders a SAFE view (read-only progress, or the
- * simulated activation walk) — the real signing/registry branches never mount.
- */
-export function getDemoStepperBatch(
-  demo: ActiveDemo | null,
-  depositId: string,
-): Hex[] | null {
-  if (!demo) return null;
-  const activity = demo.pendingActivities.find((a) => a.id === depositId);
-  if (!activity) return null;
-  // Different-wallet demo cards are disabled previews — never open.
-  if (!demo.resultsById.get(depositId)?.isOwnedByCurrentWallet) return null;
-  return getBatchSiblings(demo.pendingActivities, activity)
-    .filter((s) => demo.resultsById.get(s.id)?.isOwnedByCurrentWallet)
-    .map((s) => s.id as Hex);
-}
-
 /** Reset to a single default deposit item (used by tests). */
 export function resetDemoState() {
   for (const timer of demoActivationTimers.values()) clearTimeout(timer);
@@ -1310,73 +1281,4 @@ export function useDemoBorrowSymbol(): DemoBorrowSymbol {
 
 function safeAmount(amount: string): string {
   return amount.trim() === "" ? "0" : amount;
-}
-
-/**
- * Aggregate demo deposits to inject, or null when off. Consumed by
- * usePendingDeposits (render lists) and PeginPollingContext (controlled
- * results). `hideReal` applies whenever a demo is on, so real deposits hide
- * even if no deposit item is configured.
- */
-export function useDemoDeposit(): ActiveDemo | null {
-  const enabled = useDemoEnabled();
-  const hideReal = useDemoHideReal();
-  const items = useDemoItems();
-  const flagOn = featureFlags.isGodModePanelEnabled;
-  // The literal `import.meta.env.DEV` lets the bundler drop the build call (and
-  // with it the scenarios/builders) from production.
-  return useMemo(
-    () =>
-      import.meta.env.DEV && flagOn && enabled
-        ? buildDepositsDemo(items, hideReal)
-        : null,
-    [flagOn, enabled, items, hideReal],
-  );
-}
-
-/** Aggregate demo activity rows to inject, or null when off. */
-export function useDemoActivity(): ActiveDemoActivity | null {
-  const enabled = useDemoEnabled();
-  const hideReal = useDemoHideReal();
-  const items = useDemoItems();
-  const borrowSymbol = useDemoBorrowSymbol();
-  const flagOn = featureFlags.isGodModePanelEnabled;
-  return useMemo(
-    () =>
-      import.meta.env.DEV && flagOn && enabled
-        ? buildActivitiesDemo(items, hideReal, borrowSymbol)
-        : null,
-    [flagOn, enabled, items, hideReal, borrowSymbol],
-  );
-}
-
-/** Aggregate demo loans to inject, or null when off. */
-export function useDemoLoan(): ActiveDemoLoan | null {
-  const enabled = useDemoEnabled();
-  const hideReal = useDemoHideReal();
-  const items = useDemoItems();
-  const borrowSymbol = useDemoBorrowSymbol();
-  const flagOn = featureFlags.isGodModePanelEnabled;
-  return useMemo(
-    () =>
-      import.meta.env.DEV && flagOn && enabled
-        ? buildLoansDemo(items, hideReal, borrowSymbol)
-        : null,
-    [flagOn, enabled, items, hideReal, borrowSymbol],
-  );
-}
-
-/** Aggregate demo collateral to inject, or null when off. */
-export function useDemoCollateral(): ActiveDemoCollateral | null {
-  const enabled = useDemoEnabled();
-  const hideReal = useDemoHideReal();
-  const items = useDemoItems();
-  const flagOn = featureFlags.isGodModePanelEnabled;
-  return useMemo(
-    () =>
-      import.meta.env.DEV && flagOn && enabled
-        ? buildCollateralsDemo(items, hideReal)
-        : null,
-    [flagOn, enabled, items, hideReal],
-  );
 }
