@@ -976,6 +976,8 @@ export const COPY = {
     artifactDownload: {
       title: "Download BTCVault artifacts",
       body: "Download your BTCVault artifacts. These files are required to independently claim your funds if the vault provider is unavailable.",
+      // Link after the body, to the docs page that explains the artifacts.
+      learnMore: "Learn more",
       // Shown after the download completes (third copy bucket for the
       // same modal); the green-card layout pairs with this title.
       titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
