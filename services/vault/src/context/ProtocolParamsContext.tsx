@@ -116,7 +116,7 @@ export function ProtocolParamsProvider({
       failureCount < RETRY_COUNT && shouldRetry(failureCount, queryError),
   });
 
-  // Shares the query (and cache) with the non-blocking useOffchainParams hook.
+  // Shares the query (and cache) with usePeginPollingProtocolParams.
   const {
     data: offchainParamsData,
     isLoading: offchainLoading,

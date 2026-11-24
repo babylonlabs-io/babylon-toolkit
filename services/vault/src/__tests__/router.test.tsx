@@ -59,7 +59,6 @@ vi.mock("@/components/Wallet", () => ({
 }));
 
 vi.mock("../applications", () => ({
-  getApplication: () => undefined,
   getApplicationMetadataByController: () => undefined,
 }));
 

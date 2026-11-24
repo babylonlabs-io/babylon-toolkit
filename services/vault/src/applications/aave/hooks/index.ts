@@ -43,10 +43,6 @@ export {
   useBorrowTransaction,
   type UseBorrowTransactionResult,
 } from "./useBorrowTransaction";
-export {
-  useBtcPriceCandles,
-  type UseBtcPriceCandlesResult,
-} from "./useBtcPriceCandles";
 export { useDebtReserves } from "./useDebtReserves";
 export { useHubSpokeConfigs } from "./useHubSpokeConfigs";
 export {

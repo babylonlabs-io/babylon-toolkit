@@ -27,7 +27,6 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { useSyncExternalStore } from "react";
 
-import featureFlags from "@/config/featureFlags";
 import type { DemoArtifactRequest } from "@/overrides/artifactDownload";
 import {
   type ArtifactSaveTarget,
@@ -152,14 +151,6 @@ export function useArtifactDownloadScenario(): DemoArtifactScenario {
     getScenarioSnapshot,
     getScenarioSnapshot,
   );
-}
-
-/**
- * Imperative check read at interaction time (card clicks, download start).
- * False in production builds: the god-mode flag is compile-time false there.
- */
-export function isArtifactDownloadDemoEnabled(): boolean {
-  return featureFlags.isGodModePanelEnabled && storeMockEnabled;
 }
 
 function sleep(ms: number): Promise<void> {

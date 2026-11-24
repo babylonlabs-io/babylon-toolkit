@@ -14,12 +14,6 @@ export const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours - cleanup s
 // Pending collateral storage constants
 export const PENDING_COLLATERAL_KEY_PREFIX = "vault-pending-collateral";
 
-// External links surfaced on the pending-withdraw card.
-// Support points to the Babylon Discord invite (confirmed).
-// TODO(product): swap in the exact withdrawal-latency doc page once confirmed.
-export const WITHDRAWAL_LATENCY_DOCS_URL = "https://docs.babylonlabs.io";
-export const SUPPORT_URL = "https://discord.com/invite/babylonglobal";
-
 // Two-vault split docs link, surfaced from the split-option description in
 // UtxoSplitSelector and from the deposit slider's split-minimum marker
 // tooltip. Points at the "decide how to split your BTC" step.
