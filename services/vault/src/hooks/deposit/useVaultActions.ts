@@ -61,6 +61,7 @@ import {
 } from "@/utils/activationFloor";
 import {
   ActivationNotPossibleError,
+  ContractError,
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
@@ -68,6 +69,7 @@ import {
   SendOutcomeUnknownError,
   type DepositErrorContent,
 } from "@/utils/errors";
+import { chainMatchesFrame } from "@/utils/errors/causeChain";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getVaultFromChainWithGrace } from "../../clients/eth-contract/btc-vault-registry/query";
@@ -749,6 +751,7 @@ export function useVaultActions(): UseVaultActionsReturn {
     // capturing it as activation.reveal would report a failure for an
     // activation that succeeded.
     let expectedInterruption = false;
+    let revealStarted = false;
     let revealed = false;
 
     try {
@@ -1113,6 +1116,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       };
       let revealResult: TransactionResult;
       let minActivationGasAtSend: bigint | null = null;
+      revealStarted = true;
       if (redeemImmediately) {
         revealResult = await activateVaultWithSecretAndRedeem(revealArgs);
       } else {
@@ -1204,25 +1208,64 @@ export function useVaultActions(): UseVaultActionsReturn {
       const floorUnavailable =
         err instanceof Error && err.name === FLOOR_UNAVAILABLE_ERROR_NAME;
       const outcomeUnknown = err instanceof SendOutcomeUnknownError;
+      let errorMessage =
+        err instanceof Error
+          ? err.message
+          : COPY.deposit.errors.activationFailed;
+      if (isVaultRecordEmptyError(err)) {
+        errorMessage = COPY.deposit.errors.vaultRegistrationNotYetVisible.body;
+      } else if (revealStarted) {
+        // Keep the message, public transaction hashes and viem's Details line.
+        // Remove request dumps, calldata and the validated hex secret.
+        const revealHex = new RegExp(
+          `(?:0x)?(?:[\\da-f]{65,}|${stripHexPrefix(secretHex)})`,
+          "gi",
+        );
+        const requestDump =
+          /(?:Request Arguments|Raw Call Arguments|Contract Call|Request body):/;
+        const [summary] = errorMessage.split(requestDump, 1);
+        const [details] = (
+          /^Details: .*$/m.exec(errorMessage.slice(summary.length))?.[0] ?? ""
+        ).split(requestDump, 1);
+        errorMessage =
+          `${summary} ${details}`
+            .replace(revealHex, COPY.deposit.errors.redactedHex)
+            .trim() || COPY.deposit.errors.genericBody;
+      }
       if (
         !expectedInterruption &&
         !floorUnavailable &&
         !revealed &&
         !outcomeUnknown
       ) {
-        captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId);
+        const safeError = !revealStarted
+          ? undefined
+          : err instanceof ContractError
+            ? new ContractError(errorMessage, err.code)
+            : new Error(errorMessage);
+        const tags: Record<string, string> = {};
+        if (safeError && err instanceof Error) {
+          safeError.name = err.name;
+          // safeError has no cause, so the names in its cause chain are what
+          // keep distinct failures with the same code apart in Sentry.
+          const causeNames: string[] = [];
+          chainMatchesFrame(err.cause, (frame) => {
+            if (frame instanceof Error) causeNames.push(frame.name);
+            return false;
+          });
+          if (causeNames.length > 0) tags.revealCauses = causeNames.join(">");
+        }
+        const phase =
+          err instanceof ContractError ? err.context?.phase : undefined;
+        if (typeof phase === "string") tags.revealPhase = phase;
+        captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_REVEAL, err, vaultId, {
+          safeError,
+          tags,
+        });
       }
       // The reveal may have landed: show the vault's real status.
       if (outcomeUnknown) onRefetchActivities();
       if (mountedRef.current) {
-        const rawMessage =
-          err instanceof Error ? err.message : "Failed to activate BTC Vault";
-        // Normalize the empty-record error so we don't leak the raw vault id
-        // into the UI, and don't claim the vault is gone when a lagging RPC
-        // node is the likelier cause.
-        const errorMessage = isVaultRecordEmptyError(err)
-          ? COPY.deposit.errors.vaultRegistrationNotYetVisible.body
-          : rawMessage;
         setActivationError(appendActivationRevertNotice(err, errorMessage));
         // Classify from the typed error before it is flattened to a string — a
         // passed deadline, an already-EXPIRED vault or an endpoint that cannot

@@ -180,7 +180,12 @@ Sentry.init({
     const exception = hint?.originalException as { code?: string };
 
     if (exception?.code) {
-      event.fingerprint = ["{{ default }}", exception.code];
+      const revealTags = [event.tags?.revealPhase, event.tags?.revealCauses];
+      event.fingerprint = [
+        "{{ default }}",
+        exception.code,
+        ...revealTags.filter((tag): tag is string => typeof tag === "string"),
+      ];
     }
 
     return scrubSentryEvent(event);

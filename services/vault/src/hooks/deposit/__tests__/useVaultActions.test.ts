@@ -12,7 +12,16 @@ import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector/btc-eth";
 import { act, renderHook } from "@testing-library/react";
-import type { Hex } from "viem";
+import {
+  BaseError,
+  CallExecutionError,
+  ContractFunctionExecutionError,
+  HttpRequestError,
+  InternalRpcError,
+  RpcRequestError,
+  TransactionExecutionError,
+  type Hex,
+} from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
@@ -43,12 +52,18 @@ import {
 } from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 import {
+  ACTIVATION_CHECK_UNSUPPORTED_REASON,
   BatchSiblingMismatchError,
+  ContractError,
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
+  ErrorCode,
+  mapDepositErrorAfterRegistration,
+  mapViemErrorToContractError,
   PositionCapacityExceededError,
   PositionCapacityUnavailableError,
   SendOutcomeUnknownError,
+  tagMinedRevert,
 } from "@/utils/errors";
 
 import { useVaultActions } from "../useVaultActions";
@@ -2245,8 +2260,14 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       hashlock: ON_CHAIN_HASHLOCK,
     });
     mockGetVaultRegistryReader.mockReturnValue(reader);
+    const hash = `0x${"a".repeat(64)}`;
     mockActivateVaultWithSecret.mockRejectedValue(
-      new Error("execution reverted: InvalidSecret"),
+      tagMinedRevert(
+        mapViemErrorToContractError(
+          new Error(COPY.common.transactionRevertedReasonUnavailable(hash)),
+          "vault activation",
+        ),
+      ),
     );
 
     const { result } = renderHook(() => useVaultActions());
@@ -2257,10 +2278,359 @@ describe("useVaultActions — handleActivation hashlock source", () => {
 
     expect(mockLoggerError).toHaveBeenCalledTimes(1);
     const [err, ctx] = mockLoggerError.mock.calls[0];
-    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(ContractError);
+    expect(err.code).toBe(ErrorCode.CONTRACT_REVERT);
+    expect(err.name).toBe("ContractError");
     expect(ctx.tags.funnelStage).toBe("activation.reveal");
     expect(ctx.tags.vaultId).toBe("0xva...ltId");
-    expect(result.current.activationError).toContain("execution reverted");
+    expect(ctx.tags.revealPhase).toBe("mined-revert");
+    expect(result.current.activationError).toContain(hash);
+    expect(result.current.activationError).toContain(
+      COPY.deposit.errors.activationRevertedSecretPublic,
+    );
+  });
+
+  it("keeps the request arguments out of an activation error", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    const secret = SECRET.slice(2);
+    const data = `0x12345678${secret}` as const;
+    const reason = "Execution reverted for an unknown reason";
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      new TransactionExecutionError(
+        new BaseError(reason, { details: `Provider returned data:${data}` }),
+        { account: null, data },
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    const message = result.current.activationError!;
+    const diagnostics = mapDepositErrorAfterRegistration(message).diagnostics!;
+    const [loggedError] = mockLoggerError.mock.calls[0];
+    for (const output of [message, diagnostics, loggedError.message]) {
+      expect(output.includes(reason)).toBe(true);
+      expect(output.includes("Details: Provider returned data:")).toBe(true);
+      expect(output.includes("Request Arguments")).toBe(false);
+      expect(output.includes("12345678")).toBe(false);
+      expect(output.includes(secret)).toBe(false);
+    }
+    expect(loggedError.name).toBe("TransactionExecutionError");
+    expect(loggedError.cause).toBeUndefined();
+  });
+
+  it("keeps the replayed call out of a mapped activation revert", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    const secret = SECRET.slice(2);
+    const data = `0x12345678${secret}` as const;
+    const reason = "Execution reverted for an unknown reason";
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      tagMinedRevert(
+        mapViemErrorToContractError(
+          new CallExecutionError(new BaseError(reason), {
+            data,
+            to: `0x${"c".repeat(40)}`,
+          }),
+          "vault activation",
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    const message = result.current.activationError!;
+    const diagnostics = mapDepositErrorAfterRegistration(message).diagnostics!;
+    const [loggedError] = mockLoggerError.mock.calls[0];
+    for (const output of [message, diagnostics, loggedError.message]) {
+      expect(output.includes(reason)).toBe(true);
+      expect(output.includes("Raw Call Arguments")).toBe(false);
+      expect(output.includes(secret)).toBe(false);
+    }
+    expect(loggedError.cause).toBeUndefined();
+  });
+
+  it("tags a reveal failure with the names of its cause chain", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      mapViemErrorToContractError(
+        new InternalRpcError(
+          new RpcRequestError({
+            body: { method: "eth_simulateV1" },
+            error: { code: -32603, message: "internal error" },
+            url: "https://rpc.example",
+          }),
+        ),
+        "vault activation",
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    const [, ctx] = mockLoggerError.mock.calls[0];
+    expect(ctx.tags.revealCauses).toBe("InternalRpcError>RpcRequestError");
+  });
+
+  it("leaves out the cause tag for a reveal failure with no cause", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      new BaseError("Wallet request failed."),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    const [, ctx] = mockLoggerError.mock.calls[0];
+    expect(ctx.tags).not.toHaveProperty("revealCauses");
+  });
+
+  it("keeps the request body out of an activate-and-redeem error", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+      }),
+    );
+    const secret = SECRET.slice(2);
+    const data = `0x12345678${secret}`;
+    const reason = "Execution reverted for an unknown reason";
+    mockActivateVaultWithSecretAndRedeem.mockRejectedValueOnce(
+      mapViemErrorToContractError(
+        new HttpRequestError({
+          body: {
+            method: "eth_sendRawTransaction",
+            params: [data],
+            note: "Details: leaked",
+          },
+          details: reason,
+          status: 500,
+          url: "http://localhost:8545",
+        }),
+        "vault activation",
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    const message = result.current.activationError!;
+    const diagnostics = mapDepositErrorAfterRegistration(message).diagnostics!;
+    const [loggedError] = mockLoggerError.mock.calls[0];
+    for (const output of [message, diagnostics, loggedError.message]) {
+      expect(output.includes(reason)).toBe(true);
+      expect(output.includes("Request body")).toBe(false);
+      expect(output.includes("leaked")).toBe(false);
+      expect(output.includes(secret)).toBe(false);
+    }
+    expect(loggedError.cause).toBeUndefined();
+  });
+
+  it("removes a bare secret from a mapped contract call error", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    const secret = SECRET.slice(2);
+    const reason = "The contract function reverted";
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      mapViemErrorToContractError(
+        new ContractFunctionExecutionError(
+          new BaseError(reason, { details: `bad preimage ${SECRET}` }),
+          {
+            abi: [
+              {
+                type: "function",
+                name: "activateVaultWithSecret",
+                stateMutability: "nonpayable",
+                inputs: [
+                  { name: "vaultId", type: "bytes32" },
+                  { name: "secret", type: "bytes32" },
+                ],
+                outputs: [],
+              },
+            ],
+            functionName: "activateVaultWithSecret",
+            args: [`0x${"2".repeat(64)}`, SECRET],
+            contractAddress: `0x${"c".repeat(40)}`,
+          },
+        ),
+        "vault activation",
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    const message = result.current.activationError!;
+    const diagnostics = mapDepositErrorAfterRegistration(message).diagnostics!;
+    const [loggedError] = mockLoggerError.mock.calls[0];
+    for (const output of [message, diagnostics, loggedError.message]) {
+      expect(output.includes(reason)).toBe(true);
+      expect(output.includes("Details: bad preimage")).toBe(true);
+      expect(output.includes("Contract Call")).toBe(false);
+      expect(output.includes(secret)).toBe(false);
+    }
+  });
+
+  it("keeps a request dump inside the Details line out of a reveal error", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      new BaseError("Wallet request failed.", {
+        details: `rejected. Request body: {"from":"0x${"1".repeat(40)}","gas":"0x493e0"}`,
+      }),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    const message = result.current.activationError!;
+    const [loggedError] = mockLoggerError.mock.calls[0];
+    for (const output of [message, loggedError.message]) {
+      expect(output.includes("Details: rejected.")).toBe(true);
+      expect(output.split("Details:")).toHaveLength(2);
+      expect(output.includes("Request body")).toBe(false);
+    }
+  });
+
+  it("keeps a request dump in the Details line of a send error out of a reveal error", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      new TransactionExecutionError(
+        new BaseError("Wallet request failed.", {
+          details: `rejected. Request body: {"from":"0x${"1".repeat(40)}","gas":"0x493e0"}`,
+        }),
+        { account: null, data: "0x12345678" },
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    const message = result.current.activationError!;
+    const [loggedError] = mockLoggerError.mock.calls[0];
+    for (const output of [message, loggedError.message]) {
+      expect(output.includes("Details: rejected.")).toBe(true);
+      expect(output.includes("Request Arguments")).toBe(false);
+      expect(output.includes("Request body")).toBe(false);
+    }
+  });
+
+  it("redacts every hex run in a reveal error, in any letter case", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      new Error(
+        `Execution reverted: 0x${"AB".repeat(40)}\n\nDetails: bad preimage ${SECRET}`,
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationError).toBe(
+      `Execution reverted: ${COPY.deposit.errors.redactedHex}\n\nDetails: bad preimage ${COPY.deposit.errors.redactedHex}`,
+    );
+  });
+
+  it("shows the generic message when nothing is left of a reveal error", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      new Error(`Request Arguments:\n  data: 0x12345678${SECRET.slice(2)}`),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationError).toBe(
+      COPY.deposit.errors.genericBody,
+    );
+  });
+
+  it("leaves an error raised before the reveal unchanged", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    const switchError = new Error(
+      'Wallet refused the switch.\n\nRequest body: {"method":"wallet_switchEthereumChain"}',
+    );
+    vi.mocked(switchChain).mockRejectedValueOnce(switchError);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(switchError.message);
+    expect(mockLoggerError.mock.calls[0][0]).toBe(switchError);
+  });
+
+  it("keeps the terminal message for an RPC that cannot check activation", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(
+      readerReturning({ hashlock: ON_CHAIN_HASHLOCK }),
+    );
+    const message = COPY.deposit.errors.activationCheckUnsupported;
+    mockActivateVaultWithSecret.mockRejectedValueOnce(
+      new ContractError(
+        message,
+        ErrorCode.NETWORK_ERROR,
+        undefined,
+        ACTIVATION_CHECK_UNSUPPORTED_REASON,
+        {
+          cause: new RpcRequestError({
+            body: { method: "eth_simulateV1" },
+            error: { code: -32601, message: "Method not found" },
+            url: "http://localhost:8545",
+          }),
+        },
+      ),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(result.current.activationError).toBe(message);
+    expect(result.current.activationErrorTerminal).toBe(true);
   });
 
   it("does not capture a reveal the wallet may have broadcast as a failure, and refetches the activities", async () => {
@@ -2349,7 +2719,9 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     });
 
     expect(mockLoggerError).not.toHaveBeenCalled();
-    expect(result.current.activationError).not.toBeNull();
+    expect(
+      mapDepositErrorAfterRegistration(result.current.activationError),
+    ).toEqual(COPY.deposit.errors.signingRejected);
   });
 
   // A pause is operator action hitting every depositor at once — capturing it

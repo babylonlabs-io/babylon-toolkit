@@ -1334,6 +1334,10 @@ export const COPY = {
       // check cannot run and nothing is sent. Retrying cannot help.
       activationCheckUnsupported:
         "This app's network endpoint cannot run the activation check, so nothing was submitted. Please contact support.",
+      // Shown when an activation fails with a value that is not an Error.
+      activationFailed: "Failed to activate BTCVault",
+      // Replaces calldata and the HTLC secret in an activation error.
+      redactedHex: "[HEX_REDACTED]",
       // Appended only when the revert was mined, which made the secret public.
       activationRevertedSecretPublic:
         "Because the transaction was mined, your HTLC secret is now public. Retry promptly, or use Withdraw once it becomes available, before the activation deadline.",

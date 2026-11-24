@@ -91,13 +91,15 @@ export function captureFunnelFailure(
   {
     tags = {},
     extra = {},
+    safeError,
   }: {
     tags?: Record<string, string>;
     extra?: Record<string, string | number | boolean>;
+    safeError?: Error;
   } = {},
 ): void {
   if (classifyError(err) === "user-rejection") return;
-  logger.error(err, {
+  logger.error(safeError ?? err, {
     tags: { ...tags, funnelStage: stage, vaultId: shortId(vaultId) },
     data: extra,
   });
