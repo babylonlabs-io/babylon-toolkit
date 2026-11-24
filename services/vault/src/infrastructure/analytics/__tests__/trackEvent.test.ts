@@ -23,6 +23,14 @@ vi.mock("../../logger", () => ({
   default: { warn: mockWarn, error: mockError },
 }));
 
+const { mockConsent } = vi.hoisted(() => ({
+  mockConsent: { value: "all" as "all" | "essential" | "denied" | null },
+}));
+// Accept all unless a test says otherwise.
+vi.mock("@/storage/cookieConsentStorage", () => ({
+  getCookieConsent: () => mockConsent.value,
+}));
+
 const CONFIG: AnalyticsConfig = {
   enabled: true,
   host: "https://us.i.posthog.com",
@@ -56,6 +64,7 @@ async function freshTrackEvent() {
 settleGeofence("passed");
 
 beforeEach(() => {
+  mockConsent.value = "all";
   mockWarn.mockClear();
   mockError.mockClear();
   fetchMock.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
@@ -559,5 +568,47 @@ describe("geofence gate", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(50);
     expect(mockWarn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("consent gate", () => {
+  it("sends nothing before the visitor answers", () => {
+    mockConsent.value = null;
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the visitor chose Essential only", () => {
+    mockConsent.value = "essential";
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the visitor chose Deny", () => {
+    mockConsent.value = "denied";
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops an event tracked before the answer instead of sending it after Accept all", async () => {
+    const send = await freshTrackEvent();
+    mockConsent.value = null;
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+
+    mockConsent.value = "all";
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/vaults" }, CONFIG);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sentBody().batch[0].properties.$pathname).toBe("/vaults");
+  });
+
+  it("drops a held event when the answer changes to Deny before the geofence passes", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+
+    mockConsent.value = "denied";
+    settle("passed");
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

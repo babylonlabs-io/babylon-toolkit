@@ -46,6 +46,7 @@ import {
 import { useConnection } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
+import { CookieConsentBanner } from "../shared/CookieConsentBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
 import { GeoBlockState } from "../shared/GeoBlockState";
 import { NetworkBadge } from "../shared/NetworkBadge";
@@ -353,6 +354,15 @@ export default function RootLayout() {
               </AppPeginPollingProvider>
             </ActivatingVaultsProvider>
           )}
+          {/* Takes the column's free space, so the cookie card and the footer
+              below stay together at the bottom of a short page. */}
+          <div className="mt-auto" />
+          <CookieConsentBanner
+            contentClassName={
+              isEntryLayout ? ENTRY_CONTENT_CLASS : PAGE_CONTENT_CLASS
+            }
+            isEntryLayout={isEntryLayout}
+          />
           {isEntryLayout && <EntryFooter />}
           {isMobileView && !isEntryLayout && (
             // No page-level footer on desktop (the sidebar's own bottom block
@@ -361,7 +371,7 @@ export default function RootLayout() {
             // the collapsed hamburger menu — a mobile user who never opens
             // it would otherwise have no path to the social/legal links
             // anywhere on the page. Always visible here instead.
-            <footer className="mt-auto p-5">
+            <footer className="p-5">
               <SidebarFooter />
             </footer>
           )}

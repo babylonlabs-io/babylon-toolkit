@@ -15,6 +15,7 @@ import {
 import { createConfig, http } from "wagmi";
 
 import { getETHChain, getNetworkConfigETH } from "@/config/network";
+import { walletCookieStorage } from "@/config/walletCookieStorage";
 
 interface WagmiInitResult {
   wagmiConfig: ReturnType<typeof createConfig>;
@@ -57,6 +58,7 @@ function initializeVaultWagmi(): WagmiInitResult {
       },
       eth: {
         chain: getETHChain(),
+        storage: walletCookieStorage,
       },
     };
 

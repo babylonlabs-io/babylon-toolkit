@@ -2793,6 +2793,16 @@ export const COPY = {
       `© ${year} Babylon Labs. All rights reserved.`,
     legalSeparator: " - ",
   },
+  // Cookie consent banner (components/shared/CookieConsentBanner.tsx). The
+  // body is draft wording, pending legal sign-off.
+  cookieConsent: {
+    regionLabel: "Cookie consent",
+    body: "We use essential cookies to keep your wallet connected. With your consent, we also collect analytics to improve the app.",
+    learnMore: "Learn more",
+    acceptAll: "Accept all",
+    essentialOnly: "Essential only",
+    deny: "Deny",
+  },
   // v3 Explore page (components/pages/Explore.tsx). Per-app names/descriptions
   // are dataset content and live in config/exploreApps.ts, not here.
   explore: {
