@@ -43,6 +43,8 @@ import {
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
   DEPOSIT_PROGRESS_STOPS,
+  DEPOSIT_SIGNING_HELP_STOPS,
+  DEPOSIT_SIGNING_HELP_VIEWPORT,
   DEPOSIT_SPLIT_MINIMUM_STOP,
   depositProgressStepStop,
   flowScreenshotFileName,
@@ -486,6 +488,11 @@ export async function ensureOutputDir(): Promise<void> {
         flowScreenshotFileName(stop, viewport),
       ),
     ),
+    ...Object.values(DEPOSIT_SIGNING_HELP_STOPS)
+      .flat()
+      .map((stop) =>
+        flowScreenshotFileName(stop, DEPOSIT_SIGNING_HELP_VIEWPORT),
+      ),
   ].sort();
 
   // Every spec calls this from `test.beforeAll`, and the config pins

@@ -1,5 +1,3 @@
-import type { StepperItem } from "@babylonlabs-io/core-ui";
-
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
@@ -9,7 +7,7 @@ export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
   options: { isLedgerVault: boolean } = { isLedgerVault: false },
-): StepperItem[] {
+) {
   const payoutCounter =
     progress?.phase === "claimers" && progress.total > 0
       ? COPY.deposit.steps.signingCounter(progress.completed, progress.total)
@@ -19,71 +17,41 @@ export function buildStepItems(
       ? COPY.deposit.steps.signingCounter(progress.completed, progress.total)
       : undefined;
 
-  // Every deposit shows the (x of n) counter once signing starts — a
-  // single-vault deposit reads "(0 of 1)" while its one signature waits on
-  // the device.
-  const peginTotal = peginProgress?.total ?? 0;
+  // Show the counter for single-vault deposits too.
   const peginCounter =
-    peginTotal > 0
+    peginProgress && peginProgress.total > 0
       ? COPY.deposit.steps.signingCounter(
-          peginProgress?.completed ?? 0,
-          peginTotal,
+          peginProgress.completed,
+          peginProgress.total,
         )
       : undefined;
 
-  return [
-    {
-      label: COPY.deposit.steps.generateSecret,
-    },
-    {
-      label: COPY.deposit.steps.signPeginBtc,
-      description: peginCounter,
-    },
-    {
-      label: COPY.deposit.steps.signLinkProofs,
-    },
-    {
-      label: COPY.deposit.steps.signAndBroadcastEth,
-    },
-    {
-      label: COPY.deposit.steps.signAndBroadcastPrePegin,
-    },
-    {
-      label: COPY.deposit.steps.confirmingDeposit,
-    },
-    {
-      label: COPY.deposit.steps.submitWotsKey,
-    },
-    {
-      label: COPY.deposit.steps.awaitPayoutTransactions,
-    },
-    {
-      // On a Ledger this step is a device ceremony, not a network call.
-      label: options.isLedgerVault
+  const steps: [label: string, counter?: string][] = [
+    [COPY.deposit.steps.generateSecret],
+    [COPY.deposit.steps.signPeginBtc, peginCounter],
+    [COPY.deposit.steps.signLinkProofs],
+    [COPY.deposit.steps.signAndBroadcastEth],
+    [COPY.deposit.steps.signAndBroadcastPrePegin],
+    [COPY.deposit.steps.confirmingDeposit],
+    [COPY.deposit.steps.submitWotsKey],
+    [COPY.deposit.steps.awaitPayoutTransactions],
+    [
+      options.isLedgerVault
         ? COPY.deposit.ledger.authenticateSession
         : COPY.deposit.steps.authenticateSession,
-    },
-    {
-      label: COPY.deposit.steps.signPayouts,
-      description: payoutCounter,
-    },
-    {
-      label: COPY.deposit.steps.signRecoveryTxs,
-      description: graphCounter,
-    },
-    {
-      label: COPY.deposit.steps.awaitVpVerification,
-    },
-    {
-      label: COPY.deposit.steps.retrieveSecret,
-    },
-    {
-      label: COPY.deposit.steps.revealSecret,
-    },
-    {
-      label: COPY.deposit.steps.awaitActivationConfirmation,
-    },
+    ],
+    [COPY.deposit.steps.signPayouts, payoutCounter],
+    [COPY.deposit.steps.signRecoveryTxs, graphCounter],
+    [COPY.deposit.steps.awaitVpVerification],
+    [COPY.deposit.steps.retrieveSecret],
+    [COPY.deposit.steps.revealSecret],
+    [COPY.deposit.steps.awaitActivationConfirmation],
   ];
+  return steps.map(([label, description], index) => ({
+    label,
+    description,
+    help: COPY.deposit.stepHelp[index],
+  }));
 }
 
 export const TOTAL_VISUAL_STEPS = buildStepItems(null).length;

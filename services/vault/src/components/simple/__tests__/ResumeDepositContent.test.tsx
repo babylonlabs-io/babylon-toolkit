@@ -896,7 +896,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
   });
 
   function renderSign() {
-    return render(
+    const view = render(
       <ResumeSignContent
         activity={baseActivity}
         btcPublicKey="0xbtcpub"
@@ -905,9 +905,11 @@ describe("ResumeSignContent — reactive verification terminal", () => {
         onSuccess={vi.fn()}
       />,
     );
+    fireEvent.click(view.getByTestId("btc-action-start"));
+    return view;
   }
 
-  it("waits for provider metadata before auto-starting payout signing", async () => {
+  it("waits for provider metadata after payout review", async () => {
     const handleSign = vi.fn();
     const payoutState = {
       signing: false,
@@ -1086,7 +1088,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     );
 
     expect(getByTestId("started").textContent).toBe("false");
-    // useRunOnce auto-fires handleSign at mount; the CTA must add a fresh run.
+    // The start click mounts signing. The CTA must start another run.
     const callsBeforeClick = handleSign.mock.calls.length;
     fireEvent.click(getByTestId("sign"));
     expect(handleSign.mock.calls.length).toBe(callsBeforeClick + 1);
@@ -1222,16 +1224,21 @@ describe("Action admission through the continuation", () => {
     fireEvent.click(view.getByTestId("btc-action-start"));
     expect(useBroadcastState).toHaveBeenCalled();
   });
-  it("starts payout once when status arrives for an opener that named payout", () => {
+  it("shows payout review when the opener named payout", () => {
     const view = render(
       content("0xbtcpub", PeginAction.SIGN_PAYOUT_TRANSACTIONS),
     );
     expect(handleSign).not.toHaveBeenCalled();
     mockUseDepositPollingResult.mockReturnValue(payout as never);
     view.rerender(content("0xbtcpub", PeginAction.SIGN_PAYOUT_TRANSACTIONS));
+    expect(handleSign).not.toHaveBeenCalled();
+    expect(
+      view.getByText(COPY.deposit.resume.start.payout.body),
+    ).toBeInTheDocument();
+    fireEvent.click(view.getByTestId("btc-action-start"));
     expect(handleSign).toHaveBeenCalledOnce();
   });
-  it("starts payout after the initial connected wallet key read", async () => {
+  it("shows payout review after the initial connected wallet key read", async () => {
     function ReadWalletKey() {
       const { publicKey } = useBtcPublicKey(btcActionWallet.connected);
       return content(publicKey);
@@ -1242,7 +1249,10 @@ describe("Action admission through the continuation", () => {
     expect(view.queryByText(COPY.wallet.btcAction.heading)).toBeNull();
     expect(view.getByTestId("btc-action-cancel")).toBeEnabled();
     expect(handleSign).not.toHaveBeenCalled();
-    await waitFor(() => expect(handleSign).toHaveBeenCalledOnce());
+    const start = await view.findByTestId("btc-action-start");
+    expect(handleSign).not.toHaveBeenCalled();
+    fireEvent.click(start);
+    expect(handleSign).toHaveBeenCalledOnce();
   });
   it("requires a named start when Bitcoin connects before payout status arrives", () => {
     btcActionWallet.connected = false;
@@ -1337,6 +1347,7 @@ describe("Action admission through the continuation", () => {
   it("keeps Cancel during wallet loss and offers Retry after an immediate abort", () => {
     mockUseDepositPollingResult.mockReturnValue(payout as never);
     const view = render(content("0xbtcpub"));
+    fireEvent.click(view.getByTestId("btc-action-start"));
     const progress = view.getByTestId("progress-view");
     const state = vi.mocked(usePayoutSigningState).mock.results[0].value;
     vi.mocked(usePayoutSigningState).mockReturnValue({

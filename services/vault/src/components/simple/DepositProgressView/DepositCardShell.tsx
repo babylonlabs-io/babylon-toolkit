@@ -65,12 +65,11 @@ export function DepositCardShell({
 
   return (
     <div
-      // Cap the card height to the viewport and lay it out as a column so the
-      // header and footer stay pinned while the step list scrolls — the CTA is
-      // always reachable even on short screens.
+      // Keep the footer visible while the heading and steps scroll.
+      // This leaves room for expanded help on short screens.
       className={`flex max-h-[85vh] w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS} flex-col overflow-hidden rounded-xl border border-secondary-strokeDark`}
     >
-      <div className="shrink-0 px-6 pb-6 pt-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6">
         <Heading variant="h5" className="text-accent-primary">
           {COPY.deposit.progress.heading}{" "}
           <Text as="span" variant="body1" className="text-accent-secondary">
@@ -93,13 +92,11 @@ export function DepositCardShell({
         )}
 
         {progressBar && <div className="mt-4">{progressBar}</div>}
+        {/* Full-bleed divider: spans the card edge-to-edge through the padding. */}
+        <div className="-mx-6 mt-6 border-t border-secondary-strokeDark" />
+
+        <div className="py-6">{children}</div>
       </div>
-
-      {/* Full-bleed divider: spans the card edge-to-edge through the padding. */}
-      <div className="shrink-0 border-t border-secondary-strokeDark" />
-
-      {/* Scrollable middle: the step list. Header + footer stay fixed. */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
 
       <div className="shrink-0 px-6 pb-6 pt-2">{footer}</div>
     </div>

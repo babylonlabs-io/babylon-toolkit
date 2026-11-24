@@ -518,7 +518,6 @@ export function PostDepositContinuationView({
         key={`payout-${currentVaultId}`}
         activity={activity}
         btcPublicKey={btcPublicKey}
-        autoStart={autoStart(PeginAction.SIGN_PAYOUT_TRANSACTIONS)}
         onSigningChange={handleSigningChange}
         depositorEthAddress={depositorEthAddress}
         siblingVaultIds={siblingVaultIds}

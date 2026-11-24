@@ -93,7 +93,6 @@ interface CaughtError {
 export interface ResumeSignContentProps {
   activity: VaultActivity;
   btcPublicKey: string | undefined;
-  autoStart?: boolean;
   depositorEthAddress: Hex;
   /** Vaults that share this Pre-PegIn. Defaults to the current vault. */
   siblingVaultIds?: string[];
@@ -114,7 +113,7 @@ export function ResumeSignContent(props: ResumeSignContentProps) {
     <BtcActionGate
       onClose={props.onClose}
       ready={!!props.btcPublicKey}
-      autoStart={props.autoStart}
+      autoStart={false}
       start={COPY.deposit.resume.start.payout}
     >
       {btcPublicKey && (
