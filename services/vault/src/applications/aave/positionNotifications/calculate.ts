@@ -356,12 +356,12 @@ export function withDistancesAt(
  * that nothing executes at `btcPrice`: every event stays at its own trigger, and
  * the advice reads as it does above the first trigger.
  *
- * Warnings: `weird-params` (invalid protocol params, soft — suppresses all
- * other advisories), `too-many-vaults` (optimizer fell back past its cap),
+ * Warnings: `wbtc-debt` (WBTC debt), `weird-params` (invalid protocol params),
+ * `too-many-vaults` (optimizer fell back past its cap),
  * `urgent` (already liquidatable or within 5%), `cliff` (all vaults consolidate
  * into one liquidation group — partial liquidation impossible), `reorder` (a
- * safer order exists), or `dust` (returned together with any `urgent` warning;
- * suppresses the other advisories).
+ * safer order exists), or `dust` (small position). The WBTC notice can accompany
+ * any warning. Dust can also accompany an urgent warning.
  */
 export function calculate(
   params: CalculatorParams,
@@ -434,9 +434,7 @@ export function calculate(
     bonusCurve,
     expectedHF,
   };
-  // Invalid governance params: the seizure formula produced a fraction outside
-  // [0, 1]. We surface this as a soft advisory and suppress every other
-  // advisory (the liq math is meaningless here).
+  // Governance parameters are invalid when the seizure fraction is outside [0, 1].
   const seizedParamsInvalid = seizedFractionRaw <= 0 || seizedFractionRaw > 1;
 
   // ── 3. Group calculation (against the current on-chain order) ──
@@ -496,10 +494,8 @@ export function calculate(
     firstPathGroup.vaults.length === nVaults &&
     nVaults > 1;
 
-  // ── 4. weird-params advisory (exclusive) ───────────────────────
-  //
-  // Protocol params are set by governance — the user can't change them — so
-  // this is advisory and suppresses every other warning.
+  // 4. Invalid protocol parameters.
+  // Keep any WBTC notice. Skip the remaining warning calculations.
   if (seizedParamsInvalid) {
     const { weirdParams } = COPY.liquidationWarnings;
     let detail: string;
