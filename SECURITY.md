@@ -157,7 +157,9 @@ that reaches a signature.
 - **Bitcoin and Ethereum addresses, public keys, amounts, UTXO sets, and raw transaction hex.** None
   of these is secret — they are public chain data — but their _association with one browser session_
   is a wallet fingerprint. `scrubString` and `redactData` in `services/vault/src/utils/telemetry.ts`
-  strip them from Sentry events and breadcrumbs by regex and by field name.
+  strip them from Sentry events and breadcrumbs by regex and by field name. Product analytics is the one
+  deliberate exception: it sends the Ethereum address, as an accepted risk (see _Product analytics
+  (PostHog)_ below).
 
 ### Not confidential, but integrity-critical
 
@@ -485,15 +487,19 @@ Two properties matter:
 - The kit is roughly **700 MB** for 8 challengers, so it is written to disk one session at a time
   and never held whole in memory. The vault id is re-derived from the pegin txid and the depositor's
   Ethereum address before any request. The manifest is byte-counted and shape-checked, and its
-  transaction graph is bound to the requested vault and must reproduce the presign fingerprint this
-  device recorded, all before any session is requested. Each session is written as one tar entry
+  transaction graph is bound to the requested vault and, when this device holds a presign record,
+  must reproduce the fingerprint it recorded, all before any session is requested. A device that
+  holds no presign record, or cannot read its record, still saves the kit, with no fingerprint
+  comparison, but writes no receipt, so that save never satisfies the activation gate and the
+  warning stays. Each session is written as one tar entry
   only after its SHA-256 equals the provider's ETag. `claim.json` (graph, verifying key, identity
   and per-session SHA-256) is the last entry, and the receipt carries the per-session hashes
   ([format](docs/specs/recovery-kit-format.md)).
 - **This is a known gap.** None of that proves the artifacts decrypt: no client-side BaBe verifier
   exists. A VP can serve a well-formed package whose sessions cannot decrypt a challenge, and the app
-  will accept it, mark the artifacts downloaded (`services/vault/src/utils/artifactDownloadStorage.ts`),
-  and stop warning the user. The user discovers the problem only when they need to claim. Closing
+  will accept it. For a download compared with a presign record and saved to a file the user chose,
+  it then marks the artifacts downloaded (`services/vault/src/utils/artifactDownloadStorage.ts`)
+  and stops warning the user. The user discovers the problem only when they need to claim. Closing
   this requires a client-side artifact verifier — treat it as a fund-recovery item, not a robustness
   improvement.
 
@@ -815,32 +821,93 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 
 ### Product analytics (PostHog)
 
-`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing
-can measure how visitors use the app. It is a separate channel from Sentry.
+`services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
+attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry it
+**deliberately sends the connected Ethereum address** (`wallet_address`); this is not an oversight.
+It is an accepted risk, recorded in the vault model's _Accepted risks_.
+
+**What it links, through public chain data.** The address is a public key into the vault registry
+and the indexer, which return the depositor's vaults and, for each, the depositor's BTC public key,
+the exact deposit amount and the peg-in transaction. So anyone with access to the PostHog project
+can tie a browsing session and its traffic source to the depositor's identity on **both** chains,
+not only on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
+_Client IP_ below).
+
+**It also links visits to each other.** The visit and session ids are per page load, but
+`wallet_address` is the same on every visit: it joins a connected depositor's visits across
+reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
+in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
+only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
+no confirmed Ethereum session carry no address, and stay unlinked apart from the campaign
+values (see _Campaign values link visits_ below).
 
 What bounds it:
 
-- **Off unless configured.** Without both `NEXT_PUBLIC_POSTHOG_HOST` and
-  `NEXT_PUBLIC_POSTHOG_PROJECT_KEY` nothing is sent. Setting one without the other, a host that is
-  not https or carries credentials, a query or a fragment, or a key that is not a `phc_` project
-  key turns analytics off and is reported with `logger.error`; it does not block the app. Events
+- **Off unless configured.** Without `NEXT_PUBLIC_POSTHOG_HOST` nothing is sent. A host that is
+  not https or carries credentials, a query or a fragment turns analytics off and is reported with
+  `logger.error`; it does not block the app. Events
   wait for the geofence check, so an app that stops before it sends nothing: an invalid network
   profile or profile override, or a wallet setup error such as a missing Reown project id. The
   GraphQL-unavailable error is raised after the geofence passes, so page views are still sent.
 - **Allow-listed payload.** What is sent is defined by the code in
-  `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which
-  passes the event's own properties. `analyticsEvents.ts` lists the events and their fields,
-  `trackEvent.ts` adds the network, visit and session ids (from `analyticsSession.ts`) to every
-  event, and `routeTemplate.ts` turns the path into `$pathname`, a route template, never a
-  concrete path or query.
+  `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
+  the event's own properties. `analyticsEvents.ts` lists the events and their fields,
+  `trackEvent.ts` adds the wallet address, network, visit and session ids (from
+  `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
+  referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
+  Ethereum address is recorded as `wallet_address` (never a value that is not an address),
+  `wallet_connected` is sent through `walletConnections.ts` when `VaultWalletConnectionProvider.tsx`
+  reports a Bitcoin connection (it decides whether one counts and whether it was restored) and when
+  `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the
+  path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
+  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`). The
+  campaign values are the one part taken from the landing URL's query (or the website's cookie):
+  only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
+  100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
+  an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
+  anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. These
+  matches are taken from the original value and where two overlap the whole span is replaced, so an
+  address glued to hex is never sent minus the part a hex match took. A `bc1`, `tb1` or `bbn1` match
+  takes the whole run of letters and digits it starts, so an address joined after another is caught
+  with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is
+  caught when each end meets a non-alphanumeric character, the edge of the value or one of the
+  matches above, which also takes the hex digits it shares with the address; one joined directly
+  to any other letter or digit is sent. A campaign word shaped like a legacy address is replaced;
+  scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which Safari
+  before 16.4 rejects: the module runs at
+  startup, so an unsupported pattern would stop the app. The app does not itself send the BTC
+  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address leads
+  to the first three on-chain.
+- **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
+  value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
+  still holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each
+  other. A UTM value is shared by everyone who followed the same link, so it links visits only as
+  far as the campaign is narrow. `gclid` and `twclid` are sent unchanged, because marketing needs
+  them to match a visit to an ad click; a click id is unique to one click, so it joins those visits
+  to each other and to the ad platform's click record. This linkage is accepted; it is the reason
+  the per-load visit id does not, on its own, keep visits apart. A click id is sent only when it
+  is a plain token (letters, digits, `-` and `_`, at most 255 characters); anything else is
+  dropped. That shape still admits any address (hex, bech32, Babylon or legacy), none of which is
+  scrubbed from a click id, so a link crafted with one as its click id would have it sent; this is
+  accepted, as the link's author chose the value.
 - **Client IP.** The browser posts to `NEXT_PUBLIC_POSTHOG_HOST`, which in a deployment is always
   the sidecar-api proxy (`https://sidecar-api.<env>.babylonlabs.io/posthog`); a deployment never
   posts to PostHog directly. The proxy forwards the visitor's IP to PostHog as `X-Forwarded-For`,
   so PostHog still sees the visitor's IP address. **The PostHog project must have _Discard client
   IP data_ enabled**; PostHog still derives the country before discarding the IP, and the country
-  is kept on purpose.
+  is kept on purpose. For a connected depositor that country sits on the events that carry their
+  address, and this setting, which lives in the PostHog project rather than in this repository, is
+  the only thing that keeps the raw IP off an identified user.
+- **No project key in the bundle.** The app sends no `api_key`. The sidecar proxy holds the
+  PostHog project key, adds it to each batch and drops any key a client sends. A key that earlier
+  builds shipped must be rotated; after that the key cannot be copied from the bundle and used to
+  post to PostHog without the proxy. The proxy route itself is public and unauthenticated, so
+  anyone can still send fake events through it: treat event data as untrusted for attribution.
+  Its abuse must be bounded by edge rate limiting on the route, a deployment control that is not
+  yet in place, and by the PostHog project's billing limit.
 - **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
-  and no referrer. The visit and session ids live in memory only.
+  and no referrer. The visit and session ids live in memory only. The app only reads the
+  website's `bbn_src` cookie, and treats its contents as untrusted input.
 - **Nothing before the geofence passes.** Every event is held in memory (at most 50) until the
   startup checks, the geofence and then the GraphQL health check, have finished, and is sent if
   the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only
@@ -852,7 +919,8 @@ What bounds it:
   passed one.
 - **Global Privacy Control opts out.** When `navigator.globalPrivacyControl` is true, nothing is
   sent.
-- **No person profiles.** Every event carries `$process_person_profile: false`.
+- **No person profiles.** Every event carries `$process_person_profile: false`. This does not
+  stop events being grouped by `wallet_address` (see above).
 
 **Changing what any of that code sends is a privacy change.** Review it the same way you would
 review re-enabling Sentry tracing.
@@ -1111,7 +1179,7 @@ only repository-local safeguards.
 | Activation          | —/C       | The wallet's gas estimate lands on the registry's catch-and-redeem path, so the activation transaction succeeds but redeems the vault instead of activating it | Position never opened; the BTC returns through the VP payout with the secret public in calldata | `planActivationGasLimit` searches the limit with `eth_simulateV1`, starting from the registry's `minActivationGas` gate as a provably failing lower bound (`BTCVaultRegistry.sol:728 @102e78c5`), and refuses a limit at which the registry emits the depositor-key `VaultClaimableBy`; the chosen limit is re-checked as the send's pre-flight and passed to the wallet | `activationGasLimit.test.ts`, `vaultActivationService.test.ts` |
 | Activation          | B/—       | The deposit form's cap check reads a cached `maxVaultsPerPosition` and an indexer vault count, so a deposit into a position that is already full, or that the depositor's own unactivated deposits will fill (a concurrent tab, an earlier session), is registered and its Pre-PegIn broadcast | The registry redeems the vault at activation instead of activating it: the ETH peg-in fee, the activation gas and the BTC claim costs are lost, and the BTC returns through the VP payout | A fresh, fail-closed on-chain check before a new deposit's chain switch and every signing prompt (only the BTC wallet's liveness probe, which can ask a locked wallet to unlock, runs earlier), before each registration attempt, and before every new or resumed Pre-PegIn broadcast: the vault's application is asked `allowedToDeposit` for the deposit plus the depositor's other Pending and Verified vaults in that application, read from the registry's `getDepositorVaultIds` and each vault's on-chain status, never from the indexer; every chain read of one check is pinned to one block (the head less a small lag), so a load-balanced RPC answering from nodes at different heights cannot make a vault that activates mid-check disappear from both counts. At broadcast a Pending vault registered after the deposit is left out only when the mempool API answers "not found" for its Pre-PegIn (it has locked nothing, and its own broadcast check counts this deposit if its client runs this check); any other answer or a failed lookup counts it, and a refusal that rests on a failed lookup is reported as "couldn't check", not "full". So of two unbroadcast registered deposits that fit only one at a time the earlier is broadcast and the later refused. **Residual:** the reads reserve nothing, so a concurrent activation or broadcast, a limit change after the last check, a deposit registered in the blocks the pinned reads lag behind, a later deposit whose client does not run this check and broadcasts after this one's check, or a mempool API that denies a later deposit's broadcast Pre-PegIn can still lead to a redeem (closing it needs a contract-side reservation); a Pending vault past its acknowledgment window or a Verified vault past its activation window is over-counted until its expiry is reported, so an abandoned deposit holds its room until then; the later of two unbroadcast registered deposits that fit only one at a time loses its peg-in fee | `positionCapacity.test.ts`, `depositorVaultIds.test.ts`, `useDepositFlow.test.tsx`, E2E `position-capacity.spec.ts`, E2E `--inject-position-full` |
 | Activation          | C         | A mempool API reports a healthy Verified BTCVault's HTLC as spent by its PegIn (an `outspend` naming the public PegIn txid, served with a fabricated witness), so the app shows "Activation incomplete", hides Activate and offers only activate-and-redeem | The depositor redeems a BTCVault that could have activated: the secret is revealed, the position never opens, and the BTC returns through the VP payout minus commission | The stuck state also requires the PegIn, fetched by the on-chain signed PegIn's txid, to spend the registered HTLC outpoint with a witness Bitcoin would accept: leaf committed to the HTLC output of the registered Pre-PegIn, preimage of the registered hashlock, every required signature valid (`verifyPeginHashlockSpend`); the row fails open to normal activation, and the confirm re-runs the proof before the secret check and the Ethereum wallet prompt and refuses without it. **Residual:** the participants' PegIn signatures are public (`getPeginInputSignaturesForVault`), so once the secret is public (e.g. a reverted activation's calldata) anyone can assemble a valid PegIn and show the stuck state without broadcasting it — and, while the HTLC is unspent, could equally broadcast it and sweep the HTLC for real | SDK `verifyPeginHashlockSpend.test.ts` (incl. a real signet PegIn), `outspend.test.ts`, `useStuckVaults.test.ts`, `useVaultActions.test.ts`, `useClaimExpiredVault.test.tsx` |
-| Artifacts           | A         | VP serves a well-formed artifact manifest and CBOR sessions that match their SHA-256 ETags but whose content cannot decrypt a challenge | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — the vault id, the manifest and session shapes, the vault binding and the presign fingerprint are checked before any session is fetched, and each session is written to the tar only after its SHA-256 matches its ETag; decryptability is not (no client-side BaBe verifier) | close with a client-side artifact verifier before activation       |
+| Artifacts           | A         | VP serves a well-formed artifact manifest and CBOR sessions that match their SHA-256 ETags but whose content cannot decrypt a challenge | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — the vault id, the manifest and session shapes, the vault binding and, when this browser holds a readable presign record, the presign fingerprint are checked before any session is fetched, and each session is written to the tar only after its SHA-256 matches its ETag; decryptability is not (no client-side BaBe verifier) | close with a client-side artifact verifier before activation       |
 | VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 identity pinned per subject to the vault's frozen-epoch on-chain operation key; no live-key refresh; 2h ephemeral-key lifetime cap | `serverIdentity.test.ts`, `tokenRegistry.test.ts`                  |
 | VP responses        | A         | Malformed or hostile VP response is cast without inspection                       | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                    | `validators.test.ts`, `json-rpc-client.test.ts`                   |
 | Indexer             | B         | Wrong vault status induces an irreversible user action                            | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification | deposit-context tests                                             |
@@ -1133,6 +1201,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
+| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): PostHog sees visiting addresses and sources      | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts` |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimum-release-age=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions          | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |

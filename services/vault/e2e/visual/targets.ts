@@ -201,6 +201,17 @@ export const DEPOSIT_PROGRESS_STOPS = {
  */
 export const ACTIVE_LOAN_STOP = "loans-active-loan";
 
+export const LOAN_NOTICE_STOPS = {
+  light: {
+    1: "loans-notice-limit-1-light",
+    2: "loans-notice-limit-2-light",
+  },
+  dark: {
+    1: "loans-notice-limit-1-dark",
+    2: "loans-notice-limit-2-dark",
+  },
+} as const;
+
 const withdrawalCopy = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),
   "utf8",
@@ -228,6 +239,16 @@ export const WITHDRAW_RISK_STOPS = ["light", "dark"].flatMap((theme) => [
 export const VAULT_REFUND_STOPS = {
   refunding: "vaults-refunding",
   refunded: "vaults-refunded",
+} as const;
+
+/**
+ * A lifecycle row whose sub-line is a countdown, keyed by the demo scenario
+ * that seeds it. The sub-line wraps where it used to be cut off. See
+ * `vaultRowWait.visual.spec.ts`.
+ */
+export const VAULT_WAIT_STOPS = {
+  "expired-maturing": "vaults-refund-maturing",
+  "activation-window-waiting": "vaults-activation-window",
 } as const;
 
 export const LOAN_PICKER_STOPS = {
@@ -292,6 +313,18 @@ export const ARTIFACT_QUOTA_STOPS = {
   vault: "artifact-download-vault-quota",
 } as const;
 
+/** The vault download dialog opened on a vault whose artifacts are saved. */
+export const ARTIFACT_SAVED_STOP = "artifact-download-vault-saved";
+/** An active vault row whose artifacts are saved. */
+export const ARTIFACT_SAVED_ROW_STOP = "artifact-download-vault-saved-row";
+// The merge-base hides a saved vault's row download instead of relabelling it.
+export const HAS_ARTIFACT_DOWNLOAD_AGAIN_ROW = existsSync(
+  new URL(
+    "../../src/components/vaults/ArtifactDownloadRowButton.tsx",
+    import.meta.url,
+  ),
+);
+
 // CI runs this test harness against the earlier UI too.
 const vaultsLifecycleSource = readFileSync(
   new URL(
@@ -345,6 +378,20 @@ export const HAS_CONNECT_GUIDE = existsSync(
  * `connectGuide.visual.spec.ts`.
  */
 export const CONNECT_GUIDE_STOP = "connect-guide-ledger-vault";
+
+// CI uses this harness with older app source that has no waitlist dialog.
+export const HAS_WAITLIST_DIALOG = existsSync(
+  new URL("../../src/components/Wallet/WaitlistDialog.tsx", import.meta.url),
+);
+
+/**
+ * The waitlist dialog an Ethereum account not on the depositor allow-list sees
+ * once connected, in both themes. See `waitlistDialog.visual.spec.ts`.
+ */
+export const WAITLIST_DIALOG_STOPS = {
+  light: "waitlist-dialog-light",
+  dark: "waitlist-dialog-dark",
+} as const;
 
 export const LIQUIDATION_TOUR_STOPS = {
   welcome: "liquidation-tour-welcome",

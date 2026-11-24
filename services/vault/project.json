@@ -47,6 +47,9 @@
           "env": "NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS"
         },
         {
+          "env": "NEXT_PUBLIC_TBV_WAITLIST_FORM_URL"
+        },
+        {
           "env": "NEXT_PUBLIC_NOTICE_BANNER_MESSAGE"
         },
         {
@@ -81,9 +84,6 @@
         },
         {
           "env": "NEXT_PUBLIC_POSTHOG_HOST"
-        },
-        {
-          "env": "NEXT_PUBLIC_POSTHOG_PROJECT_KEY"
         },
         {
           "env": "NEXT_PUBLIC_CANONICAL"

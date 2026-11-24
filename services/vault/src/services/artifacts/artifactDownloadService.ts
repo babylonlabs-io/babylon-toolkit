@@ -31,6 +31,7 @@ import { getVpArtifactsProxyUrl } from "@/utils/rpc";
 import {
   assertBundleBoundToVault,
   assertGraphMatchesPresign,
+  fingerprintServedGraph,
 } from "./artifactBinding";
 import type {
   ArtifactSaveMethod,
@@ -95,6 +96,15 @@ export interface RecoveryKitSource {
   fetchImpl: FetchLike;
 }
 
+/**
+ * The deposit a kit is requested for. `signedGraphFingerprint` is the presign
+ * record this browser holds, or null when it holds none.
+ */
+export type RecoveryKitDownloadIdentity = Omit<
+  RecoveryKitIdentity,
+  "signedGraphFingerprint"
+> & { signedGraphFingerprint: string | null };
+
 /** Evidence that a validated kit was written to disk. */
 export interface ArtifactDownloadOutcome {
   filename: string;
@@ -107,6 +117,11 @@ export interface ArtifactDownloadOutcome {
   method: ArtifactSaveMethod;
   /** Each session's hash and length, as written to `claim.json`. */
   sessions: Record<string, ClaimFileSession>;
+  /**
+   * True when the graph reproduced this browser's presign record. False when
+   * the browser held none: the kit is saved, but check (a) did not run.
+   */
+  comparedWithPresignRecord: boolean;
 }
 
 /**
@@ -117,7 +132,9 @@ export interface ArtifactDownloadOutcome {
  * from the deposit, `JsonRpcError` when the provider rejects the bearer,
  * `ArtifactsNotReadyError` while the provider does not serve the package yet,
  * `VpResponseValidationError` for a malformed manifest or session,
- * `PresignGraphMismatchError` for a graph other than the one signed,
+ * `ServedGraphUnreadableError` (a subclass) for a malformed graph when the
+ * identity carries no presign record,
+ * `PresignGraphMismatchError` for a graph other than the one recorded,
  * `ArtifactDownloadTooLargeError` for an archive the target cannot hold,
  * `ArtifactFileAccessError` when the save fails,
  * `ArtifactDownloadCancelledError` when the caller cancels, and a plain
@@ -126,7 +143,7 @@ export interface ArtifactDownloadOutcome {
  */
 export async function downloadRecoveryKit(
   source: RecoveryKitSource,
-  identity: RecoveryKitIdentity,
+  identity: RecoveryKitDownloadIdentity,
   target: ArtifactSaveTarget,
   options?: FetchArtifactsOptions,
 ): Promise<ArtifactDownloadOutcome> {
@@ -167,17 +184,21 @@ export async function downloadRecoveryKit(
     // Schema-valid is not the same as ours: the tx graph is what proves the
     // kit belongs to this deposit, and the presign fingerprint is the one
     // value the provider never saw.
-    const binding = {
+    assertBundleBoundToVault(manifest.txGraph, [...manifest.sessions.keys()], {
       peginTxid: identity.peginTxid,
       depositorPk: identity.depositorPk,
-      signedGraphFingerprint: identity.signedGraphFingerprint,
-    };
-    assertBundleBoundToVault(
-      manifest.txGraph,
-      [...manifest.sessions.keys()],
-      binding,
-    );
-    assertGraphMatchesPresign(manifest.txGraph, binding);
+    });
+    // With no presign record the kit is still saved, with the served graph's
+    // own fingerprint in claim.json, and reported as not compared.
+    const recordedFingerprint = identity.signedGraphFingerprint;
+    let signedGraphFingerprint: string;
+    if (recordedFingerprint === null) {
+      signedGraphFingerprint = fingerprintServedGraph(manifest.txGraph);
+    } else {
+      assertGraphMatchesPresign(manifest.txGraph, recordedFingerprint);
+      signedGraphFingerprint = recordedFingerprint;
+    }
+    const claimIdentity = { ...identity, signedGraphFingerprint };
 
     // The exact archive size is known before any session is fetched: every
     // session length is in the manifest and every hash is 64 characters.
@@ -187,7 +208,11 @@ export async function downloadRecoveryKit(
       byteLengths.set(session.key, session.byteLength);
       total += tarEntryBytes(session.byteLength);
     }
-    const claimLength = claimFileByteLength(identity, manifest, byteLengths);
+    const claimLength = claimFileByteLength(
+      claimIdentity,
+      manifest,
+      byteLengths,
+    );
     // A reader refuses a larger claim.json, so the kit would be unusable.
     if (claimLength > MAX_CLAIM_FILE_BYTES) {
       throw new VpResponseValidationError(
@@ -249,7 +274,7 @@ export async function downloadRecoveryKit(
       recorded.size === manifest.sessions.size &&
         [...manifest.sessions.keys()].every((key) => recorded.has(key)),
     );
-    const claim = buildClaimFile(identity, manifest, recorded);
+    const claim = buildClaimFile(claimIdentity, manifest, recorded);
     assertAssembled(claim.byteLength === claimLength);
     await emit(tarHeader(CLAIM_FILE_NAME, claim.byteLength));
     await emit(claim);
@@ -266,6 +291,7 @@ export async function downloadRecoveryKit(
       sha256: bytesToHex(hasher.digest()),
       method: target.method,
       sessions: Object.fromEntries(recorded),
+      comparedWithPresignRecord: recordedFingerprint !== null,
     };
   } catch (err) {
     // Also after a rejected commit: that leaves the writable un-aborted, so
@@ -282,7 +308,7 @@ export async function downloadRecoveryKit(
  * with the bearer the registry holds for this deposit.
  */
 export async function fetchAndDownloadArtifacts(
-  identity: RecoveryKitIdentity,
+  identity: RecoveryKitDownloadIdentity,
   target: ArtifactSaveTarget,
   options?: FetchArtifactsOptions,
 ): Promise<ArtifactDownloadOutcome> {

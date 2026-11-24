@@ -373,8 +373,9 @@ function DemoControls() {
         </select>
       </label>
 
-      {/* A satisfied gate hides the card's download button, so re-testing the
-          flow against the same vault needs the receipts gone. */}
+      {/* With a receipt the activation dialog offers no download (the vault
+          dialog still does), so re-testing it on the same vault needs the
+          receipts gone. */}
       <button
         type="button"
         onClick={() => {

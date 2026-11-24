@@ -71,9 +71,11 @@ Field rules:
 - `vault_provider` is the provider the indexer reported for the vault when the kit was saved. It
   is advisory for readers.
 - `signed_graph_fingerprint` is the fingerprint the saving device recorded when the depositor
-  presigned, matched against the graph before download. For a reader on another device it is a
-  self-declared record, not proof of what the depositor signed: recompute the fingerprint from the
-  graph if you need one.
+  presigned, matched against the graph before download. A saving device that holds no readable
+  record (none was kept, or its storage could not be read) writes the fingerprint it computed from
+  the graph as the provider served it, which is not a record of what the depositor signed. The file
+  does not say which of the two it holds. For a reader it is a self-declared value either way, not
+  proof of what the depositor signed: recompute the fingerprint from the graph if you need one.
 - `tx_graph_json` keeps the manifest's string value (JSON encoded inside a JSON string).
 - `verifying_key_hex` is the provider's copy. It is not evidence of anything; compare it with a
   trusted key before use.

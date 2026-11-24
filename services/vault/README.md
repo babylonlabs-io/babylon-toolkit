@@ -104,7 +104,7 @@ overrides. Every name the app reads is listed with its class in `env-manifest.js
 | `NEXT_PUBLIC_MEMPOOL_API`                                                                                                                  | optional   | Mempool host (no `/signet`, no `/api`). Default `https://mempool.space`.                                                              |
 | `NEXT_PUBLIC_TBV_UTILS_API`, `NEXT_PUBLIC_TBV_SIDECAR_API_URL`, `NEXT_PUBLIC_TBV_VP_EXPLORER_URL`, `NEXT_PUBLIC_TBV_ORDINALS_API_URL`      | optional   | Auxiliary services; each feature degrades when unset.                                                                                 |
 | `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE`, `NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS`, `NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS`, `NEXT_PUBLIC_FF_*` | optional   | Operator switches; see `src/config/featureFlags.ts`.                                                                                  |
-| `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_POSTHOG_PROJECT_KEY`                                                                              | optional   | Product analytics; set both or neither. The PostHog project must discard client IPs; see `SECURITY.md` "Product analytics (PostHog)". |
+| `NEXT_PUBLIC_POSTHOG_HOST`                                                                                                                 | optional   | Sidecar PostHog proxy URL; it holds the key. The project must discard client IPs; see `SECURITY.md` "Product analytics (PostHog)".    |
 | `NEXT_PUBLIC_CANONICAL`, `NEXT_PUBLIC_COMMIT_HASH`, Sentry variables                                                                       | build-only | Set by the release workflow.                                                                                                          |
 
 See [Vault allowlists](../../docs/vault-allowlists.md) for how to limit the vault providers
@@ -155,7 +155,8 @@ To add an environment:
 2. `pnpm sync-env <name> --kind test|internal|production`, review `networks/<name>.json`,
    add an `overrides` block only if the registry entry is wrong, and open a PR.
 3. Create the GitHub Environment with the override variables it needs (`NEXT_PUBLIC_REOWN_PROJECT_ID`,
-   Sentry, `NEXT_PUBLIC_CANONICAL`, flags, and the PostHog pair if the environment sends analytics).
+   Sentry, `NEXT_PUBLIC_CANONICAL`, flags, and `NEXT_PUBLIC_POSTHOG_HOST` if the environment sends
+   analytics).
    Never add a contract address there. A `production`-kind environment must also resolve
    `NEXT_PUBLIC_TBV_UTILS_API`, `NEXT_PUBLIC_MEMPOOL_API`, `S3_PUBLIC_BUCKET_NEW` and
    `S3_CHECKSUM_BUCKET_NEW` (from the environment or organisation variables), as https mainnet

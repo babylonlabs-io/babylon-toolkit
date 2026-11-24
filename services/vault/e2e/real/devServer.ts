@@ -77,7 +77,6 @@ export async function ensureDevServer(
       ...process.env,
       NEXT_PUBLIC_TBV_NETWORK: NETWORKS[network].profile,
       NEXT_PUBLIC_POSTHOG_HOST: "",
-      NEXT_PUBLIC_POSTHOG_PROJECT_KEY: "",
     },
     detached: true,
     stdio: "ignore",

@@ -10,6 +10,7 @@ import {
   Button,
   Callout,
   Heading,
+  Loader,
   SubSection,
   Text,
   WarningIcon,
@@ -488,7 +489,15 @@ export function Borrow() {
         className="mt-2 disabled:!bg-accent-disabled disabled:!opacity-100 max-md:order-2"
         data-testid="borrow-submit-button"
       >
-        {getBorrowButtonText()}
+        {!isBorrowUnavailable &&
+        (unconfirmedWrite || isConfirming || isProcessing || pendingWrite) ? (
+          <span className="flex items-center justify-center gap-2">
+            <Loader size={16} className="text-accent-contrast" />
+            <span>{getBorrowButtonText()}</span>
+          </span>
+        ) : (
+          getBorrowButtonText()
+        )}
       </Button>
 
       {/* Single status callout (validation / transaction / availability),

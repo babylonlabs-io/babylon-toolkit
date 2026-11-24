@@ -36,6 +36,8 @@ import {
   ACTIVE_LOAN_STOP,
   ARTIFACT_DOWNLOAD_STOPS,
   ARTIFACT_QUOTA_STOPS,
+  ARTIFACT_SAVED_ROW_STOP,
+  ARTIFACT_SAVED_STOP,
   BORROW_HINT_STOPS,
   CONNECT_GUIDE_STOP,
   DEPOSIT_FLOW_STEPS,
@@ -47,17 +49,21 @@ import {
   HAS_ARTIFACT_DOWNLOAD_CONFIRMATION,
   HAS_CONNECT_GUIDE,
   HAS_LIQUIDATION_TOUR,
+  HAS_WAITLIST_DIALOG,
   LIQUIDATION_CHART_STOP,
   LIQUIDATION_SMALL_POSITION_STOP,
   LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
   LIQUIDATION_TOUR_STOPS,
+  LOAN_NOTICE_STOPS,
   LOAN_PICKER_STOPS,
   PROVIDER_COLUMNS_STOP,
   RISK_PRICE_RAIL_STOPS,
   screenshotFileName,
   VAULT_REFUND_STOPS,
+  VAULT_WAIT_STOPS,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
+  WAITLIST_DIALOG_STOPS,
   WITHDRAW_RISK_STOPS,
 } from "./targets";
 
@@ -450,16 +456,20 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ...Object.values(BORROW_HINT_STOPS),
       ACTIVE_LOAN_STOP,
+      ...Object.values(LOAN_NOTICE_STOPS).flatMap(Object.values),
       ...Object.values(LOAN_PICKER_STOPS).flatMap(Object.values),
       PROVIDER_COLUMNS_STOP,
       ...Object.values(RISK_PRICE_RAIL_STOPS),
       ...Object.values(ACTIVATION_WARNING_STOPS).flat(),
       ...Object.values(VAULT_REFUND_STOPS),
+      ...Object.values(VAULT_WAIT_STOPS),
       ...WITHDRAW_RISK_STOPS,
       ...(HAS_ARTIFACT_DOWNLOAD_CONFIRMATION
         ? [
             ...Object.values(ARTIFACT_DOWNLOAD_STOPS),
             ...Object.values(ARTIFACT_QUOTA_STOPS),
+            ARTIFACT_SAVED_STOP,
+            ARTIFACT_SAVED_ROW_STOP,
           ]
         : []),
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
@@ -470,6 +480,7 @@ export async function ensureOutputDir(): Promise<void> {
       LIQUIDATION_SMALL_POSITION_TOOLTIP_STOP,
       ...(HAS_LIQUIDATION_TOUR ? Object.values(LIQUIDATION_TOUR_STOPS) : []),
       ...(HAS_CONNECT_GUIDE ? [CONNECT_GUIDE_STOP] : []),
+      ...(HAS_WAITLIST_DIALOG ? Object.values(WAITLIST_DIALOG_STOPS) : []),
     ].flatMap((stop) =>
       VISUAL_VIEWPORTS.map((viewport) =>
         flowScreenshotFileName(stop, viewport),

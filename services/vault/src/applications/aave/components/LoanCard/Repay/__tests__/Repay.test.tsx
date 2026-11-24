@@ -5,10 +5,18 @@
  * the assertion is whether the validation callout body is on screen.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { COPY } from "@/copy";
 
 import {
   LoanProvider,
@@ -37,6 +45,7 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   ),
   Callout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Heading: ({ children }: { children: ReactNode }) => <h3>{children}</h3>,
+  Loader: () => <span data-testid="button-spinner" />,
   SubSection: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
@@ -214,5 +223,57 @@ describe("Repay", () => {
     );
 
     expect(screen.queryByText(VALIDATION_ERROR)).toBeNull();
+  });
+
+  it("shows a spinner on the repay button while the repay is processing and none while idle", () => {
+    const { rerender } = render(
+      <LoanProvider value={makeLoanContext()}>
+        <Repay />
+      </LoanProvider>,
+    );
+    const button = screen.getByTestId("repay-submit-button");
+    expect(within(button).queryByTestId("button-spinner")).toBeNull();
+
+    mocks.useRepayTransaction.mockReturnValue(repayTransaction(true));
+    rerender(
+      <LoanProvider value={makeLoanContext()}>
+        <Repay />
+      </LoanProvider>,
+    );
+
+    expect(within(button).getByTestId("button-spinner")).toBeTruthy();
+    expect(button.textContent).toBe(COPY.loans.repay.processing);
+  });
+
+  it("shows a spinner on the repay button for a pending write that this form is not processing", () => {
+    mocks.useRepayTransaction.mockReturnValue({
+      ...repayTransaction(false),
+      pendingWrite: { phase: "submitting" },
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Repay />
+      </LoanProvider>,
+    );
+
+    const button = screen.getByTestId("repay-submit-button");
+    expect(within(button).getByTestId("button-spinner")).toBeTruthy();
+    expect(button.textContent).toBe(COPY.loans.repay.processing);
+  });
+
+  it("keeps the spinner on the repay button while the repay is confirming", () => {
+    mocks.useRepayTransaction.mockReturnValue({
+      ...repayTransaction(true),
+      isConfirming: true,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Repay />
+      </LoanProvider>,
+    );
+
+    const button = screen.getByTestId("repay-submit-button");
+    expect(within(button).getByTestId("button-spinner")).toBeTruthy();
+    expect(button.textContent).toBe(COPY.common.confirming);
   });
 });

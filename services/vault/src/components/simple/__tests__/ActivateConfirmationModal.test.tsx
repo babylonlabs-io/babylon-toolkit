@@ -42,6 +42,7 @@ vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => ({
     await importOriginal<typeof import("@babylonlabs-io/core-ui")>()
   ).ConfirmationDialog,
   Loader: () => <div data-testid="loader" />,
+  useReducedMotion: () => false,
   Text: (props: Record<string, unknown>) => (
     <span>{props.children as ReactNode}</span>
   ),
