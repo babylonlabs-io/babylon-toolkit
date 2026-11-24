@@ -827,9 +827,10 @@ attribute deposits to a traffic source. It is a separate channel from Sentry, an
 (`vault_id`); this is not an oversight. It is an accepted risk, recorded in the vault model's
 _Accepted risks_.
 
-**What it links, through public chain data.** The address and the vault id are public keys into
-the vault registry and the indexer, which return the depositor's BTC public key, the exact deposit
-amount and the peg-in transaction for them. So anyone with access to the PostHog project can tie a
+**What it links, through public chain data.** The address is a public key into the vault
+registry and the indexer, which return the depositor's vaults and, for each, the BTC public key,
+the exact deposit amount and the peg-in transaction. A vault id is a key to that one vault's
+records. So anyone with access to the PostHog project can tie a
 browsing session and its traffic source to the depositor's identity on **both** chains, not only
 on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
 _Client IP_ below). The full vault id is kept, rather than Sentry's short id, because the revenue join
@@ -868,7 +869,8 @@ What bounds it:
   `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the
   path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
   carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit
-  events carry a coarse amount band, the number of vaults in a deposit and the vault id. The
+  events carry a coarse amount band, the number of vaults in a deposit, a random batch id per
+  deposit attempt and the vault id. The
   campaign values are the one part taken from the landing URL's query (or the website's cookie):
   only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
   100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
