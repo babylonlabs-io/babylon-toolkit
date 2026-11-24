@@ -83,17 +83,23 @@ const NOTHING_SIGNED_OR_SPENT = "Nothing was signed and no funds were spent";
 // reserve tooltip opens with.
 const RESERVE_PURPOSE =
   "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction.";
-// The two refusals of the PegIn proof, shared by the redeems that reveal the
-// HTLC secret after the peg-in swept the deposit (stuck-state withdraw and
-// expired-BTCVault redeem). Both are retryable: a lagging or wrong mempool API
-// is not a final state. The first covers a failed read of either transaction
-// the proof needs — the peg-in or the Pre-Pegin.
+// The two refusals of the PegIn proof on the expired-BTCVault redeem, which
+// reveals the HTLC secret after the peg-in swept the deposit. Both are
+// retryable: a lagging or wrong mempool API is not a final state. The first
+// covers a failed read of either transaction the proof needs.
 const PEGIN_PROOF_UNAVAILABLE =
   "This deposit's Bitcoin transactions could not be read to confirm the peg-in transaction already revealed your HTLC secret. Nothing was submitted. Please try again.";
 const PEGIN_PROOF_FAILED =
   "Bitcoin data did not confirm that the peg-in transaction already revealed your HTLC secret, so it was not revealed here. Nothing was submitted. Please try again later.";
 // Shared between the resume WOTS error string and the mapped callout body so
 // the wording stays in one place.
+// Shared by the mined-deadline notice and the terminal callout that carries it.
+const DEADLINE_REVERTED_SECRET_PUBLIC =
+  "Because the transaction was mined, your HTLC secret is now public. If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault from its row before its grace window closes.";
+// Reuses the ABI-keyed message so the callout can't drift from the contract-error string.
+const ACTIVATION_DEADLINE_PASSED_TITLE = "Activation deadline passed";
+const ACTIVATION_DEADLINE_PASSED_BODY = `${CONTRACT_ERROR_MESSAGES.ActivationDeadlineExpired} You can reclaim your BTC through the refund flow once it becomes available.`;
+
 const WRONG_WALLET_BODY =
   "WOTS public key hash does not match the on-chain commitment. The wrong wallet is connected.";
 // Shared by formatPayoutSignatureError's Error and non-Error fallbacks so the
@@ -247,6 +253,10 @@ export const COPY = {
       // given at `deposit.emergencyWithdraw.bodyStuck`.
       activationReturned:
         "This BTCVault could not be added to your position, so it was redeemed instead of activated. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
+      // The depositor's own Withdraw landed. Shown until the indexer reports
+      // REDEEMED; the second sentence is `redemptionInProgress`, as above.
+      withdrawSubmitted:
+        "You withdrew this BTCVault without activating it. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
       readyToActivate:
         "Bitcoin transaction confirmed. Reveal your HTLC secret to activate the BTCVault.",
       // Deliberately reassuring: this state looks alarming but the BTC is
@@ -322,6 +332,14 @@ export const COPY = {
       // BTCVault expires and the refund path opens once its timelock passes.
       activationWindowClosing:
         "Too little time remains to activate this BTCVault safely. Nothing was submitted. Activating now would reveal your secret without completing the deposit. Your secret stays private: once this BTCVault expires, you can refund your BTC.",
+      // Withdraw's own refusal inside the same margin. Terminal. It makes no
+      // claim about the secret, which an earlier mined revert may have published.
+      withdrawWindowClosing:
+        "Too little time remains to withdraw this BTCVault before its activation deadline, so nothing was submitted. This BTCVault will expire. If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault before its grace window closes. Otherwise, refund your BTC once the refund timelock has passed.",
+      // The same margin, but the Bitcoin check that would lift it could not
+      // be read. Retryable: a later read may show the peg-in transaction.
+      withdrawWindowClosingUnchecked:
+        "Too little time remains to withdraw this BTCVault before its activation deadline, unless the peg-in transaction already spent this deposit, and this deposit's Bitcoin transactions could not be read to check. Nothing was submitted. Please try again.",
       // The window state could not be read at all. Distinct from the countdown
       // above: we cannot say how long, only that we will not reveal the secret
       // against an unverifiable gate.
@@ -630,6 +648,10 @@ export const COPY = {
         "Cancellation requested. Finish or reject the request on your signing device to continue.",
       closeAndTrackHint:
         "No need to wait here. If a step needs you, reopen this window from your Vault Page before its deadline.",
+      // Shown above Withdraw when it is offered beside Retry after a failed
+      // activation. No figures: none are read from chain on this screen.
+      withdrawExplanation:
+        "Withdrawing cancels this deposit and cannot be undone. The vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission.",
     },
     btcConfirmation: {
       estRemaining: "Est. remaining",
@@ -842,11 +864,8 @@ export const COPY = {
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
     // the BTCVault in one transaction, skipping application activation.
-    // Reached only when the stuck state is proven: the chain still reports the
-    // BTCVault Verified, and the peg-in transaction, fetched from Bitcoin,
-    // validly spends the deposit — the HTLC secret and every participant's
-    // signature in its witness. The confirm re-runs that proof before the
-    // secret is used.
+    // Two cases: proven stuck (the peg-in transaction, fetched from Bitcoin,
+    // validly spends the deposit) and not proven (after a failed activation).
     emergencyWithdraw: {
       title: "Withdraw without activating",
       // Reassurance first: the stuck state looks like lost funds but is
@@ -859,14 +878,16 @@ export const COPY = {
       // this screen does not resolve, and a hardcoded one would be a guess.
       bodyStuck:
         "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault. The vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
+      // Not proven stuck: the deposit may still be refundable, so this names
+      // what withdrawing costs and gives up. No figure, as for `bodyStuck`.
+      bodyNotProven:
+        "Withdrawing cancels this deposit instead of activating it. The vault provider must then claim the BTC on Bitcoin and pay it to your payout address, minus its commission, which takes several days. The peg-in fee you already paid is not refunded. You also give up the refund that depends on no one else: waiting for the BTCVault to expire and refunding it yourself.",
+      // Not-proven dialog only, when this is the first BTCVault of a split
+      // deposit and a later one can still activate.
+      splitProtectionWarning:
+        "This is the first BTCVault of a split deposit. Withdrawing it removes the split's liquidation protection for the remaining BTCVault.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
-      // Shown when the vault's application is registered but not Active on
-      // chain: the registry rejects the redeem in that state, so the action
-      // is withheld rather than failing after the user commits to revealing
-      // the secret.
-      applicationInactive:
-        "This BTCVault's application is not currently active on the vault registry, so withdrawing would be rejected. Your secret has not been revealed. Please try again later or contact support.",
       confirmButton: "Withdraw without activating",
       retryButton: "Retry",
       cancelButton: "Cancel",
@@ -876,8 +897,9 @@ export const COPY = {
         btcWalletNotConnected: "BTC wallet is not connected",
         ethWalletNotConnected: "ETH wallet is not connected",
         withdrawFailed: "Failed to withdraw BTCVault",
-        peginProofUnavailable: PEGIN_PROOF_UNAVAILABLE,
-        peginProofFailed: PEGIN_PROOF_FAILED,
+        // The transaction confirmed but the receipt does not show the redeem.
+        withdrawUnconfirmed:
+          "Your withdrawal transaction was confirmed, but it does not show that this BTCVault was redeemed. Check this BTCVault's status before trying again. If it was not redeemed, close this window and open it again to retry.",
       },
       success: {
         heading: "Withdrawal submitted",
@@ -1030,6 +1052,18 @@ export const COPY = {
       // Same label as the activated screen: the real-wallet E2E
       // (e2e/real/actions/stepMachine.ts) detects the end of a deposit by it.
       goToDashboard: "Go to Dashboard",
+    },
+    // The same screen after the depositor's own Withdraw. `full` when every
+    // BTCVault of the deposit was withdrawn; `partial` says nothing of the rest.
+    vaultWithdrawnSuccess: {
+      full: {
+        heading: "Your deposit was withdrawn",
+        body: "You withdrew this deposit without activating it. The vault provider claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
+      },
+      partial: {
+        heading: "Part of your deposit was withdrawn",
+        body: "You withdrew part of this deposit without activating it. The vault provider claims that BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
+      },
     },
     recoveryArtifacts: {
       cardTitle: "Recovery artifacts",
@@ -1336,9 +1370,22 @@ export const COPY = {
       // check cannot run and nothing is sent. Retrying cannot help.
       activationCheckUnsupported:
         "This app's network endpoint cannot run the activation check, so nothing was submitted. Please contact support.",
+      // The registry holds no hashlock for this BTCVault: neither reveal can run.
+      activationHashlockMissing:
+        "BTCVault hashlock not found. The BTCVault may not support activation.",
+      // Fallback when an activation fails with nothing readable to show.
+      activationFailed: "Failed to activate BTCVault",
       // Appended only when the revert was mined, which made the secret public.
       activationRevertedSecretPublic:
-        "Because the transaction was mined, your HTLC secret is now public. Retry promptly, or use Withdraw once it becomes available, before the activation deadline.",
+        "Because the transaction was mined, your HTLC secret is now public. Retry promptly, or use Withdraw on this screen, before the activation deadline.",
+      // The same, for a mined revert Withdraw would hit too: it is not offered.
+      activationRevertedSecretPublicRetryOnly:
+        "Because the transaction was mined, your HTLC secret is now public. Retry promptly, before the activation deadline.",
+      // The same, for a mined Withdraw revert: Withdraw is the action that failed.
+      withdrawRevertedSecretPublic:
+        "The withdrawal did not go through and your BTCVault is unchanged. Because the transaction was mined, your HTLC secret is now public. Retry now, before the activation deadline. If the deadline passes, the BTCVault expires. If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault from its row before its grace window closes. Otherwise, refund your BTC once the refund timelock has passed.",
+      // The same, when the mined revert was the passed deadline: no retry can land.
+      deadlineRevertedSecretPublic: DEADLINE_REVERTED_SECRET_PUBLIC,
       // Surfaced if deposit execution is reached while the protocol is frozen or
       // paused — aborted up front, before the on-chain registration and the BTC
       // broadcast, so no funds are locked and the user can retry once it resumes.
@@ -1434,10 +1481,13 @@ export const COPY = {
         body: "This deposit requires a newer version of the app. Please refresh the page and try again. If the issue persists, an updated release is on its way.",
       },
       activationDeadlinePassed: {
-        title: "Activation deadline passed",
-        // Reuse the canonical ABI-keyed message so this terminal callout can't
-        // drift from the ActivationDeadlineExpired contract-error string.
-        body: `${CONTRACT_ERROR_MESSAGES.ActivationDeadlineExpired} You can reclaim your BTC through the refund flow once it becomes available.`,
+        title: ACTIVATION_DEADLINE_PASSED_TITLE,
+        body: ACTIVATION_DEADLINE_PASSED_BODY,
+      },
+      // The same callout when the deadline revert was mined: the secret is public.
+      activationDeadlinePassedSecretPublic: {
+        title: ACTIVATION_DEADLINE_PASSED_TITLE,
+        body: `${ACTIVATION_DEADLINE_PASSED_BODY} ${DEADLINE_REVERTED_SECRET_PUBLIC}`,
       },
       signingRejected: {
         title: "Signing rejected",

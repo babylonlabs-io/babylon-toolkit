@@ -53,6 +53,8 @@ function renderContent() {
       depositorEthAddress={"0xdepositor" as unknown as `0x${string}`}
       autoStartAction={null}
       onClose={() => {}}
+      onWithdraw={() => {}}
+      withdrawOpen={false}
     />,
   );
   return viewActivities.map((a) => a.id);

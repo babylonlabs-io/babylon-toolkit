@@ -33,9 +33,10 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   },
 }));
 vi.mock("@/models/peginStateMachine", async (importOriginal) => {
-  const { getWarningPeginDisplayStep } =
+  const { ContractStatus, getWarningPeginDisplayStep } =
     await importOriginal<typeof import("@/models/peginStateMachine")>();
   return {
+    ContractStatus,
     getPeginProgressStep: (s: { displayStep: DepositFlowStep | null }) =>
       s.displayStep,
     getWarningPeginDisplayStep,
@@ -43,6 +44,8 @@ vi.mock("@/models/peginStateMachine", async (importOriginal) => {
       s.refunded === true,
     isVaultPastActivation: (s: { pastActivation: boolean } | undefined) =>
       s?.pastActivation === true,
+    isVaultWithdrawnByDepositor: (s: { withdrawn?: boolean }) =>
+      s.withdrawn === true,
   };
 });
 
@@ -53,6 +56,8 @@ type FakeState = {
   displayVariant?: "pending" | "active" | "inactive" | "warning" | "danger";
   localStatus?: string;
   refunded?: boolean;
+  withdrawn?: boolean;
+  contractStatus?: number;
 };
 
 function pollingFor(states: Record<string, FakeState>) {
@@ -301,5 +306,58 @@ describe("deriveSplitVaultProgress", () => {
     );
 
     expect(perVaultSteps?.[1]).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+  });
+
+  it("keeps a withdrawn sibling that is still VERIFIED on the activation-confirmation step instead of COMPLETED", () => {
+    // A withdrawn vault is past activation, so it would otherwise read COMPLETED.
+    const VERIFIED = 1;
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.RETRIEVE_SECRET,
+        pastActivation: false,
+      },
+      "0xwithdrawn": {
+        displayStep: null,
+        pastActivation: true,
+        withdrawn: true,
+        contractStatus: VERIFIED,
+      },
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xwithdrawn"],
+      "0xactive",
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(
+      DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+    );
+  });
+
+  it("marks a withdrawn sibling COMPLETED once it is REDEEMED", () => {
+    const REDEEMED = 3;
+    const getPollingResult = pollingFor({
+      "0xactive": {
+        displayStep: DepositFlowStep.RETRIEVE_SECRET,
+        pastActivation: false,
+      },
+      "0xwithdrawn": {
+        displayStep: null,
+        pastActivation: true,
+        withdrawn: true,
+        contractStatus: REDEEMED,
+      },
+    });
+
+    const { perVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      ["0xactive", "0xwithdrawn"],
+      "0xactive",
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+
+    expect(perVaultSteps?.[1]).toBe(DepositFlowStep.COMPLETED);
   });
 });

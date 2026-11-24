@@ -114,7 +114,7 @@ describe("forgedOutspendBody", () => {
 });
 
 describe("rowOffersEscapeHatch", () => {
-  it("reads the stuck label as the escape hatch on offer", () => {
+  it("reads the stuck label as a stuck row", () => {
     expect(
       rowOffersEscapeHatch(
         "0.001 BTC Activation incomplete Your BTC…",
@@ -123,11 +123,11 @@ describe("rowOffersEscapeHatch", () => {
     ).toBe(true);
   });
 
-  it("reads a Withdraw CTA as the escape hatch on offer, whatever the label", () => {
+  it("reads Withdraw as the primary action as a stuck row, whatever the label", () => {
     expect(rowOffersEscapeHatch("0.001 BTC", " Withdraw ")).toBe(true);
   });
 
-  it("does not read a row ready to activate as the escape hatch", () => {
+  it("does not read a row ready to activate as stuck", () => {
     expect(
       rowOffersEscapeHatch(
         "0.001 BTC Ready to activate Activation required",
