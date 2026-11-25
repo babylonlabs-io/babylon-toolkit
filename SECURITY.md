@@ -908,10 +908,10 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
-attribute deposits to a traffic source. It is a separate channel from Sentry, and unlike Sentry it
-**deliberately sends the connected Ethereum address** (`wallet_address`) and the full vault id
-(`vault_id`); this is not an oversight. It is an accepted risk, recorded in the vault model's
-_Accepted risks_.
+attribute deposits and borrows to a traffic source. It is a separate channel from Sentry, and unlike
+Sentry it **deliberately sends the connected Ethereum address** (`wallet_address`; for a borrow, the
+account that sent it) and the full vault id (`vault_id`); this is not an oversight. It is an
+accepted risk, recorded in the vault model's _Accepted risks_.
 
 **What it links, through public chain data.** The address is a public key into the vault
 registry and the indexer, which return the depositor's vaults and, for each, the BTC public key,
@@ -931,8 +931,9 @@ only stops PostHog building a profile, not anyone grouping events by `wallet_add
 `vault_id` on each deposit milestone links visits the same way: it is the same on every visit that
 sends a milestone for that vault, so it joins the visit that registered a deposit to a later visit
 that broadcast or activated it, on another device too, and also when the address was cleared and
-those events carry none. Visits with no confirmed Ethereum session and no deposit milestone carry
-neither key, and stay unlinked apart from the campaign values (see _Campaign values link visits_
+those events carry none. Visits with no confirmed Ethereum session carry no address, except on a
+borrow event, which names the account that sent the borrow; a visit with neither an address nor a
+deposit milestone stays unlinked apart from the campaign values (see _Campaign values link visits_
 below).
 
 What bounds it:
@@ -946,18 +947,27 @@ What bounds it:
 - **Allow-listed payload.** What is sent is defined by the code in
   `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
   the event's own properties. `analyticsEvents.ts` lists the events and their fields,
-  `trackEvent.ts` adds the wallet address, network, visit and session ids (from
+  `trackEvent.ts` adds the wallet address (the event's own `wallet_address` when it carries one, as
+  borrow events do, otherwise the session's), network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
-  Ethereum address is recorded as `wallet_address` (never a value that is not an address),
+  Ethereum address the session records for `wallet_address`, and `trackEvent.ts` puts a borrow
+  event's own account through the same check, so `wallet_address` is never a value that is not an
+  address (an event account that fails it is left out, not replaced by the session's),
   `wallet_connected` is sent through `walletConnections.ts` when `VaultWalletConnectionProvider.tsx`
   reports a Bitcoin connection (it decides whether one counts and whether it was restored) and when
-  `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the
-  path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
-  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit
-  events carry a coarse amount band, the number of vaults in a deposit, a random batch id per
-  deposit attempt and the vault id. The
-  campaign values are the one part taken from the landing URL's query (or the website's cookie):
+  `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the path
+  into `$pathname`, a route template, never a concrete path or query. `wallet_connected` carries the
+  chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit events carry
+  a coarse amount band, the number of vaults in a deposit, a random batch id per deposit attempt and
+  the vault id; borrow events carry the reserve's symbol: the registry's symbol, or for a token the
+  registry does not list the indexer's label, unscrubbed except that a label starting with lowercase
+  `0x` and at least 42 characters long (the address the indexer returns for a token with no
+  `symbol()`) is replaced by the unknown-token placeholder, and cut to 32 characters (by code
+  point). No other address shape is caught: a `0X`, `bc1` or `bbn1` label, a bare hex run or a
+  legacy Bitcoin address is sent as it is, up to that cut. Borrow events send, as `wallet_address`,
+  the account that sent the transaction rather than whichever wallet is connected when it is mined.
+  The campaign values are the one part taken from the landing URL's query (or the website's cookie):
   only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
   100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
   an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
@@ -967,8 +977,8 @@ What bounds it:
   takes the whole run of letters and digits it starts, so an address joined after another is caught
   with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is
   caught when each end meets a non-alphanumeric character, the edge of the value or one of the
-  matches above, which also takes the hex digits it shares with the address; one joined directly
-  to any other letter or digit is sent. A campaign word shaped like a legacy address is replaced;
+  matches above, which also takes the hex digits it shares with the address; one joined directly to
+  any other letter or digit is sent. A campaign word shaped like a legacy address is replaced;
   scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which Safari
   before 16.4 rejects: the module runs at
   startup, so an unsupported pattern would stop the app. The app does not itself send the BTC
@@ -1276,7 +1286,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
-| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): addresses, sources and vault deposit progress    | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts`, `useDepositFlow.test.tsx`, `useBroadcastState.test.ts`, `useVaultActions.test.ts` |
+| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): addresses, sources, vault deposit progress and borrows | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts`, `useDepositFlow.test.tsx`, `useBroadcastState.test.ts`, `useVaultActions.test.ts`, `useBorrowTransaction.test.tsx` |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimum-release-age=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions          | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |
