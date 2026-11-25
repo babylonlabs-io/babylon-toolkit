@@ -244,8 +244,8 @@ Specific to this component:
   the per-load ids and the absence of person profiles do not prevent that. Only the project's
   _Discard client IP data_ setting keeps the raw IP off the address. The bounds are in
   [`SECURITY.md` → _Product analytics_](../../SECURITY.md#product-analytics-posthog). Legal has
-  approved sending this data, the vault id and the deposit and borrow milestones included. The
-  consent banner and in-app analytics setting that Legal asked for are tracked in
+  approved sending this data, the vault id and the deposit, borrow and withdrawal milestones
+  included. The consent banner and in-app analytics setting that Legal asked for are tracked in
   [#3009](https://github.com/babylonlabs-io/babylon-toolkit/issues/3009).
 
 ### Known deviations
