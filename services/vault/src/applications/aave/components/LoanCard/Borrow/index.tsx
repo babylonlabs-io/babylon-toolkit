@@ -15,7 +15,7 @@ import {
   Text,
   WarningIcon,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 import { isBorrowBlocked } from "@/components/shared/protocolStatus";
@@ -62,6 +62,7 @@ import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
 import { useBorrowState } from "./hooks/useBorrowState";
 import {
   getBorrowLimit,
+  hasReachedSafeModeLimit,
   validateBorrowAction,
 } from "./hooks/validateBorrowAction";
 import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
@@ -81,6 +82,7 @@ const MAX_BORROWABLE_FRACTION = 0.999;
 
 export function Borrow() {
   const gate = useProtocolGateState();
+  const [safeMode, setSafeMode] = useState(true);
   const {
     collateralValueUsd,
     totalDebtValueUsd,
@@ -114,14 +116,20 @@ export function Borrow() {
   const unconfirmedWrite =
     pendingWrite?.phase === "unconfirmed" ? pendingWrite : null;
 
-  const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
-    useBorrowState({
-      collateralValueUsd,
-      currentDebtUsd: totalDebtValueUsd,
-      liquidationThresholdBps: borrowLiquidationThresholdBps,
-      tokenPriceUsd,
-      tokenDecimals: tokenIdentity.decimals,
-    });
+  const {
+    borrowAmount,
+    setBorrowAmount,
+    resetBorrowAmount,
+    maxBorrowAmount,
+    safeModeOffMaxBorrowAmount,
+  } = useBorrowState({
+    collateralValueUsd,
+    currentDebtUsd: totalDebtValueUsd,
+    liquidationThresholdBps: borrowLiquidationThresholdBps,
+    tokenPriceUsd,
+    tokenDecimals: tokenIdentity.decimals,
+    safeMode,
+  });
 
   // One stable array for the per-reserve reads below.
   const selectedReserves = useMemo(() => [selectedReserve], [selectedReserve]);
@@ -148,12 +156,16 @@ export function Borrow() {
   // display read can never block an otherwise-fundable borrow. The result is
   // rounded down to the token's precision, the same limit the amount box
   // applies to typing.
-  const { max: effectiveMaxBorrowAmount, limitedBy } = getBorrowLimit(
-    maxBorrowAmount,
+  const liquidityCap =
     reserveLiquidity == null
       ? Infinity
-      : reserveLiquidity.availableLiquidity * MAX_BORROWABLE_FRACTION,
-    drawHeadroom == null ? Infinity : drawHeadroom * MAX_BORROWABLE_FRACTION,
+      : reserveLiquidity.availableLiquidity * MAX_BORROWABLE_FRACTION;
+  const borrowLimitCap =
+    drawHeadroom == null ? Infinity : drawHeadroom * MAX_BORROWABLE_FRACTION;
+  const { max: effectiveMaxBorrowAmount, limitedBy } = getBorrowLimit(
+    maxBorrowAmount,
+    liquidityCap,
+    borrowLimitCap,
     tokenIdentity.decimals,
   );
 
@@ -205,6 +217,15 @@ export function Borrow() {
   // (carried over to avoid a remount), withhold price-derived figures and keep
   // the action disabled rather than show a stale max/available for the new one.
   const isPriceReady = tokenPriceUsd != null && !isPriceStale;
+  const isSafeModeLimitReached = hasReachedSafeModeLimit({
+    safeMode,
+    maxBorrowAmount,
+    safeModeOffMaxBorrowAmount,
+    liquidityCap,
+    borrowLimitCap,
+    tokenDecimals: tokenIdentity.decimals,
+    tokenPriceUsd: isPriceReady ? tokenPriceUsd : null,
+  });
 
   const metrics = useBorrowMetrics({
     borrowAmount,
@@ -224,6 +245,7 @@ export function Borrow() {
     hub.label,
     isPositionDataStale,
     limitedBy,
+    safeMode,
   );
 
   // Cosmetic minimum only — keeps the slider track from rendering at zero
@@ -305,16 +327,23 @@ export function Borrow() {
   const handleBorrow = async () => {
     // Defensive: the disabled prop already gates on `oracleAddress == null`.
     if (oracleAddress == null) return;
-    const result = await executeBorrow(borrowAmount, selectedReserve, () =>
-      validateBorrowPreSign({
-        borrowAmount,
-        oracleAddress,
-        reserveId: selectedReserve.reserveId,
-        liquidationThresholdBps: borrowLiquidationThresholdBps,
-        refetchSplitParams: refetchBorrowSplitParams,
-        refetchPosition,
-        chainMaxBorrowReserves,
-      }),
+    const result = await executeBorrow(
+      borrowAmount,
+      selectedReserve,
+      (borrowAmountRaw, tokenDecimals) =>
+        validateBorrowPreSign({
+          borrowAmountRaw,
+          tokenDecimals,
+          oracleAddress,
+          reserveId: selectedReserve.reserveId,
+          hub: selectedReserve.reserve.hub,
+          assetId: selectedReserve.reserve.assetId,
+          liquidationThresholdBps: borrowLiquidationThresholdBps,
+          refetchSplitParams: refetchBorrowSplitParams,
+          refetchPosition,
+          chainMaxBorrowReserves,
+          safeMode,
+        }),
     );
     if (result === "succeeded") {
       resetBorrowAmount();
@@ -335,9 +364,10 @@ export function Borrow() {
   // A single status callout, rendered once below the action button. Highest
   // priority first: why borrowing is unavailable (so it matches the button),
   // then a current input/validation error (hidden while a borrow is in flight:
-  // the position refreshes before the amount clears, so the verdict is stale),
-  // then the last failed transaction or the last outcome that is not a
-  // failure, then the standing warnings.
+  // the position refreshes before the amount clears, so the verdict is stale;
+  // replaced by the Safe mode limit message when Safe mode is what blocks the
+  // amount), then the last failed transaction or the last outcome that is not
+  // a failure, then the standing warnings.
   const statusCallout: {
     variant: "error" | "warning";
     title?: string;
@@ -347,7 +377,13 @@ export function Borrow() {
     : hubBlockMessage
       ? { variant: "warning", body: hubBlockMessage }
       : errorMessage && !isProcessing
-        ? { variant: "error", title: buttonText, body: errorMessage }
+        ? isSafeModeLimitReached &&
+          buttonText === COPY.loans.borrow.amountExceedsMax
+          ? {
+              variant: "warning",
+              body: COPY.loans.borrow.safeModeLimitReached,
+            }
+          : { variant: "error", title: buttonText, body: errorMessage }
         : txError
           ? {
               variant: "error",
@@ -368,7 +404,12 @@ export function Borrow() {
                       hub.label,
                     ),
                   }
-                : null;
+                : isSafeModeLimitReached
+                  ? {
+                      variant: "warning",
+                      body: COPY.loans.borrow.safeModeLimitReached,
+                    }
+                  : null;
 
   return (
     <div className="max-md:flex max-md:flex-col">
@@ -437,16 +478,18 @@ export function Borrow() {
             inputClassName={AMOUNT_INPUT_CLASS_NAME}
           />
 
-          {showAtRiskCallout && (
+          {(!safeMode || showAtRiskCallout) && (
             <div
               role="alert"
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight px-4 py-2"
             >
-              <span aria-hidden="true" className="flex">
+              <span aria-hidden="true" className="flex shrink-0">
                 <WarningIcon size={18} color="text-warning-main" />
               </span>
               <Text variant="body2" className="text-accent-secondary">
-                {COPY.loans.atRiskOfLiquidation}
+                {safeMode
+                  ? COPY.loans.atRiskOfLiquidation
+                  : COPY.loans.borrow.safeModeOffWarning}
               </Text>
             </div>
           )}
@@ -463,6 +506,12 @@ export function Borrow() {
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
+          safeMode={safeMode}
+          safeModeDisabled={isProcessing || pendingWrite !== null}
+          onSafeModeChange={(enabled) => {
+            setSafeMode(enabled);
+            clearError();
+          }}
         />
 
         {/* Charts the cascade this borrow WOULD produce. `null` while the

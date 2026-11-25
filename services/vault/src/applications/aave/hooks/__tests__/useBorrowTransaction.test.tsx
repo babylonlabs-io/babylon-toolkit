@@ -326,6 +326,23 @@ describe("useBorrowTransaction — unreadable borrow cap", () => {
   });
 });
 
+describe("useBorrowTransaction — pre-sign check", () => {
+  it("checks the same raw amount and on-chain decimals that borrow() sends", async () => {
+    // On-chain decimals (8) differ from the indexer's token decimals (6).
+    mockGetERC20Decimals.mockResolvedValue(8);
+    mockBorrow.mockRejectedValue(new ContractError("borrow reverted"));
+    const preSignValidation = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE, preSignValidation);
+    });
+
+    expect(preSignValidation).toHaveBeenCalledWith(10_000_000_000n, 8);
+    expect(mockBorrow.mock.calls[0][3]).toBe(10_000_000_000n);
+  });
+});
+
 describe("useBorrowTransaction — a transaction already in flight", () => {
   it("refuses before any on-chain read while the wallet has a pending transaction", async () => {
     mockAssertNoTransactionInFlight.mockRejectedValue(

@@ -5,10 +5,11 @@
  * which hub's market the figures describe.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { MIN_HEALTH_FACTOR_FOR_BORROW } from "@/applications/aave/constants";
 import { HEALTH_FACTOR_COLORS } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
 import { CORE_HUB } from "@/test/deploymentAddresses";
@@ -17,6 +18,24 @@ import { CORE_HUB } from "@/test/deploymentAddresses";
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Hint: ({ tooltip }: { tooltip?: ReactNode }) => <span>{tooltip}</span>,
   SubSection: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Toggle: ({
+    "aria-label": label,
+    value,
+    disabled,
+    onChange,
+  }: {
+    "aria-label": string;
+    value: boolean;
+    disabled?: boolean;
+    onChange: (value: boolean) => void;
+  }) => (
+    <button
+      aria-label={label}
+      aria-pressed={value}
+      disabled={disabled}
+      onClick={() => onChange(!value)}
+    />
+  ),
 }));
 
 vi.mock("@/components/shared", () => ({
@@ -38,6 +57,8 @@ const baseProps = {
   utilization: "25%",
   healthFactor: "2.10",
   healthFactorValue: 2.1,
+  safeMode: true,
+  onSafeModeChange: vi.fn(),
 };
 
 describe("BorrowMetricsCard borrow APR row", () => {
@@ -149,5 +170,57 @@ describe("BorrowMetricsCard health factor row", () => {
       "data-color",
       HEALTH_FACTOR_COLORS.GREEN,
     );
+  });
+});
+
+describe("BorrowMetricsCard Safe mode row", () => {
+  it("renders Safe mode below Health factor with its tooltip and On state", () => {
+    const { container } = render(<BorrowMetricsCard {...baseProps} />);
+
+    const text = container.textContent ?? "";
+    const healthFactorAt = text.indexOf(COPY.loans.healthFactorLabel);
+    const safeModeAt = text.indexOf(COPY.loans.borrow.safeMode);
+
+    expect(safeModeAt).toBeGreaterThan(healthFactorAt);
+    expect(
+      screen.getByText(
+        COPY.loans.borrow.safeModeTooltip(MIN_HEALTH_FACTOR_FOR_BORROW),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(COPY.loans.borrow.safeModeOn)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: COPY.loans.borrow.safeMode }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows Off and toggles Safe mode on click unless disabled", () => {
+    const onSafeModeChange = vi.fn();
+    const { rerender } = render(
+      <BorrowMetricsCard
+        {...baseProps}
+        safeMode={false}
+        onSafeModeChange={onSafeModeChange}
+      />,
+    );
+
+    expect(screen.getByText(COPY.loans.borrow.safeModeOff)).toBeInTheDocument();
+    const toggle = screen.getByRole("button", {
+      name: COPY.loans.borrow.safeMode,
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(onSafeModeChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <BorrowMetricsCard
+        {...baseProps}
+        safeMode={true}
+        safeModeDisabled
+        onSafeModeChange={onSafeModeChange}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: COPY.loans.borrow.safeMode }),
+    ).toBeDisabled();
   });
 });

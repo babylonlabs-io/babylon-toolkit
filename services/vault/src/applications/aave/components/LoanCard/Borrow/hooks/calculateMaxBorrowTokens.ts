@@ -12,17 +12,11 @@ export interface CalculateMaxBorrowTokensParams {
   tokenPriceUsd: number | null;
   /** Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH) */
   tokenDecimals: number;
+  safeMode?: boolean;
 }
 
 /**
- * Max tokens a user can borrow while keeping health factor >=
- * MIN_HEALTH_FACTOR_FOR_BORROW.
- *
- * Derivation:
- *   HF = (collateral * LT) / totalDebt >= MIN_HF
- *   totalDebt <= (collateral * LT) / MIN_HF
- *   maxAdditionalBorrowUsd = (collateral * LT) / MIN_HF - currentDebt
- *   maxBorrowTokens = maxAdditionalBorrowUsd / tokenPriceUsd
+ * Returns the token amount for the selected borrow limit.
  *
  * Returns 0 when the resulting value would be negative (existing debt
  * already exceeds borrowing capacity).
@@ -41,6 +35,7 @@ export function calculateMaxBorrowTokens({
   liquidationThresholdBps,
   tokenPriceUsd,
   tokenDecimals,
+  safeMode,
 }: CalculateMaxBorrowTokensParams): number {
   if (tokenPriceUsd == null || tokenPriceUsd <= 0) {
     return 0;
@@ -50,6 +45,7 @@ export function calculateMaxBorrowTokens({
     collateralValueUsd,
     currentDebtUsd,
     liquidationThresholdBps,
+    safeMode,
   });
   const maxBorrowTokens = availableToBorrowUsd / tokenPriceUsd;
   const floorDecimals = Math.min(tokenDecimals, SAFE_TOFIXED_PRECISION);

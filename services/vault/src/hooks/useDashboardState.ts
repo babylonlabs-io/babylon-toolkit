@@ -73,19 +73,19 @@ export function useDashboardState(connectedAddress: string | undefined) {
     isLoading: isBorrowCapacityLoading,
     error: borrowCapacityError,
   } = useVaultSplitParams();
-  const { availableToBorrowUsd } = calculateBorrowCapacityUsd({
+  const borrowCapacityParams = {
     collateralValueUsd,
     currentDebtUsd: debtValueUsd,
     liquidationThresholdBps: borrowSplitParams
       ? Math.round(borrowSplitParams.CF * BPS_SCALE)
       : 0,
-  });
-
-  // Borrow is offered only with at least a cent of headroom. A fully-borrowed
-  // position leaves sub-cent dust here (float / HF buffer), which must not
-  // enable the Borrow CTA. While capacity is loading/errored this is 0 → false,
-  // the safe default.
-  const canBorrow = availableToBorrowUsd >= MIN_BORROWABLE_USD;
+  };
+  const { availableToBorrowUsd } =
+    calculateBorrowCapacityUsd(borrowCapacityParams);
+  // Let users open the form when only Safe mode off has capacity.
+  const canBorrow =
+    calculateBorrowCapacityUsd({ ...borrowCapacityParams, safeMode: false })
+      .availableToBorrowUsd >= MIN_BORROWABLE_USD;
 
   const { findProvider } = useVaultProviders(undefined, {
     requireCompleteKeeperRoster: false,

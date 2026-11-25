@@ -13,6 +13,8 @@ import {
   formatTokenAmount,
 } from "../../../../../../utils/formatting";
 import {
+  HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
+  MIN_BORROWABLE_USD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
   SAFE_TOFIXED_PRECISION,
 } from "../../../../constants";
@@ -55,6 +57,46 @@ export function getBorrowLimit(
   };
 }
 
+/**
+ * Whether Safe mode leaves less than MIN_BORROWABLE_USD to borrow while Safe
+ * mode off still leaves at least that much, after the same caps.
+ * MIN_BORROWABLE_USD is also the threshold the dashboard uses to enable Borrow.
+ *
+ * @param safeMode - Whether Safe mode is on
+ * @param maxBorrowAmount - What the user's collateral allows with Safe mode on
+ * @param safeModeOffMaxBorrowAmount - What the user's collateral allows with Safe mode off
+ * @param liquidityCap - What the hub's liquidity allows, `Infinity` when unknown
+ * @param borrowLimitCap - What our spoke's draw cap on the hub allows, `Infinity` when unknown
+ * @param tokenDecimals - Native token decimals (e.g., 8 for WBTC, 6 for USDC)
+ * @param tokenPriceUsd - Borrow token price, null when it is not ready
+ */
+export function hasReachedSafeModeLimit({
+  safeMode,
+  maxBorrowAmount,
+  safeModeOffMaxBorrowAmount,
+  liquidityCap,
+  borrowLimitCap,
+  tokenDecimals,
+  tokenPriceUsd,
+}: {
+  safeMode: boolean;
+  maxBorrowAmount: number;
+  safeModeOffMaxBorrowAmount: number;
+  liquidityCap: number;
+  borrowLimitCap: number;
+  tokenDecimals: number;
+  tokenPriceUsd: number | null;
+}): boolean {
+  if (!safeMode || tokenPriceUsd == null) return false;
+  const cappedUsd = (collateralMax: number) =>
+    getBorrowLimit(collateralMax, liquidityCap, borrowLimitCap, tokenDecimals)
+      .max * tokenPriceUsd;
+  return (
+    cappedUsd(maxBorrowAmount) < MIN_BORROWABLE_USD &&
+    cappedUsd(safeModeOffMaxBorrowAmount) >= MIN_BORROWABLE_USD
+  );
+}
+
 export interface BorrowValidationResult {
   isDisabled: boolean;
   buttonText: string;
@@ -76,6 +118,9 @@ export interface BorrowValidationResult {
  * @param isPositionDataStale - Whether position data may be outdated
  * @param limitedBy - What bounds `maxBorrowAmount`. Selects the liquidity or
  *   borrow-limit message over the generic "exceeds maximum".
+ * @param safeMode - Whether Safe mode is on. On, the projected health factor
+ *   must stay at or above MIN_HEALTH_FACTOR_FOR_BORROW; off, above the
+ *   liquidation threshold.
  * @returns Validation result with disabled state, button text, and error message
  */
 export function validateBorrowAction(
@@ -87,6 +132,7 @@ export function validateBorrowAction(
   hubLabel: string,
   isPositionDataStale = false,
   limitedBy: BorrowLimit = "collateral",
+  safeMode = true,
 ): BorrowValidationResult {
   if (isPositionDataStale) {
     return {
@@ -161,17 +207,17 @@ export function validateBorrowAction(
         };
   }
 
-  // Block borrow if health factor would be too low
   if (
-    isFinite(projectedHealthFactor) &&
-    projectedHealthFactor < MIN_HEALTH_FACTOR_FOR_BORROW
+    safeMode
+      ? projectedHealthFactor < MIN_HEALTH_FACTOR_FOR_BORROW
+      : projectedHealthFactor <= HEALTH_FACTOR_LIQUIDATION_THRESHOLD
   ) {
     return {
       isDisabled: true,
       buttonText: COPY.loans.borrow.healthFactorTooLow,
-      errorMessage: COPY.loans.validation.healthFactorTooLow(
-        MIN_HEALTH_FACTOR_FOR_BORROW,
-      ),
+      errorMessage: safeMode
+        ? COPY.loans.validation.healthFactorTooLow(MIN_HEALTH_FACTOR_FOR_BORROW)
+        : COPY.loans.validation.liquidationLimit,
     };
   }
 

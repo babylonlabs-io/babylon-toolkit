@@ -119,7 +119,7 @@ const BORROW_COLLATERAL_DEPENDENT_LABELS = new Set([
 // Best-effort: the validation callout body phrases (COPY.loans.validation.*) + the availability ones,
 // surfaced in the fail-fast message so a blocked run says why.
 const CALLOUT_BODY_RX =
-  /(minimum borrowable|maximum borrowable|available to borrow|borrow limit|health factor|temporarily unavailable|isn't accepting|has halted|Price data unavailable)[^.]*\./i;
+  /(minimum borrowable|maximum borrowable|available to borrow|borrow limit|health factor|temporarily unavailable|isn't accepting|has halted|Price data unavailable|Safe mode limit)[^.]*\./i;
 // Success screen: the borrow-specific title (the shared Done testid/text + tx-failed live in selectors).
 const BORROW_SUCCESS_RX = /borrow successful/i; // COPY.loans.borrowSuccess.title
 /**

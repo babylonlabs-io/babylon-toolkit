@@ -178,7 +178,8 @@ export const COPY = {
   // Tooltips whose concept appears on more than one screen. One key per
   // concept, referenced from every surface, so the screens can't drift apart.
   tooltips: {
-    // Risk card, markets collateral card, protocol parameters (LTV).
+    // Risk card, markets collateral card, protocol parameters (LTV), landing
+    // stat chip.
     collateralFactor:
       "The fraction of your collateral's value counted toward your borrowing capacity.",
     // Overview position cards, risk card body, borrow / repay detail cards.
@@ -1305,7 +1306,7 @@ export const COPY = {
       cfParenthetical: (percent: string) => `(CF=${percent})`,
       // CollateralFactorRow tooltip: why the figure sits below value × CF.
       maxToBorrowTooltip: (minHealthFactor: number) =>
-        `Your deposit's value times the collateral factor, less a buffer that keeps your health factor above ${minHealthFactor} if you have no other debt. Existing debt, a market's available liquidity or its borrow limit can lower the amount you can actually borrow.`,
+        `Your deposit's value times the collateral factor, less a buffer that keeps your health factor above ${minHealthFactor} if you have no other debt. Existing debt, a market's available liquidity or its borrow limit can lower the amount you can actually borrow. This is the Safe mode limit. With Safe mode off, the Borrow form allows more.`,
       // DepositFeesBreakdown: "Protocol Fee" line renamed to "Deposit Fee".
       depositFeeLabel: "Deposit Fee",
       depositFeeTooltip:
@@ -2488,6 +2489,15 @@ export const COPY = {
     // Borrow tab — action-button labels (also used as the status-callout title).
     borrow: {
       action: "Borrow",
+      safeMode: "Safe mode",
+      safeModeOn: "On",
+      safeModeOff: "Off",
+      safeModeTooltip: (minHealthFactor: number) =>
+        `Keeps your health factor at ${minHealthFactor} or above, so a small price move or interest is less likely to trigger liquidation. Turn it off to borrow closer to the liquidation limit.`,
+      safeModeOffWarning:
+        "Safe mode is off. A small price move or interest can trigger liquidation.",
+      safeModeLimitReached:
+        "You have reached the Safe mode limit. Turn off Safe mode to borrow more, with a higher liquidation risk.",
       processing: "Processing...",
       unavailable: "Borrowing Unavailable",
       enterAmount: "Enter an amount",
@@ -2501,6 +2511,8 @@ export const COPY = {
     // Borrow validation-error descriptions (the Callout title comes from the
     // action button label above, e.g. "Amount exceeds maximum").
     validation: {
+      liquidationLimit:
+        "Your health factor must stay above 1. Reduce the borrow amount and try again.",
       minBorrow: (min: string) =>
         `The minimum borrowable amount is ${min}. Enter a higher amount and try again.`,
       maxBorrow: (max: string, symbol: string, hub: string) =>
@@ -2545,6 +2557,10 @@ export const COPY = {
       // Blocks the borrow pickers while the Spoke's cap could not be read.
       capLoadError: "Couldn't load the borrow limit. Please try again.",
     },
+    borrowPositionUnavailable:
+      "Could not verify your position. Refresh and try again.",
+    borrowMarketDataUnavailable:
+      "Could not read the current market data for this asset. Refresh and try again.",
     // A borrow refused because the indexer's reserve disagrees with the chain.
     borrowIntegrityError:
       "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
@@ -2988,7 +3004,8 @@ export const COPY = {
     positionTitle: "Position",
     totalCollateralValueLabel: "Total Collateral Value",
     availableToBorrowLabel: "Available to Borrow",
-    availableToBorrowTooltip: "This amount is in USD.",
+    availableToBorrowTooltip:
+      "This amount is in USD and uses the Safe mode limit.",
     // Aave caps how many reserves one position may borrow, so the position bar
     // names the asset the position is tied to, next to its total debt.
     borrowedAssetLabel: "Borrowed Asset",
@@ -3055,7 +3072,7 @@ export const COPY = {
         capValue: (deposited: string, total: string) =>
           `${deposited}/${total} BTC`,
         capUncapped: "Uncapped",
-        maxBorrowLabel: "Borrow up to:",
+        collateralFactorLabel: "Collateral Factor:",
       },
       features: {
         competitiveRates: {

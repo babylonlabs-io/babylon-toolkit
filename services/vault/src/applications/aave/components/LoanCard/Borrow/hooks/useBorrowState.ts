@@ -20,6 +20,7 @@ export interface UseBorrowStateProps {
   tokenPriceUsd: number | null;
   /** Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH) */
   tokenDecimals: number;
+  safeMode: boolean;
 }
 
 export interface UseBorrowStateResult {
@@ -29,6 +30,8 @@ export interface UseBorrowStateResult {
   resetBorrowAmount: () => void;
   /** Max borrowable amount in token units */
   maxBorrowAmount: number;
+  /** Max borrowable amount in token units with Safe mode off */
+  safeModeOffMaxBorrowAmount: number;
 }
 
 export function useBorrowState({
@@ -37,6 +40,7 @@ export function useBorrowState({
   liquidationThresholdBps,
   tokenPriceUsd,
   tokenDecimals,
+  safeMode,
 }: UseBorrowStateProps): UseBorrowStateResult {
   const [borrowAmount, setBorrowAmount] = useState(0);
 
@@ -48,6 +52,27 @@ export function useBorrowState({
         liquidationThresholdBps,
         tokenPriceUsd,
         tokenDecimals,
+        safeMode,
+      }),
+    [
+      collateralValueUsd,
+      currentDebtUsd,
+      liquidationThresholdBps,
+      tokenPriceUsd,
+      tokenDecimals,
+      safeMode,
+    ],
+  );
+
+  const safeModeOffMaxBorrowAmount = useMemo(
+    () =>
+      calculateMaxBorrowTokens({
+        collateralValueUsd,
+        currentDebtUsd,
+        liquidationThresholdBps,
+        tokenPriceUsd,
+        tokenDecimals,
+        safeMode: false,
       }),
     [
       collateralValueUsd,
@@ -65,5 +90,6 @@ export function useBorrowState({
     setBorrowAmount,
     resetBorrowAmount,
     maxBorrowAmount,
+    safeModeOffMaxBorrowAmount,
   };
 }

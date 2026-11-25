@@ -16,6 +16,7 @@ const defaultProps = {
   liquidationThresholdBps: 8000,
   tokenPriceUsd: 1,
   tokenDecimals: 6,
+  safeMode: true,
 };
 
 describe("useBorrowState", () => {
@@ -49,11 +50,15 @@ describe("useBorrowState", () => {
     expect(result.current.borrowAmount).toBe(0);
   });
 
-  it("exposes maxBorrowAmount computed from calculateMaxBorrowTokens", () => {
+  it("exposes the Safe mode maximum and the Safe mode off maximum", () => {
     // Smoke test — proves the hook wires inputs through to the pure function.
     // Formula correctness is covered by calculateMaxBorrowTokens.test.ts.
-    const { result } = renderHook(() => useBorrowState(defaultProps));
-
-    expect(result.current.maxBorrowAmount).toBeGreaterThan(0);
+    const { result, rerender } = renderHook(useBorrowState, {
+      initialProps: defaultProps,
+    });
+    expect(result.current.safeModeOffMaxBorrowAmount).toBe(7960);
+    expect(result.current.maxBorrowAmount).toBeLessThan(7960);
+    rerender({ ...defaultProps, safeMode: false });
+    expect(result.current.maxBorrowAmount).toBe(7960);
   });
 });

@@ -9,6 +9,7 @@
 export {
   BPS_SCALE,
   FULL_REPAY_BUFFER_DIVISOR,
+  HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
@@ -181,8 +182,9 @@ export const NEAR_ZERO_DEBT_RELATIVE_CAP_USD = 5;
  * borrow headroom. Remaining capacity below one cent is a float / health-factor
  * dust residual (the capacity display rounds it to "$0.00"), so a fully-borrowed
  * position is treated as having no headroom and the Borrow CTA is disabled —
- * we don't open a borrow flow the user can't complete. Matches the design,
- * which shows Borrow disabled at $0 capacity.
+ * we don't open a borrow flow the user can't complete. The dashboard checks
+ * the capacity with Safe mode off, so Borrow stays enabled while only Safe
+ * mode off has capacity.
  */
 export const MIN_BORROWABLE_USD = 0.01;
 

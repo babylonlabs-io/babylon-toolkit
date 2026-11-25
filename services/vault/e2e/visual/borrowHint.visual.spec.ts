@@ -24,7 +24,7 @@ const HAS_BORROW_HINT = readFileSync(
   new URL("../../src/copy.ts", import.meta.url),
   "utf8",
 ).includes("availableToBorrowTooltip:");
-const HINT_TEXT = "This amount is in USD.";
+const HINT_TEXT = /^This amount is in USD\b/;
 
 const IS_BASELINE = process.env.CAPTURE_ROOT?.endsWith("/baseline") === true;
 const EXPECT_BORROW_HINT = !IS_BASELINE || HAS_BORROW_HINT;
@@ -96,10 +96,10 @@ for (const theme of ["light", "dark"] as const) {
               await trigger.hover();
             }
             await expect(
-              page.getByText(HINT_TEXT, { exact: true }),
+              page.getByText(HINT_TEXT),
             ).toBeVisible();
             await expect(
-              page.getByText(HINT_TEXT, { exact: true }),
+              page.getByText(HINT_TEXT),
             ).toBeInViewport({ ratio: 0.999 });
           } else {
             await label.hover();
@@ -115,10 +115,10 @@ for (const theme of ["light", "dark"] as const) {
           await expect(label).toBeVisible();
           if (EXPECT_BORROW_HINT) {
             await expect(
-              page.getByText(HINT_TEXT, { exact: true }),
+              page.getByText(HINT_TEXT),
             ).toBeVisible();
             await expect(
-              page.getByText(HINT_TEXT, { exact: true }),
+              page.getByText(HINT_TEXT),
             ).toBeInViewport({ ratio: 0.999 });
           }
           assertRecordingCovered(
