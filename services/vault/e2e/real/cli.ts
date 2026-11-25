@@ -18,7 +18,7 @@
  *
  * `--eth-only` connects the Ethereum wallet ALONE, the way a depositor with no Bitcoin wallet reaches
  * the app (#2228). It covers the Ethereum-side actions — connect, borrow, repay, repay-all, multi-hub,
- * withdraw — and is refused for anything that signs with Bitcoin, including `--pegin-first`:
+ * withdraw, reorder — and is refused for anything that signs with Bitcoin, including `--pegin-first`:
  *
  *   pnpm --filter vault run e2e:cli --yes \
  *     --target=localhost --network=devnet --btc=unisat --eth=metamask --eth-only --action=borrow
@@ -140,6 +140,17 @@
  * pegin → borrow → repay → withdraw cycle. `--withdraw-all` releases every selectable vault (default = a
  * single vault, keeping the position alive).
  *
+ * Reorder walks #2827 on the /vaults Reorder dialog: it moves the second BTC Vault up and checks the
+ * network fee does not read as zero, rejects the reorder in MetaMask's own window (which must show
+ * "Transaction failed" with nothing sent), closes and reopens the dialog (which must no longer show that
+ * failure), then moves the vault up again, confirms, and checks on chain that the first two BTC Vaults
+ * swapped. It needs two active BTC Vaults: the CLI reads the position first and refuses a run that is
+ * short, unless `--pegin-first`, which then pegs in only what is missing — a two-vault split from 0, a
+ * single vault from 1 — honoring `--amount` / `--vp` (the deposit type comes from the position, so
+ * `--split` is refused). It sends one Sepolia transaction, plus a whole peg-in with `--pegin-first`, so
+ * NEVER run it without an explicit go-ahead. Run it on `--target=localhost` to test local app code (see
+ * actions/reorder.ts).
+ *
  * Reclaim sweeps the depositor-claim reserve (PegIn output 1) of a settled vault back to the depositor —
  * one BTC signature, no Ethereum transaction. It is offered only once the withdrawal has settled on
  * Bitcoin (PegIn output 0 spent, six confirmations deep), because the reserve funds the depositor's
@@ -172,7 +183,12 @@ import {
   supportsPeginPsbtExtras,
 } from "./actions/peginWalletPsbtInjection";
 import {
+  MIN_REORDER_VAULTS,
+  notEnoughReorderVaultsMessage,
+} from "./actions/reorder";
+import {
   describeReserve,
+  fetchActiveVaultCount,
   fetchBorrowableReserves,
   findMultiHubTokens,
   matchReserve,
@@ -265,6 +281,7 @@ const ETH_ONLY_ACTIONS: readonly ActionId[] = [
   "repay-all",
   "multi-hub",
   "withdraw",
+  "reorder",
 ];
 
 /** Refuse a value-taking flag passed bare, rather than reading it as "not supplied". */
@@ -592,6 +609,47 @@ async function resolveConfig(
           ])) === "repay";
     }
 
+    // Reorder needs two active BTC Vaults. `--pegin-first` pegs in only what is missing, so the deposit
+    // type comes from the position: read here, before the deposit minimum below (which depends on it),
+    // with the same pre-browser address derivation as the repay token check. Not best-effort: the read
+    // decides whether BTC is spent.
+    let reorderSplit = false;
+    if (action === "reorder") {
+      if (flags.split !== undefined)
+        throw new Error(
+          "reorder picks the deposit type from the position (a two-vault split from 0 BTC Vaults, a single vault from 1); drop --split.",
+        );
+      const vaultCount = await fetchActiveVaultCount(
+        network,
+        deriveEthAddress(loadWalletSecrets().mnemonic, ethAccount),
+      ).catch((error: unknown) => {
+        throw new Error(
+          `reorder: could not read the position's BTC Vaults (${error instanceof Error ? error.message : error}), so the run cannot tell whether a peg-in is needed. Re-run against a reachable Sepolia RPC.`,
+        );
+      });
+      const missing = MIN_REORDER_VAULTS - vaultCount;
+      peginFirst = flagBool(flags["pegin-first"]);
+      if (missing <= 0) {
+        if (peginFirst)
+          // eslint-disable-next-line no-console
+          console.log(
+            `\nThe position already holds ${vaultCount} active BTC Vaults; skipping the peg-in.`,
+          );
+        peginFirst = false;
+      } else if (ethOnly) {
+        // --eth-only cannot peg in, so the usual advice (--pegin-first) would only meet the eth-only
+        // peg-in refusal below.
+        throw new Error(
+          `Reorder needs ${MIN_REORDER_VAULTS} active BTC Vaults; this position holds ${vaultCount}, and --eth-only cannot peg in the rest. Use an --eth-account that holds ${MIN_REORDER_VAULTS}, or drop --eth-only and re-run with --pegin-first.`,
+        );
+      } else if (!peginFirst) {
+        throw new Error(notEnoughReorderVaultsMessage(vaultCount));
+      } else {
+        // A split deposit adds two BTC Vaults; one short needs only a single vault.
+        reorderSplit = missing > 1;
+      }
+    }
+
     // Peg in first, or borrow against existing collateral? Applies to any run that draws a loan — a
     // `borrow` run, or a `repay`/`withdraw` with --borrow-first. Withdraw already resolved `peginFirst`
     // above via the cascade; borrow/repay resolve it here (flag wins, else prompt, default = reuse).
@@ -689,13 +747,17 @@ async function resolveConfig(
       action === "allow-list" ||
       (willBorrow && peginFirst) ||
       (action === "resume" && (interruptFresh || interruptOnly)) ||
-      (action === "forged-stuck" && peginFirst);
+      (action === "forged-stuck" && peginFirst) ||
+      (action === "reorder" && peginFirst);
 
     // Split: `--split` wins; else prompt (default = single vault). Resolved first because the deposit
-    // minimum depends on it — a two-vault split needs a larger deposit than a single vault.
+    // minimum depends on it — a two-vault split needs a larger deposit than a single vault. Reorder took
+    // it from the position above.
     let split = false;
     if (needsPeginParams) {
-      if (flags.split !== undefined) {
+      if (action === "reorder") {
+        split = reorderSplit;
+      } else if (flags.split !== undefined) {
         split = flagBool(flags.split);
       } else if (
         interactive &&

@@ -76,7 +76,8 @@ export type ActionId =
   | "recover"
   | "reclaim"
   | "forged-stuck"
-  | "allow-list";
+  | "allow-list"
+  | "reorder";
 
 /** Maps our lowercase wallet ids to the connector's SupportedWallet keys. */
 export const BTC_WALLET_TO_CONNECTOR: Record<BtcWalletId, SupportedWallet> = {
@@ -188,6 +189,12 @@ export const ACTIONS: ActionOption[] = [
     enabled: true,
   },
   { id: "withdraw", label: "Withdraw", enabled: true },
+  {
+    id: "reorder",
+    label:
+      "Reorder (reject once in MetaMask, reopen, then swap the first two BTC Vaults)",
+    enabled: true,
+  },
   { id: "resume", label: "Resume (an interrupted peg-in)", enabled: true },
   {
     id: "reclaim",
@@ -241,6 +248,8 @@ export interface RunConfig {
    * run. When set, the pegin extras above (`peginAmountBtc`/`peginProvider`/`split`) drive that pegin.
    * Forged-stuck reads it too: peg in a fresh single-vault deposit and stop at its Activate gate, so the
    * forgery runs against a deposit that is Verified and not yet activated.
+   * Reorder reads it too: peg in the BTC Vaults the position is missing for a reorder (two needed). The
+   * CLI sets it only when vaults are missing, and sets `split` from how many.
    */
   peginFirst?: boolean;
   /**

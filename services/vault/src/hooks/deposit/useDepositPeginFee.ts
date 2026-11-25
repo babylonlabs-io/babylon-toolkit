@@ -97,7 +97,7 @@ export function useDepositPeginFee(
     const totalFeeWei = data * BigInt(batchSize);
 
     // Split into whole + remainder to keep precision when feeWei exceeds
-    // Number.MAX_SAFE_INTEGER (same pattern as useReorderGasEstimate).
+    // Number.MAX_SAFE_INTEGER.
     const wholePart = totalFeeWei / WEI_PER_ETH;
     const remainder = totalFeeWei % WEI_PER_ETH;
     const feeEth = Number(wholePart) + Number(remainder) / Number(WEI_PER_ETH);

@@ -113,7 +113,10 @@ export interface UseReorderVaultsResult {
    * form's write holding the lock. Shown without the failure title.
    */
   notice: string | null;
-  /** Clear the last failure message and notice (e.g. when the modal reopens). */
+  /**
+   * Clear the last failure message and notice (e.g. when the modal closes, so
+   * an outcome that settles while it is closed still shows on reopen).
+   */
   clearError: () => void;
 }
 

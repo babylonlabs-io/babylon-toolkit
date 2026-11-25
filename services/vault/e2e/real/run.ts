@@ -119,7 +119,8 @@ export async function runE2E(config: RunConfig): Promise<void> {
       (willBorrow && config.peginFirst) ||
       (config.action === "resume" &&
         (config.interruptFresh || config.interruptOnly)) ||
-      (config.action === "forged-stuck" && config.peginFirst);
+      (config.action === "forged-stuck" && config.peginFirst) ||
+      (config.action === "reorder" && config.peginFirst);
     if (willPegin) {
       const cap = await fetchVaultCountCap(
         config.network,

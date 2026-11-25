@@ -185,10 +185,19 @@ export function ReorderVaultsModal({
                 </Callout>
               )
             )}
+            {/* The fee row's data-testid is a real-wallet E2E hook
+                (e2e/real/actions/reorder.ts) — carry it over if you move or
+                rename the element. */}
             {hasOrderChanged && (
-              <div className="flex items-center justify-between pt-3 text-sm text-accent-secondary">
+              <div
+                data-testid="reorder-network-fee"
+                className="flex flex-wrap items-center justify-between gap-x-2 pt-3 text-sm text-accent-secondary"
+              >
                 <span>{COPY.reorder.networkFeeLabel}</span>
-                <span>
+                {/* Never break the amount (e.g. "<" apart from its value):
+                    when the row is too narrow for both, the whole amount
+                    moves below the label instead. */}
+                <span className="ml-auto whitespace-nowrap">
                   {feeEth} {feeUsd}
                 </span>
               </div>
