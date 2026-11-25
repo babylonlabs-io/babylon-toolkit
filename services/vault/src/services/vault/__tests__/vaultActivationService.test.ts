@@ -10,7 +10,11 @@ import {
 } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ActivationWouldRedeemError } from "@/utils/errors";
+import {
+  ActivationWouldRedeemError,
+  isMinedRevertError,
+  isSimulationPhaseError,
+} from "@/utils/errors";
 
 import {
   activateVaultWithSecret,
@@ -35,7 +39,7 @@ const {
   mockExecuteWrite: vi.fn(),
   mockPlanActivationGasLimit: vi.fn(),
   mockAssertActivationAddsCollateral: vi.fn(),
-  mockPublicClient: { simulateBlocks: vi.fn() },
+  mockPublicClient: { simulateBlocks: vi.fn(), estimateContractGas: vi.fn() },
 }));
 
 vi.mock(
@@ -328,9 +332,11 @@ describe("activateVaultWithSecretAndRedeem (vault adapter)", () => {
   beforeEach(() => {
     mockExecuteWrite.mockReset();
     mockPlanActivationGasLimit.mockReset();
+    mockPublicClient.estimateContractGas.mockReset();
   });
 
-  it("leaves the gas limit to the wallet, since the registry calls no application", async () => {
+  it("sends with the node's estimate for the exact call times 1.5 as the gas limit", async () => {
+    mockPublicClient.estimateContractGas.mockResolvedValueOnce(200_001n);
     mockExecuteWrite.mockResolvedValueOnce({
       transactionHash: ("0x" + "cd".repeat(32)) as Hex,
       receipt: { status: "success" },
@@ -343,10 +349,52 @@ describe("activateVaultWithSecretAndRedeem (vault adapter)", () => {
       walletClient,
     });
 
-    expect(mockPlanActivationGasLimit).not.toHaveBeenCalled();
+    expect(mockPublicClient.estimateContractGas).toHaveBeenCalledOnce();
+    expect(mockPublicClient.estimateContractGas.mock.calls[0][0]).toMatchObject(
+      {
+        address: REGISTRY_ADDRESS,
+        functionName: "activateVaultWithSecretAndRedeem",
+        args: [vaultId, secret],
+        account: DEPOSITOR,
+      },
+    );
+    // 200_001 * 3 / 2 truncates to 300_001 in bigint division.
     const callArgs = mockExecuteWrite.mock.calls[0][0];
     expect(callArgs.functionName).toBe("activateVaultWithSecretAndRedeem");
-    expect(callArgs.gas).toBeUndefined();
+    expect(callArgs.args).toEqual([vaultId, secret]);
+    expect(callArgs.gas).toBe(300_001n);
+    expect(mockPlanActivationGasLimit).not.toHaveBeenCalled();
+  });
+
+  it("refuses as a simulation-phase error and sends nothing when the gas estimate fails", async () => {
+    mockPublicClient.estimateContractGas.mockRejectedValueOnce(
+      new Error("execution reverted"),
+    );
+
+    const rejection = await activateVaultWithSecretAndRedeem({
+      vaultId,
+      secret,
+      hashlock,
+      walletClient,
+    }).catch((err: unknown) => err);
+
+    expect(isSimulationPhaseError(rejection)).toBe(true);
+    expect(isMinedRevertError(rejection)).toBe(false);
+    expect(mockExecuteWrite).not.toHaveBeenCalled();
+  });
+
+  it("rejects before estimating gas when the hashlock does not match the secret", async () => {
+    await expect(
+      activateVaultWithSecretAndRedeem({
+        vaultId,
+        secret,
+        hashlock: ("0x" + "11".repeat(32)) as Hex,
+        walletClient,
+      }),
+    ).rejects.toThrow(/SHA256\(secret\) does not match/);
+
+    expect(mockPublicClient.estimateContractGas).not.toHaveBeenCalled();
+    expect(mockExecuteWrite).not.toHaveBeenCalled();
   });
 });
 

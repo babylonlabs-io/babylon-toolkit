@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getActionStatus } from "@/components/deposit/actionStatus";
 import { COPY } from "@/copy";
 import { ContractStatus, PeginAction } from "@/models/peginStateMachine";
+import { getDemoStepperBatch } from "@/overrides/deposits";
 
 import {
   useDebugManualMode,
@@ -27,7 +28,6 @@ import {
   type DemoBorrowSymbol,
   type DemoItem,
   DEPOSIT_SCENARIOS,
-  getDemoStepperBatch,
   loanScenarios,
   READY_TO_ACTIVATE_SCENARIO_INDEX,
   resetDemoState,

@@ -24,10 +24,12 @@ import {
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { logger } from "@/infrastructure";
 import {
+  ContractStatus,
   getPeginProgressStep,
   getWarningPeginDisplayStep,
   isRefundInFlightOrSettled,
   isVaultPastActivation,
+  isVaultWithdrawnByDepositor,
 } from "@/models/peginStateMachine";
 
 export interface SplitVaultProgress {
@@ -109,6 +111,14 @@ export function deriveSplitVaultProgress(
       isRefundInFlightOrSettled(state)
     ) {
       return getWarningPeginDisplayStep(state.localStatus);
+    }
+    // A withdrawn vault still VERIFIED awaits its redeem's confirmation, like
+    // a returned one, instead of reading COMPLETED.
+    if (
+      isVaultWithdrawnByDepositor(state) &&
+      state.contractStatus === ContractStatus.VERIFIED
+    ) {
+      return DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
     }
     if (isVaultPastActivation(state)) return DepositFlowStep.COMPLETED;
     return activeStep;

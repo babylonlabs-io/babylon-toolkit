@@ -196,7 +196,7 @@ export default {
    * Why needed: Dev/QA tool; kept fully out of users' view.
    * Hard-gated on `import.meta.env.DEV`, so it can ONLY be enabled in a dev
    * build — a production build forces it false at compile time (and lets the
-   * bundler drop the god-mode code; see demoDeposit.ts / DashboardPage.tsx).
+   * bundler drop the god-mode code; see router.tsx / overrides/store.ts).
    * Default: false (panel hidden and nothing injected unless set to "true").
    */
   get isGodModePanelEnabled() {

@@ -60,6 +60,7 @@ import {
 import {
   ContractStatus,
   getPeginDisplayStep,
+  isVaultWithdrawnByDepositor,
 } from "@/models/peginStateMachine";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
 import { resolveVpAuthPins } from "@/services/vault/vpAuthPinnedPubkey";
@@ -69,6 +70,7 @@ import {
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
 import {
+  type ActivationFailureKind,
   isTerminalResumeBroadcastError,
   mapDepositErrorAfterRegistration,
 } from "@/utils/errors";
@@ -709,7 +711,15 @@ export interface ResumeActivationContentProps {
   onClose: () => void;
   /** Navigates to the dashboard; drives the activated success screen's CTA. */
   onGoToDashboard: () => void;
+  /** Opens the Withdraw dialog for this vault after a failed activation. */
+  onWithdraw: (activity: VaultActivity) => void;
+  /** The Withdraw dialog is open: Retry and Withdraw are held meanwhile. */
+  withdrawOpen: boolean;
 }
+
+/** The failures after which Withdraw is offered beside Retry. */
+const WITHDRAW_OFFERED_FAILURE_KINDS: ReadonlySet<ActivationFailureKind> =
+  new Set(["mined-revert", "pre-send-refusal", "aave-paused"]);
 
 export function ResumeActivationContent(props: ResumeActivationContentProps) {
   return (
@@ -725,6 +735,8 @@ function ResumeActivationContentConnected({
   siblingVaultIds,
   onClose,
   onGoToDashboard,
+  onWithdraw,
+  withdrawOpen,
 }: ResumeActivationContentProps) {
   const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
@@ -770,6 +782,7 @@ function ResumeActivationContentConnected({
     error: activationError,
     errorTerminal,
     errorOutcomeUnknown,
+    errorKind,
     handleActivation,
   } = useActivationState({
     activity,
@@ -882,6 +895,20 @@ function ResumeActivationContentConnected({
   // reopening starts a fresh attempt if it did not.
   const isOutcomeUnknown =
     localError == null && !staleActivationError && errorOutcomeUnknown;
+  // The kind outlives its attempt like the error does, so it counts only while
+  // that error is the one shown: never under a local error or a new attempt.
+  const shownErrorKind =
+    localError == null && activationError != null && !staleActivationError
+      ? errorKind
+      : null;
+  const withdrawOffered =
+    shownErrorKind !== null &&
+    WITHDRAW_OFFERED_FAILURE_KINDS.has(shownErrorKind);
+  // Opens the dialog only: its checkbox and its own derive come before any reveal.
+  const handleWithdraw = useCallback(() => {
+    clearStagedSecret();
+    onWithdraw(activity);
+  }, [clearStagedSecret, onWithdraw, activity]);
 
   // Track the live contract status so an activation completed elsewhere
   // (another tab, a previous session) still lands on the success terminal
@@ -889,6 +916,8 @@ function ResumeActivationContentConnected({
   const pollingResult = useDepositPollingResult(activity.id);
   const active =
     pollingResult?.peginState?.contractStatus === ContractStatus.ACTIVE;
+  // The Withdraw dialog runs its own reveal, so only the vault's state shows it.
+  const withdrawn = isVaultWithdrawnByDepositor(pollingResult?.peginState);
 
   // A reveal whose outcome is unknown stays on the activation step: the secret
   // was retrieved, and the reveal is what may have gone through.
@@ -920,6 +949,7 @@ function ResumeActivationContentConnected({
     // Only this vault's outcome is known here, so not the partial screen.
     return (
       <VaultReturnedView
+        outcome="returned"
         variant="full"
         reason={returnedReason}
         onGoToDashboard={onGoToDashboard}
@@ -927,22 +957,45 @@ function ResumeActivationContentConnected({
     );
   }
 
-  return (
-    <DepositProgressView
-      currentStep={renderStep}
-      error={
-        error
-          ? // Inconsistent split-order data and an endpoint that cannot run
-            // the activation check are terminal too, but the vault is still
-            // inside its window: show their own message, not the refund
-            // advice.
-            isTerminal &&
+  if (withdrawn) {
+    // In place of the failed activation's error, whose Retry can no longer run.
+    return (
+      <VaultReturnedView
+        outcome="withdrawn"
+        variant="full"
+        onGoToDashboard={onGoToDashboard}
+      />
+    );
+  }
+
+  // A deadline revert that was mined keeps its secret-public notice. Other
+  // terminal errors show the refund advice, except the two still inside the
+  // window (split-order data, unsupported activation check): their own message.
+  const shownError =
+    error === null
+      ? null
+      : shownErrorKind === "mined-deadline-expired"
+        ? COPY.deposit.errors.activationDeadlinePassedSecretPublic
+        : isTerminal &&
             activationError !==
               COPY.pegin.messages.activationOrderInconsistent &&
             activationError !== COPY.deposit.errors.activationCheckUnsupported
-            ? COPY.deposit.errors.activationDeadlinePassed
-            : mapDepositErrorAfterRegistration(error.raw)
-          : null
+          ? COPY.deposit.errors.activationDeadlinePassed
+          : mapDepositErrorAfterRegistration(error.raw);
+
+  return (
+    <DepositProgressView
+      currentStep={renderStep}
+      error={shownError}
+      errorSecondaryAction={
+        withdrawOffered
+          ? {
+              label: COPY.pegin.primaryAction.ACTIVATE_AND_REDEEM,
+              explanation: COPY.deposit.progress.withdrawExplanation,
+              onClick: handleWithdraw,
+              disabled: withdrawOpen,
+            }
+          : undefined
       }
       errorVariant={isOutcomeUnknown ? "warning" : "error"}
       isComplete={derived.isComplete}

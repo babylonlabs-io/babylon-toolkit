@@ -1,9 +1,13 @@
 import { useCallback, useState } from "react";
 
+import type { WithdrawStuckProof } from "@/components/deposit/EmergencyWithdrawModal/stuckProof";
 import type { VaultActivity } from "@/types/activity";
+import { isWithdrawRemovingSplitProtection } from "@/utils/batchedPegin";
 
 interface WithdrawingState {
   activity: VaultActivity;
+  /** Stated by the opener, never derived here: it selects the dialog's text only. */
+  stuckProof: WithdrawStuckProof;
 }
 
 export function useEmergencyWithdrawModal(options: {
@@ -15,13 +19,10 @@ export function useEmergencyWithdrawModal(options: {
   const [withdrawing, setWithdrawing] = useState<WithdrawingState | null>(null);
 
   const handleWithdrawClick = useCallback(
-    (depositId: string) => {
-      const activity = allActivities.find((a) => a.id === depositId);
-      if (activity) {
-        setWithdrawing({ activity });
-      }
+    (activity: VaultActivity, stuckProof: WithdrawStuckProof) => {
+      setWithdrawing({ activity, stuckProof });
     },
-    [allActivities],
+    [],
   );
 
   const handleClose = useCallback(() => {
@@ -33,8 +34,14 @@ export function useEmergencyWithdrawModal(options: {
     onSuccess();
   }, [onSuccess]);
 
+  // Read from the latest list so the warning follows the sibling's status.
+  const splitProtectionLost =
+    withdrawing !== null &&
+    isWithdrawRemovingSplitProtection(allActivities, withdrawing.activity);
+
   return {
     withdrawing,
+    splitProtectionLost,
     handleWithdrawClick,
     handleClose,
     handleSuccess,

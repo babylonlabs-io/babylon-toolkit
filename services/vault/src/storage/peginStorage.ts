@@ -54,11 +54,12 @@ export interface PendingPeginRequest {
    * handing it to the application (see `activationRedeemedForDepositor`).
    * Written in the same write as the CONFIRMED status it qualifies and only
    * alongside it: CONFIRMED alone reads as activated, so a reload or another
-   * tab must never see one without the other. Absent for an activation the
-   * application took, for the escape hatch (it has its own success screen),
-   * and on records written before this field existed.
+   * tab must never see one without the other. `"withdrawn"` when this
+   * browser's Withdraw (activate-and-redeem) landed, under the same rule.
+   * Absent for an activation the application took, and on records written
+   * before this field existed.
    */
-  activationOutcome?: "returned";
+  activationOutcome?: "returned" | "withdrawn";
   /**
    * Fingerprint of the canonical transaction set the depositor signed at
    * presign, hex, no prefix. `btc-vault/docs/specifications/pegin.md` §5.9 makes this the
@@ -242,7 +243,8 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
   // other pairing is not a record this app wrote.
   if (
     pegin.activationOutcome !== undefined &&
-    (pegin.activationOutcome !== "returned" ||
+    ((pegin.activationOutcome !== "returned" &&
+      pegin.activationOutcome !== "withdrawn") ||
       pegin.status !== LocalStorageStatus.CONFIRMED)
   ) {
     return false;

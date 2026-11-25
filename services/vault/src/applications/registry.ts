@@ -17,12 +17,6 @@ export function registerApplication(
   }
 }
 
-export function getApplication(
-  appId: string,
-): ApplicationRegistration | undefined {
-  return applicationRegistry.get(appId.toLowerCase());
-}
-
 export function getAppIdByController(
   controllerAddress: string,
 ): string | undefined {

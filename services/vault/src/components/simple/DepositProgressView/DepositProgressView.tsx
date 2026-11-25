@@ -23,6 +23,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -221,6 +222,20 @@ export interface DepositProgressViewProps {
    * the resulting rejection as a stop.
    */
   onAppWaitCanceled?: () => void;
+  /**
+   * A second way out of a failed step, rendered beside Retry with its
+   * explanation above both buttons. Omitted renders the single-button footer.
+   */
+  errorSecondaryAction?: DepositProgressSecondaryAction;
+}
+
+export interface DepositProgressSecondaryAction {
+  label: string;
+  /** One-line consequence of the action, tied to its button for assistive tech. */
+  explanation: string;
+  onClick: () => void;
+  /** True while this action or Retry is in flight: disables both buttons. */
+  disabled: boolean;
 }
 
 /** Wallet-specific inputs to the active-step panel; `null` for non-Ledger wallets. */
@@ -411,7 +426,9 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     signDisabled = false,
     continuePrompt = null,
     onAppWaitCanceled,
+    errorSecondaryAction,
   } = props;
+  const secondaryExplanationId = useId();
 
   // Every flow that renders this view uses the BTC wallet, so a silent lock
   // is surfaced here (as a Callout) whichever flow — deposit,
@@ -543,6 +560,17 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     !showCancelSigning &&
     canContinueInBackground;
 
+  // Only where the primary button is Retry: same conditions as its label and
+  // handler chains below, so the second action never sits beside another CTA.
+  const secondaryAction =
+    started &&
+    error !== null &&
+    onRetry !== undefined &&
+    !showReconnect &&
+    !showCloseAndTrack
+      ? errorSecondaryAction
+      : undefined;
+
   const handleReconnect = useCallback(async () => {
     setIsReconnecting(true);
     setReconnectFailedFor(null);
@@ -672,6 +700,83 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     ],
   );
 
+  const primaryButton = (
+    <Button
+      disabled={
+        secondaryAction?.disabled
+          ? true
+          : showUnlockCta
+            ? isUnlocking
+            : showCancelAppWait || showContinuePrompt
+              ? false
+              : showReconnect
+                ? isReconnecting
+                : showCancelSigning
+                  ? cancelSigningRequested
+                  : started
+                    ? !canClose && !isTerminalSuccess
+                    : signDisabled
+      }
+      variant="contained"
+      color="secondary"
+      className={secondaryAction ? "flex-1 whitespace-nowrap" : "w-full"}
+      onClick={
+        showUnlockCta
+          ? unlock
+          : showCancelAppWait
+            ? handleCancelAppWait
+            : showContinuePrompt
+              ? continuePrompt?.onContinue
+              : showReconnect
+                ? handleReconnect
+                : showCancelSigning
+                  ? onCancelSigning
+                  : !started
+                    ? onSign
+                    : error && onRetry
+                      ? onRetry
+                      : onClose
+      }
+    >
+      {showUnlockCta ? (
+        isUnlocking ? (
+          COPY.wallet.locked.unlocking
+        ) : (
+          COPY.wallet.locked.unlockButton
+        )
+      ) : !started ? (
+        COPY.deposit.progress.buttons.signTransaction
+      ) : showCancelAppWait ? (
+        COPY.deposit.ledger.waitingForApp.cancel
+      ) : showContinuePrompt ? (
+        continuePrompt?.ctaLabel
+      ) : showReconnect ? (
+        COPY.deposit.ledger.reconnectButton
+      ) : showCancelSigning ? (
+        COPY.deposit.progress.buttons.cancelSigning
+      ) : showCloseAndTrack ? (
+        COPY.deposit.progress.buttons.closeAndTrack
+      ) : error ? (
+        onRetry ? (
+          COPY.deposit.progress.buttons.retry
+        ) : (
+          COPY.deposit.progress.buttons.close
+        )
+      ) : isComplete || isTerminalSuccess ? (
+        COPY.deposit.progress.buttons.done
+      ) : isProcessing ? (
+        <span className="flex items-center justify-center gap-2">
+          <Loader size={16} className="text-accent-contrast" />
+          <Text as="span" variant="body2" className="text-accent-contrast">
+            {COPY.deposit.progress.buttons.sign}
+          </Text>
+        </span>
+      ) : (
+        COPY.deposit.progress.buttons.sign
+      )}
+    </Button>
+  );
+
   return (
     <DepositCardShell
       offchainParamsVersion={offchainParamsVersion}
@@ -748,82 +853,33 @@ export function DepositProgressView(props: DepositProgressViewProps) {
           )}
 
           <div className="flex flex-col gap-2">
-            <Button
-              disabled={
-                showUnlockCta
-                  ? isUnlocking
-                  : showCancelAppWait || showContinuePrompt
-                    ? false
-                    : showReconnect
-                      ? isReconnecting
-                      : showCancelSigning
-                        ? cancelSigningRequested
-                        : started
-                          ? !canClose && !isTerminalSuccess
-                          : signDisabled
-              }
-              variant="contained"
-              color="secondary"
-              className="w-full"
-              onClick={
-                showUnlockCta
-                  ? unlock
-                  : showCancelAppWait
-                    ? handleCancelAppWait
-                    : showContinuePrompt
-                      ? continuePrompt?.onContinue
-                      : showReconnect
-                        ? handleReconnect
-                        : showCancelSigning
-                          ? onCancelSigning
-                          : !started
-                            ? onSign
-                            : error && onRetry
-                              ? onRetry
-                              : onClose
-              }
-            >
-              {showUnlockCta ? (
-                isUnlocking ? (
-                  COPY.wallet.locked.unlocking
-                ) : (
-                  COPY.wallet.locked.unlockButton
-                )
-              ) : !started ? (
-                COPY.deposit.progress.buttons.signTransaction
-              ) : showCancelAppWait ? (
-                COPY.deposit.ledger.waitingForApp.cancel
-              ) : showContinuePrompt ? (
-                continuePrompt?.ctaLabel
-              ) : showReconnect ? (
-                COPY.deposit.ledger.reconnectButton
-              ) : showCancelSigning ? (
-                COPY.deposit.progress.buttons.cancelSigning
-              ) : showCloseAndTrack ? (
-                COPY.deposit.progress.buttons.closeAndTrack
-              ) : error ? (
-                onRetry ? (
-                  COPY.deposit.progress.buttons.retry
-                ) : (
-                  COPY.deposit.progress.buttons.close
-                )
-              ) : isComplete || isTerminalSuccess ? (
-                COPY.deposit.progress.buttons.done
-              ) : isProcessing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader size={16} className="text-accent-contrast" />
-                  <Text
-                    as="span"
-                    variant="body2"
-                    className="text-accent-contrast"
+            {secondaryAction ? (
+              <>
+                <Text
+                  id={secondaryExplanationId}
+                  variant="body2"
+                  className="text-accent-secondary"
+                >
+                  {secondaryAction.explanation}
+                </Text>
+                <div className="flex w-full gap-4">
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    className="flex-1 whitespace-nowrap !border-secondary-strokeLight"
+                    onClick={secondaryAction.onClick}
+                    disabled={secondaryAction.disabled}
+                    aria-describedby={secondaryExplanationId}
+                    data-testid="deposit-progress-secondary-action-button"
                   >
-                    {COPY.deposit.progress.buttons.sign}
-                  </Text>
-                </span>
-              ) : (
-                COPY.deposit.progress.buttons.sign
-              )}
-            </Button>
+                    {secondaryAction.label}
+                  </Button>
+                  {primaryButton}
+                </div>
+              </>
+            ) : (
+              primaryButton
+            )}
             {showCloseAndTrack && (
               <Text
                 variant="caption"
