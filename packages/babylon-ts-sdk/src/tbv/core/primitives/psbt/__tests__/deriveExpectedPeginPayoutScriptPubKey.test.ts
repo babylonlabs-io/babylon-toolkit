@@ -11,6 +11,7 @@ import { Buffer } from "buffer";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { deriveExpectedPeginPayoutScriptPubKey } from "../assertWasmPeginSizing";
+import { MIN_TIMELOCK_PEGIN_BLOCKS } from "../pegin";
 import { TEST_KEYS, initializeWasmForTests } from "./helpers";
 
 const DIFFERENTIAL_SEED = 0x2481;
@@ -19,21 +20,18 @@ const RANDOM_CASE_COUNT = 40;
 // number, so both sides must agree across that boundary.
 const EDGE_KEY_COUNTS = [1, 16, 17] as const;
 const MAX_RANDOM_KEY_COUNT = 20;
-// The engine refuses a PegIn timelock at or below its 30-block inclusion
-// budget (btc-vault v1.0.0 `PeginPayoutConnector::validate_timelock`).
-const MIN_TIMELOCK_PEGIN = 31;
 const MAX_TIMELOCK_PEGIN = 65535;
 // The floor, then the timelocks where the minimal script number encoding
 // changes its length or its sign-byte handling.
 const EDGE_TIMELOCKS = [
-  MIN_TIMELOCK_PEGIN,
+  MIN_TIMELOCK_PEGIN_BLOCKS,
   127,
   128,
   32767,
   32768,
   MAX_TIMELOCK_PEGIN,
 ] as const;
-const TIMELOCK_PEGIN_SPAN = MAX_TIMELOCK_PEGIN - MIN_TIMELOCK_PEGIN + 1;
+const TIMELOCK_PEGIN_SPAN = MAX_TIMELOCK_PEGIN - MIN_TIMELOCK_PEGIN_BLOCKS + 1;
 const PRIVATE_KEY_BYTES = 32;
 
 interface PayoutCase {
@@ -86,7 +84,8 @@ function seededCases(): PayoutCase[] {
   const cases: PayoutCase[] = [];
   for (const keeperCount of EDGE_KEY_COUNTS) {
     for (const challengerCount of EDGE_KEY_COUNTS) {
-      const timelockPegin = MIN_TIMELOCK_PEGIN + (next() % TIMELOCK_PEGIN_SPAN);
+      const timelockPegin =
+        MIN_TIMELOCK_PEGIN_BLOCKS + (next() % TIMELOCK_PEGIN_SPAN);
       cases.push(seededCase(next, keeperCount, challengerCount, timelockPegin));
     }
   }
@@ -98,7 +97,8 @@ function seededCases(): PayoutCase[] {
   for (let index = 0; index < RANDOM_CASE_COUNT; index++) {
     const keeperCount = 1 + (next() % MAX_RANDOM_KEY_COUNT);
     const challengerCount = 1 + (next() % MAX_RANDOM_KEY_COUNT);
-    const timelockPegin = MIN_TIMELOCK_PEGIN + (next() % TIMELOCK_PEGIN_SPAN);
+    const timelockPegin =
+      MIN_TIMELOCK_PEGIN_BLOCKS + (next() % TIMELOCK_PEGIN_SPAN);
     cases.push(seededCase(next, keeperCount, challengerCount, timelockPegin));
   }
   return cases;
@@ -146,6 +146,22 @@ describe("deriveExpectedPeginPayoutScriptPubKey", () => {
 
     expect(derivedScriptPubKey(goldenCase)).toBe(goldenScript);
     expect(await engineScriptPubKey(goldenCase)).toBe(goldenScript);
+  });
+
+  // With the seeded test accepting the floor, this pins the floor to the
+  // engine from both sides.
+  it("uses a floor one block above the highest timelock the engine refuses", async () => {
+    const belowFloor: PayoutCase = {
+      depositorPubkey: TEST_KEYS.DEPOSITOR,
+      vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+      vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+      universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+      timelockPegin: MIN_TIMELOCK_PEGIN_BLOCKS - 1,
+    };
+
+    await expect(engineScriptPubKey(belowFloor)).rejects.toThrow(
+      "must exceed inclusion budget",
+    );
   });
 
   it("matches the engine for seeded random keys, key counts, and timelocks", async () => {

@@ -36,8 +36,8 @@ const CLAIM_VALUE = 20_000n;
 // produced by the engine for graph version 1.
 const VAULT_SCRIPT_TIMELOCK_100 =
   "51204770efdd795ac685bc070f9f8cfedc8bf8836dc7bc82384fbcfeca781551f14f";
-const VAULT_SCRIPT_TIMELOCK_1 =
-  "512072e17029dac88fdca0f4c636ef582b7da0f1f796cca12c31147a30fc529242db";
+const VAULT_SCRIPT_TIMELOCK_31 =
+  "51201d4cde7b286dc67fce758d86bd2395654e9fd61fe98e510699490400c96a739d";
 const VAULT_SCRIPT_TIMELOCK_65535 =
   "512013f29d28a931c741bd05814fb3c3b96627dbd470d2f408eeeb2301bdc833518d";
 
@@ -188,19 +188,21 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
     expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
   });
 
-  it.each([0, 65536, 1.5, -1])(
+  // One case per clause: below the floor, above the ceiling, and a fraction
+  // inside the range.
+  it.each([30, 65536, 31.5])(
     "rejects PegIn timelock %p before the engine is called",
     async (timelockPegin) => {
       await expect(buildWith(fundedHex, {}, 1, timelockPegin)).rejects.toThrow(
         `PegIn timelock ${timelockPegin} must be a whole number of blocks ` +
-          `from 1 to 65535`,
+          `from 31 to 65535.`,
       );
       expect(buildPeginTxFromPrePeginMock).not.toHaveBeenCalled();
     },
   );
 
   it.each([
-    [1, VAULT_SCRIPT_TIMELOCK_1],
+    [31, VAULT_SCRIPT_TIMELOCK_31],
     [65535, VAULT_SCRIPT_TIMELOCK_65535],
   ] as const)(
     "passes PegIn timelock %i to the engine",
@@ -309,9 +311,9 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
 
   it("rejects an engine-reported vault script that differs from the derived payout script", async () => {
     await expect(
-      buildWith(fundedHex, { metadataVaultScript: VAULT_SCRIPT_TIMELOCK_1 }),
+      buildWith(fundedHex, { metadataVaultScript: VAULT_SCRIPT_TIMELOCK_31 }),
     ).rejects.toThrow(
-      `WASM-reported PegIn vaultScriptPubKey ${VAULT_SCRIPT_TIMELOCK_1} ` +
+      `WASM-reported PegIn vaultScriptPubKey ${VAULT_SCRIPT_TIMELOCK_31} ` +
         `does not match the independently derived payout scriptPubKey ` +
         `${VAULT_SCRIPT_TIMELOCK_100}`,
     );
@@ -319,9 +321,9 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
 
   it("rejects an encoded vault script that differs from the derived payout script", async () => {
     await expect(
-      buildWith(fundedHex, { encodedVaultScript: VAULT_SCRIPT_TIMELOCK_1 }),
+      buildWith(fundedHex, { encodedVaultScript: VAULT_SCRIPT_TIMELOCK_31 }),
     ).rejects.toThrow(
-      `Encoded PegIn vault output scriptPubKey ${VAULT_SCRIPT_TIMELOCK_1} ` +
+      `Encoded PegIn vault output scriptPubKey ${VAULT_SCRIPT_TIMELOCK_31} ` +
         `does not match the independently derived payout scriptPubKey ` +
         `${VAULT_SCRIPT_TIMELOCK_100}`,
     );
@@ -330,8 +332,8 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
   it("rejects an engine result that reports and encodes the same wrong vault script", async () => {
     await expect(
       buildWith(fundedHex, {
-        metadataVaultScript: VAULT_SCRIPT_TIMELOCK_1,
-        encodedVaultScript: VAULT_SCRIPT_TIMELOCK_1,
+        metadataVaultScript: VAULT_SCRIPT_TIMELOCK_31,
+        encodedVaultScript: VAULT_SCRIPT_TIMELOCK_31,
       }),
     ).rejects.toThrow(/does not match the independently derived payout/);
   });

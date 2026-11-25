@@ -123,6 +123,13 @@ const AUTH_ANCHOR_HASH_HEX_LEN = 64;
 const HEX_PATTERN = /^[0-9a-fA-F]+$/;
 
 /**
+ * The smallest PegIn timelock in blocks. The engine refuses one at or below
+ * its 30-block inclusion budget (btc-vault v1.0.0
+ * `PeginPayoutConnector::validate_timelock`).
+ */
+export const MIN_TIMELOCK_PEGIN_BLOCKS = 31;
+
+/**
  * The largest PegIn timelock in blocks. The engine stores it as a Rust u16.
  */
 const MAX_TIMELOCK_PEGIN_BLOCKS = 0xffff;
@@ -311,7 +318,7 @@ export function normalizeAuthAnchorHash(
  *
  * @param params - Build parameters including Pre-PegIn params and funded tx hex
  * @returns PegIn transaction details
- * @throws If `timelockPegin` is not a whole number from 1 to 65535, if WASM
+ * @throws If `timelockPegin` is not a whole number from 31 to 65535, if WASM
  *   initialization fails or parameters are invalid, or if the WASM result does
  *   not match the request (for example, a vault scriptPubKey that differs from
  *   the independently derived payout scriptPubKey)
@@ -320,16 +327,17 @@ export async function buildPeginTxFromFundedPrePegin(
   params: BuildPeginTxParams,
 ): Promise<PeginTxResult> {
   // Reject the timelock before it crosses into the engine. The engine keeps
-  // only the low 16 bits and drops a fraction, and rejects only a zero
-  // result. Thus 65537 would build a one-block vault, not the requested one.
+  // only the low 16 bits and drops a fraction, so 65636 would build a
+  // 100-block vault, not the requested one. It also refuses a timelock at or
+  // below its inclusion budget.
   if (
     !Number.isInteger(params.timelockPegin) ||
-    params.timelockPegin < 1 ||
+    params.timelockPegin < MIN_TIMELOCK_PEGIN_BLOCKS ||
     params.timelockPegin > MAX_TIMELOCK_PEGIN_BLOCKS
   ) {
     throw new Error(
       `PegIn timelock ${params.timelockPegin} must be a whole number of ` +
-        `blocks from 1 to ${MAX_TIMELOCK_PEGIN_BLOCKS}.`,
+        `blocks from ${MIN_TIMELOCK_PEGIN_BLOCKS} to ${MAX_TIMELOCK_PEGIN_BLOCKS}.`,
     );
   }
 
