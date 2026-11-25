@@ -116,12 +116,19 @@ export const WRITE_NOT_EXECUTED_RX =
   /canceled or replaced|may have been replaced|reverted on-chain/i;
 
 /**
- * The text of the loan form's "Transaction failed" callout, title and body, whitespace-collapsed: the
- * message the user was shown, so a failed run logs it. The callout is core-ui `Callout`, which renders
- * the error variant with role="alert". Empty when the callout is gone.
+ * The warning line /vaults shows while the indexed vault list does not match the chain position
+ * (VaultsPage `indexerError`). While it is shown, every Withdraw and the Reorder button are disabled.
  */
-export async function readTxFailedText(page: Page): Promise<string> {
-  const callout = page
+export const COLLATERAL_LIST_INCOMPLETE_TESTID =
+  '[data-testid="vaults-collateral-list-incomplete"]';
+
+/**
+ * The text of a "Transaction failed" callout, title and body, whitespace-collapsed: the message the user
+ * was shown, so a failed run logs it. The callout is core-ui `Callout`, which renders the error variant
+ * with role="alert". `scope` narrows it to one dialog. Empty when the callout is gone.
+ */
+export async function readTxFailedText(scope: Page | Locator): Promise<string> {
+  const callout = scope
     .getByRole("alert")
     .filter({ hasText: TX_FAILED_RX })
     .first();

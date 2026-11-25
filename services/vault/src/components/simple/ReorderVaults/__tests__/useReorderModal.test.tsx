@@ -18,6 +18,7 @@ vi.mock("@/applications/aave/hooks", () => ({
     pendingWrite: null,
     error: null,
     notice: null,
+    clearError: vi.fn(),
   }),
 }));
 

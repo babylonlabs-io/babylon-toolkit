@@ -3246,6 +3246,15 @@ export const COPY = {
     infoText:
       "BTCVaults are liquidated in order from first to last. A liquidation event seizes BTCVaults from the front until it covers that event's target seizure amount, so the order decides how much of your BTC survives.",
     networkFeeLabel: "Ethereum network fee",
+    networkFeeEstimating: "Estimating...",
+    // Shown when the gas estimate failed. Never a 0, which would claim the
+    // reorder is free.
+    networkFeeUnavailable: "-- ETH",
+    // `amount` is pre-formatted and may read "< 0.000001" for a fee below
+    // the shown precision (a Sepolia reorder can cost about 2e-12 ETH).
+    networkFeeEth: (amount: string) => `${amount} ETH`,
+    // `amount` is pre-formatted with its "$" and may read "< $0.01".
+    networkFeeUsd: (amount: string) => `(${amount} USD)`,
     confirmButton: "Confirm",
     doneButton: "Done",
     successTitle: "BTCVault order updated",

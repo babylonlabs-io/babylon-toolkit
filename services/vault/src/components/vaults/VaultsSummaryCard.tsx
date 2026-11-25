@@ -70,6 +70,10 @@ export function VaultsSummaryCard({
       actionLabel: COPY.vaults.actions.reorder,
       onAction: onReorder,
       actionDisabled: isReorderDisabled,
+      // This control's data-testid is a real-wallet E2E hook
+      // (e2e/real/actions/reorder.ts) — carry it over if you move or rename
+      // the element.
+      actionTestId: "vaults-reorder-button",
     },
     {
       label: COPY.vaults.summary.healthFactorLabel,
