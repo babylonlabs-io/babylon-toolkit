@@ -7,6 +7,7 @@ import {
   getBatchSiblings,
   groupActivitiesByBatch,
   isActivationBlockedByEarlierSibling,
+  isWithdrawRemovingSplitProtection,
 } from "../batchedPegin";
 
 /** Minimal VaultActivity carrying only the fields batch-grouping reads. */
@@ -203,6 +204,124 @@ describe("isActivationBlockedByEarlierSibling", () => {
         [sacrificial, protectedVault],
         sacrificial,
       ),
+    ).toBe(false);
+  });
+});
+
+describe("isWithdrawRemovingSplitProtection", () => {
+  function withStatus(
+    base: VaultActivity,
+    contractStatus: ContractStatus,
+  ): VaultActivity {
+    return { ...base, contractStatus };
+  }
+
+  it("is true for the first vault while a later sibling is still pending", () => {
+    const first = withStatus(
+      activity("0xfirst", "0xaaaa", 0),
+      ContractStatus.VERIFIED,
+    );
+    const later = withStatus(
+      activity("0xlater", "0xaaaa", 1),
+      ContractStatus.PENDING,
+    );
+
+    expect(isWithdrawRemovingSplitProtection([first, later], first)).toBe(true);
+  });
+
+  it("is true for the first vault while a later sibling is verified", () => {
+    const first = withStatus(
+      activity("0xfirst", "0xaaaa", 0),
+      ContractStatus.VERIFIED,
+    );
+    const later = withStatus(
+      activity("0xlater", "0xaaaa", 1),
+      ContractStatus.VERIFIED,
+    );
+
+    expect(isWithdrawRemovingSplitProtection([first, later], first)).toBe(true);
+  });
+
+  it("is true for a vault whose only earlier sibling expired and can never queue", () => {
+    const expired = withStatus(
+      activity("0xexpired", "0xaaaa", 0),
+      ContractStatus.EXPIRED,
+    );
+    const middle = withStatus(
+      activity("0xmiddle", "0xaaaa", 1),
+      ContractStatus.VERIFIED,
+    );
+    const later = withStatus(
+      activity("0xlater", "0xaaaa", 2),
+      ContractStatus.VERIFIED,
+    );
+
+    expect(
+      isWithdrawRemovingSplitProtection([expired, middle, later], middle),
+    ).toBe(true);
+  });
+
+  it("is false for the last vault of the split", () => {
+    const first = withStatus(
+      activity("0xfirst", "0xaaaa", 0),
+      ContractStatus.VERIFIED,
+    );
+    const later = withStatus(
+      activity("0xlater", "0xaaaa", 1),
+      ContractStatus.VERIFIED,
+    );
+
+    expect(isWithdrawRemovingSplitProtection([first, later], later)).toBe(
+      false,
+    );
+  });
+
+  it("is false while an earlier sibling is already active", () => {
+    const active = withStatus(
+      activity("0xactive", "0xaaaa", 0),
+      ContractStatus.ACTIVE,
+    );
+    const middle = withStatus(
+      activity("0xmiddle", "0xaaaa", 1),
+      ContractStatus.VERIFIED,
+    );
+    const later = withStatus(
+      activity("0xlater", "0xaaaa", 2),
+      ContractStatus.VERIFIED,
+    );
+
+    expect(
+      isWithdrawRemovingSplitProtection([active, middle, later], middle),
+    ).toBe(false);
+  });
+
+  it("is false when the later sibling was redeemed", () => {
+    const first = withStatus(
+      activity("0xfirst", "0xaaaa", 0),
+      ContractStatus.VERIFIED,
+    );
+    const later = withStatus(
+      activity("0xlater", "0xaaaa", 1),
+      ContractStatus.REDEEMED,
+    );
+
+    expect(isWithdrawRemovingSplitProtection([first, later], first)).toBe(
+      false,
+    );
+  });
+
+  it("is false for a vault without a construction index", () => {
+    const unindexed = withStatus(
+      activity("0xunindexed", "0xaaaa"),
+      ContractStatus.VERIFIED,
+    );
+    const later = withStatus(
+      activity("0xlater", "0xaaaa", 1),
+      ContractStatus.VERIFIED,
+    );
+
+    expect(
+      isWithdrawRemovingSplitProtection([unindexed, later], unindexed),
     ).toBe(false);
   });
 });

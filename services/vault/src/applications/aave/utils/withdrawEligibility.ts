@@ -1,10 +1,8 @@
 /**
  * Withdrawal eligibility and projected health factor helpers.
  *
- * Aave enforces HF >= 1.0 on withdrawal on-chain. These helpers mirror
- * that check client-side to drive UX: gating the outer Withdraw button,
- * greying out vaults that can't be individually released, and blocking
- * the review step's Confirm for combined selections that would revert.
+ * Aave enforces HF >= 1.0 on withdrawal on-chain. These helpers mirror that
+ * check client-side so the withdraw flow can warn before, or block, a revert.
  *
  * We project HF by scaling Aave's authoritative on-chain health factor,
  * not by re-deriving it from collateral/debt USD. All vaults hold the
@@ -42,17 +40,6 @@ export function isHealthFactorAtOrAbove(
   return healthFactor >= threshold - HF_COMPARISON_EPSILON;
 }
 
-export interface PositionSnapshot {
-  /** Total collateral in BTC across the user's vaults. */
-  collateralBtc: number;
-  /**
-   * User's current on-chain health factor, or null when they have no debt.
-   * This is the authoritative value the contract reports; we scale it to
-   * project post-withdrawal HF.
-   */
-  currentHealthFactor: number | null;
-}
-
 /**
  * Health factor the user would land at after withdrawing `withdrawalBtc`
  * of collateral. Returns `Infinity` when there is no debt.
@@ -71,23 +58,6 @@ export function computeProjectedHealthFactor(
   if (collateralBtc <= 0) return 0;
   const remainingBtc = Math.max(0, collateralBtc - withdrawalBtc);
   return currentHealthFactor * (remainingBtc / collateralBtc);
-}
-
-/**
- * True if the user could withdraw only this one vault without breaching
- * the on-chain HF floor (1.0). Used to grey out unsafe vaults in the picker.
- */
-export function isVaultIndividuallyWithdrawable(
-  vaultBtc: number,
-  position: PositionSnapshot,
-): boolean {
-  if (position.collateralBtc <= 0) return false;
-  const projectedHF = computeProjectedHealthFactor(
-    position.currentHealthFactor,
-    position.collateralBtc,
-    vaultBtc,
-  );
-  return isHealthFactorAtOrAbove(projectedHF, WITHDRAW_HF_BLOCK_THRESHOLD);
 }
 
 export interface WithdrawHfWarningState {
@@ -116,17 +86,4 @@ export function getWithdrawHfWarningState(
       WITHDRAW_HF_WARNING_THRESHOLD,
     );
   return { wouldBreachHF, isAtRisk };
-}
-
-/**
- * True if at least one in-use vault could be withdrawn individually
- * without breaching the HF floor. Gates the outer Withdraw button.
- */
-export function canWithdrawAnyVault(
-  vaults: readonly { amountBtc: number; inUse: boolean }[],
-  position: PositionSnapshot,
-): boolean {
-  return vaults.some(
-    (v) => v.inUse && isVaultIndividuallyWithdrawable(v.amountBtc, position),
-  );
 }

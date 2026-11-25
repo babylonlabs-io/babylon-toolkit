@@ -39,7 +39,6 @@
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "release": "npm run build && changeset publish",
     "extensions:download": "tsx tests/e2e/setup/downloadExtensions.ts",
     "test:e2e:setup": "npm run extensions:download",
     "test:e2e": "playwright test --project=e2e",
@@ -67,8 +66,7 @@
     "@keplr-wallet/types": "0.12.272",
     "@reown/appkit": "1.8.12",
     "@reown/appkit-adapter-wagmi": "1.8.12",
-    "nanoevents": "9.1.0",
-    "usehooks-ts": "3.1.1"
+    "nanoevents": "9.1.0"
   },
   "files": [
     "dist"
@@ -98,7 +96,6 @@
   "devDependencies": {
     "@babylonlabs-io/ledger-vault-signer": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
-    "@changesets/cli": "2.29.8",
     "@chromatic-com/storybook": "3.2.7",
     "@commitlint/cli": "19.8.1",
     "@commitlint/config-conventional": "19.8.1",
@@ -119,7 +116,6 @@
     "@semantic-release/npm": "12.0.2",
     "@storybook/addon-essentials": "8.6.15",
     "@storybook/addon-interactions": "8.6.15",
-    "@storybook/blocks": "8.6.15",
     "@storybook/react": "8.6.15",
     "@storybook/react-vite": "8.6.15",
     "@storybook/test": "8.6.15",

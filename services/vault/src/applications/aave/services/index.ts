@@ -37,10 +37,7 @@ export {
   assertCollateralAmountsMatchOnChain,
   type CollateralAmountPair,
 } from "./assertCollateralAmountsMatchOnChain";
-export {
-  ProxyMismatchError,
-  assertProxyMatchesOnChain,
-} from "./assertProxyMatchesOnChain";
+export { ProxyMismatchError } from "./assertProxyMatchesOnChain";
 export {
   PositionChangedError,
   assertOptimalOrderMatchesOnChain,
@@ -53,8 +50,6 @@ export {
   assertReserveMatchesOnChain,
 } from "./assertReserveMatchesOnChain";
 export {
-  UnknownReserveTokenError,
   isIntegrityFailure,
-  verifyReserveIdentity,
   type VerifiedReserveIdentity,
 } from "./verifyReserveIdentity";

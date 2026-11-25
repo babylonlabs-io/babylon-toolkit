@@ -160,6 +160,11 @@ export interface PeginState {
    * contradict that. Read through {@link isVaultActivationReturned}.
    */
   activationReturned?: boolean;
+  /**
+   * Set ONLY when the depositor's own Withdraw receipt was seen, or the indexer
+   * reports that redeem's reason. Read through {@link isVaultWithdrawnByDepositor}.
+   */
+  withdrawnByDepositor?: boolean;
 }
 
 export interface GetPeginStateOptions {
@@ -306,6 +311,11 @@ export interface GetPeginStateOptions {
    * neither cannot tell, and the contract status alone decides.
    */
   activationReturned?: boolean;
+  /**
+   * The depositor's Withdraw (activate-and-redeem) landed: this session's
+   * mark, the outcome stored with the deposit record, or the indexer's reason.
+   */
+  withdrawnByDepositor?: boolean;
   /** Override `Date.now()` used for the TTL check (testing only). */
   now?: number;
 }
@@ -584,21 +594,27 @@ export function getPeginState(
   const activationReturned =
     options.activationReturned === true &&
     ACTIVATION_RETURNED_CONTRACT_STATUSES.has(contractStatus);
+  // A Withdraw is a redeem too, so its mark obeys the same status guard.
+  const withdrawnByDepositor =
+    options.withdrawnByDepositor === true &&
+    ACTIVATION_RETURNED_CONTRACT_STATUSES.has(contractStatus);
   // The reveal already landed and the registry redeemed the vault, so neither
   // activation can run again. Normally CONFIRMED, written alongside the mark,
   // has stripped them already (see `applyTrackingOverrides`); this holds even
   // when it is missing, so the mark alone never leaves Activate on offer.
-  const returnedAdjustedActions = activationReturned
-    ? floorAdjustedActions.filter(
-        (a) =>
-          a !== SdkPeginAction.ACTIVATE_VAULT &&
-          a !== SdkPeginAction.ACTIVATE_AND_REDEEM,
-      )
-    : floorAdjustedActions;
+  const returnedAdjustedActions =
+    activationReturned || withdrawnByDepositor
+      ? floorAdjustedActions.filter(
+          (a) =>
+            a !== SdkPeginAction.ACTIVATE_VAULT &&
+            a !== SdkPeginAction.ACTIVATE_AND_REDEEM,
+        )
+      : floorAdjustedActions;
   const actions = mapActions(returnedAdjustedActions);
   const display = getDisplay(contractStatus, actions, {
     ...options,
     activationReturned,
+    withdrawnByDepositor,
   });
 
   return {
@@ -610,6 +626,7 @@ export function getPeginState(
     // branch alone, so it marks that branch rather than every VERIFIED vault.
     ...display,
     ...(activationReturned ? { activationReturned: true } : {}),
+    ...(withdrawnByDepositor ? { withdrawnByDepositor: true } : {}),
   };
 }
 
@@ -872,6 +889,14 @@ function getDisplay(
         displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
         displayVariant: "pending",
         message: COPY.pegin.messages.activationReturned,
+      };
+    }
+    // The depositor's own Withdraw: final in the same way, with its own text.
+    if (options.withdrawnByDepositor === true) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+        displayVariant: "pending",
+        message: COPY.pegin.messages.withdrawSubmitted,
       };
     }
     if (localStatus === LocalStorageStatus.CONFIRMED) {
@@ -1277,6 +1302,8 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
   }
 
   if (contractStatus === ContractStatus.VERIFIED) {
+    // A withdrawn vault is leaving the flow, not waiting on an activation.
+    if (isVaultWithdrawnByDepositor(state)) return null;
     if (
       localStatus === LocalStorageStatus.CONFIRMED ||
       isVaultActivationReturned(state)
@@ -1395,6 +1422,7 @@ export function isVaultPastActivation(state: PeginState | undefined): boolean {
     return true;
   }
   if (isVaultActivationReturned(state)) return true;
+  if (isVaultWithdrawnByDepositor(state)) return true;
   return (
     contractStatus === ContractStatus.ACTIVE ||
     contractStatus === ContractStatus.REDEEMED ||
@@ -1423,7 +1451,8 @@ export function isVaultActivated(state: PeginState | undefined): boolean {
   return (
     contractStatus === ContractStatus.VERIFIED &&
     localStatus === LocalStorageStatus.CONFIRMED &&
-    !isVaultActivationReturned(state)
+    !isVaultActivationReturned(state) &&
+    !isVaultWithdrawnByDepositor(state)
   );
 }
 
@@ -1441,6 +1470,16 @@ export function isVaultActivationReturned(
   state: PeginState | undefined,
 ): boolean {
   return state?.activationReturned === true;
+}
+
+/**
+ * True when the depositor's own Withdraw is known for this vault, from its
+ * receipt or the indexer's redeem reason: redeemed without activating.
+ */
+export function isVaultWithdrawnByDepositor(
+  state: PeginState | undefined,
+): boolean {
+  return state?.withdrawnByDepositor === true;
 }
 
 export function shouldRemoveFromLocalStorage(

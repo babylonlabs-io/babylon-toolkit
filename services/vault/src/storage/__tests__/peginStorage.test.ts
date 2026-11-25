@@ -910,6 +910,41 @@ describe("getPendingPegins integrity validation", () => {
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
   });
+
+  it("loads a CONFIRMED entry carrying the withdrawn outcome", () => {
+    const withdrawn = {
+      ...validPegin,
+      status: LocalStorageStatus.CONFIRMED,
+      activationOutcome: "withdrawn",
+    };
+    localStorage.setItem(storageKey, JSON.stringify([withdrawn]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.activationOutcome).toBe("withdrawn");
+  });
+
+  it("loads a CONFIRMED entry carrying the returned outcome", () => {
+    const returned = {
+      ...validPegin,
+      status: LocalStorageStatus.CONFIRMED,
+      activationOutcome: "returned",
+    };
+    localStorage.setItem(storageKey, JSON.stringify([returned]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.activationOutcome).toBe("returned");
+  });
+
+  it("filters an entry that pairs the withdrawn outcome with a status other than CONFIRMED", () => {
+    const tampered = {
+      ...validPegin,
+      status: LocalStorageStatus.CONFIRMING,
+      activationOutcome: "withdrawn",
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
 });
 
 describe("updatePendingPeginStatus", () => {
@@ -1056,6 +1091,21 @@ describe("updatePendingPeginStatus", () => {
     const [stored] = getPendingPegins(ETH_ADDRESS);
     expect(stored.status).toBe(LocalStorageStatus.CONFIRMED);
     expect(stored.activationOutcome).toBe("returned");
+  });
+
+  it("stores the withdrawn outcome with CONFIRMED and reads it back", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.CONFIRMED,
+      "withdrawn",
+    );
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.CONFIRMED);
+    expect(stored.activationOutcome).toBe("withdrawn");
   });
 
   it("clears a stored activation outcome when a status is written without one", () => {

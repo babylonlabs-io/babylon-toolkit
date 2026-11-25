@@ -122,6 +122,33 @@ export class ActivationNotPossibleError extends Error {
 }
 
 /**
+ * A Withdraw whose transaction confirmed without the registry's redeem log
+ * for the depositor: a replacement transaction, or a contract wallet whose
+ * inner call failed. Not success, and not proof of failure, so the UI shows it
+ * as an unknown outcome.
+ */
+export class WithdrawUnconfirmedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WithdrawUnconfirmedError";
+  }
+}
+
+/**
+ * Thrown before the reveal when a governance pause blocks it. `scope` is
+ * `"protocol"` whenever the protocol scope is paused, `"aave"` otherwise.
+ */
+export class ActivationPausedError extends Error {
+  readonly scope: "protocol" | "aave";
+
+  constructor(message: string, scope: "protocol" | "aave") {
+    super(message);
+    this.name = "ActivationPausedError";
+    this.scope = scope;
+  }
+}
+
+/**
  * Thrown by the activation gas check when the simulated registry call would
  * redeem the vault for the depositor instead of handing it to the application
  * (its `activateVault` reverts, or its cap is exceeded), at the search ceiling

@@ -25,8 +25,9 @@ import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { shortId } from "@/infrastructure/telemetryEvents";
-import { PeginAction } from "@/models/peginStateMachine";
+import { ContractStatus, PeginAction } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
+import type { ActivationFailureKind } from "@/utils/errors";
 
 import { PostDepositContinuationView } from "../PostDepositContinuationView";
 import {
@@ -72,6 +73,8 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   processPublicKeyToXOnly: vi.fn((key: string) => key),
   stripHexPrefix: vi.fn((hex: string) => hex.replace(/^0x/, "")),
   uint8ArrayToHex: vi.fn(() => "00".repeat(32)),
+  // Read at module load by the failure classifier, which this suite never calls.
+  VAULT_ERROR_ABI: [],
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => ({
@@ -199,6 +202,7 @@ vi.mock("@/hooks/deposit/useActivationState", () => ({
     error: null,
     errorTerminal: false,
     errorOutcomeUnknown: false,
+    errorKind: null,
     handleActivation: mockHandleActivation,
   })),
 }));
@@ -264,6 +268,7 @@ vi.mock("../DepositProgressView", () => ({
     cancelSigningRequested,
     onCancelSigning,
     continuePrompt,
+    errorSecondaryAction,
   }: {
     currentStep?: string;
     vaultIds?: string[];
@@ -281,6 +286,12 @@ vi.mock("../DepositProgressView", () => ({
     cancelSigningRequested?: boolean;
     onCancelSigning?: () => void;
     continuePrompt?: { hint: string; onContinue: () => void } | null;
+    errorSecondaryAction?: {
+      label: string;
+      explanation: string;
+      onClick: () => void;
+      disabled: boolean;
+    };
   }) => (
     <div data-testid="progress-view">
       {/* Mirrors the real prop default so views that never pass it read as
@@ -323,6 +334,16 @@ vi.mock("../DepositProgressView", () => ({
       >
         continue
       </button>
+      {errorSecondaryAction && (
+        <button
+          type="button"
+          data-testid="secondary-action"
+          disabled={errorSecondaryAction.disabled}
+          onClick={errorSecondaryAction.onClick}
+        >
+          {errorSecondaryAction.label}
+        </button>
+      )}
     </div>
   ),
 }));
@@ -332,7 +353,9 @@ vi.mock("../VaultActivatedView", () => ({
 }));
 
 vi.mock("../VaultReturnedView", () => ({
-  VaultReturnedView: () => <div data-testid="vault-returned-view" />,
+  VaultReturnedView: ({ outcome }: { outcome: string }) => (
+    <div data-testid="vault-returned-view" data-outcome={outcome} />
+  ),
 }));
 
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
@@ -720,6 +743,8 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
         onGoToDashboard={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -744,6 +769,8 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
         onGoToDashboard={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -767,6 +794,8 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
         onGoToDashboard={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -787,6 +816,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
       error: "User rejected the request.",
       errorTerminal: false,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
     const connector = vi.mocked(useChainConnector)("BTC");
@@ -808,6 +838,8 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
           depositorEthAddress="0xdepositor"
           onClose={vi.fn()}
           onGoToDashboard={vi.fn()}
+          onWithdraw={vi.fn()}
+          withdrawOpen={false}
         />,
       );
 
@@ -826,6 +858,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
         error: null,
         errorTerminal: false,
         errorOutcomeUnknown: false,
+        errorKind: null,
         handleActivation: mockHandleActivation,
       });
     }
@@ -854,6 +887,8 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
           depositorEthAddress="0xdepositor"
           onClose={vi.fn()}
           onGoToDashboard={vi.fn()}
+          onWithdraw={vi.fn()}
+          withdrawOpen={false}
         />,
       );
 
@@ -1174,6 +1209,8 @@ describe("Action admission through the continuation", () => {
           depositorEthAddress="0xdepositor"
           autoStartAction={autoStartAction}
           onClose={vi.fn()}
+          onWithdraw={vi.fn()}
+          withdrawOpen={false}
         />
       </MemoryRouter>
     );
@@ -1390,6 +1427,8 @@ describe("ResumeActivationContent — activated success terminal", () => {
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
         onGoToDashboard={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
   }
@@ -1402,6 +1441,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1424,6 +1464,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1448,6 +1489,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1470,6 +1512,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1492,6 +1535,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: null,
       errorTerminal: false,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
     mockUseDepositPollingResult.mockReturnValue({
@@ -1513,6 +1557,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: "The activation deadline has passed.",
       errorTerminal: true,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
 
@@ -1537,6 +1582,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: COPY.pegin.messages.activationOrderInconsistent,
       errorTerminal: true,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
 
@@ -1561,6 +1607,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: COPY.deposit.errors.activationCheckUnsupported,
       errorTerminal: true,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
 
@@ -1585,6 +1632,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: "Some transient RPC error",
       errorTerminal: false,
       errorOutcomeUnknown: false,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
 
@@ -1607,6 +1655,7 @@ describe("ResumeActivationContent — activated success terminal", () => {
       error: COPY.common.classifiedErrors.sendOutcomeUnknown,
       errorTerminal: false,
       errorOutcomeUnknown: true,
+      errorKind: null,
       handleActivation: mockHandleActivation,
     });
 
@@ -1658,6 +1707,170 @@ describe("ResumeActivationContent — activated success terminal", () => {
     expect(getByTestId("error").textContent).toBe(
       COPY.deposit.errors.signingRejected.body,
     );
+  });
+});
+
+describe("ResumeActivationContent — Withdraw after a failed activation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+    mockUseDepositPollingResult.mockReturnValue(undefined);
+  });
+
+  function failedWith(
+    errorKind: ActivationFailureKind | null,
+    overrides: { errorTerminal?: boolean } = {},
+  ) {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      outcome: null,
+      returnedReason: null,
+      error: "Activation reverted",
+      errorTerminal: overrides.errorTerminal ?? false,
+      errorOutcomeUnknown: false,
+      errorKind,
+      handleActivation: mockHandleActivation,
+    });
+  }
+
+  function renderActivation(
+    props: {
+      onWithdraw?: (activity: VaultActivity) => void;
+      withdrawOpen?: boolean;
+    } = {},
+  ) {
+    return render(
+      <ResumeActivationContent
+        activity={baseActivity}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onGoToDashboard={vi.fn()}
+        onWithdraw={props.onWithdraw ?? vi.fn()}
+        withdrawOpen={props.withdrawOpen ?? false}
+      />,
+    );
+  }
+
+  it.each<ActivationFailureKind>([
+    "mined-revert",
+    "pre-send-refusal",
+    "aave-paused",
+  ])("offers Withdraw beside Retry after a %s failure", async (kind) => {
+    failedWith(kind);
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("secondary-action")).toHaveTextContent(
+        COPY.pegin.primaryAction.ACTIVATE_AND_REDEEM,
+      ),
+    );
+    expect(getByTestId("has-retry").textContent).toBe("true");
+  });
+
+  it.each<ActivationFailureKind>(["other", "mined-deadline-expired"])(
+    "does not offer Withdraw after a %s failure",
+    async (kind) => {
+      failedWith(kind, {
+        errorTerminal: kind === "mined-deadline-expired",
+      });
+
+      const { getByTestId, queryByTestId } = renderActivation();
+
+      await waitFor(() =>
+        expect(getByTestId("error").textContent).not.toBe(""),
+      );
+      expect(queryByTestId("secondary-action")).toBeNull();
+    },
+  );
+
+  it("does not offer Withdraw for a stale failure kind under a local error", async () => {
+    // The hook keeps the earlier attempt's kind; the derive failure is what shows.
+    failedWith("mined-revert");
+    mockDeriveVaultRoot.mockRejectedValueOnce(
+      Object.assign(new Error("nope"), { code: "CONNECTION_REJECTED" }),
+    );
+
+    const { getByTestId, queryByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("error-title").textContent).toBe(
+        COPY.deposit.errors.signingRejected.title,
+      ),
+    );
+    expect(queryByTestId("secondary-action")).toBeNull();
+  });
+
+  it("does not offer Withdraw for the previous failure while a new attempt runs", async () => {
+    failedWith("mined-revert");
+    mockDeriveVaultRoot.mockReturnValueOnce(new Promise(() => {}));
+
+    const { getByTestId, queryByTestId } = renderActivation();
+
+    await waitFor(() => expect(mockDeriveVaultRoot).toHaveBeenCalled());
+    expect(getByTestId("error").textContent).toBe("");
+    expect(queryByTestId("secondary-action")).toBeNull();
+  });
+
+  it("opens Withdraw for this vault without running the activation again", async () => {
+    failedWith("mined-revert");
+    const onWithdraw = vi.fn();
+
+    const { getByTestId } = renderActivation({ onWithdraw });
+    await waitFor(() => expect(getByTestId("secondary-action")).toBeTruthy());
+    const activationCalls = mockHandleActivation.mock.calls.length;
+
+    fireEvent.click(getByTestId("secondary-action"));
+
+    expect(onWithdraw).toHaveBeenCalledExactlyOnceWith(baseActivity);
+    expect(mockHandleActivation).toHaveBeenCalledTimes(activationCalls);
+    expect(mockDeriveVaultRoot).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds Withdraw while the Withdraw dialog is open", async () => {
+    failedWith("mined-revert");
+
+    const { getByTestId } = renderActivation({ withdrawOpen: true });
+
+    await waitFor(() => expect(getByTestId("secondary-action")).toBeDisabled());
+  });
+
+  it("keeps the secret-public sentence on a mined deadline revert", async () => {
+    failedWith("mined-deadline-expired", { errorTerminal: true });
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("error").textContent).toBe(
+        COPY.deposit.errors.activationDeadlinePassedSecretPublic.body,
+      ),
+    );
+    expect(getByTestId("error-title").textContent).toBe(
+      COPY.deposit.errors.activationDeadlinePassedSecretPublic.title,
+    );
+    expect(getByTestId("has-retry").textContent).toBe("false");
+  });
+
+  it("shows the withdrawn screen in place of the failed activation's error once the vault reads as withdrawn", async () => {
+    failedWith("mined-revert");
+    mockUseDepositPollingResult.mockReturnValue({
+      peginState: {
+        contractStatus: ContractStatus.REDEEMED,
+        withdrawnByDepositor: true,
+      },
+    } as never);
+
+    const { getByTestId, queryByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("vault-returned-view")).toHaveAttribute(
+        "data-outcome",
+        "withdrawn",
+      ),
+    );
+    expect(queryByTestId("error")).toBeNull();
   });
 });
 
@@ -1742,6 +1955,8 @@ describe("Bitcoin action prompt", () => {
         depositorEthAddress="0xdepositor"
         onClose={vi.fn()}
         onGoToDashboard={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />
     );
     const view = render(content);

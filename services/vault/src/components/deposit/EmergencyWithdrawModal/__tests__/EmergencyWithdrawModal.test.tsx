@@ -1,6 +1,5 @@
-/** Check application status before a wallet prompt or recovery transaction. */
+/** The confirm handler: wallet checks, secret derivation and submission. */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
   fireEvent,
@@ -8,13 +7,13 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { isVaultApplicationActive } from "@/clients/eth-contract/application-status/query";
 import { COPY } from "@/copy";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
 import type { VaultActivity } from "@/types/activity";
+import type { ActivationFailureKind } from "@/utils/errors";
 
 import { EmergencyWithdrawModal } from "../index";
 
@@ -25,19 +24,16 @@ vi.mock("@/components/shared/V3ModalShell", () => ({
     open ? <div>{children}</div> : null,
 }));
 
-vi.mock("@/clients/eth-contract/application-status/query", () => ({
-  isVaultApplicationActive: vi.fn(),
-}));
-
 vi.mock("@/services/vault/htlcSecretDerivation", () => ({
   deriveHtlcSecretHex: vi.fn(async () => `0x${"ab".repeat(32)}`),
 }));
 
 const handleActivation = vi.hoisted(() => vi.fn(async () => {}));
 const activationState = vi.hoisted(() => ({
-  outcome: null as "activated" | "returned" | null,
+  outcome: null as "activated" | "returned" | "withdrawn" | null,
   error: null as string | null,
   errorOutcomeUnknown: false,
+  errorKind: null as ActivationFailureKind | null,
 }));
 vi.mock("@/hooks/deposit/useActivationState", () => ({
   useActivationState: () => ({
@@ -46,6 +42,7 @@ vi.mock("@/hooks/deposit/useActivationState", () => ({
     error: activationState.error,
     errorTerminal: false,
     errorOutcomeUnknown: activationState.errorOutcomeUnknown,
+    errorKind: activationState.errorKind,
     handleActivation,
   }),
 }));
@@ -98,39 +95,16 @@ const ACTIVITY: VaultActivity = {
   depositorWotsPkHash: "0x",
 } as VaultActivity;
 
-function makeQueryClient() {
-  return new QueryClient({
-    // The status query pins `retry: 1`; without a zero delay the fail-open
-    // case would sit through the default backoff.
-    defaultOptions: { queries: { retryDelay: 0 } },
-  });
-}
-
-function Wrapper({
-  client,
-  children,
-}: {
-  client?: QueryClient;
-  children: ReactNode;
-}) {
-  const fallback = useMemo(makeQueryClient, []);
-  return (
-    <QueryClientProvider client={client ?? fallback}>
-      {children}
-    </QueryClientProvider>
-  );
-}
-
-function renderModal(client?: QueryClient) {
+function renderModal() {
   render(
-    <Wrapper client={client}>
-      <EmergencyWithdrawModal
-        open
-        activity={ACTIVITY}
-        onClose={vi.fn()}
-        onSuccess={vi.fn()}
-      />
-    </Wrapper>,
+    <EmergencyWithdrawModal
+      open
+      activity={ACTIVITY}
+      stuckProof="proven"
+      splitProtectionLost={false}
+      onClose={vi.fn()}
+      onSuccess={vi.fn()}
+    />,
   );
   // The confirm button only ever enables after the risk acknowledgement.
   fireEvent.click(screen.getByRole("checkbox"));
@@ -141,6 +115,7 @@ beforeEach(() => {
   activationState.outcome = null;
   activationState.error = null;
   activationState.errorOutcomeUnknown = false;
+  activationState.errorKind = null;
   btcActionWallet.connected = true;
   ledgerDevice.isLedgerVault = false;
   vi.clearAllMocks();
@@ -150,20 +125,19 @@ describe("EmergencyWithdrawModal — success", () => {
   it("switches from the confirm screen to the success screen once the withdrawal lands", () => {
     // A fresh element per render: React skips a rerender of the same one.
     const modal = () => (
-      <Wrapper>
-        <EmergencyWithdrawModal
-          open
-          activity={ACTIVITY}
-          onClose={vi.fn()}
-          onSuccess={vi.fn()}
-        />
-      </Wrapper>
+      <EmergencyWithdrawModal
+        open
+        activity={ACTIVITY}
+        stuckProof="proven"
+        splitProtectionLost={false}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
     );
     const { rerender } = render(modal());
     expect(screen.getByTestId("emergency-withdraw-button")).toBeInTheDocument();
 
-    // The escape hatch always redeems, so its outcome is `returned`.
-    activationState.outcome = "returned";
+    activationState.outcome = "withdrawn";
     rerender(modal());
 
     expect(
@@ -174,77 +148,69 @@ describe("EmergencyWithdrawModal — success", () => {
 
 describe("EmergencyWithdrawModal — outcome unknown", () => {
   it("shows a withdraw the wallet may have broadcast as a status-unknown warning with the action disabled", () => {
-    activationState.error = COPY.common.classifiedErrors.sendOutcomeUnknown;
+    // Not the classified constant: the kind, not the text, picks the body.
+    activationState.error = "The wallet lost track of the send";
     activationState.errorOutcomeUnknown = true;
+    activationState.errorKind = "other";
     render(
-      <Wrapper>
-        <EmergencyWithdrawModal
-          open
-          activity={ACTIVITY}
-          onClose={vi.fn()}
-          onSuccess={vi.fn()}
-        />
-      </Wrapper>,
+      <EmergencyWithdrawModal
+        open
+        activity={ACTIVITY}
+        stuckProof="proven"
+        splitProtectionLost={false}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
 
     expect(
       screen.getByText(COPY.deposit.errors.sendOutcomeUnknown.body),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("The wallet lost track of the send"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
   });
+
+  it("shows an unconfirmed withdraw's own message instead of the send-unknown body", () => {
+    // Not the copy constant: the kind, not the text, picks the body.
+    activationState.error = "Withdraw mined without a redeem log";
+    activationState.errorOutcomeUnknown = true;
+    activationState.errorKind = "withdraw-unconfirmed";
+    render(
+      <EmergencyWithdrawModal
+        open
+        activity={ACTIVITY}
+        stuckProof="proven"
+        splitProtectionLost={false}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Withdraw mined without a redeem log"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.errors.sendOutcomeUnknown.body),
+    ).not.toBeInTheDocument();
+  });
 });
 
-describe("EmergencyWithdrawModal — application status before the reveal", () => {
+describe("EmergencyWithdrawModal — before the reveal", () => {
   it("requests Bitcoin without deriving or submitting the withdrawal", async () => {
     btcActionWallet.connected = false;
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
     renderModal();
     await waitFor(() => {
       expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
     });
     expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
     expect(handleActivation).not.toHaveBeenCalled();
-    expect(isVaultApplicationActive).toHaveBeenCalledTimes(1);
   });
 
-  it("blocks a connected wallet when the application resolves inactive after the click", async () => {
-    // Resolve after the click to check the first request window.
-    let resolveStatus: (active: boolean) => void = () => {};
-    vi.mocked(isVaultApplicationActive).mockReturnValue(
-      new Promise<boolean>((resolve) => {
-        resolveStatus = resolve;
-      }),
-    );
-
-    renderModal();
-    resolveStatus(false);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("emergency-withdraw-button")).toBeDisabled();
-    });
-    expect(
-      screen.getByText(COPY.deposit.emergencyWithdraw.applicationInactive),
-    ).toBeInTheDocument();
-    expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
-    expect(handleActivation).not.toHaveBeenCalled();
-    expect(btcActionWallet.open).not.toHaveBeenCalled();
-  });
-
-  it("does not request Bitcoin when the application is inactive", async () => {
-    btcActionWallet.connected = false;
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(false);
-    renderModal();
-    await screen.findByText(COPY.deposit.emergencyWithdraw.applicationInactive);
-    expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
-    expect(handleActivation).not.toHaveBeenCalled();
-    expect(btcActionWallet.open).not.toHaveBeenCalled();
-  });
-
-  it("derives the secret and submits when the application is active", async () => {
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
-
+  it("derives the secret and submits once acknowledged and confirmed", async () => {
     renderModal();
 
     await waitFor(() => {
@@ -254,7 +220,6 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
   });
 
   it("shows the original-account guidance when secret recovery fails", async () => {
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
     vi.mocked(deriveHtlcSecretHex).mockRejectedValueOnce(
       new Error("Secret recovery failed", {
         cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
@@ -270,16 +235,15 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
   });
 
   it("derives and submits once when a second click lands before the re-render", async () => {
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
     render(
-      <Wrapper>
-        <EmergencyWithdrawModal
-          open
-          activity={ACTIVITY}
-          onClose={vi.fn()}
-          onSuccess={vi.fn()}
-        />
-      </Wrapper>,
+      <EmergencyWithdrawModal
+        open
+        activity={ACTIVITY}
+        stuckProof="proven"
+        splitProtectionLost={false}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
     const button = screen.getByTestId("emergency-withdraw-button");
@@ -296,42 +260,6 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
     });
     expect(deriveHtlcSecretHex).toHaveBeenCalledOnce();
   });
-
-  it("re-reads a stale cached status instead of trusting it", async () => {
-    // A paused application must override the saved active status on reopen.
-    const client = makeQueryClient();
-    client.setQueryData(
-      // Keep the key literal to detect a change to the query key.
-      ["vaultApplicationStatus", ACTIVITY.id],
-      true,
-      { updatedAt: Date.now() - 60_000 },
-    );
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(false);
-
-    renderModal(client);
-
-    await waitFor(() => {
-      expect(isVaultApplicationActive).toHaveBeenCalled();
-    });
-    expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
-    expect(handleActivation).not.toHaveBeenCalled();
-  });
-
-  it("still submits when the application status read fails", async () => {
-    // A failed read permits recovery. The transaction simulation checks again.
-    vi.mocked(isVaultApplicationActive).mockRejectedValue(
-      new Error("rpc unavailable"),
-    );
-
-    renderModal();
-
-    await waitFor(() => {
-      expect(handleActivation).toHaveBeenCalledOnce();
-    });
-    expect(
-      screen.queryByText(COPY.deposit.emergencyWithdraw.applicationInactive),
-    ).not.toBeInTheDocument();
-  });
 });
 
 describe("EmergencyWithdrawModal — Ledger", () => {
@@ -339,8 +267,6 @@ describe("EmergencyWithdrawModal — Ledger", () => {
     // The pause lets a depositor whose Ethereum account is on the same Ledger
     // switch from the Babylon Vault app to the Ethereum app.
     ledgerDevice.isLedgerVault = true;
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
-
     renderModal();
 
     await waitFor(() => {
@@ -363,39 +289,8 @@ describe("EmergencyWithdrawModal — Ledger", () => {
     expect(deriveHtlcSecretHex).toHaveBeenCalledOnce();
   });
 
-  it("re-checks the application on Continue and stops if it is no longer active", async () => {
-    ledgerDevice.isLedgerVault = true;
-    vi.mocked(isVaultApplicationActive)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValue(false);
-    const client = makeQueryClient();
-
-    renderModal(client);
-    await waitFor(() => {
-      expect(
-        screen.getByText(COPY.deposit.ledger.recoveryActivationPause.hint),
-      ).toBeInTheDocument();
-    });
-    // The cached status still reads active, so the button stays enabled and
-    // only Continue's own re-check can refuse: it reads the refetch.
-    void client.invalidateQueries({
-      queryKey: ["vaultApplicationStatus", ACTIVITY.id],
-    });
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Continue",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(isVaultApplicationActive).toHaveBeenCalledTimes(2);
-    });
-    expect(handleActivation).not.toHaveBeenCalled();
-  });
-
   it("reconnects the device before retrying after a lost session", async () => {
     ledgerDevice.isLedgerVault = true;
-    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
     vi.mocked(deriveHtlcSecretHex).mockRejectedValueOnce(
       Object.assign(new Error("Ledger Vault is not connected"), {
         code: "DEVICE_DISCONNECTED",

@@ -17,6 +17,7 @@ import type { ActivationRedeemReason } from "@/services/vault/activationRedeemRe
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
 import { parseBtcToSatoshis } from "@/utils/btcConversion";
+import type { ActivationFailureKind } from "@/utils/errors";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { STUCK_VAULTS_QUERY_KEY } from "../useStuckVaults";
@@ -32,14 +33,9 @@ export interface UseActivationStateProps {
   /** Construction-ordered IDs sharing this Pre-PegIn. */
   siblingVaultIds?: readonly string[];
   /**
-   * Escape hatch mode: reveal the secret via
-   * `activateVaultWithSecretAndRedeem` (no application activation). The vault
-   * is redeemed rather than turned into collateral, so the receipt carries no
-   * `CollateralAdded` log and the optimistic Collateral-section row is
-   * skipped — the optimistic CONFIRMED status still
-   * applies (the reveal was submitted; the indexer flips to REDEEMED next).
-   * The outcome is `returned`, but the vault is not marked returned in the
-   * polling context: the escape hatch has its own success screen.
+   * Withdraw mode: reveal the secret via `activateVaultWithSecretAndRedeem`
+   * (no application activation). The outcome is `withdrawn`, and the vault is
+   * marked withdrawn in the polling context so it never reads as activated.
    */
   redeemImmediately?: boolean;
 }
@@ -50,11 +46,11 @@ export interface UseActivationStateProps {
  * - `activated` — the application took the BTCVault: the receipt shows no
  *                 redemption.
  * - `returned`  — the registry redeemed the BTCVault for the depositor
- *                 instead: the escape hatch, or a normal activation the
- *                 application did not accept (a cap exceeded, or its
- *                 `activateVault` reverted).
+ *                 instead: a normal activation the application did not
+ *                 accept (a cap exceeded, or its `activateVault` reverted).
+ * - `withdrawn` — the depositor's own Withdraw (`redeemImmediately`) landed.
  */
-export type ActivationOutcome = "activated" | "returned";
+export type ActivationOutcome = "activated" | "returned" | "withdrawn";
 
 export interface UseActivationStateResult {
   /** Whether activation is in progress */
@@ -72,6 +68,8 @@ export interface UseActivationStateResult {
    * broadcast it — shown as a warning, not a failure, and no Retry.
    */
   errorOutcomeUnknown: boolean;
+  /** What kind of failure `error` is; `null` when there is none. */
+  errorKind: ActivationFailureKind | null;
   /** Handler to initiate activation with the user-entered secret */
   handleActivation: (secretHex: string) => Promise<void>;
 }
@@ -87,6 +85,7 @@ export function useActivationState({
     activationError,
     activationErrorTerminal,
     activationOutcomeUnknown,
+    activationFailureKind,
     handleActivation: vaultHandleActivation,
   } = useVaultActions();
   const [localActivating, setLocalActivating] = useState(false);
@@ -107,7 +106,8 @@ export function useActivationState({
     };
   }, []);
 
-  const { setOptimisticStatus, markActivationReturned } = usePeginPolling();
+  const { setOptimisticStatus, markActivationReturned, markVaultWithdrawn } =
+    usePeginPolling();
   const { addActivatingVault } = useActivatingVaults();
   const queryClient = useQueryClient();
   const { pendingPegins, updatePendingPeginStatus } = usePeginStorage({
@@ -154,7 +154,9 @@ export function useActivationState({
             // same synchronous block as CONFIRMED (and as the record write
             // `vaultHandleActivation` just made), so no render sees CONFIRMED
             // without the mark — which reads as activated.
-            if (redeemed && !redeemImmediately) {
+            if (redeemImmediately) {
+              markVaultWithdrawn(activity.id);
+            } else if (redeemed) {
               markActivationReturned(activity.id, reason);
             }
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
@@ -179,7 +181,13 @@ export function useActivationState({
             }
             if (!mountedRef.current) return;
             setLocalActivating(false);
-            setOutcome(redeemed ? "returned" : "activated");
+            setOutcome(
+              redeemImmediately
+                ? "withdrawn"
+                : redeemed
+                  ? "returned"
+                  : "activated",
+            );
             setReturnedReason(reason);
           },
         });
@@ -201,6 +209,7 @@ export function useActivationState({
       vaultHandleActivation,
       setOptimisticStatus,
       markActivationReturned,
+      markVaultWithdrawn,
       addActivatingVault,
       queryClient,
     ],
@@ -215,6 +224,7 @@ export function useActivationState({
     error: activationError,
     errorTerminal: activationErrorTerminal,
     errorOutcomeUnknown: activationOutcomeUnknown,
+    errorKind: activationFailureKind,
     handleActivation,
   };
 }

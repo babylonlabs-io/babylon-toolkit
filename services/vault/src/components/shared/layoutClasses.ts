@@ -35,9 +35,6 @@ export const PAGE_CONTENT_CLASS =
 export const ENTRY_CONTENT_CLASS =
   "!w-auto !max-w-[1280px] !px-4 md:!px-10 mx-auto";
 
-/** Width + vertical padding for the dashboard section summary cards. */
-export const SUMMARY_CARD_CLASS = "w-full border-0 !py-[34px]";
-
 /**
  * Chrome of a v3 list card — border, radius, surface — with no padding or
  * layout of its own. For a single row prefer `ListRowCard`, which adds that

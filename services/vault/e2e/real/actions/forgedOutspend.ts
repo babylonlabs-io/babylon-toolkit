@@ -110,7 +110,7 @@ const ACTIVATE_CTA_RX = /^activate$/i;
  */
 const AWAITING_EARLIER_VAULT_RX = /awaiting earlier btcvault/i;
 
-/** Whether a pending row offers the activate-and-redeem escape hatch. */
+/** Whether a pending row reads stuck: the stuck label, or Withdraw as its primary action. */
 export function rowOffersEscapeHatch(
   rowText: string,
   ctaText: string | undefined,
