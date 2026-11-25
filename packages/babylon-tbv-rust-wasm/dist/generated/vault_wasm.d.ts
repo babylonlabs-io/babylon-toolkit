@@ -818,6 +818,10 @@ export interface InitOutput {
     readonly wasmprepegintx_toHex: (a: number) => [number, number];
     readonly wotsKeypairFromSeed: (a: number, b: number) => [number, number, number, number];
     readonly init_panic_hook: () => void;
+    readonly __wbg_wasmchallengeassertoutputconnector_free: (a: number, b: number) => void;
+    readonly wasmchallengeassertoutputconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmchallengeassertoutputconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmchallengeassertoutputconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
     readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
     readonly __wbg_wasmassertpayoutnopayoutconnector_free: (a: number, b: number) => void;
     readonly computeAssertClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
@@ -852,10 +856,6 @@ export interface InitOutput {
     readonly wasmprepeginhtlcconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
     readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly wasmprepeginhtlcconnector_getTxGraphVersion: (a: number) => number;
-    readonly __wbg_wasmchallengeassertoutputconnector_free: (a: number, b: number) => void;
-    readonly wasmchallengeassertoutputconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmchallengeassertoutputconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmchallengeassertoutputconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
     readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
     readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
     readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;

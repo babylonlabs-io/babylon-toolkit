@@ -281,8 +281,8 @@ constructors. To bump the pin:
 1. **Edit configuration** in `scripts/build-wasm.js`:
 
    ```javascript
-   const VAULT_WASM_BRANCH = 'main';
-   const VAULT_WASM_COMMIT = '<new-commit-sha>';
+   const VAULT_WASM_TAG = '<release-tag>';
+   const VAULT_WASM_COMMIT = '<commit-the-tag-points-at>';
    const REQUIRED_RUSTC_VERSION = '1.94'; // vault-wasm rust-toolchain.toml governs the build
    ```
 
@@ -294,7 +294,8 @@ constructors. To bump the pin:
    ```
 
    The build script will:
-   - Clone vault-wasm at the specified commit
+   - Clone vault-wasm at the tag, fail if the tag does not resolve to the
+     pinned commit, and check out that commit
    - Build the crate root with wasm-pack (web target)
    - Copy generated files to `dist/generated/`
 

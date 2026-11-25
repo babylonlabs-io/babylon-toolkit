@@ -15,7 +15,7 @@ and serializes the result.
 
 | What | Value |
 | --- | --- |
-| btc-vault | `5bc96f5cf2f8e6a323b69821368daaa04b8f4106` (post-reset Vault Core 1, the graph-v1 engine the vault-wasm re-pin bundles, per `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`) |
+| btc-vault | `5bc96f5cf2f8e6a323b69821368daaa04b8f4106` (post-reset Vault Core 1, the rev the fixture was generated at. The pinned vault-wasm now bundles btc-vault v1.0.0, which builds the same Core 1 graph bytes, so the fixture was not regenerated) |
 | Toolchain | `1.93.1` (btc-vault's `rust-toolchain.toml` at that rev) |
 | Features | `btc-vault` with `test-utils` (default features kept) |
 

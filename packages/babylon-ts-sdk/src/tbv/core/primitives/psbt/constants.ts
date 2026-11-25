@@ -114,9 +114,9 @@ export const PRE_PEGIN_TX_LOCKTIME = 0;
 
 /**
  * The only Vault Core version with a PegIn shape: post-reset Core 1 (btc-vault
- * `ACTIVE_VAULT_CORE_VERSION`, `crates/vault/src/lib.rs:260` @ 5bc96f5c).
+ * `ACTIVE_VAULT_CORE_VERSION`, `crates/vault/src/lib.rs:261` @ v1.0.0).
  * `PegInTx::expected_tx_version` / `expected_num_outputs`
- * (`crates/vault/src/transactions/pegin.rs:92-106` @ 5bc96f5c) refuse every
+ * (`crates/vault/src/transactions/pegin.rs:92-106` @ v1.0.0) refuse every
  * other Core. The testnet reset reused the number 1: the pre-reset Core 1
  * PegIn (nVersion 2, two outputs) is a different protocol and is refused.
  */
@@ -124,14 +124,14 @@ export const PEGIN_VAULT_CORE_VERSION = 1;
 
 /**
  * PegIn nVersion: 3 (TRUC / BIP-431), so anyone can CPFP the P2A anchor
- * (btc-vault `PEGIN_TX_VERSION`, `crates/vault/src/lib.rs:264` @ 5bc96f5c).
+ * (btc-vault `PEGIN_TX_VERSION`, `crates/vault/src/lib.rs:265` @ v1.0.0).
  */
 export const PEGIN_TX_VERSION = 3;
 
 /**
  * PegIn outputs: vault (vout 0), depositor claim (vout 1) and the P2A anchor
- * (vout 2) (btc-vault `NUM_PEGIN_OUTPUTS`, `crates/vault/src/lib.rs:278` @
- * 5bc96f5c).
+ * (vout 2) (btc-vault `NUM_PEGIN_OUTPUTS`, `crates/vault/src/lib.rs:279` @
+ * v1.0.0).
  */
 export const PEGIN_OUTPUT_COUNT = 3;
 
@@ -140,7 +140,7 @@ export const PEGIN_P2A_ANCHOR_VOUT = 2;
 
 /**
  * PegIn P2A anchor value in sats (btc-vault `P2A_ANCHOR_VALUE`,
- * `crates/vault/src/lib.rs:248` @ 5bc96f5c).
+ * `crates/vault/src/lib.rs:249` @ v1.0.0).
  */
 export const PEGIN_P2A_ANCHOR_VALUE_SATS = 240n;
 
@@ -215,7 +215,7 @@ export const ASSERT_NON_CHALLENGER_OUTPUT_COUNT = 2;
 /**
  * The Assert's RFC-008 marker `OP_RETURN`, immediately before the CPFP
  * anchor. Every Assert carries exactly one (btc-vault
- * `crates/vault/src/transactions/assert.rs:11,252` @ 5bc96f5c); the reset
+ * `crates/vault/src/transactions/assert.rs:11,252` @ v1.0.0); the reset
  * removed the per-Core marker gate.
  */
 export const ASSERT_MARKER_OUTPUT_COUNT = 1;

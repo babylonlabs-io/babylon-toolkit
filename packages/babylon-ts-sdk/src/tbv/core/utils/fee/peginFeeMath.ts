@@ -211,8 +211,8 @@ function assertSignerSetSize(name: string, count: number): void {
 /**
  * Minimum PegIn fee (sats) each Pre-PegIn HTLC must reserve: the PegIn vsize
  * times `minPeginFeeRate`. Mirrors btc-vault `PegInTx::estimate_vsize`
- * (transactions/pegin.rs:455) and the `PrePeginHtlcConnector` input weight
- * prediction (connectors/prepegin_htlc.rs:245) @ 5bc96f5c, with rust-bitcoin
+ * (transactions/pegin.rs:471) and the `PrePeginHtlcConnector` input weight
+ * prediction (connectors/prepegin_htlc.rs:252) @ v1.0.0, with rust-bitcoin
  * 0.32 `predict_weight` rounding.
  */
 export function computeMinPeginFeeSats(
