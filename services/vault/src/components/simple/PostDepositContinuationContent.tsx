@@ -17,6 +17,7 @@ import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import type { PeginAction } from "@/models/peginStateMachine";
 import { useDepositOverride } from "@/overrides/deposits";
+import type { VaultActivity } from "@/types/activity";
 
 import { ContinuationWarnings } from "./ContinuationWarnings";
 import { PostDepositContinuationView } from "./PostDepositContinuationView";
@@ -32,6 +33,9 @@ interface PostDepositContinuationContentProps {
   /** See PostDepositContinuationView's prop of the same name. */
   autoStartAction: PeginAction | "any" | null;
   onClose: () => void;
+  /** See PostDepositContinuationView's props of the same names. */
+  onWithdraw: (activity: VaultActivity) => void;
+  withdrawOpen: boolean;
 }
 
 export function PostDepositContinuationContent({
@@ -40,6 +44,8 @@ export function PostDepositContinuationContent({
   warnings = [],
   autoStartAction,
   onClose,
+  onWithdraw,
+  withdrawOpen,
 }: PostDepositContinuationContentProps) {
   const { connected: btcConnected } = useBTCWallet();
   const { publicKey: btcPublicKey } = useBtcPublicKey(btcConnected);
@@ -81,6 +87,8 @@ export function PostDepositContinuationContent({
         demoVaultIds={scoped.demoVaultIds}
         autoStartAction={autoStartAction}
         onClose={onClose}
+        onWithdraw={onWithdraw}
+        withdrawOpen={withdrawOpen}
       />
     </>
   );

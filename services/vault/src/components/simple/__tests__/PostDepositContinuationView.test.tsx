@@ -79,6 +79,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
     AWAIT_BTC_CONFIRMATION: "AWAIT_BTC_CONFIRMATION",
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
     AWAIT_VP_VERIFICATION: "AWAIT_VP_VERIFICATION",
+    AWAIT_ACTIVATION_CONFIRMATION: "AWAIT_ACTIVATION_CONFIRMATION",
     COMPLETED: "COMPLETED",
   },
 }));
@@ -96,6 +97,7 @@ vi.mock("@/models/peginStateMachine", () => {
           contractStatus: number;
           localStatus?: string;
           activationReturned?: boolean;
+          withdrawnByDepositor?: boolean;
         }
       | undefined,
   ) => {
@@ -104,8 +106,9 @@ vi.mock("@/models/peginStateMachine", () => {
     if (state.contractStatus === 1 && state.localStatus === "confirmed") {
       return true;
     }
-    // A receipt-proven return is terminal without a local CONFIRMED.
+    // A receipt-proven return or Withdraw is terminal without a local CONFIRMED.
     if (state.activationReturned === true) return true;
+    if (state.withdrawnByDepositor === true) return true;
     // ACTIVE, REDEEMED, LIQUIDATED, DEPOSITOR_WITHDRAWN.
     return [2, 3, 4, 6].includes(state.contractStatus);
   };
@@ -175,13 +178,14 @@ vi.mock("@/models/peginStateMachine", () => {
     isVaultPastActivation,
     // Narrower than isVaultPastActivation: only ACTIVE or optimistic
     // VERIFIED+CONFIRMED count as "activated", and the optimistic state not
-    // once the activation is known to have returned the BTC.
+    // once the BTC is known to be returned or withdrawn.
     isVaultActivated: (
       state:
         | {
             contractStatus: number;
             localStatus?: string;
             activationReturned?: boolean;
+            withdrawnByDepositor?: boolean;
           }
         | undefined,
     ) => {
@@ -190,12 +194,16 @@ vi.mock("@/models/peginStateMachine", () => {
       return (
         state.contractStatus === 1 &&
         state.localStatus === "confirmed" &&
-        state.activationReturned !== true
+        state.activationReturned !== true &&
+        state.withdrawnByDepositor !== true
       );
     },
     isVaultActivationReturned: (
       state: { activationReturned?: boolean } | undefined,
     ) => state?.activationReturned === true,
+    isVaultWithdrawnByDepositor: (
+      state: { withdrawnByDepositor?: boolean } | undefined,
+    ) => state?.withdrawnByDepositor === true,
     isCandidateVault,
     isActionablePeginAction,
     hasActionableStep,
@@ -222,6 +230,16 @@ vi.mock("@/copy", async (importOriginal) => {
             body: "Not every BTCVault could be added.",
           },
           goToDashboard: "Go to Dashboard",
+        },
+        vaultWithdrawnSuccess: {
+          full: {
+            heading: "Your deposit was withdrawn",
+            body: "You withdrew this deposit.",
+          },
+          partial: {
+            heading: "Part of your deposit was withdrawn",
+            body: "You withdrew part of this deposit.",
+          },
         },
         errors: {
           ...actual.COPY.deposit.errors,
@@ -417,6 +435,7 @@ function resultWith(opts: {
   message?: string;
   depositorBtcPubkey?: string;
   activationReturned?: boolean;
+  withdrawnByDepositor?: boolean;
   error?: Error;
 }) {
   return {
@@ -431,6 +450,7 @@ function resultWith(opts: {
       displayLabel: "x",
       message: opts.message,
       activationReturned: opts.activationReturned,
+      withdrawnByDepositor: opts.withdrawnByDepositor,
     },
     isOwnedByCurrentWallet: true,
     // The on-chain depositor key that decides payout actionability. Pass
@@ -464,6 +484,8 @@ function renderView(
       }
       autoStartAction={overrides.autoStartAction ?? null}
       onClose={overrides.onClose ?? vi.fn()}
+      onWithdraw={vi.fn()}
+      withdrawOpen={false}
     />,
     { wrapper: MemoryRouter },
   );
@@ -523,6 +545,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
     expect(mockRefetch).toHaveBeenCalledTimes(1);
@@ -562,6 +586,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
     expect(getByTestId("payout")).toBe(payout);
@@ -615,6 +641,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />
     );
     rerender(view());
@@ -679,6 +707,8 @@ describe("PostDepositContinuationView", () => {
         demoVaultIds={new Set(["0xvault0"])}
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
       { wrapper: MemoryRouter },
     );
@@ -710,6 +740,8 @@ describe("PostDepositContinuationView", () => {
         demoVaultIds={new Set(["0xvault0"])}
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
       { wrapper: MemoryRouter },
     );
@@ -755,6 +787,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -1066,6 +1100,154 @@ describe("PostDepositContinuationView", () => {
     expect(queryByText("Part of your deposit is being returned")).toBeNull();
   });
 
+  it("shows the withdrawn screen, not the activated one, after the depositor's own Withdraw", () => {
+    const VERIFIED = 1;
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.NONE],
+        contractStatus: VERIFIED,
+        localStatus: "confirmed",
+        withdrawnByDepositor: true,
+      }),
+    );
+
+    const { getByText, queryByText, queryByTestId } = renderView();
+
+    expect(getByText("Your deposit was withdrawn")).toBeInTheDocument();
+    expect(getByText("Go to Dashboard")).toBeInTheDocument();
+    expect(queryByText("Vault activated")).toBeNull();
+    expect(queryByTestId("progress-view")).toBeNull();
+  });
+
+  it("says only part of the deposit was withdrawn when a split sibling activated", () => {
+    const VERIFIED = 1;
+    const ACTIVE = 2;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          withdrawnByDepositor: true,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: ACTIVE,
+          displayVariant: "active",
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByText, queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(getByText("Part of your deposit was withdrawn")).toBeInTheDocument();
+    expect(queryByText("Your deposit was withdrawn")).toBeNull();
+    expect(queryByText("Vault activated")).toBeNull();
+  });
+
+  it("says only part of the deposit was withdrawn after a reload, when the indexer reports one vault withdrawn and its sibling activated", () => {
+    const REDEEMED = 3;
+    const ACTIVE = 2;
+    // No local CONFIRMED: the withdrawn mark comes from the indexer's reason alone.
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: REDEEMED,
+          withdrawnByDepositor: true,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: ACTIVE,
+          displayVariant: "active",
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByText, queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(getByText("Part of your deposit was withdrawn")).toBeInTheDocument();
+    expect(queryByText("Vault activated")).toBeNull();
+  });
+
+  it("shows the returned screen when one sibling was returned and the other withdrawn", () => {
+    const VERIFIED = 1;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          withdrawnByDepositor: true,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          activationReturned: true,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByText, queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(
+      getByText("Part of your deposit is being returned"),
+    ).toBeInTheDocument();
+    expect(queryByText("Part of your deposit was withdrawn")).toBeNull();
+  });
+
+  it("keeps a Verified sibling's activation reachable after the other vault was withdrawn", () => {
+    const VERIFIED = 1;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          withdrawnByDepositor: true,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.ACTIVATE_VAULT],
+          contractStatus: VERIFIED,
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId, queryByText } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(getByTestId("activate")).toHaveAttribute("data-vault", "0xvault1");
+    expect(queryByText("Part of your deposit was withdrawn")).toBeNull();
+  });
+
   it("advances to the next vault once the current vault finishes activating", () => {
     const VERIFIED = 1;
     const states = new Map<string, ReturnType<typeof resultWith>>([
@@ -1111,6 +1293,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -1163,6 +1347,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -1190,6 +1376,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
     expect(getByTestId("activate").getAttribute("data-vault")).toBe("0xvault0");
@@ -1246,6 +1434,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -1265,6 +1455,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
     expect(getByTestId("payout")).toBe(payoutNode);
@@ -1325,6 +1517,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
     // The errored poll alone keeps the signing step mounted.
@@ -1392,6 +1586,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
 
@@ -1437,6 +1633,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />
     );
 
@@ -1504,6 +1702,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey="btcpub"
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
     );
     expect(getByTestId("error").textContent).toBe("This deposit has expired.");
@@ -1600,6 +1800,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey={undefined}
         autoStartAction={null}
         onClose={vi.fn()}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />,
       { wrapper: MemoryRouter },
     );
@@ -1636,6 +1838,51 @@ describe("PostDepositContinuationView", () => {
     expect(queryByTestId("payout")).toBeNull();
     expect(queryByTestId("activate")).toBeNull();
     expect(getByTestId("progress-view")).not.toBeNull();
+  });
+
+  it("keeps a withdrawn, still-VERIFIED vault's lane on the activation-confirmation step, not COMPLETED, beside a warning sibling", () => {
+    // Neither vault is a candidate, so the stacked view renders; the warning
+    // sibling keeps the batch off the withdrawn screen.
+    vi.mocked(getPeginProgressStep).mockImplementation((state) =>
+      state.displayVariant === "warning" || state.withdrawnByDepositor === true
+        ? null
+        : DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+    );
+    const VERIFIED = 1;
+    const EXPIRED = 7;
+    const states = new Map<string, ReturnType<typeof resultWith>>([
+      [
+        "0xvault0",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: VERIFIED,
+          localStatus: "confirmed",
+          withdrawnByDepositor: true,
+        }),
+      ],
+      [
+        "0xvault1",
+        resultWith({
+          availableActions: [PeginAction.NONE],
+          contractStatus: EXPIRED,
+          displayVariant: "warning",
+          localStatus: "confirming",
+          message: "This deposit has expired.",
+        }),
+      ],
+    ]);
+    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+
+    const { getByTestId } = renderView({
+      vaultIds: ["0xvault0" as Hex, "0xvault1" as Hex],
+    });
+
+    expect(getByTestId("per-vault-steps").textContent).toBe(
+      JSON.stringify([
+        DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+        DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+      ]),
+    );
   });
 
   it("pins the aggregate loading view's estimate to the batch's registered params version", () => {
@@ -1842,6 +2089,8 @@ describe("PostDepositContinuationView", () => {
         btcPublicKey={btcPublicKey}
         autoStartAction={PeginAction.SIGN_PAYOUT_TRANSACTIONS}
         onClose={props.onClose}
+        onWithdraw={vi.fn()}
+        withdrawOpen={false}
       />
     );
     const rendered = render(view(initialKey), { wrapper: MemoryRouter });

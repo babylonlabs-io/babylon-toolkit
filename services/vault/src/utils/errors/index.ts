@@ -1,3 +1,4 @@
+export * from "./activationFailureKind";
 export * from "./batchSiblingMismatchError";
 export * from "./contract";
 export * from "./depositErrors";

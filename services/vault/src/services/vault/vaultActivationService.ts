@@ -29,6 +29,10 @@ import {
 } from "@/clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "@/config/contracts";
 import { getETHChain } from "@/config/network";
+import {
+  mapViemErrorToContractError,
+  tagSimulationPhase,
+} from "@/utils/errors";
 
 import {
   assertActivationNotRedeemed,
@@ -126,24 +130,29 @@ export async function activateVaultWithSecret(
   });
 }
 
+// Headroom over the node's estimate for the redeem, x1.5: the estimate is the
+// bare minimum, and one extra cold storage read costs more than it leaves spare.
+const REDEEM_GAS_LIMIT_HEADROOM_NUMERATOR = 3n;
+const REDEEM_GAS_LIMIT_HEADROOM_DENOMINATOR = 2n;
+
+const REDEEM_ERROR_CONTEXT = "vault activate-and-redeem";
+
 /**
- * Depositor escape hatch — calls activateVaultWithSecretAndRedeem on the
- * contract: reveals the HTLC secret and immediately redeems the vault for
- * the depositor without any application activation. The registry never
- * delegates into the application adapter on this path, so it stays usable
- * while the adapter is paused or its activation reverts; the vault provider
+ * Depositor exit — calls activateVaultWithSecretAndRedeem on the contract:
+ * reveals the HTLC secret and redeems the vault for the depositor. The
+ * registry runs no application code on this path and checks neither the
+ * application's status, its cap nor the activation delay; the vault provider
  * then pays the BTC out to the depositor's committed payout address.
  *
- * The gate pre-reads the protocol pause (`isActivateAndRedeemBlocked`). The
- * registry preconditions it cannot pre-read — the activation deadline, the
- * Verified status — are checked by `executeWrite`'s mandatory
- * pre-broadcast simulation: on a simulated revert nothing is signed or
- * sent, so a precondition already failing at submission time never
- * publishes the secret. The residual is the simulate-to-mine window: a
- * precondition that flips after a passing simulation (or a lagging RPC
- * replica) still mines a reverting transaction with the secret in public
- * calldata. That window is inherent — any pre-check is point-in-time in
- * exactly the same way.
+ * The caller pre-reads the protocol pause, the Verified status and, unless
+ * the PegIn is proven to have spent the HTLC, the deadline with a margin. The
+ * rest is left to `executeWrite`'s pre-broadcast simulation, which signs and
+ * sends nothing on a revert.
+ *
+ * The app sets the gas limit: one node estimate of this exact call with
+ * headroom, which that simulation then runs at. A failed estimate is a
+ * simulation-phase refusal. A precondition that flips after a passing
+ * simulation still mines a revert with the secret in public calldata.
  */
 export async function activateVaultWithSecretAndRedeem(
   params: ActivateVaultParams,
@@ -152,16 +161,38 @@ export async function activateVaultWithSecretAndRedeem(
 
   signal?.throwIfAborted();
 
-  const writer: EthContractWriter<TransactionResult> = (call) =>
-    executeWrite({
+  const writer: EthContractWriter<TransactionResult> = async (call) => {
+    // viem sends one `eth_estimateGas` for a json-rpc account and adds no
+    // buffer (viem 2.38.2 actions/public/estimateGas.ts).
+    const estimate = await ethClient
+      .getPublicClient()
+      .estimateContractGas({
+        address: call.address,
+        abi: call.abi,
+        functionName: call.functionName,
+        args: call.args,
+        account: requireWalletAccount(walletClient).address,
+      })
+      .catch((error: unknown) => {
+        throw tagSimulationPhase(
+          mapViemErrorToContractError(error, REDEEM_ERROR_CONTEXT, [call.abi]),
+        );
+      });
+    signal?.throwIfAborted();
+    const gas =
+      (estimate * REDEEM_GAS_LIMIT_HEADROOM_NUMERATOR) /
+      REDEEM_GAS_LIMIT_HEADROOM_DENOMINATOR;
+    return executeWrite({
       walletClient,
       chain: getETHChain(),
       address: call.address,
       abi: call.abi,
       functionName: call.functionName,
       args: call.args,
-      errorContext: "vault activate-and-redeem",
+      errorContext: REDEEM_ERROR_CONTEXT,
+      gas,
     });
+  };
 
   return activateVaultAndRedeem<TransactionResult>({
     btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
