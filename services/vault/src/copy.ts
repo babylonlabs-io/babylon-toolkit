@@ -60,7 +60,7 @@ const UTILIZATION_TOOLTIP =
 const LEDGER_SECRET_RETRIEVED_HINT =
   "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.";
 const MISSING_PROVIDER_SIGNING_MESSAGE =
-  "The vault provider for this deposit can't be found and may no longer be registered, so signing can't continue. If the deposit expires, you can reclaim your BTC once its Bitcoin timelock opens.";
+  "The vault provider for this deposit can't be found and may no longer be registered, so signing can't continue. If the deposit expires, you can refund your BTC once its Bitcoin timelock opens.";
 const vaultCannotCompleteMessage = (vaultNumber: number) =>
   `BTCVault ${vaultNumber}: the vault provider reported that this BTCVault can't be completed. Your BTC has been sent; once the BTCVault expires you can refund it after its Bitcoin timelock opens.`;
 // Disconnected empty state on every v3 tab (Vaults / Loans / Activity). One
@@ -348,8 +348,8 @@ export const COPY = {
       // Split-deposit activation order. The earlier (sacrificial) BTCVault must
       // join the liquidation queue before the later one.
       activationOrderWaiting:
-        "This split deposit activates in order. Activate the earlier BTCVault first, so it is liquidated before this one.",
-      activationOrderSubtext: "Activate the earlier BTCVault first",
+        "This split deposit activates in order. Activate the earlier BTCVault first, so it is liquidated before this one. If the earlier BTCVault has expired or been refunded, this one can activate once its expiry is recorded on Ethereum.",
+      activationOrderSubtext: "Waiting on the earlier BTCVault",
       activationOrderBlocked:
         "Activate the earlier BTCVault in this split deposit first. Nothing was submitted. The split's liquidation order must match its construction order.",
       activationOrderUnavailable:
@@ -403,18 +403,18 @@ export const COPY = {
     },
     statusErrors: {
       expired:
-        "The vault provider reports this deposit as expired. Once the BTCVault expires on Ethereum, you can reclaim your BTC after its Bitcoin timelock.",
+        "The vault provider reports this deposit as expired. Once the BTCVault expires on Ethereum, you can refund your BTC after its Bitcoin timelock.",
       expiredCleanedUp:
-        "The vault provider has stopped processing this expired deposit. If your Pre-Pegin transaction was broadcast, you can reclaim your BTC after its Bitcoin timelock.",
+        "The vault provider has stopped processing this expired deposit. If your Pre-Pegin transaction was broadcast, you can refund your BTC after its Bitcoin timelock.",
       expiredInClaim: "Deposit expired; claim transaction has been broadcast",
       invalidSigInContract:
-        "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed. If your Pre-Pegin transaction was broadcast, you can reclaim your BTC after this BTCVault expires and its Bitcoin timelock passes.",
+        "Vault provider posted an invalid peg-in signature on-chain; this deposit cannot proceed. If your Pre-Pegin transaction was broadcast, you can refund your BTC after this BTCVault expires and its Bitcoin timelock passes.",
       amlRejected:
-        "AML screening rejected this deposit, so it cannot be activated. If your Pre-Pegin transaction was broadcast, you can reclaim your BTC after this BTCVault expires and its Bitcoin timelock passes.",
+        "AML screening rejected this deposit, so it cannot be activated. If your Pre-Pegin transaction was broadcast, you can refund your BTC after this BTCVault expires and its Bitcoin timelock passes.",
       ingestionRejected:
-        "The vault provider could not ingest this deposit; it cannot proceed. If your Pre-Pegin transaction was broadcast, you can reclaim your BTC after this BTCVault expires and its Bitcoin timelock passes.",
+        "The vault provider could not ingest this deposit; it cannot proceed. If your Pre-Pegin transaction was broadcast, you can refund your BTC after this BTCVault expires and its Bitcoin timelock passes.",
       babeSetupFailed:
-        "The vault provider could not complete setup for this deposit; it cannot proceed. If your Pre-Pegin transaction was broadcast, you can reclaim your BTC after this BTCVault expires and its Bitcoin timelock passes.",
+        "The vault provider could not complete setup for this deposit; it cannot proceed. If your Pre-Pegin transaction was broadcast, you can refund your BTC after this BTCVault expires and its Bitcoin timelock passes.",
       unrecognizedStatus:
         "The vault provider reported a status this app does not recognize. Please contact support.",
     },
@@ -1475,7 +1475,7 @@ export const COPY = {
         title: "Activation deadline passed",
         // Reuse the canonical ABI-keyed message so this terminal callout can't
         // drift from the ActivationDeadlineExpired contract-error string.
-        body: `${CONTRACT_ERROR_MESSAGES.ActivationDeadlineExpired} Check this BTCVault on the Vaults page: you can reclaim your BTC once its Bitcoin timelock opens, or redeem it if the peg-in transaction has already moved your BTC.`,
+        body: `${CONTRACT_ERROR_MESSAGES.ActivationDeadlineExpired} Check this BTCVault on the Vaults page: you can refund your BTC once its Bitcoin timelock opens, or redeem it if the peg-in transaction has already moved your BTC.`,
       },
       signingRejected: {
         title: "Signing rejected",
@@ -1495,7 +1495,7 @@ export const COPY = {
       // No Bitcoin has moved.
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
-        body: "You canceled the signature request. Your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from the Vaults page. If you don't finish, the registration expires on its own; if your Bitcoin was already sent for this deposit, you can reclaim it once its Bitcoin timelock opens.",
+        body: "You canceled the signature request. Your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from the Vaults page. If you don't finish, the registration expires on its own; if your Bitcoin was already sent for this deposit, you can refund it once its Bitcoin timelock opens.",
       },
       // The wallet took the registration (an EOA's broadcast or a Safe
       // proposal), but the flow stopped waiting before it confirmed: the wait
@@ -1787,7 +1787,7 @@ export const COPY = {
       // moved, the refund path.
       depositTermsRejected: {
         title: "Deposit terms not approved",
-        body: "Your signing device cannot approve this deposit's terms, so the deposit cannot continue with the connected wallet. Please contact support. If your Bitcoin has already been sent, you can use the reclaim flow once its timelock opens.",
+        body: "Your signing device cannot approve this deposit's terms, so the deposit cannot continue with the connected wallet. Please contact support. If your Bitcoin has already been sent, you can use the refund flow once its timelock opens.",
       },
       walletMethodNotSupported: {
         title: "Wallet action not supported",
@@ -1926,7 +1926,7 @@ export const COPY = {
       providerNotFound: {
         title: "Vault provider not found",
         message:
-          "The vault provider for this deposit can't be found and may no longer be registered, so signing can't continue. If the deposit expires, you can reclaim your BTC once its Bitcoin timelock opens. Contact support if this persists.",
+          "The vault provider for this deposit can't be found and may no longer be registered, so signing can't continue. If the deposit expires, you can refund your BTC once its Bitcoin timelock opens. Contact support if this persists.",
       },
       walletNotConnected: {
         title: "Wallet not connected",
@@ -1943,7 +1943,7 @@ export const COPY = {
       ackWindowElapsed: {
         title: "Deposit timed out",
         message:
-          "This deposit timed out while awaiting acknowledgments, so payout signatures are no longer needed. You can use the reclaim flow once its timelock opens.",
+          "This deposit timed out while awaiting acknowledgments, so payout signatures are no longer needed. You can use the refund flow once its timelock opens.",
       },
       signaturesNoLongerNeeded: {
         title: "No signatures needed",
@@ -2450,7 +2450,7 @@ export const COPY = {
     // Borrow form and Select hub. A borrow reprices the whole position, so this
     // figure can differ from an existing loan's row.
     borrowAprTooltip:
-      "Current variable borrow APR on this market, set by Aave V4. A protocol fee on interest is charged on top. Rates can change at any time.",
+      "What you pay to borrow on this market: the base rate plus the current risk premium and the interest fee. Borrowing applies the current risk premium to your whole position. Rates can change at any time.",
     activeLoanBorrowAprTooltip:
       "What you pay on this loan: the market's base rate plus your position's risk premium and the interest fee.",
     utilizationTooltip: UTILIZATION_TOOLTIP,
