@@ -226,25 +226,26 @@ Specific to this component:
   Mitigated by review only. This does **not** extend to a malformed or absent parameter that
   silently disables a control; that is invariant 10's business and is tracked as a deviation below.
 - Product analytics links a browser session to the depositor's chain identity. When it is
-  configured, each event carries the confirmed session's Ethereum address (a borrow event carries
-  the account that sent the borrow instead) and vault events carry the full vault id, so PostHog can
-  see which addresses visited, where they came from and, from the country it derives from the
-  visitor's IP and keeps, where they browse from, and follow each vault's deposit progress:
+  configured, each event carries the confirmed session's Ethereum address (a borrow or withdrawal
+  event carries the account that sent it instead) and vault events carry the full vault id, so
+  PostHog can see which addresses visited, where they came from and, from the country it derives
+  from the visitor's IP and keeps, where they browse from, and follow each vault's deposit progress:
   timestamped `vault_registered`, `deposit_broadcast` and `vault_activated` events per vault, after
   a `deposit_started` with the deposit's coarse amount band, number of vaults and a random batch id
   that its `vault_registered` events share. It also sees each borrow: `borrow_started` and
-  `borrow_succeeded` with the reserve's symbol and the account that sent the borrow. The address is
-  a public key into the vault registry and the indexer, which return the depositor's vaults and, for
-  each, the BTC public key, the deposit amount and the peg-in transaction. A vault id is a key to
-  that one vault's records. So this gives up the protected session-to-identity association on both
-  chains, not only Ethereum. Because the address is the same on every visit, it also joins a
-  connected depositor's visits across reloads, browsers and devices, and a vault id joins every
-  visit that sent a milestone for that vault, with or without an address; the per-load ids and the
-  absence of person profiles do not prevent that. Only the project's _Discard client IP data_
-  setting keeps the raw IP off the address. The bounds are in [`SECURITY.md` → _Product
-  analytics_](../../SECURITY.md#product-analytics-posthog). Legal has approved sending this data,
-  the vault id and the deposit and borrow milestones included. The consent banner and in-app
-  analytics setting that Legal asked for are tracked in
+  `borrow_succeeded` with the reserve's symbol and the account that sent the borrow, and when each
+  vault's collateral is withdrawn: a timestamped `withdraw_succeeded` per vault, with the account
+  that sent it. The address is a public key into the vault registry and the indexer, which return
+  the depositor's vaults and, for each, the BTC public key, the deposit amount and the peg-in
+  transaction. A vault id is a key to that one vault's records. So this gives up the protected
+  session-to-identity association on both chains, not only Ethereum. Because the address is the same
+  on every visit, it also joins a connected depositor's visits across reloads, browsers and devices,
+  and a vault id joins every visit that sent an event for that vault, with or without an address;
+  the per-load ids and the absence of person profiles do not prevent that. Only the project's
+  _Discard client IP data_ setting keeps the raw IP off the address. The bounds are in
+  [`SECURITY.md` → _Product analytics_](../../SECURITY.md#product-analytics-posthog). Legal has
+  approved sending this data, the vault id and the deposit, borrow and withdrawal milestones
+  included. The consent banner and in-app analytics setting that Legal asked for are tracked in
   [#3009](https://github.com/babylonlabs-io/babylon-toolkit/issues/3009).
 
 ### Known deviations

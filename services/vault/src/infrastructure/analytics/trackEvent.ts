@@ -2,8 +2,8 @@
  * Fire-and-forget product analytics. One event goes to the sidecar PostHog
  * proxy with `fetch`, so no third-party script runs in the app. The proxy
  * adds the project key and forwards the batch to PostHog.
- * Analytics must never affect a deposit or a borrow: this function never
- * throws, and a failed send is only logged.
+ * Analytics must never affect a deposit, a borrow or a withdrawal: this
+ * function never throws, and a failed send is only logged.
  *
  * Nothing leaves before the geofence outcome is known. Until then events are
  * held; they are sent if the visitor passed, and dropped if the visitor is
