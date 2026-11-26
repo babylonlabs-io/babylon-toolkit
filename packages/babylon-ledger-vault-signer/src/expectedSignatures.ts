@@ -139,9 +139,9 @@ export interface BuildExpectedSignatureTableParams {
  * Package-internal: shared by the PoP and wallet-policy builders.
  */
 export function bip86OutputScript(xOnlyKeyHex: string): Buffer {
-  // Not memoized: bitcoinjs re-verifies only when handed a DIFFERENT instance
-  // (`bitcoinjs-lib@6.1.7 src/ecc_lib.js:13-23`), so a "done" flag would
-  // silently skip that check once another instance reached the same copy.
+  // Not memoized: bitcoinjs-lib's `initEccLib` re-verifies only when handed a
+  // DIFFERENT instance, so a "done" flag would silently skip that check once
+  // another instance reached the same copy.
   initEccLib(ecc);
   const output = payments.p2tr({ internalPubkey: Buffer.from(xOnlyKeyHex, "hex") }).output;
   if (!output) {

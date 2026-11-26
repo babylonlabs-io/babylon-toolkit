@@ -340,8 +340,8 @@ describe("verifyBip322P2wpkhSimple — BIP-322 official P2WPKH vectors", () => {
 
   it("rejects a 72-byte non-canonical encoding (oversized padded R) that decodes to a valid signature", () => {
     // bip66.decode never bounds lenR at 33 and bitcoinjs fromDER truncates an
-    // oversized integer back to the true value (bitcoinjs-lib 6.1.7
-    // bip66.js:36-38, script_signature.js:29-35), so without a canonicality
+    // oversized integer back to the true value (bitcoinjs-lib `bip66.decode`
+    // and `script_signature` `decode`), so without a canonicality
     // gate these bytes reach ecc.verify and pass — while vaultd's strict
     // libsecp parse rejects them (secp256k1-sys ecdsa_impl.h:127-136).
     const message = utf8("wide r");

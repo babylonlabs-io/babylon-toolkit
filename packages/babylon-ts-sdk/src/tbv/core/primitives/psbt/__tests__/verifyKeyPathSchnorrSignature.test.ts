@@ -603,8 +603,8 @@ describe("assertReturnedKeyPathSignatures — P2WPKH inputs", () => {
 
   it("rejects a non-canonical DER encoding (oversized R with a junk tail) that decodes to a valid signature", () => {
     // bip66.decode never bounds lenR at 33 and bitcoinjs fromDER truncates an
-    // oversized integer back to the true value (bitcoinjs-lib 6.1.7
-    // bip66.js:36-38, script_signature.js:29-35) — but libsecp's strict
+    // oversized integer back to the true value (bitcoinjs-lib `bip66.decode`
+    // and `script_signature` `decode`) — but libsecp's strict
     // consensus parse rejects these bytes (secp256k1-sys ecdsa_impl.h:127-136),
     // so blessing them would broadcast a consensus-invalid witness.
     const req = p2wpkhRequestedPsbt();

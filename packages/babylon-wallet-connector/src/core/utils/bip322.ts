@@ -34,35 +34,22 @@ class BIP322 {
    * @returns Bitcoin transaction that correspond to the to_spend transaction
    */
   public static buildToSpendTx(message: string, scriptPublicKey: Buffer): Transaction {
-    // Create PSBT object for constructing the transaction
-    const psbt = new Psbt();
-    // Set default value for nVersion and nLockTime
-    psbt.setVersion(0); // nVersion = 0
-    psbt.setLocktime(0); // nLockTime = 0
+    // Built as a plain Transaction: its input spends a virtual outpoint with no
+    // UTXO, which Psbt.extractTransaction rejects from bitcoinjs-lib 6.1.9.
+    const tx = new Transaction();
+    tx.version = 0; // nVersion = 0
+    tx.locktime = 0; // nLockTime = 0
     // Compute the message hash - SHA256(SHA256(tag) || SHA256(tag) || message)
     const messageHash = this.hashMessage(message);
     // Construct the scriptSig - OP_0 PUSH32[ message_hash ]
     const OP_0_CODE = 0x00; // OP_0
     const PUSH32_CODE = 0x20; // PUSH32
-    const scriptSigPartOne = new Uint8Array([OP_0_CODE, PUSH32_CODE]); // OP_0 PUSH32
-    const scriptSig = new Uint8Array(scriptSigPartOne.length + messageHash.length);
-    scriptSig.set(scriptSigPartOne);
-    scriptSig.set(messageHash, scriptSigPartOne.length);
-    // Set the input
-    psbt.addInput({
-      hash: "0".repeat(64), // vin[0].prevout.hash = 0000...000
-      index: 0xffffffff, // vin[0].prevout.n = 0xFFFFFFFF
-      sequence: 0, // vin[0].nSequence = 0
-      finalScriptSig: Buffer.from(scriptSig), // vin[0].scriptSig = OP_0 PUSH32[ message_hash ]
-      witnessScript: Buffer.from([]), // vin[0].scriptWitness = []
-    });
-    // Set the output
-    psbt.addOutput({
-      value: 0, // vout[0].nValue = 0
-      script: scriptPublicKey, // vout[0].scriptPubKey = message_challenge
-    });
-    // Return transaction
-    return psbt.extractTransaction();
+    const scriptSig = Buffer.concat([Buffer.from([OP_0_CODE, PUSH32_CODE]), messageHash]);
+    // vin[0]: prevout 0000...000:0xFFFFFFFF, nSequence = 0, scriptSig = OP_0 PUSH32[ message_hash ], empty witness
+    tx.addInput(Buffer.alloc(32), 0xffffffff, 0, scriptSig);
+    // vout[0]: nValue = 0, scriptPubKey = message_challenge
+    tx.addOutput(scriptPublicKey, 0);
+    return tx;
   }
 
   /**

@@ -3,7 +3,7 @@
 Byte-level building blocks for the vault SIGN_PSBT host protocol (#2219),
 vendored from Ledger's Bitcoin JS client rather than depended on. The client is
 npm-deprecated, and its maintained successor (`@ledgerhq/ledger-bitcoin@0.3.1+`)
-requires `bitcoinjs-lib` v7 against this repo's `6.1.7` pin — so we vendor the
+requires `bitcoinjs-lib` v7 against this repo's `6.1.10` pin — so we vendor the
 v6-compatible source and gate it with golden vectors.
 
 ## Provenance
@@ -156,7 +156,7 @@ vendored JavaScript is bundled into the published `dist/`. Verified against
 ## Known upstream behaviour (kept): a deserialized v0 PSBT serializes as v2
 
 `deserialize()` always normalizes, so `serialize()` re-emits v2 bytes — v2
-globals, no `PSBT_GLOBAL_UNSIGNED_TX` — which `bitcoinjs-lib` 6.1.7 rejects
+globals, no `PSBT_GLOBAL_UNSIGNED_TX` — which `bitcoinjs-lib` 6.1.10 rejects
 ("Only one UNSIGNED_TX allowed"). Production signs from the normalized v2
 model and `prepareSignPsbt`'s merge-target parse gate rejects incompatible
 input pre-I/O, so this only bites a test that round-trips a v0 fixture through
