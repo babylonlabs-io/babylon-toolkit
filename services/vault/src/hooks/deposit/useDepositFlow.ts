@@ -66,6 +66,7 @@ import { DEPOSITOR_ALLOWED_QUERY_KEY } from "@/hooks/useDepositorAllowed";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { logger } from "@/infrastructure";
+import { ANALYTICS_EVENT, trackEvent } from "@/infrastructure/analytics";
 import {
   amountBucket,
   shortId,
@@ -765,6 +766,15 @@ export function useDepositFlow(
         }
         walletChainAligned = true;
         assertDepositIdentity();
+        // Sent once the wallet and chain checks have passed, so an attempt
+        // they reject is not counted. A retry is a new batch with a new
+        // `batch_id`; `vault_registered` carries the same `batch_id`, and the
+        // later milestones join on `vault_id`.
+        trackEvent(ANALYTICS_EVENT.DEPOSIT_STARTED, {
+          batch_id: batchId,
+          amount_bucket: amountBucket(satoshiToBtcNumber(depositAmountTotal)),
+          vault_count: vaultAmounts.length,
+        });
         const walletClient: typeof connectedWalletClient = {
           ...connectedWalletClient,
           sendTransaction: (request) => {
@@ -1219,6 +1229,10 @@ export function useDepositFlow(
             ethTxHash: shortId(batchRegistration.ethTxHash),
             vaultCount: peginResults.length,
           });
+          trackEvent(ANALYTICS_EVENT.VAULT_REGISTERED, {
+            batch_id: batchId,
+            vault_id: peginResult.vaultId,
+          });
         }
 
         // ========================================================================
@@ -1516,6 +1530,9 @@ export function useDepositFlow(
             batchId,
             prePeginTxid: shortId(prePeginBroadcastTxid),
             vaultCount: peginResults.length,
+          });
+          trackEvent(ANALYTICS_EVENT.DEPOSIT_BROADCAST, {
+            vault_id: peginResult.vaultId,
           });
         }
 

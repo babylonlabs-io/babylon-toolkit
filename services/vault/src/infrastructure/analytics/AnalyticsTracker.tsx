@@ -4,6 +4,7 @@ import { useLocation } from "react-router";
 
 import { useGeoFencing } from "@/context/geofencing";
 import { useETHWallet } from "@/context/wallet";
+import { useCookieConsent } from "@/hooks/useCookieConsent";
 import { toCheckedAddress } from "@/utils/addressUtils";
 
 import { ANALYTICS_EVENT } from "./analyticsEvents";
@@ -26,7 +27,9 @@ import {
  * region is unknown: the health endpoint did not answer, or a blocking
  * configuration error stopped the check before it ran.
  *
- * Every event carries the address of the app's confirmed Ethereum session.
+ * Every event carries the address of the app's confirmed Ethereum session,
+ * except a borrow or withdrawal event, which names the account that sent the
+ * transaction.
  * The session is confirmed after load, so the landing page view goes out
  * without it; `wallet_connected` is sent when it is confirmed, and carries it.
  * Only a session that starts from no address counts: if the address changes
@@ -34,6 +37,9 @@ import {
  * new address, so nothing is sent and no address is recorded until the
  * session ends and is confirmed again.
  * Bitcoin connections are sent from the wallet provider's callbacks.
+ *
+ * Events are sent only with the visitor's consent to all cookies. When they
+ * accept, the current page view is sent; events from before are not.
  */
 export function AnalyticsTracker() {
   const { pathname } = useLocation();
@@ -43,6 +49,7 @@ export function AnalyticsTracker() {
   // An address alone is no session: the wallet can report an account the app
   // holds no session for.
   const sessionAddress = sessionConfirmed && ethAddress ? ethAddress : null;
+  const analyticsAccepted = useCookieConsent() === "all";
 
   useEffect(() => {
     if (isLoading) return;
@@ -80,11 +87,12 @@ export function AnalyticsTracker() {
   }, [sessionAddress]);
 
   useEffect(() => {
+    if (!analyticsAccepted) return;
     const template = routeTemplate(pathname);
     // A redirect renders no page; the page it lands on sends its own view.
     if (template === null) return;
     trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: template });
-  }, [pathname]);
+  }, [pathname, analyticsAccepted]);
 
   return null;
 }

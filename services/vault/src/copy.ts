@@ -2793,6 +2793,16 @@ export const COPY = {
       `© ${year} Babylon Labs. All rights reserved.`,
     legalSeparator: " - ",
   },
+  // Cookie consent banner (components/shared/CookieConsentBanner.tsx). The
+  // body is draft wording, pending legal sign-off.
+  cookieConsent: {
+    regionLabel: "Cookie consent",
+    body: "We use essential cookies to keep your wallet connected. With your consent, we also collect analytics to improve the app.",
+    learnMore: "Learn more",
+    acceptAll: "Accept all",
+    essentialOnly: "Essential only",
+    deny: "Deny",
+  },
   // v3 Explore page (components/pages/Explore.tsx). Per-app names/descriptions
   // are dataset content and live in config/exploreApps.ts, not here.
   explore: {
@@ -3246,6 +3256,15 @@ export const COPY = {
     infoText:
       "BTCVaults are liquidated in order from first to last. A liquidation event seizes BTCVaults from the front until it covers that event's target seizure amount, so the order decides how much of your BTC survives.",
     networkFeeLabel: "Ethereum network fee",
+    networkFeeEstimating: "Estimating...",
+    // Shown when the gas estimate failed. Never a 0, which would claim the
+    // reorder is free.
+    networkFeeUnavailable: "-- ETH",
+    // `amount` is pre-formatted and may read "< 0.000001" for a fee below
+    // the shown precision (a Sepolia reorder can cost about 2e-12 ETH).
+    networkFeeEth: (amount: string) => `${amount} ETH`,
+    // `amount` is pre-formatted with its "$" and may read "< $0.01".
+    networkFeeUsd: (amount: string) => `(${amount} USD)`,
     confirmButton: "Confirm",
     doneButton: "Done",
     successTitle: "BTCVault order updated",

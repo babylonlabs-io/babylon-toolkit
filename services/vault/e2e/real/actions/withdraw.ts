@@ -57,7 +57,12 @@ import { runBorrowWithOptionalPegin } from "./borrow";
 import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
 import { repayBorrowedReserve, runRepayFlow } from "./repay";
-import { DONE_BUTTON_RX, firstByTestid, TX_FAILED_RX } from "./selectors";
+import {
+  COLLATERAL_LIST_INCOMPLETE_TESTID,
+  DONE_BUTTON_RX,
+  firstByTestid,
+  TX_FAILED_RX,
+} from "./selectors";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -68,10 +73,6 @@ import { connectWallets } from "./walletConnect";
 const VAULT_ROW_TESTID_PREFIX = "vault-row-";
 const VAULT_ROW_SELECTOR = `[data-testid^="${VAULT_ROW_TESTID_PREFIX}"]`;
 const ROW_WITHDRAW_TESTID = '[data-testid="vault-withdraw-button"]';
-// The warning line VaultsPage shows while the indexed vault list does not match the chain position
-// (`indexerError`). While it is shown, every row's Withdraw is disabled.
-const COLLATERAL_LIST_INCOMPLETE_TESTID =
-  '[data-testid="vaults-collateral-list-incomplete"]';
 // The selection screen: one checkbox per selectable vault (keyed by on-chain vaultId) and the submit
 // that carries the selection to Review.
 const SELECT_ROW_TESTID_PREFIX = "withdraw-select-row-";

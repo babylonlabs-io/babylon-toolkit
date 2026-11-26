@@ -261,6 +261,27 @@ export const WITHDRAW_TX_TIMEOUT_MS = 90_000 + AAVE_WRITE_DEPTH_WAIT_MS;
 /** Poll cadence for the post-withdraw on-chain collateral-fell check (a light `getPosition` read). */
 export const WITHDRAW_VERIFY_POLL_MS = 3_000;
 
+// ── reorder ────────────────────────────────────────────────────────────────────
+/**
+ * The /vaults "Reorder" button to enable. It needs two indexed BTC Vaults that are active and an indexed
+ * list that matches the chain position; an activating row does not count. After `--pegin-first` that is
+ * the indexer catching up with the activations, like the Borrow button's wait.
+ */
+export const REORDER_BUTTON_ENABLE_TIMEOUT_MS = 180_000;
+/**
+ * From the dialog's Confirm to MetaMask's transaction confirmation: the app's checks before signing (the
+ * wallet's pending transactions, membership, baseline, registry amounts, the call simulation), then
+ * MetaMask rendering its window.
+ */
+export const REORDER_WALLET_PROMPT_TIMEOUT_MS = 60_000;
+/**
+ * The confirmed reorder to reach the success dialog (one Sepolia transaction, plus the app's wait for it
+ * to be deep enough on the chain). Reused as the on-chain "order swapped" verification budget.
+ */
+export const REORDER_TX_TIMEOUT_MS = 90_000 + AAVE_WRITE_DEPTH_WAIT_MS;
+/** Poll cadence for the on-chain order check after the success dialog (a light `getPosition` read). */
+export const REORDER_VERIFY_POLL_MS = 3_000;
+
 // ── resume (recover an interrupted peg-in from the dashboard) ────────────────────
 /**
  * After landing on /vaults, how long to wait for a resumable pending-deposit row to appear. A same-tab

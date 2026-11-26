@@ -51,15 +51,28 @@ export function useReorderModal({
   const [baselineVaults, setBaselineVaults] = useState<
     readonly CollateralAmountPair[]
   >(() => toCollateralAmountPairs(vaults));
-  const { executeReorder, isProcessing, pendingWrite, error, notice } =
-    useReorderVaults();
+  const {
+    executeReorder,
+    isProcessing,
+    pendingWrite,
+    error,
+    notice,
+    clearError,
+  } = useReorderVaults();
 
   // Initialize order only when modal opens — intentionally excludes `vaults`
-  // to prevent background React Query refetches from resetting user's drag order
+  // to prevent background React Query refetches from resetting user's drag order.
+  // The modal stays mounted while closed, so its last failure or notice is
+  // dropped on close; otherwise a rejected reorder would greet every reopen.
+  // Clearing on close, not on open, keeps an outcome that settles while the
+  // modal is closed (a write the user left waiting for confirmation) for the
+  // reopen.
   useEffect(() => {
     if (isOpen) {
       setOrderedVaults(vaults);
       setBaselineVaults(toCollateralAmountPairs(vaults));
+    } else {
+      clearError();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);

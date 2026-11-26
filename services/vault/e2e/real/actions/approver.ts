@@ -67,9 +67,13 @@ const APPROVE_NAME_RX =
  */
 const ONEKEY_BATCH_FOLLOW_UP_RX = /^(sign all|done)$/i;
 
+/** The primary button of MetaMask's transaction confirmation footer ("Confirm"). */
+export const METAMASK_CONFIRM_FOOTER_TESTID =
+  '[data-testid="confirm-footer-button"]';
+
 /** MetaMask's tx-confirm and gas/next screens expose these stable testids on the primary button. */
 const METAMASK_PRIMARY_TESTIDS = [
-  '[data-testid="confirm-footer-button"]',
+  METAMASK_CONFIRM_FOOTER_TESTID,
   '[data-testid="page-container-footer-next"]',
 ].join(", ");
 

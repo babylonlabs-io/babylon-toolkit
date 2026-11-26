@@ -5,7 +5,7 @@ import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit, modal as reownAppKitModal } from "@reown/appkit/react";
 import type { Chain } from "viem";
 
-import { createETHWagmiAdapter } from "../eth/appkit/modal";
+import { createETHWagmiAdapter, type ETHConnectionStorage } from "../eth/appkit/modal";
 
 import {
   assertAppKitCapabilities,
@@ -48,6 +48,8 @@ export interface AppKitModalConfig {
      * Provide from your host application's network config.
      */
     chain: Chain;
+    /** Where the connection state is kept between visits. Defaults to cookies. */
+    storage?: ETHConnectionStorage;
   };
   /**
    * BTC configuration (optional)
@@ -105,7 +107,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   if (config.eth?.chain) {
     allNetworks.push(config.eth.chain);
 
-    wagmiAdapter = createETHWagmiAdapter(config.eth.chain, projectId);
+    wagmiAdapter = createETHWagmiAdapter(config.eth.chain, projectId, config.eth.storage);
 
     adapters.push(wagmiAdapter);
   }
@@ -134,7 +136,11 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     networks: allNetworks as [AppKitNetwork, ...AppKitNetwork[]],
     projectId,
     metadata,
-    features: { email: false, socials: false },
+    // Left unset, AppKit's own analytics follows the Reown project's cloud
+    // setting and posts modal events, with the page URL and the connected
+    // address, to Reown. Off here; AppKit still sends INITIALIZE and
+    // CONNECT_SUCCESS, which it treats as mandatory.
+    features: { email: false, socials: false, analytics: false },
   });
 
   const initializedState = setAppKitState({

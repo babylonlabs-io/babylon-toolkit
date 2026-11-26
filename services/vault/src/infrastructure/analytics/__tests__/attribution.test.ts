@@ -830,9 +830,24 @@ describe("deriveAttribution", () => {
   });
 });
 
-describe("captureAttribution", () => {
+describe("getAttribution", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("reads the website cookie on the first event only, not at startup", async () => {
+    vi.resetModules();
+    const { captureAttribution, getAttribution } = await import(
+      "../attribution"
+    );
+    const cookieRead = vi.spyOn(document, "cookie", "get").mockReturnValue("");
+
+    captureAttribution();
+    expect(cookieRead).not.toHaveBeenCalled();
+
+    getAttribution();
+    getAttribution();
+    expect(cookieRead).toHaveBeenCalledTimes(1);
   });
 
   it("leaves the visit without attribution and warns when the cookie cannot be read", async () => {
@@ -844,8 +859,9 @@ describe("captureAttribution", () => {
       throw new DOMException("opaque origin", "SecurityError");
     });
 
-    expect(() => captureAttribution()).not.toThrow();
+    captureAttribution();
 
+    expect(() => getAttribution()).not.toThrow();
     expect(getAttribution()).toBeNull();
     expect(mockWarn).toHaveBeenCalledWith(
       "Analytics attribution unavailable: SecurityError: opaque origin",

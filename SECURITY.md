@@ -158,8 +158,8 @@ that reaches a signature.
   of these is secret — they are public chain data — but their _association with one browser session_
   is a wallet fingerprint. `scrubString` and `redactData` in `services/vault/src/utils/telemetry.ts`
   strip them from Sentry events and breadcrumbs by regex and by field name. Product analytics is the one
-  deliberate exception: it sends the Ethereum address, as an accepted risk (see _Product analytics
-  (PostHog)_ below).
+  deliberate exception: it sends the Ethereum address and the vault id, as an accepted risk (see
+  _Product analytics (PostHog)_ below).
 
 ### Not confidential, but integrity-critical
 
@@ -908,24 +908,34 @@ The Sentry user id is a random UUID in `localStorage`, not a wallet address. Kee
 ### Product analytics (PostHog)
 
 `services/vault/src/infrastructure/analytics/` sends product events to PostHog so that marketing can
-attribute visits to a traffic source. It is a separate channel from Sentry, and unlike Sentry it
-**deliberately sends the connected Ethereum address** (`wallet_address`); this is not an oversight.
-It is an accepted risk, recorded in the vault model's _Accepted risks_.
+attribute deposits, borrows and withdrawals to a traffic source. It is a separate channel from
+Sentry, and unlike Sentry it **deliberately sends the connected Ethereum address**
+(`wallet_address`; for a borrow or a withdrawal, the account that sent it) and the full vault id
+(`vault_id`); this is not an oversight. It is an accepted risk, recorded in the vault model's
+_Accepted risks_.
 
-**What it links, through public chain data.** The address is a public key into the vault registry
-and the indexer, which return the depositor's vaults and, for each, the depositor's BTC public key,
-the exact deposit amount and the peg-in transaction. So anyone with access to the PostHog project
-can tie a browsing session and its traffic source to the depositor's identity on **both** chains,
-not only on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
-_Client IP_ below).
+**What it links, through public chain data.** The address is a public key into the vault
+registry and the indexer, which return the depositor's vaults and, for each, the BTC public key,
+the exact deposit amount and the peg-in transaction. A vault id is a key to that one vault's
+records. So anyone with access to the PostHog project can tie a
+browsing session and its traffic source to the depositor's identity on **both** chains, not only
+on Ethereum, and to the country PostHog derives from the visitor's IP and keeps (see
+_Client IP_ below). The full vault id is kept, rather than Sentry's short id, because the revenue join
+with on-chain data needs it. It reaches those records even from an event that carries no
+`wallet_address`.
 
 **It also links visits to each other.** The visit and session ids are per page load, but
 `wallet_address` is the same on every visit: it joins a connected depositor's visits across
 reloads, browsers and devices, with each visit's traffic source. For a connected depositor the
 in-memory ids and _No person profiles_ below do not limit this: `$process_person_profile: false`
-only stops PostHog building a profile, not anyone grouping events by `wallet_address`. Visits with
-no confirmed Ethereum session carry no address, and stay unlinked apart from the campaign
-values (see _Campaign values link visits_ below).
+only stops PostHog building a profile, not anyone grouping events by `wallet_address`. The
+`vault_id` on each deposit milestone and withdrawal links visits the same way: it is the same on
+every visit that sends an event for that vault, so it joins the visit that registered a deposit to
+later visits that broadcast, activated or withdrew it, on another device too, and also when the
+address was cleared and those events carry none. Visits with no confirmed Ethereum session carry no
+address, except on a borrow or withdrawal event, which names the account that sent the transaction;
+a visit with neither an address nor a vault event stays unlinked apart from the campaign values
+(see _Campaign values link visits_ below).
 
 What bounds it:
 
@@ -938,38 +948,50 @@ What bounds it:
 - **Allow-listed payload.** What is sent is defined by the code in
   `services/vault/src/infrastructure/analytics/` and by each call site of `trackEvent`, which passes
   the event's own properties. `analyticsEvents.ts` lists the events and their fields,
-  `trackEvent.ts` adds the wallet address, network, visit and session ids (from
+  `trackEvent.ts` adds the wallet address (the event's own `wallet_address` when it carries one, as
+  borrow and withdrawal events do, otherwise the session's), network, visit and session ids (from
   `analyticsSession.ts`) and the attribution fields (from `attribution.ts`: campaign parameters, the
   referrer's hostname and `via`) to every event, `AnalyticsTracker.tsx` decides which confirmed
-  Ethereum address is recorded as `wallet_address` (never a value that is not an address),
+  Ethereum address the session records for `wallet_address`, and `trackEvent.ts` puts a borrow or
+  withdrawal event's own account through the same check, so `wallet_address` is never a value that
+  is not an address (an event account that fails it is left out, not replaced by the session's),
   `wallet_connected` is sent through `walletConnections.ts` when `VaultWalletConnectionProvider.tsx`
   reports a Bitcoin connection (it decides whether one counts and whether it was restored) and when
-  `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the
-  path into `$pathname`, a route template, never a concrete path or query. `wallet_connected`
-  carries the chain (`eth` or `btc`) and whether the app restored the session (`restored`). The
-  campaign values are the one part taken from the landing URL's query (or the website's cookie):
-  only the allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to
-  100 characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing,
-  an address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
+  `AnalyticsTracker.tsx` sees the Ethereum session confirmed, and `routeTemplate.ts` turns the path
+  into `$pathname`, a route template, never a concrete path or query. `wallet_connected` carries the
+  chain (`eth` or `btc`) and whether the app restored the session (`restored`); deposit events carry
+  a coarse amount band, the number of vaults in a deposit, a random batch id per deposit attempt and
+  the vault id; borrow events carry the reserve's symbol: the registry's symbol, or for a token the
+  registry does not list the indexer's label, unscrubbed except that a label starting with lowercase
+  `0x` and at least 42 characters long (the address the indexer returns for a token with no
+  `symbol()`) is replaced by the unknown-token placeholder, and cut to 32 characters (by code
+  point). No other address shape is caught: a `0X`, `bc1` or `bbn1` label, a bare hex run or a
+  legacy Bitcoin address is sent as it is, up to that cut. `withdraw_succeeded` carries the vault
+  id, once per vault withdrawn. Borrow and withdrawal events send, as `wallet_address`, the account
+  that sent the transaction rather than whichever wallet is connected when it is mined. The campaign
+  values are the one part taken from the landing URL's query (or the website's cookie): only the
+  allow-listed keys. UTM values have addresses and long hex scrubbed, then are truncated to 100
+  characters (by code point, so no surrogate pair is split). As in MetaMask's Sentry scrubbing, an
+  address with a `0x`, `bc1`, `tb1` or `bbn1` prefix (in any case) or a long hex run is caught
   anywhere, even joined to other text, and so is any bare run of 40 or more hex digits. These
   matches are taken from the original value and where two overlap the whole span is replaced, so an
   address glued to hex is never sent minus the part a hex match took. A `bc1`, `tb1` or `bbn1` match
   takes the whole run of letters and digits it starts, so an address joined after another is caught
   with it. A legacy Bitcoin address (mainnet `1`/`3`, testnet `m`/`n`/`2`, 25 to 35 characters) is
   caught when each end meets a non-alphanumeric character, the edge of the value or one of the
-  matches above, which also takes the hex digits it shares with the address; one joined directly
-  to any other letter or digit is sent. A campaign word shaped like a legacy address is replaced;
+  matches above, which also takes the hex digits it shares with the address; one joined directly to
+  any other letter or digit is sent. A campaign word shaped like a legacy address is replaced;
   scrubbing too much is the accepted direction. No scrub pattern uses lookbehind, which Safari
   before 16.4 rejects: the module runs at
   startup, so an unsupported pattern would stop the app. The app does not itself send the BTC
-  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address leads
-  to the first three on-chain.
-- **Campaign values link visits.** Every campaign value is sent on every event of the visit. A
-  value that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that
-  still holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each
-  other. A UTM value is shared by everyone who followed the same link, so it links visits only as
-  far as the campaign is narrow. `gclid` and `twclid` are sent unchanged, because marketing needs
-  them to match a visit to an ad click; a click id is unique to one click, so it joins those visits
+  address, transaction hashes, exact amounts or anything secret-bearing; as above, the address and
+  vault id lead to the first three on-chain.
+- **Campaign values link visits.** Every campaign value is sent on every event of the visit. A value
+  that is the same each time, reloading a URL that still carries it or a `bbn_src` cookie that still
+  holds it (30 days), repeats under a new visit id, so PostHog can join those visits to each other.
+  A UTM value is shared by everyone who followed the same link, so it links visits only as far as
+  the campaign is narrow. `gclid` and `twclid` are sent unchanged, because marketing needs them to
+  match a visit to an ad click; a click id is unique to one click, so it joins those visits
   to each other and to the ad platform's click record. This linkage is accepted; it is the reason
   the per-load visit id does not, on its own, keep visits apart. A click id is sent only when it
   is a plain token (letters, digits, `-` and `_`, at most 255 characters); anything else is
@@ -991,9 +1013,27 @@ What bounds it:
   anyone can still send fake events through it: treat event data as untrusted for attribution.
   Its abuse must be bounded by edge rate limiting on the route, a deployment control that is not
   yet in place, and by the PostHog project's billing limit.
-- **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
-  and no referrer. The visit and session ids live in memory only. The app only reads the
-  website's `bbn_src` cookie, and treats its contents as untrusted input.
+- **Off until the visitor accepts.** The cookie consent banner
+  (`services/vault/src/components/shared/CookieConsentBanner.tsx`) offers _Accept all_,
+  _Essential only_ and _Deny_. `trackEvent` sends nothing unless the answer is _Accept all_; an
+  event before that is dropped, not held. On _Accept all_ the current page view is sent. The answer
+  is kept in `localStorage` (`tbv-cookie-consent`, `cookieConsentStorage.ts`); a missing, unknown or
+  unreadable record means no answer, so analytics stays off. The banner shows only when analytics
+  is configured. There is no in-app setting to change the answer yet (#3021).
+- **No third-party script, no analytics storage.** Events are a plain `fetch` with
+  `credentials: "omit"` and no referrer. The visit and session ids live in memory only. The app only
+  reads the website's `bbn_src` cookie, when it builds the first event after _Accept all_ (the
+  geofence can still drop that event), and treats its contents as untrusted input.
+- **Wallet cookies follow the answer.** wagmi keeps the Ethereum connection in first-party
+  `wagmi.*` cookies, which are essential and are written before the visitor answers. On _Deny_
+  `walletCookieStorage.ts` deletes them, when the answer is given and on every page load after it,
+  and stops writing them; the wallet then connects again on each visit.
+- **Reown AppKit telemetry is outside the gate (known gap).** The wallet modal
+  (`@reown/appkit` 1.8.12) posts its own events to `pulse.walletconnect.org`, each with the page
+  URL and the connected address. Both AppKit initializers turn its analytics off, which stops the
+  optional events, but AppKit still sends `INITIALIZE` and `CONNECT_SUCCESS` (`MANDATORY_EVENTS`
+  in its `EventsController`) whatever the visitor answers. The CSP's `connect-src https:` does not
+  block it. Re-check this on every AppKit bump.
 - **Nothing before the geofence passes.** Every event is held in memory (at most 50) until the
   startup checks, the geofence and then the GraphQL health check, have finished, and is sent if
   the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only
@@ -1266,7 +1306,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
-| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): PostHog sees visiting addresses and sources      | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts` |
+| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): addresses, sources, vault deposit progress, borrows and withdrawals | Accepted risk: allow-listed fields, off unless configured, off until the visitor accepts, GPC opts out          | `analytics/__tests__/trackEvent.test.ts`, `walletCookieStorage.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts`, `useDepositFlow.test.tsx`, `useBroadcastState.test.ts`, `useVaultActions.test.ts`, `useBorrowTransaction.test.tsx`, `useWithdrawCollateralTransaction.test.tsx` |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimum-release-age=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions          | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |

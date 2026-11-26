@@ -1,7 +1,7 @@
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { createAppKit, modal as reownAppKitModal } from "@reown/appkit/react";
 import { http, type Chain } from "viem";
-import { cookieStorage, createStorage } from "wagmi";
+import { cookieStorage, createStorage, type CreateStorageParameters } from "wagmi";
 import { baseAccount } from "wagmi/connectors";
 
 import {
@@ -14,6 +14,9 @@ import {
 } from "@/core/wallets/appkit/state";
 
 import { getSharedWagmiConfig } from "./sharedConfig";
+
+/** Where wagmi keeps the Ethereum connection state between visits. */
+export type ETHConnectionStorage = NonNullable<CreateStorageParameters["storage"]>;
 
 export interface AppKitMetadata {
   name: string;
@@ -37,8 +40,15 @@ export interface AppKitModalConfig {
  * The unified (ETH+BTC) initializer calls this too, so the Ethereum half of
  * AppKit is set up in exactly one place regardless of which entry point the
  * host imported.
+ *
+ * The connection state goes to cookies unless the host passes its own storage,
+ * for example one that honours the visitor's cookie consent.
  */
-export function createETHWagmiAdapter(chain: Chain, projectId: string): WagmiAdapter {
+export function createETHWagmiAdapter(
+  chain: Chain,
+  projectId: string,
+  storage: ETHConnectionStorage = cookieStorage,
+): WagmiAdapter {
   // Pin the transport to the chain's configured RPC URL. Without this, wagmi
   // falls back to viem's bundled public RPC (e.g. sepolia.drpc.org) which
   // doesn't see contracts on private/devnet deployments.
@@ -50,7 +60,7 @@ export function createETHWagmiAdapter(chain: Chain, projectId: string): WagmiAda
     networks: [chain],
     projectId,
     ssr: false,
-    storage: createStorage({ storage: cookieStorage }),
+    storage: createStorage({ storage }),
     connectors: [baseAccount({ preference: { telemetry: false } })],
     transports: {
       [chain.id]: http(ethRpcUrl),
@@ -91,7 +101,8 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     networks: [chain],
     projectId: config.projectId,
     metadata: config.metadata,
-    features: { email: false, socials: false },
+    // AppKit analytics off, as in the combined modal (`appKitModal.ts`).
+    features: { email: false, socials: false, analytics: false },
   });
   const initializedState = setAppKitState({ modal, ...capabilities, wagmiConfig: wagmiAdapter.wagmiConfig });
 

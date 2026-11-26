@@ -39,6 +39,12 @@ vi.mock("@/infrastructure", () => ({
   logger: { error: vi.fn(), event: mockLoggerEvent },
 }));
 
+const mockTrackEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/infrastructure/analytics")>()),
+  trackEvent: mockTrackEvent,
+}));
+
 function activity(id: string): VaultActivity {
   return {
     id: id as VaultActivity["id"],
@@ -187,6 +193,36 @@ describe("useBroadcastState — batched broadcast", () => {
       "0xb",
     ]);
     expect(broadcastEmits.map(([, ctx]) => ctx.vaultCount)).toEqual([2, 2]);
+  });
+
+  it("sends deposit_broadcast for each verified sibling on a resumed broadcast", async () => {
+    mockVaultHandleBroadcast.mockImplementation(
+      async (params: {
+        onShowSuccessModal: (outcome: {
+          confirmedVaultIds: readonly Hex[];
+        }) => void;
+      }) => {
+        params.onShowSuccessModal({ confirmedVaultIds: ["0xa", "0xb"] });
+      },
+    );
+
+    const { result } = renderHook(() =>
+      useBroadcastState({
+        activity: activity("0xa"),
+        batchVaultIds: ["0xa", "0xb", "0xc"],
+        depositorEthAddress: "0xdepositor",
+        onSuccess: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleBroadcast();
+    });
+
+    expect(mockTrackEvent.mock.calls).toEqual([
+      ["deposit_broadcast", { vault_id: "0xa" }],
+      ["deposit_broadcast", { vault_id: "0xb" }],
+    ]);
   });
 
   it("broadcasts the shared transaction once for the whole batch", () => {

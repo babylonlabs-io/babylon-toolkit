@@ -1,5 +1,9 @@
 /**
- * Where this visit came from, read once at startup and kept in memory.
+ * Where this visit came from, kept in memory.
+ *
+ * The landing URL and referrer are read at startup, before the router can
+ * rewrite the URL. The `bbn_src` cookie is read only when the first event is
+ * sent, which needs the visitor's consent to all cookies.
  *
  * Campaign parameters on the landing URL win. Without them, the `bbn_src`
  * cookie that the babylonlabs.io website writes on the parent domain carries
@@ -334,30 +338,41 @@ export function deriveAttribution({
   };
 }
 
+type LandingSources = Omit<AttributionSources, "cookie">;
+
+let landing: LandingSources | null = null;
 let captured: Attribution | null = null;
 
 /**
- * Read the landing page's attribution. Call once at startup, before the
- * router can rewrite the URL and drop its campaign parameters.
+ * Read the landing page's URL and referrer. Call once at startup, before the
+ * router can rewrite the URL and drop its campaign parameters. The cookie is
+ * not read here.
  */
 export function captureAttribution(): void {
+  landing = {
+    search: window.location.search,
+    referrer: document.referrer,
+    ownHost: window.location.hostname,
+  };
+  captured = null;
+}
+
+/**
+ * The visit's attribution, or null before `captureAttribution`. Reads the
+ * `bbn_src` cookie on its first call, so call it only for an event that is
+ * sent.
+ */
+export function getAttribution(): Attribution | null {
+  if (captured !== null || landing === null) return captured;
   try {
-    captured = deriveAttribution({
-      search: window.location.search,
-      referrer: document.referrer,
-      cookie: document.cookie,
-      ownHost: window.location.hostname,
-    });
+    captured = deriveAttribution({ ...landing, cookie: document.cookie });
   } catch (error) {
     // Reading `document.cookie` throws on an opaque origin. Analytics must
-    // never stop the app from starting: the visit simply has no attribution.
+    // never stop an event: the visit simply has no attribution.
+    landing = null;
     logger.warn(`Analytics attribution unavailable: ${String(error)}`, {
       category: "analytics",
     });
   }
-}
-
-/** The attribution captured at startup, or null before `captureAttribution`. */
-export function getAttribution(): Attribution | null {
   return captured;
 }

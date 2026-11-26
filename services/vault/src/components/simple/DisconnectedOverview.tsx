@@ -241,17 +241,20 @@ export function DisconnectedOverview({
   }, []);
 
   return (
-    <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-12">
-      <div className="flex flex-col">
-        <div className="flex flex-wrap gap-4">
-          {statChips.map((chip) => (
-            <StatChip key={chip.label} label={chip.label} value={chip.value} />
-          ))}
-        </div>
+    // Figma 14626:344: the feature cards sit on the content's right edge with
+    // their top level with the headline. The stat chips take their own grid
+    // row, so the cards start on the headline's row however the chips wrap.
+    <div className="grid grid-cols-1 items-start md:grid-cols-2 md:gap-x-12">
+      <div className="flex flex-wrap gap-4">
+        {statChips.map((chip) => (
+          <StatChip key={chip.label} label={chip.label} value={chip.value} />
+        ))}
+      </div>
 
+      <div className="mt-[26.67px] flex flex-col md:col-start-1">
         <h1
           aria-label={HERO_TITLE_TEXT}
-          className="mt-[26.67px] text-[clamp(2rem,5vw,3rem)] font-normal leading-[1.167] text-accent-primary"
+          className="text-[clamp(2rem,5vw,3rem)] font-normal leading-[1.167] text-accent-primary"
         >
           {HERO_TITLE.lead}
           <span className="whitespace-nowrap">
@@ -285,7 +288,7 @@ export function DisconnectedOverview({
         </div>
       </div>
 
-      <div className="w-full max-w-[420px] overflow-hidden rounded-lg bg-background-secondary md:self-center md:justify-self-center">
+      <div className="mt-10 w-full max-w-[420px] overflow-hidden rounded-lg bg-background-secondary md:col-start-2 md:row-start-2 md:mt-[26.67px] md:justify-self-end">
         {featureCards.map((card) => (
           <FeatureCard
             key={card.title}

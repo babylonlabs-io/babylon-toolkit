@@ -43,6 +43,7 @@ import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
+import { ANALYTICS_EVENT, trackEvent } from "@/infrastructure/analytics";
 import {
   captureFunnelFailure,
   shortId,
@@ -1229,6 +1230,12 @@ export function useVaultActions(): UseVaultActionsReturn {
           ...(returned ? { returned: "true" } : {}),
         },
       });
+      // Only a vault that became collateral, read from the application's own
+      // log: a vault redeemed in the activation, for the depositor or for a
+      // keeper, never did.
+      if (collateralAdded) {
+        trackEvent(ANALYTICS_EVENT.VAULT_ACTIVATED, { vault_id: vaultId });
+      }
 
       // Show success and refetch
       onShowSuccessModal({ collateralAdded, redeemed, reason });

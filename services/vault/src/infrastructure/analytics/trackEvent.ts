@@ -2,14 +2,22 @@
  * Fire-and-forget product analytics. One event goes to the sidecar PostHog
  * proxy with `fetch`, so no third-party script runs in the app. The proxy
  * adds the project key and forwards the batch to PostHog.
- * Analytics must never affect a deposit or a borrow: this function never
- * throws, and a failed send is only logged.
+ * Analytics must never affect a deposit, a borrow or a withdrawal: this
+ * function never throws, and a failed send is only logged.
+ *
+ * Nothing is sent unless the visitor accepted all cookies on the consent
+ * banner; an event before that is dropped, not held. A held event is dropped
+ * too if the answer has changed by the time it would be sent.
  *
  * Nothing leaves before the geofence outcome is known. Until then events are
  * held; they are sent if the visitor passed, and dropped if the visitor is
  * blocked or the region is unknown (the health check failed or never ran).
  */
+import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
+import { getCookieConsent } from "@/storage/cookieConsentStorage";
+import { toCheckedAddress } from "@/utils/addressUtils";
 
 import logger from "../logger";
 
@@ -34,12 +42,16 @@ const CONFIGURATION_FAULT_STATUSES: ReadonlySet<number> = new Set([
 ]);
 
 /**
- * Whether a configuration fault or a failure to build an event has been
- * reported this page load. Both repeat on every event, so one report each is
- * enough.
+ * Whether a configuration fault has been reported this page load. It repeats
+ * on every event, so one report is enough.
  */
 let rejectionReported = false;
-let buildFailureReported = false;
+/**
+ * The events whose build has failed this page load. A failure repeats on every
+ * send of its event, but one event's builder can fail while the others build,
+ * so each event is reported once.
+ */
+const buildFailuresReported = new Set<AnalyticsEventName>();
 
 type EnabledAnalyticsConfig = Extract<AnalyticsConfig, { enabled: true }>;
 
@@ -77,13 +89,44 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Vault ids reach the call sites in more than one form (with or without `0x`,
+ * mixed case). One form keeps a vault's events joinable in PostHog and with
+ * on-chain data.
+ */
+function normalizeVaultId(properties: object): object {
+  const vaultId: unknown = Reflect.get(properties, "vault_id");
+  if (typeof vaultId !== "string") return properties;
+  return { ...properties, vault_id: ensureHexPrefix(vaultId.toLowerCase()) };
+}
+
+/**
+ * An event's own account, lowercased, or null when it is not an address. The
+ * wallet reports it and nothing upstream checks it, so it gets the same check
+ * the session's address gets in `AnalyticsTracker.tsx`.
+ */
+function checkedEventWallet(value: string): string | null {
+  const checked = toCheckedAddress(value);
+  return checked === undefined ? null : checked.toLowerCase();
+}
+
 function buildCaptureBody<E extends AnalyticsEventName>(
   config: EnabledAnalyticsConfig,
   event: E,
   properties: AnalyticsEventProperties[E],
   timestamp: string,
 ) {
-  const wallet = getWalletAddress();
+  // An event about a transaction names the account that sent it; the
+  // session's address can change before the transaction is mined. One that
+  // fails the check is left out, never replaced by the session's.
+  const {
+    wallet_address: eventWallet,
+    ...eventProperties
+  }: { wallet_address?: unknown } = normalizeVaultId(properties);
+  const wallet =
+    typeof eventWallet === "string"
+      ? checkedEventWallet(eventWallet)
+      : getWalletAddress();
   // No api_key: the sidecar proxy holds the project key and adds it.
   return {
     batch: [
@@ -93,7 +136,7 @@ function buildCaptureBody<E extends AnalyticsEventName>(
         timestamp,
         properties: {
           ...getAttribution(),
-          ...properties,
+          ...eventProperties,
           ...(wallet === null ? {} : { wallet_address: wallet }),
           network: config.network,
           $session_id: getSessionId(),
@@ -105,16 +148,25 @@ function buildCaptureBody<E extends AnalyticsEventName>(
   };
 }
 
+/**
+ * `properties` may be a function that builds them. Pass one when building the
+ * fields can throw: it runs inside this function's guard, so a throw is
+ * reported here and never reaches the caller's flow.
+ */
 export function trackEvent<E extends AnalyticsEventName>(
   event: E,
-  properties: AnalyticsEventProperties[E],
+  properties: AnalyticsEventProperties[E] | (() => AnalyticsEventProperties[E]),
   config: AnalyticsConfig = ENV.ANALYTICS,
 ): void {
   try {
-    if (!config.enabled || hasOptedOut()) return;
+    if (!config.enabled || hasOptedOut() || getCookieConsent() !== "all") {
+      return;
+    }
+    const resolved =
+      typeof properties === "function" ? properties() : properties;
     // Built now, so a held event keeps the time and fields it was sent with.
     const body = JSON.stringify(
-      buildCaptureBody(config, event, properties, new Date().toISOString()),
+      buildCaptureBody(config, event, resolved, new Date().toISOString()),
     );
     if (geofenceOutcome === "passed") {
       post(config, event, body, true);
@@ -124,7 +176,10 @@ export function trackEvent<E extends AnalyticsEventName>(
     if (heldSends.length < MAX_HELD_EVENTS) {
       // Released together while the page is open, so without keepalive:
       // browsers cap all in-flight keepalive bodies at 64 KiB together.
-      heldSends.push(() => post(config, event, body, false));
+      // Consent is checked again: another tab may have answered Deny since.
+      heldSends.push(() => {
+        if (getCookieConsent() === "all") post(config, event, body, false);
+      });
       return;
     }
     if (holdOverflowReported) return;
@@ -192,8 +247,8 @@ function post(
  * code or a browser refusing the request, never an ad blocker.
  */
 function reportBuildFailure(event: AnalyticsEventName, error: unknown): void {
-  if (buildFailureReported) return;
-  buildFailureReported = true;
+  if (buildFailuresReported.has(event)) return;
+  buildFailuresReported.add(event);
   logger.error(
     new Error(`Analytics event could not be sent: ${describe(error)}`),
     { tags: { category: LOG_CATEGORY, event } },

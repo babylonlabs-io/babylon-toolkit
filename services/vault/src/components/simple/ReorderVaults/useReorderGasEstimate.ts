@@ -5,22 +5,28 @@
  * estimates gas via eth_estimateGas, and converts to ETH + USD.
  */
 
+import { formatCurrency } from "@babylonlabs-io/core-ui";
 import { buildReorderVaultsTx } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import type { Address, Hex } from "viem";
+import { formatEther, type Address, type Hex } from "viem";
 
 import { getAaveAdapterAddress } from "@/applications/aave/config";
 import { ethClient } from "@/clients/eth-contract/client";
 import { useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
 
-const WEI_PER_ETH = 10n ** 18n;
+/**
+ * Decimals the ETH fee is shown with. A fee above 0 but below the smallest
+ * shown unit reads "< 0.000001" instead of rounding to 0.
+ */
+const ETH_FEE_DISPLAY_DECIMALS = 6;
 
 export interface ReorderGasEstimate {
-  /** Formatted ETH fee string (e.g. "0.00012 ETH") */
+  /** Formatted ETH fee string (e.g. "0.000120 ETH" or "< 0.000001 ETH") */
   feeEth: string;
-  /** Formatted USD string (e.g. "($0.25 USD)") */
+  /** Formatted USD string (e.g. "($0.25 USD)" or "(< $0.01 USD)") */
   feeUsd: string;
   /** Whether the estimate is loading */
   isLoading: boolean;
@@ -44,7 +50,11 @@ export function useReorderGasEstimate(
   // Stable query key from vault ID order
   const vaultIdKey = vaultIds.join(",");
 
-  const { data, isLoading, isError } = useQuery({
+  const {
+    data: gasCostWei,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["reorderGasEstimate", address, vaultIdKey],
     queryFn: async () => {
       const publicClient = ethClient.getPublicClient();
@@ -60,12 +70,7 @@ export function useReorderGasEstimate(
         publicClient.getGasPrice(),
       ]);
 
-      const gasCostWei = gasUnits * gasPrice;
-      // Split into whole + remainder to avoid BigInt-to-Number precision loss
-      // (gasCostWei can exceed Number.MAX_SAFE_INTEGER at high gas prices)
-      const wholePart = gasCostWei / WEI_PER_ETH;
-      const remainder = gasCostWei % WEI_PER_ETH;
-      return Number(wholePart) + Number(remainder) / Number(WEI_PER_ETH);
+      return gasUnits * gasPrice;
     },
     enabled: enabled && !!address && vaultIds.length > 0,
     staleTime: 30_000,
@@ -75,35 +80,46 @@ export function useReorderGasEstimate(
   return useMemo(() => {
     if (isLoading) {
       return {
-        feeEth: "Estimating...",
+        feeEth: COPY.reorder.networkFeeEstimating,
         feeUsd: "",
         isLoading: true,
         isError: false,
       };
     }
 
-    if (isError || data == null) {
+    if (isError || gasCostWei == null) {
       return {
-        feeEth: "-- ETH",
+        feeEth: COPY.reorder.networkFeeUnavailable,
         feeUsd: "",
         isLoading: false,
         isError: true,
       };
     }
 
+    // formatCurrency's default zero display is "-", which would read like
+    // the unavailable placeholder; a zero fee reads as a plain zero.
+    const feeInEth = Number(formatEther(gasCostWei));
     const feeUsd =
       ethPrice > 0
-        ? `($${(data * ethPrice).toLocaleString("en-US", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })} USD)`
+        ? COPY.reorder.networkFeeUsd(
+            formatCurrency(feeInEth * ethPrice, { zeroDisplay: "$0" }),
+          )
         : "";
 
     return {
-      feeEth: `${data.toFixed(6)} ETH`,
+      feeEth: COPY.reorder.networkFeeEth(
+        formatCurrency(feeInEth, {
+          prefix: "",
+          zeroDisplay: "0",
+          format: {
+            minimumFractionDigits: ETH_FEE_DISPLAY_DECIMALS,
+            maximumFractionDigits: ETH_FEE_DISPLAY_DECIMALS,
+          },
+        }),
+      ),
       feeUsd,
       isLoading: false,
       isError: false,
     };
-  }, [isLoading, isError, data, ethPrice]);
+  }, [isLoading, isError, gasCostWei, ethPrice]);
 }

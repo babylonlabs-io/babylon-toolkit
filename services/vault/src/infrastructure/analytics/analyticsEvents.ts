@@ -8,6 +8,13 @@
 export const ANALYTICS_EVENT = {
   PAGEVIEW: "$pageview",
   WALLET_CONNECTED: "wallet_connected",
+  DEPOSIT_STARTED: "deposit_started",
+  VAULT_REGISTERED: "vault_registered",
+  DEPOSIT_BROADCAST: "deposit_broadcast",
+  VAULT_ACTIVATED: "vault_activated",
+  BORROW_STARTED: "borrow_started",
+  BORROW_SUCCEEDED: "borrow_succeeded",
+  WITHDRAW_SUCCEEDED: "withdraw_succeeded",
 } as const;
 
 export type AnalyticsEventName =
@@ -28,5 +35,42 @@ export interface AnalyticsEventProperties {
   [ANALYTICS_EVENT.WALLET_CONNECTED]: {
     chain: WalletChain;
     restored: boolean;
+  };
+  /**
+   * One deposit attempt. `batch_id` is a random id per attempt, shared with
+   * that attempt's `vault_registered` events. `amount_bucket` is a coarse BTC
+   * band from `amountBucket`, never the exact amount.
+   */
+  [ANALYTICS_EVENT.DEPOSIT_STARTED]: {
+    batch_id: string;
+    amount_bucket: string;
+    vault_count: number;
+  };
+  [ANALYTICS_EVENT.VAULT_REGISTERED]: { batch_id: string; vault_id: string };
+  [ANALYTICS_EVENT.DEPOSIT_BROADCAST]: { vault_id: string };
+  /**
+   * Sent only when this session saw the activation add the vault as Aave
+   * collateral (the application's `CollateralAdded` log). An activation whose
+   * send outcome is unknown, one into another application, and a vault
+   * returned at activation are not counted.
+   */
+  [ANALYTICS_EVENT.VAULT_ACTIVATED]: { vault_id: string };
+  /**
+   * Token symbol of the borrowed reserve, and the account that submitted the
+   * borrow (in place of the session's address, which can change before it is
+   * mined).
+   */
+  [ANALYTICS_EVENT.BORROW_STARTED]: { reserve: string; wallet_address: string };
+  [ANALYTICS_EVENT.BORROW_SUCCEEDED]: {
+    reserve: string;
+    wallet_address: string;
+  };
+  /**
+   * Sent once per vault when the withdrawal is mined, with the account that
+   * sent it.
+   */
+  [ANALYTICS_EVENT.WITHDRAW_SUCCEEDED]: {
+    vault_id: string;
+    wallet_address: string;
   };
 }

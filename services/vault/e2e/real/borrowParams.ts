@@ -29,7 +29,7 @@ import {
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { gql } from "graphql-request";
-import { type Address, type PublicClient } from "viem";
+import { type Address, type Hex, type PublicClient } from "viem";
 
 import { type NetworkName } from "./config";
 import { describeHub, hubMatches } from "./hubLabels";
@@ -387,6 +387,19 @@ export async function fetchActiveVaultCount(
 ): Promise<number> {
   const { position } = await openPosition(network, ethAddress);
   return position?.vaultIds.length ?? 0;
+}
+
+/**
+ * Read the depositor's on-chain BTC Vaults in liquidation order (`position.vaultIds`, first liquidated
+ * first) — the order the app's Reorder dialog changes. Same single `getPosition` read as
+ * `fetchActiveVaultCount`. Empty when no position exists yet.
+ */
+export async function fetchVaultOrder(
+  network: NetworkName,
+  ethAddress: string,
+): Promise<Hex[]> {
+  const { position } = await openPosition(network, ethAddress);
+  return position ? [...position.vaultIds] : [];
 }
 
 /**

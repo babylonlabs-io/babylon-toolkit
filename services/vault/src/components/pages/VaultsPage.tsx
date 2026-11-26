@@ -267,8 +267,9 @@ export default function VaultsPage() {
             )}
             {/* Its own line, so another failure's text cannot hide why
                 Withdraw and Reorder are disabled. Its data-testid is a
-                real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it
-                over if you move or rename the element. */}
+                real-wallet E2E hook (e2e/real/actions/withdraw.ts,
+                e2e/real/actions/reorder.ts) — carry it over if you move or
+                rename the element. */}
             {indexerError && (
               <p data-testid="vaults-collateral-list-incomplete">
                 {COPY.vaults.collateralListIncomplete}

@@ -23,6 +23,14 @@ vi.mock("../../logger", () => ({
   default: { warn: mockWarn, error: mockError },
 }));
 
+const { mockConsent } = vi.hoisted(() => ({
+  mockConsent: { value: "all" as "all" | "essential" | "denied" | null },
+}));
+// Accept all unless a test says otherwise.
+vi.mock("@/storage/cookieConsentStorage", () => ({
+  getCookieConsent: () => mockConsent.value,
+}));
+
 const CONFIG: AnalyticsConfig = {
   enabled: true,
   host: "https://us.i.posthog.com",
@@ -56,6 +64,7 @@ async function freshTrackEvent() {
 settleGeofence("passed");
 
 beforeEach(() => {
+  mockConsent.value = "all";
   mockWarn.mockClear();
   mockError.mockClear();
   fetchMock.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
@@ -130,6 +139,63 @@ describe("trackEvent", () => {
     );
   });
 
+  it("adds a 0x prefix to a vault id without one, lowercased", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "ABCDEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
+  it("lowercases a vault id with a lowercase 0x prefix without adding another", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "0xABcdEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
+  it("sends a vault id with an uppercase 0X prefix as lowercase 0x hex", () => {
+    trackEvent(
+      ANALYTICS_EVENT.DEPOSIT_BROADCAST,
+      { vault_id: "0XABCDEF01" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.vault_id).toBe("0xabcdef01");
+  });
+
+  it("sends an event's own account, lowercased, in place of the session's address", () => {
+    setWalletAddress("0x1111111111111111111111111111111111111111");
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      {
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0xabcdef0000000000000000000000000000000002",
+    );
+  });
+
+  it("sends an event's own account even after the session's address is cleared", () => {
+    setWalletAddress(null);
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      {
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties.wallet_address).toBe(
+      "0xabcdef0000000000000000000000000000000002",
+    );
+  });
+
   it("sends only the allow-listed fields, with and without a wallet address", () => {
     window.history.pushState({}, "", "/?utm_source=x");
     captureAttribution();
@@ -173,6 +239,31 @@ describe("trackEvent", () => {
       ...baseKeys,
       "wallet_address",
     ]);
+  });
+
+  it("leaves out an event's own account that is not an address, without sending the session's", () => {
+    setWalletAddress("0x1111111111111111111111111111111111111111");
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_SUCCEEDED,
+      { reserve: "USDC", wallet_address: "not-an-address" },
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties).not.toHaveProperty("wallet_address");
+  });
+
+  it("sends the fields a property builder returns", () => {
+    trackEvent(
+      ANALYTICS_EVENT.BORROW_STARTED,
+      () => ({
+        reserve: "USDC",
+        wallet_address: "0xABCDEF0000000000000000000000000000000002",
+      }),
+      CONFIG,
+    );
+    expect(sentBody().batch[0].properties).toMatchObject({
+      reserve: "USDC",
+      wallet_address: "0xabcdef0000000000000000000000000000000002",
+    });
   });
 
   it("reports a rejected key as an error once per page load", async () => {
@@ -278,6 +369,52 @@ describe("trackEvent", () => {
       new Error("Analytics event could not be sent: boom"),
       { tags: { category: "analytics", event: "$pageview" } },
     );
+  });
+
+  it("reports a property builder that throws once, sends nothing and does not throw", async () => {
+    const send = await freshTrackEvent();
+    const build = (): { $pathname: string } => {
+      throw new Error("no label");
+    };
+
+    expect(() => send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG)).not.toThrow();
+    send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockError).toHaveBeenCalledExactlyOnceWith(
+      new Error("Analytics event could not be sent: no label"),
+      { tags: { category: "analytics", event: "$pageview" } },
+    );
+  });
+
+  it("reports a build failure of another event even after one event's builder failed", async () => {
+    const send = await freshTrackEvent();
+    const build = (): { $pathname: string } => {
+      throw new Error("no label");
+    };
+    const broken = {
+      get chain(): "eth" {
+        throw new Error("no chain");
+      },
+      restored: false,
+    };
+
+    send(ANALYTICS_EVENT.PAGEVIEW, build, CONFIG);
+    send(ANALYTICS_EVENT.WALLET_CONNECTED, broken, CONFIG);
+
+    expect(mockError).toHaveBeenCalledTimes(2);
+    expect(mockError).toHaveBeenLastCalledWith(
+      new Error("Analytics event could not be sent: no chain"),
+      { tags: { category: "analytics", event: "wallet_connected" } },
+    );
+  });
+
+  it("does not call the property builder when analytics is off", () => {
+    const build = vi.fn(() => ({ $pathname: "/" }));
+
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, build, { enabled: false });
+
+    expect(build).not.toHaveBeenCalled();
   });
 
   it("logs a network failure instead of throwing", async () => {
@@ -431,5 +568,47 @@ describe("geofence gate", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(50);
     expect(mockWarn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("consent gate", () => {
+  it("sends nothing before the visitor answers", () => {
+    mockConsent.value = null;
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the visitor chose Essential only", () => {
+    mockConsent.value = "essential";
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the visitor chose Deny", () => {
+    mockConsent.value = "denied";
+    trackEvent(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops an event tracked before the answer instead of sending it after Accept all", async () => {
+    const send = await freshTrackEvent();
+    mockConsent.value = null;
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+
+    mockConsent.value = "all";
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/vaults" }, CONFIG);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sentBody().batch[0].properties.$pathname).toBe("/vaults");
+  });
+
+  it("drops a held event when the answer changes to Deny before the geofence passes", async () => {
+    const { trackEvent: send, settleGeofence: settle } = await freshModule();
+    send(ANALYTICS_EVENT.PAGEVIEW, { $pathname: "/" }, CONFIG);
+
+    mockConsent.value = "denied";
+    settle("passed");
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
