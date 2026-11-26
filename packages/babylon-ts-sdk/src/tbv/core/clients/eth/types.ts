@@ -360,6 +360,10 @@ export interface VaultRegistryReader {
  */
 export interface TBVProtocolParams {
   minimumPegInAmount: bigint;
+  /**
+   * Largest amount one vault may hold, in satoshis. `0n` means the contract
+   * enforces no maximum.
+   */
   maxPegInAmount: bigint;
   pegInAckTimeout: bigint;
   pegInActivationTimeout: bigint;
@@ -414,6 +418,10 @@ export interface VersionedOffchainParams {
  */
 export interface PegInConfiguration {
   minimumPegInAmount: bigint;
+  /**
+   * Largest amount one vault may hold, in satoshis. `0n` means the contract
+   * enforces no maximum.
+   */
   maxPegInAmount: bigint;
   pegInAckTimeout: bigint;
   pegInActivationTimeout: bigint;

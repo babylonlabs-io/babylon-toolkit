@@ -582,6 +582,78 @@ describe("ViemProtocolParamsReader", () => {
     );
   });
 
+  it("getTBVProtocolParams accepts a maxPegInAmount of 0, which the contract treats as no maximum", async () => {
+    const publicClient = createMockPublicClient({
+      tbvParams9: {
+        ...MOCK_TBV_PARAMS_9,
+        minimumPegInAmount: 100000n,
+        maxPegInAmount: 0n,
+      },
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const params = await reader.getTBVProtocolParams();
+
+    expect(params.maxPegInAmount).toBe(0n);
+  });
+
+  it("getPegInConfiguration accepts a maxPegInAmount of 0, which the contract treats as no maximum", async () => {
+    const publicClient = createMockPublicClient({
+      tbvParams9: {
+        ...MOCK_TBV_PARAMS_9,
+        minimumPegInAmount: 100000n,
+        maxPegInAmount: 0n,
+      },
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const config = await reader.getPegInConfiguration();
+
+    expect(config.maxPegInAmount).toBe(0n);
+  });
+
+  it("getTBVProtocolParams rejects a non-zero maxPegInAmount below minimumPegInAmount", async () => {
+    const publicClient = createMockPublicClient({
+      tbvParams9: {
+        ...MOCK_TBV_PARAMS_9,
+        minimumPegInAmount: 100000n,
+        maxPegInAmount: 99999n,
+      },
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getTBVProtocolParams()).rejects.toThrow(
+      /maxPegInAmount \(99999\) must be >= minimumPegInAmount \(100000\)/,
+    );
+  });
+
+  it("getTBVProtocolParams accepts a maxPegInAmount equal to minimumPegInAmount", async () => {
+    const publicClient = createMockPublicClient({
+      tbvParams9: {
+        ...MOCK_TBV_PARAMS_9,
+        minimumPegInAmount: 100000n,
+        maxPegInAmount: 100000n,
+      },
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    const params = await reader.getTBVProtocolParams();
+
+    expect(params.maxPegInAmount).toBe(100000n);
+  });
+
   it("getLatestOffchainParams throws on invalid params via the auto-validator", async () => {
     const publicClient = createMockPublicClient({
       offchainParams: { ...MOCK_OFFCHAIN_PARAMS, councilQuorum: 0 },

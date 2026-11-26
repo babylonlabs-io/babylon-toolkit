@@ -3629,6 +3629,9 @@ maxPegInAmount: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
+Largest amount one vault may hold, in satoshis. `0n` means the contract
+enforces no maximum.
+
 ##### pegInAckTimeout
 
 ```ts
@@ -3834,6 +3837,9 @@ maxPegInAmount: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Largest amount one vault may hold, in satoshis. `0n` means the contract
+enforces no maximum.
 
 ##### pegInAckTimeout
 

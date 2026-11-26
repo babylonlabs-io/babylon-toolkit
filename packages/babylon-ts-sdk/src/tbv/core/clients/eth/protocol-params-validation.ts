@@ -175,7 +175,12 @@ export function validateTBVProtocolParams(params: TBVProtocolParams): void {
     );
   }
 
-  if (params.maxPegInAmount < params.minimumPegInAmount) {
+  // 0 is the contract's "no maximum" (ProtocolParams
+  // `_validateTBVProtocolParams`), so the bound applies only above 0.
+  if (
+    params.maxPegInAmount > 0n &&
+    params.maxPegInAmount < params.minimumPegInAmount
+  ) {
     errors.push(
       `maxPegInAmount (${params.maxPegInAmount}) must be >= minimumPegInAmount (${params.minimumPegInAmount})`,
     );

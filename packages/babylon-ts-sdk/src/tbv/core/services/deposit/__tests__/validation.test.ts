@@ -303,6 +303,19 @@ describe("Deposit Validations", () => {
       });
       expect(result).toBe(true);
     });
+
+    it("should ignore maxDeposit when zero", () => {
+      const result = isDepositAmountValid({
+        amountSats: 900000n,
+        minDeposit,
+        maxDeposit: 0n,
+        btcBalance,
+        estimatedFeeSats: 5000n,
+        depositorClaimValue: 50000n,
+      });
+      // 900000 + 5000 + 50000 = 955000 < 1000000
+      expect(result).toBe(true);
+    });
   });
 
   describe("validateMultiVaultDepositInputs", () => {
@@ -422,7 +435,11 @@ describe("Deposit Validations", () => {
 
   describe("validateVaultAmounts", () => {
     it("accepts valid amounts within range", () => {
-      const result = validateVaultAmounts([50_000n, 50_000n], 10_000n, 100_000n);
+      const result = validateVaultAmounts(
+        [50_000n, 50_000n],
+        10_000n,
+        100_000n,
+      );
       expect(result.valid).toBe(true);
     });
 
@@ -448,6 +465,11 @@ describe("Deposit Validations", () => {
       const result = validateVaultAmounts([200_000n], undefined, 100_000n);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("exceeds maximum deposit");
+    });
+
+    it("accepts an amount above the minimum when maxDeposit is zero", () => {
+      const result = validateVaultAmounts([500_000_000_000n], 100_000n, 0n);
+      expect(result.valid).toBe(true);
     });
   });
 
