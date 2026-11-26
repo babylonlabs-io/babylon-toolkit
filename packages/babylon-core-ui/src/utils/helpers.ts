@@ -96,7 +96,7 @@ export const truncateDecimals = (value: number, decimals: number): number =>
 
 /**
  * Drops the fraction digits of a sanitized numeric input string past `maxDecimals`. The string is
- * cut, not parsed, so the digits that remain are exactly the ones typed.
+ * cut, not parsed, so the digits that remain are not re-rounded.
  *
  * @example
  * truncateDecimalInput("1.0000009", 6); // "1.000000"

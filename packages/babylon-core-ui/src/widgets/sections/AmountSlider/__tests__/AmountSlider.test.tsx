@@ -31,14 +31,27 @@ function renderAmountSlider(maxDecimals: number) {
 }
 
 describe("AmountSlider maxDecimals", () => {
-  it("drops a typed digit past maxDecimals", () => {
+  it("ignores a digit typed into a full fraction, keeping the digits and the caret", () => {
     const { input, typedValues } = renderAmountSlider(6);
 
-    fireEvent.change(input, { target: { value: "1.000000" } });
+    fireEvent.change(input, { target: { value: "1.123456" } });
+    // A 9 typed right after the dot: the browser reports the new value with the caret after the 9.
+    fireEvent.change(input, {
+      target: { value: "1.9123456", selectionStart: 3, selectionEnd: 3 },
+    });
+
+    expect(input.value).toBe("1.123456");
+    expect(input.selectionStart).toBe(2);
+    expect(typedValues).toEqual(["1.123456"]);
+  });
+
+  it("cuts a pasted amount to maxDecimals", () => {
+    const { input, typedValues } = renderAmountSlider(6);
+
     fireEvent.change(input, { target: { value: "1.0000009" } });
 
     expect(input.value).toBe("1.000000");
-    expect(typedValues.at(-1)).toBe("1.000000");
+    expect(typedValues).toEqual(["1.000000"]);
   });
 
   it("rounds a slider value down to maxDecimals", () => {

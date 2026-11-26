@@ -48,11 +48,11 @@ export interface AmountSliderProps {
   currencySlot?: React.ReactNode;
   onAmountChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional - if not provided, input is read-only
   /**
-   * Most fraction digits the amount may carry, e.g. the token's decimals. Digits typed past it are
-   * dropped, and slider values are rounded down to it. The slider steps in whole units of it, at
-   * least one, so rounding down never moves the thumb back. An `amount` the parent sets (Max, a
-   * reset) is shown as given, so the parent keeps it within the same precision. Unset, input is not
-   * limited. Must be a non-negative integer: any other value throws.
+   * Most fraction digits the amount may carry, e.g. the token's decimals. A digit typed into a full
+   * fraction is ignored, a pasted amount is cut to it, and slider values are rounded down to it. The
+   * slider steps in whole units of it, at least one, so rounding down never moves the thumb back. An
+   * `amount` the parent sets (Max, a reset) is shown as given, so the parent keeps it within the same
+   * precision. Unset, input is not limited. Must be a non-negative integer: any other value throws.
    */
   maxDecimals?: number;
 
@@ -162,6 +162,15 @@ export function AmountSlider({
       return;
     }
     const value = maxDecimals === undefined ? sanitized : truncateDecimalInput(sanitized, maxDecimals);
+    // One character that would push the fraction past maxDecimals is a keystroke into a full
+    // fraction: ignore it, as a full maxlength field does, rather than drop a digit the user did not
+    // touch. Longer changes (a paste, autofill) are cut to maxDecimals.
+    if (value !== sanitized && sanitized.length === rawInput.length + 1) {
+      const caret = (e.target.selectionStart ?? sanitized.length) - 1;
+      e.target.value = rawInput;
+      e.target.setSelectionRange(caret, caret);
+      return;
+    }
     setRawInput(value);
     e.target.value = value;
     onAmountChange?.(e);
