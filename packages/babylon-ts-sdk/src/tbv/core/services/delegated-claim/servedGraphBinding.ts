@@ -10,7 +10,7 @@
  * and the Claim signature already spends the claim reserve on its own.
  *
  * The WASM verifier checks each signature against the key the graph itself
- * carries (btc-vault 5bc96f5c `sign.rs:318-358`), so a vault provider could
+ * carries (btc-vault v1.0.0 `sign.rs:342-382`), so a vault provider could
  * swap in keys it controls and sign with them. So these are bound to the
  * vault's on-chain values first: every key a presignature is verified
  * against (vault provider, vault keepers, universal challengers, the local
@@ -136,7 +136,7 @@ interface FieldRule {
   expected: string;
 }
 
-// btc-vault 5bc96f5c field names: TxGraph (tx_graph/graph.rs) and each
+// btc-vault v1.0.0 field names: TxGraph (tx_graph/graph.rs) and each
 // connector (connectors/, transactions/), all plain-serde.
 const KEY_FIELDS = {
   depositor: ["claimer", "claimer_pubkey", "depositor", "depositor_pubkey"],

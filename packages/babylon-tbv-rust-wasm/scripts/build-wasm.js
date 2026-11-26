@@ -16,17 +16,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // the binary that produces the frozen on-chain-binding secrets — re-run the
 // golden-vector gate (src/__tests__ frozen vectors) before shipping.
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
-const VAULT_WASM_BRANCH = 'main';
-// vault-wasm at the re-pin for the testnet reset: graph v1 is btc-vault
-// main @ 5bc96f5c, post-reset Vault Core 1, and the pre-reset graphs
-// (v1 @ 2c1177ec, v2 @ 27c0062b, v3 @ b534ff9e) are gone. Post-reset Core 1
-// is the pre-reset Core 3 graph under a new number, so for the same inputs
-// graph v1 now builds the bytes graph v3 built (pinned by vault-wasm's golden
-// test); the vault-secret derivations are unchanged. 1bd94af adds only the
-// verifyGraphPresignatures export over the same btc-vault rev. The commit is
-// on vault-wasm main, and the only btc-vault rev it bundles, 5bc96f5c, is on
-// btc-vault main.
-const VAULT_WASM_COMMIT = '1bd94af221d15a14b5a0e3860d7b851460051044';
+// vault-wasm release v1.0.0: graph v1 is btc-vault v1.0.0 (ef190ac7),
+// post-reset Vault Core 1, the only btc-vault release it bundles. The tag names
+// the release; the commit is the pin. A tag can be moved, so the build checks
+// that the tag still resolves to this commit and builds the commit.
+const VAULT_WASM_TAG = 'v1.0.0';
+const VAULT_WASM_COMMIT = '234f4e2d49de178cb20bffce7dbcf0c52d867d2b';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');
@@ -103,17 +98,36 @@ const buildWasm = async () => {
 
     // Clone the repository
     // Use execFileSync with argument array to avoid shell command injection
-    console.log(
-      `Cloning vault-wasm repository (branch: ${VAULT_WASM_BRANCH})...`,
-    );
+    console.log(`Cloning vault-wasm repository (tag: ${VAULT_WASM_TAG})...`);
     try {
       execFileSync(
         'git',
-        ['clone', '--branch', VAULT_WASM_BRANCH, VAULT_WASM_REPO_URL, REPO_DIR],
+        ['clone', '--branch', VAULT_WASM_TAG, VAULT_WASM_REPO_URL, REPO_DIR],
         { stdio: 'inherit' },
       );
     } catch {
       console.error('Error: Failed to clone repository');
+      process.exit(1);
+    }
+
+    // Fail closed on a moved tag rather than build whatever it now names.
+    let taggedCommit;
+    try {
+      taggedCommit = execFileSync(
+        'git',
+        ['rev-parse', `${VAULT_WASM_TAG}^{commit}`],
+        { cwd: REPO_DIR, encoding: 'utf8' },
+      ).trim();
+    } catch {
+      console.error(`Error: Failed to resolve tag ${VAULT_WASM_TAG}`);
+      shell.rm('-rf', REPO_DIR);
+      process.exit(1);
+    }
+    if (taggedCommit !== VAULT_WASM_COMMIT) {
+      console.error(
+        `Error: tag ${VAULT_WASM_TAG} resolves to ${taggedCommit}, expected the pinned commit ${VAULT_WASM_COMMIT}`,
+      );
+      shell.rm('-rf', REPO_DIR);
       process.exit(1);
     }
 

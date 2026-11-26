@@ -366,7 +366,7 @@ describe("computeMinPeginFeeSats", () => {
     await initializeWasmForTests();
   });
 
-  it("matches PegInTx::estimate_vsize at btc-vault 5bc96f5c", () => {
+  it("matches PegInTx::estimate_vsize at btc-vault v1.0.0", () => {
     const vsizeByVkUc: [number, number, bigint][] = [
       [1, 1, 286n],
       [2, 1, 311n],
