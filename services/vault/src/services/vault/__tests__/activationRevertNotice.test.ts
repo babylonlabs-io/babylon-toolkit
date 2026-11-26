@@ -49,7 +49,7 @@ describe("appendActivationRevertNotice", () => {
     );
   });
 
-  it("appends the retry-only notice to a mined activation revert Withdraw would also hit", () => {
+  it("appends the check-status notice to a mined activation revert both reveals share", () => {
     const err = tagMinedRevert(
       new ContractError(
         MESSAGE,
@@ -60,17 +60,32 @@ describe("appendActivationRevertNotice", () => {
     );
 
     expect(appendActivationRevertNotice(err, MESSAGE, "activate")).toBe(
-      `${MESSAGE} ${COPY.deposit.errors.activationRevertedSecretPublicRetryOnly}`,
+      `${MESSAGE} ${COPY.deposit.errors.revertedSecretPublicCheckStatus}`,
     );
   });
 
-  it("appends the Withdraw secret notice to a mined Withdraw revert", () => {
+  it("appends the Withdraw secret notice to a mined Withdraw revert with no decoded reason", () => {
     const err = tagMinedRevert(
       new ContractError(MESSAGE, ErrorCode.CONTRACT_ERROR),
     );
 
     expect(appendActivationRevertNotice(err, MESSAGE, "withdraw")).toBe(
       `${MESSAGE} ${COPY.deposit.errors.withdrawRevertedSecretPublic}`,
+    );
+  });
+
+  it("appends the check-status notice to a mined Withdraw revert both reveals share", () => {
+    const err = tagMinedRevert(
+      new ContractError(
+        MESSAGE,
+        ErrorCode.CONTRACT_ERROR,
+        undefined,
+        "InvalidBTCVaultStatus",
+      ),
+    );
+
+    expect(appendActivationRevertNotice(err, MESSAGE, "withdraw")).toBe(
+      `${MESSAGE} ${COPY.deposit.errors.revertedSecretPublicCheckStatus}`,
     );
   });
 

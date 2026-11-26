@@ -22,13 +22,14 @@ export function appendActivationRevertNotice(
   if (isActivationDeadlineExpiredError(err)) {
     return `${message} ${COPY.deposit.errors.deadlineRevertedSecretPublic}`;
   }
-  if (mode === "withdraw") {
-    return `${message} ${COPY.deposit.errors.withdrawRevertedSecretPublic}`;
+  // A revert both reveals share: retrying either one now may not land.
+  if (classifyActivationFailure(err) !== "mined-revert") {
+    return `${message} ${COPY.deposit.errors.revertedSecretPublicCheckStatus}`;
   }
-  // Names Withdraw only where the failure screen offers it for this revert.
+  // The failure screen offers Withdraw for this revert, so the activation notice names it.
   const notice =
-    classifyActivationFailure(err) === "mined-revert"
-      ? COPY.deposit.errors.activationRevertedSecretPublic
-      : COPY.deposit.errors.activationRevertedSecretPublicRetryOnly;
+    mode === "withdraw"
+      ? COPY.deposit.errors.withdrawRevertedSecretPublic
+      : COPY.deposit.errors.activationRevertedSecretPublic;
   return `${message} ${notice}`;
 }

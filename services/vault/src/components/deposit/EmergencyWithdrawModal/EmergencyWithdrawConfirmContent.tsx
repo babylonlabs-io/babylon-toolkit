@@ -16,10 +16,18 @@ import type { LedgerDeviceStep } from "@/types/ledgerDeviceStep";
 
 import type { WithdrawStuckProof } from "./stuckProof";
 
+/** The dialog body for each case the dialog can open in. */
+const WITHDRAW_BODY: Record<WithdrawStuckProof, string> = {
+  proven: COPY.deposit.emergencyWithdraw.bodyStuck,
+  "not-proven": COPY.deposit.emergencyWithdraw.bodyNotProven,
+  "not-proven-secret-public":
+    COPY.deposit.emergencyWithdraw.bodyNotProvenSecretPublic,
+};
+
 interface EmergencyWithdrawConfirmContentProps {
-  /** Selects the body: proven stuck, or a deposit that may still be refundable. */
+  /** Selects the body: proven stuck, or not proven with the secret private or public. */
   stuckProof: WithdrawStuckProof;
-  /** Adds the split warning to the not-proven body; a proven-stuck vault has no other exit. */
+  /** Adds the split warning to a not-proven body; a proven-stuck vault has no other exit. */
   splitProtectionLost: boolean;
   /** Reveal + redeem in flight (wallet popup or on-chain submission). */
   withdrawing: boolean;
@@ -100,9 +108,7 @@ export function EmergencyWithdrawConfirmContent({
             {COPY.deposit.emergencyWithdraw.title}
           </Heading>
           <Text variant="body1" className="text-accent-secondary">
-            {stuckProof === "proven"
-              ? COPY.deposit.emergencyWithdraw.bodyStuck
-              : COPY.deposit.emergencyWithdraw.bodyNotProven}
+            {WITHDRAW_BODY[stuckProof]}
           </Text>
         </div>
       </div>
@@ -120,7 +126,7 @@ export function EmergencyWithdrawConfirmContent({
       </label>
 
       <div className="flex flex-col gap-4">
-        {stuckProof === "not-proven" && splitProtectionLost && (
+        {stuckProof !== "proven" && splitProtectionLost && (
           <Callout variant="warning">
             {COPY.deposit.emergencyWithdraw.splitProtectionWarning}
           </Callout>

@@ -96,6 +96,9 @@ const PEGIN_PROOF_FAILED =
 // Shared by the mined-deadline notice and the terminal callout that carries it.
 const DEADLINE_REVERTED_SECRET_PUBLIC =
   "Because the transaction was mined, your HTLC secret is now public. If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault from its row before its grace window closes.";
+// What a depositor whose secret is public does once the BTCVault has expired.
+const EXPIRED_SECRET_PUBLIC_STEPS =
+  "If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault from its row before its grace window closes. Otherwise, refund your BTC once the refund timelock has passed.";
 // Reuses the ABI-keyed message so the callout can't drift from the contract-error string.
 const ACTIVATION_DEADLINE_PASSED_TITLE = "Activation deadline passed";
 const ACTIVATION_DEADLINE_PASSED_BODY = `${CONTRACT_ERROR_MESSAGES.ActivationDeadlineExpired} You can reclaim your BTC through the refund flow once it becomes available.`;
@@ -880,14 +883,21 @@ export const COPY = {
         "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault. The vault provider then claims the BTC on Bitcoin and pays it to your payout address, minus its commission, which takes several days.",
       // Not proven stuck: the deposit may still be refundable, so this names
       // what withdrawing costs and gives up. No figure, as for `bodyStuck`.
+      // The refund sentence is conditional: the app keeps no record of a mined
+      // reveal, so it cannot tell that the secret is still private.
       bodyNotProven:
-        "Withdrawing cancels this deposit instead of activating it. The vault provider must then claim the BTC on Bitcoin and pay it to your payout address, minus its commission, which takes several days. The peg-in fee you already paid is not refunded. You also give up the refund that depends on no one else: waiting for the BTCVault to expire and refunding it yourself.",
-      // Not-proven dialog only, when this is the first BTCVault of a split
+        "Withdrawing cancels this deposit instead of activating it. The vault provider must then claim the BTC on Bitcoin and pay it to your payout address, minus its commission, which takes several days. The peg-in fee you already paid is not refunded. Unless a mined transaction has already made your HTLC secret public, you also give up the refund that depends on no one else: waiting for the BTCVault to expire and refunding it yourself.",
+      // Not proven stuck, opened right after a mined reveal: the secret is
+      // public, so the refund is no longer the depositor's alone to give up.
+      bodyNotProvenSecretPublic:
+        "Withdrawing cancels this deposit instead of activating it. The vault provider must then claim the BTC on Bitcoin and pay it to your payout address, minus its commission, which takes several days. The peg-in fee you already paid is not refunded. Your HTLC secret is already public, so waiting for the BTCVault to expire no longer gives you a refund that depends on no one else: anyone can broadcast the peg-in transaction first.",
+      // Not-proven dialogs only, when this is the first BTCVault of a split
       // deposit and a later one can still activate.
       splitProtectionWarning:
         "This is the first BTCVault of a split deposit. Withdrawing it removes the split's liquidation protection for the remaining BTCVault.",
+      // True for every body: the secret may already be public elsewhere.
       riskAcknowledgement:
-        "I understand this permanently reveals my HTLC secret and cannot be undone.",
+        "I understand that withdrawing publishes my HTLC secret on Ethereum and cannot be undone.",
       confirmButton: "Withdraw without activating",
       retryButton: "Retry",
       cancelButton: "Cancel",
@@ -1378,12 +1388,11 @@ export const COPY = {
       // Appended only when the revert was mined, which made the secret public.
       activationRevertedSecretPublic:
         "Because the transaction was mined, your HTLC secret is now public. Retry promptly, or use Withdraw on this screen, before the activation deadline.",
-      // The same, for a mined revert Withdraw would hit too: it is not offered.
-      activationRevertedSecretPublicRetryOnly:
-        "Because the transaction was mined, your HTLC secret is now public. Retry promptly, before the activation deadline.",
       // The same, for a mined Withdraw revert: Withdraw is the action that failed.
-      withdrawRevertedSecretPublic:
-        "The withdrawal did not go through and your BTCVault is unchanged. Because the transaction was mined, your HTLC secret is now public. Retry now, before the activation deadline. If the deadline passes, the BTCVault expires. If the peg-in transaction then appears on Bitcoin, redeem the expired BTCVault from its row before its grace window closes. Otherwise, refund your BTC once the refund timelock has passed.",
+      withdrawRevertedSecretPublic: `The withdrawal did not go through and your BTCVault is unchanged. Because the transaction was mined, your HTLC secret is now public. Retry now, before the activation deadline. If the deadline passes, the BTCVault expires. ${EXPIRED_SECRET_PUBLIC_STEPS}`,
+      // The same, for a mined revert of either reveal that the other reveal
+      // would hit too: an immediate retry may not land, so it names none.
+      revertedSecretPublicCheckStatus: `Because the transaction was mined, your HTLC secret is now public. Check this BTCVault's status before trying again. If its status has not changed when the activation deadline passes, the BTCVault expires. ${EXPIRED_SECRET_PUBLIC_STEPS}`,
       // The same, when the mined revert was the passed deadline: no retry can land.
       deadlineRevertedSecretPublic: DEADLINE_REVERTED_SECRET_PUBLIC,
       // Surfaced if deposit execution is reached while the protocol is frozen or

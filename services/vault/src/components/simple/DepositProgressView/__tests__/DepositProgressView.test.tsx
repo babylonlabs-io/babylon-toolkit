@@ -717,7 +717,6 @@ describe("DepositProgressView", () => {
   });
 
   describe("error secondary action", () => {
-    const SECONDARY_TEST_ID = "deposit-progress-secondary-action-button";
     const secondary = (overrides: { disabled?: boolean } = {}) => ({
       label: "Withdraw",
       explanation: "Withdrawing cancels this deposit.",
@@ -735,7 +734,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Withdraw" }),
+      ).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", {
           name: COPY.deposit.progress.buttons.retry,
@@ -754,7 +755,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      const secondaryButton = screen.getByTestId(SECONDARY_TEST_ID);
+      const secondaryButton = screen.getByRole("button", { name: "Withdraw" });
       const retry = screen.getByRole("button", {
         name: COPY.deposit.progress.buttons.retry,
       });
@@ -783,7 +784,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      fireEvent.click(screen.getByTestId(SECONDARY_TEST_ID));
+      fireEvent.click(screen.getByRole("button", { name: "Withdraw" }));
 
       expect(action.onClick).toHaveBeenCalledTimes(1);
       expect(onRetry).not.toHaveBeenCalled();
@@ -801,7 +802,7 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByTestId(SECONDARY_TEST_ID)).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Withdraw" })).toBeDisabled();
       expect(
         screen.getByRole("button", {
           name: COPY.deposit.progress.buttons.retry,
@@ -819,7 +820,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Withdraw" }),
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText("Withdrawing cancels this deposit."),
       ).not.toBeInTheDocument();
@@ -835,7 +838,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Withdraw" }),
+      ).not.toBeInTheDocument();
     });
 
     it("ignores the secondary action on a device-disconnected error, which offers Reconnect", () => {
@@ -849,7 +854,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Withdraw" }),
+      ).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", {
           name: COPY.deposit.ledger.reconnectButton,
@@ -870,7 +877,9 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.queryByTestId(SECONDARY_TEST_ID)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Withdraw" }),
+      ).not.toBeInTheDocument();
     });
   });
 

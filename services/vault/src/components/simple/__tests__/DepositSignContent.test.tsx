@@ -97,7 +97,7 @@ vi.mock("../PostDepositContinuationContent", () => ({
   }: {
     vaultIds: string[];
     autoStartAction: string | null;
-    onWithdraw: (activity: { id: string }) => void;
+    onWithdraw: (activity: { id: string }, stuckProof: string) => void;
     withdrawOpen: boolean;
   }) => (
     <div
@@ -109,7 +109,9 @@ vi.mock("../PostDepositContinuationContent", () => ({
       <button
         type="button"
         data-testid="continuation-withdraw"
-        onClick={() => onWithdraw({ id: vaultIds[0] })}
+        onClick={() =>
+          onWithdraw({ id: vaultIds[0] }, "not-proven-secret-public")
+        }
       />
     </div>
   ),
@@ -479,7 +481,7 @@ describe("DepositSignContent", () => {
     expect(continuation.getAttribute("data-auto-start-action")).toBe("any");
   });
 
-  it("opens Withdraw from the continuation's failure screen as not proven stuck", async () => {
+  it("opens Withdraw from the continuation's failure screen with the proof the screen passed", async () => {
     mockExecuteDeposit.mockResolvedValue({
       pegins: [{ vaultId: "0xv0" }],
       batchId: "batch",
@@ -495,7 +497,9 @@ describe("DepositSignContent", () => {
 
     const modal = getByTestId("withdraw-modal");
     expect(modal.getAttribute("data-vault")).toBe("0xv0");
-    expect(modal.getAttribute("data-stuck-proof")).toBe("not-proven");
+    expect(modal.getAttribute("data-stuck-proof")).toBe(
+      "not-proven-secret-public",
+    );
     expect(getByTestId("continuation").getAttribute("data-withdraw-open")).toBe(
       "true",
     );

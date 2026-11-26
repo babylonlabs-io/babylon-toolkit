@@ -11,6 +11,7 @@
 import { useMemo } from "react";
 import type { Address, Hex } from "viem";
 
+import type { WithdrawStuckProof } from "@/components/deposit/EmergencyWithdrawModal/stuckProof";
 import { useBTCWallet } from "@/context/wallet";
 import type { DepositWarning } from "@/hooks/deposit/depositWarnings";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
@@ -34,7 +35,7 @@ interface PostDepositContinuationContentProps {
   autoStartAction: PeginAction | "any" | null;
   onClose: () => void;
   /** See PostDepositContinuationView's props of the same names. */
-  onWithdraw: (activity: VaultActivity) => void;
+  onWithdraw: (activity: VaultActivity, stuckProof: WithdrawStuckProof) => void;
   withdrawOpen: boolean;
 }
 
