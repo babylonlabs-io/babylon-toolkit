@@ -21,6 +21,7 @@ import {
 } from "@/infrastructure/analytics";
 import Providers from "@/providers";
 import { Router } from "@/router";
+import { captureReferredVaultProvider } from "@/utils/captureReferredVaultProvider";
 import { reloadForStaleDeploy } from "@/utils/lazyWithRetry";
 
 import "@/globals.css";
@@ -36,6 +37,10 @@ reportAnalyticsConfigError();
 // Before the first render: a redirect in the router would drop the landing
 // URL's campaign parameters. Reads no cookie.
 captureAttribution();
+
+// After attribution, which must read the landing URL untouched: this removes
+// `?vp=` from the address bar once the provider is stored.
+captureReferredVaultProvider();
 
 // Vite fires this on a dynamic-import preload failure (stale chunk 404 after a
 // redeploy) — trigger the bounded one-shot reload. No preventDefault: letting

@@ -1215,6 +1215,10 @@ export const COPY = {
       providerSelectDescriptionLink: "please go here.",
       // Sub-line under the v3 intro, describing the picker's ordering.
       providerSortNote: "Sorted by most recent deposit",
+      // Replaces the sort note while a vault provider link pins its provider
+      // above the sorted list.
+      providerSortNotePinned:
+        "The vault provider from your link is listed first. Others are sorted by most recent deposit.",
       providerSelectEmpty: "No vault providers available at this time.",
       providerStatusUnavailable: "Unavailable",
       // Status label for a vault provider that has recently been unreachable
@@ -1249,6 +1253,10 @@ export const COPY = {
       providerMetricPlaceholder: "—",
       // Accessible label / tooltip for the per-provider explorer link.
       providerExplorerLinkLabel: "View vault provider on explorer",
+      // Accessible label / tooltip for the per-provider copy button. It copies
+      // a link that opens the app with this vault provider preselected.
+      providerCopyLinkLabel: (providerName: string) =>
+        `Copy link to deposit with ${providerName}`,
       // Split-option title. "Two-vault split" (not "UTXO split") because the
       // UTXO concept is never introduced to the depositor; the ratio (e.g.
       // "26/74") shows how the deposit is divided across the two BTCVaults.
@@ -2042,6 +2050,16 @@ export const COPY = {
     },
   },
   common: {
+    // Accessible label / tooltip for the copy button beside a shown hash or
+    // address (`CopyableHash`), e.g. "Copy BTC transaction hash 1a2b…9z".
+    copyHashLabel: (
+      chain: string,
+      kind: "tx" | "address",
+      truncatedHash: string,
+    ) =>
+      `Copy ${chain} ${kind === "address" ? "address" : "transaction hash"} ${truncatedHash}`,
+    // Accessible label for the BTC / ETH tag in front of a shown hash.
+    chainBadgeLabel: (chain: string) => `${chain} chain`,
     zeroUsdValue: "$0.00 USD",
     // Placeholder shown where a value is not yet available (e.g. an
     // oracle-priced figure still loading after an asset switch).

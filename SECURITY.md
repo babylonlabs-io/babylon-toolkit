@@ -800,6 +800,20 @@ security change requiring explicit argument, not a rendering detail.
 
 External links use `target="_blank"`; keep `rel="noopener"` on all of them.
 
+### Vault provider links
+
+A link `/?vp=<provider Ethereum address>` pins that provider to the top of the deposit picker and
+preselects it (`services/vault/src/utils/captureReferredVaultProvider.ts`). The address arrives in a
+URL anyone can craft, and is then kept in `localStorage` under `tbv-referred-vault-provider`
+(`services/vault/src/storage/referredVaultProviderStorage.ts`). **Treat both copies as untrusted
+input.** Only an address shape is accepted, and the address is used only to reorder and preselect
+among the providers the picker already lists, after the registry roster, the operator allowlist and
+the proxy's hide list are applied. It never adds a provider, and an unhealthy or metadata-rejected
+provider is neither pinned nor preselected. The chosen provider then passes `validateForm` and the
+on-chain participant-key check at submit, like a provider the depositor clicked. Nothing
+security-relevant reads the stored value. Keep it that way: a link must never select a provider
+outside the listed set, and never skip the depositor's own submit.
+
 ## 4) Browser runtime and delivery
 
 ### Content Security Policy

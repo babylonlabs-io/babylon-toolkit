@@ -69,6 +69,10 @@ NEXT_PUBLIC_TBV_ALLOWED_VAULT_PROVIDERS=0x1111...1111,0x2222...2222
 > **Note**: A provider the proxy marks as disabled stays hidden even when
 > it is on the list.
 
+> **Note**: A [vault provider link](vault-provider-links.md) (`?vp=`) only
+> selects a provider the picker shows. A link to a provider left off this
+> list does nothing.
+
 ## 2. Depositor allow-list
 
 The `AllowListPolicy` contract holds one list per application. The gate is

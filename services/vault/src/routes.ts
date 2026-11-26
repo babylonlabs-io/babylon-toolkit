@@ -151,3 +151,39 @@ export function getReserveDetailSearch(
 export function getMarketDataRoute(reserveId: bigint) {
   return `${ROUTES.MARKETS}/${reserveId.toString()}`;
 }
+
+/**
+ * Query key of a vault provider link: `/?vp=<provider Ethereum address>`.
+ *
+ * Keyed by the provider's address, never its name: the name is metadata the
+ * provider registers itself and is not unique, so a name-keyed link would let
+ * one provider take another's link. The address only pins and preselects a
+ * provider the deposit picker already lists; it never adds one.
+ */
+export const VAULT_PROVIDER_QUERY_KEY = "vp";
+
+/**
+ * Parse the `?vp=` vault provider address.
+ *
+ * @returns The address in lowercase, the form provider ids are compared in,
+ *          or null when absent or not an address.
+ */
+export function parseVaultProviderParam(
+  param: string | null | undefined,
+): string | null {
+  if (!param || !isAddress(param, { strict: false })) {
+    return null;
+  }
+  return param.toLowerCase();
+}
+
+/**
+ * Link to the app at `origin` that preselects a vault provider in the deposit
+ * form. It lands on the overview: the provider is read at startup, so the page
+ * it lands on does not matter.
+ */
+export function getVaultProviderLink(origin: string, providerId: string) {
+  return `${origin}${ROUTES.OVERVIEW}?${new URLSearchParams({
+    [VAULT_PROVIDER_QUERY_KEY]: providerId,
+  })}`;
+}

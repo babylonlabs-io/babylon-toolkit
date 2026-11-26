@@ -12,6 +12,9 @@
  *
  * Within each tier, ties break alphabetically by name for a deterministic
  * order (the timestamp resolves to exact ms, never bucketed to hour/day).
+ *
+ * A vault provider link (`?vp=`) can then pin one healthy provider above both
+ * tiers; see {@link pinVaultProvider}.
  */
 
 import type { VaultProviderListItem } from "@/types/vaultProvider";
@@ -27,6 +30,36 @@ export function isProblematicVaultProvider(
   provider: VaultProviderListItem,
 ): boolean {
   return provider.unhealthy || provider.unavailable;
+}
+
+/**
+ * The listed provider a vault provider link (`?vp=`) may pin and preselect:
+ * the one whose id matches `providerId`, compared case-insensitively, and only
+ * when it is not problematic. A link never puts an unreachable or rejected
+ * provider first, nor chooses it for the depositor.
+ */
+export function findPinnableVaultProvider(
+  providers: readonly VaultProviderListItem[],
+  providerId: string | null,
+): VaultProviderListItem | undefined {
+  if (providerId === null) return undefined;
+  const id = providerId.toLowerCase();
+  const match = providers.find((p) => p.id.toLowerCase() === id);
+  return match && !isProblematicVaultProvider(match) ? match : undefined;
+}
+
+/**
+ * Returns a new array with the provider a vault provider link names moved to
+ * the front, when {@link findPinnableVaultProvider} allows it. Otherwise the
+ * order is unchanged. Does not mutate the input.
+ */
+export function pinVaultProvider(
+  providers: readonly VaultProviderListItem[],
+  providerId: string | null,
+): VaultProviderListItem[] {
+  const pinned = findPinnableVaultProvider(providers, providerId);
+  if (pinned === undefined) return [...providers];
+  return [pinned, ...providers.filter((p) => p !== pinned)];
 }
 
 /**

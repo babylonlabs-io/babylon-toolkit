@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useBTCWallet, useConnection } from "@/context/wallet";
+import { useReferredVaultProvider } from "@/hooks/useReferredVaultProvider";
 
 // Mock env before importing modules that use it
 vi.mock("@/config/env", () => ({
@@ -75,6 +76,7 @@ import { useApplications } from "../../useApplications";
 import { useBtcPublicKey } from "../../useBtcPublicKey";
 import { usePrices } from "../../usePrices";
 import { useUTXOs } from "../../useUTXOs";
+import { useVpHealthSnapshots } from "../../useVpHealth";
 import { useAllocationPlanning } from "../useAllocationPlanning";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
@@ -96,6 +98,17 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
     scriptPubKey: "51024e73",
   })),
   supportedTxGraphVersions: vi.fn(async () => [1]),
+}));
+
+// No vault provider link by default; the link preselection tests set one.
+vi.mock("@/hooks/useReferredVaultProvider", () => ({
+  useReferredVaultProvider: vi.fn(() => null),
+}));
+
+// `/vp-health` has answered by default (no provider reported); the link
+// preselection tests hold it unanswered where that matters.
+vi.mock("../../useVpHealth", () => ({
+  useVpHealthSnapshots: vi.fn(() => []),
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
@@ -1529,6 +1542,154 @@ describe("useDepositPageForm", () => {
       await enterAmountWithSettledMax(result, "0.01");
 
       expect(result.current.fundingInputCapExceeded).toBe(false);
+    });
+  });
+
+  describe("vault provider link preselection", () => {
+    const LISTED_FIRST = "0x1234567890abcdef1234567890abcdef12345678";
+    const LISTED_SECOND = "0xabcdef1234567890abcdef1234567890abcdef12";
+
+    afterEach(() => {
+      // clearAllMocks keeps return-value overrides; restore the defaults.
+      vi.mocked(useReferredVaultProvider).mockReturnValue(null);
+      vi.mocked(useVpHealthSnapshots).mockReturnValue([]);
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [
+          { id: LISTED_FIRST, btcPubKey: "pubkey1" },
+          { id: LISTED_SECOND, btcPubKey: "pubkey2" },
+        ],
+        unhealthyVpIds: new Set<string>(),
+        vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+        loading: false,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+    });
+
+    it("preselects the linked provider and lists it first", () => {
+      vi.mocked(useReferredVaultProvider).mockReturnValue(LISTED_SECOND);
+
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      expect(result.current.formData.selectedProvider).toBe(LISTED_SECOND);
+      expect(result.current.providers.map((p) => p.id)).toEqual([
+        LISTED_SECOND,
+        LISTED_FIRST,
+      ]);
+    });
+
+    it("selects the provider by the id the list holds when the link's letter case differs", () => {
+      const checksummedId = "0xABCDEF1234567890abcdef1234567890ABCDEF12";
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [{ id: checksummedId, btcPubKey: "pubkey2" }],
+        unhealthyVpIds: new Set<string>(),
+        vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+        loading: false,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+      vi.mocked(useReferredVaultProvider).mockReturnValue(LISTED_SECOND);
+
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      expect(result.current.formData.selectedProvider).toBe(checksummedId);
+    });
+
+    it("keeps a provider the depositor picked instead of the linked one", () => {
+      vi.mocked(useReferredVaultProvider).mockReturnValue(LISTED_SECOND);
+      const { result, rerender } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.setFormData({ selectedProvider: LISTED_FIRST });
+      });
+      rerender();
+
+      expect(result.current.formData.selectedProvider).toBe(LISTED_FIRST);
+    });
+
+    it("preselects the linked provider again after the form resets", () => {
+      vi.mocked(useReferredVaultProvider).mockReturnValue(LISTED_SECOND);
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+      act(() => {
+        result.current.setFormData({ selectedProvider: LISTED_FIRST });
+      });
+
+      act(() => {
+        result.current.resetForm();
+      });
+
+      expect(result.current.formData.selectedProvider).toBe(LISTED_SECOND);
+    });
+
+    it("waits for the providers' health before pinning or preselecting the linked provider", () => {
+      // Before `/vp-health` answers, an unhealthy or disabled provider looks
+      // healthy, so pinning or preselecting it then would be wrong.
+      vi.mocked(useVpHealthSnapshots).mockReturnValue(undefined);
+      vi.mocked(useReferredVaultProvider).mockReturnValue(LISTED_SECOND);
+      const { result, rerender } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      expect(result.current.formData.selectedProvider).toBe("");
+      expect(result.current.providers.map((p) => p.id)).toEqual([
+        LISTED_FIRST,
+        LISTED_SECOND,
+      ]);
+
+      vi.mocked(useVpHealthSnapshots).mockReturnValue([]);
+      rerender();
+
+      expect(result.current.formData.selectedProvider).toBe(LISTED_SECOND);
+      expect(result.current.providers.map((p) => p.id)).toEqual([
+        LISTED_SECOND,
+        LISTED_FIRST,
+      ]);
+    });
+
+    it("neither preselects nor pins a linked provider that is unhealthy", () => {
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [
+          { id: LISTED_FIRST, btcPubKey: "pubkey1" },
+          { id: LISTED_SECOND, btcPubKey: "pubkey2" },
+        ],
+        unhealthyVpIds: new Set<string>([LISTED_SECOND]),
+        vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+        loading: false,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+      vi.mocked(useReferredVaultProvider).mockReturnValue(LISTED_SECOND);
+
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      expect(result.current.formData.selectedProvider).toBe("");
+      expect(result.current.providers.map((p) => p.id)).toEqual([
+        LISTED_FIRST,
+        LISTED_SECOND,
+      ]);
+    });
+
+    it("preselects nothing when the link names a provider the picker does not list", () => {
+      vi.mocked(useReferredVaultProvider).mockReturnValue(
+        "0x9999999999999999999999999999999999999999",
+      );
+
+      const { result } = renderHook(
+        () => useDepositPageForm({ isSplitPermitted: true }),
+        { wrapper },
+      );
+
+      expect(result.current.formData.selectedProvider).toBe("");
     });
   });
 });

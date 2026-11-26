@@ -36,6 +36,7 @@ import {
   resolveDepositSplitUnavailableReason,
   resolveVaultCapState,
 } from "@/services/deposit/vaultCap";
+import { clearReferredVaultProviderIfOther } from "@/storage/referredVaultProviderStorage";
 import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
@@ -534,6 +535,9 @@ function SimpleDepositContent({
       selectedProviderCommissionBps,
       protocolFeeWei,
     );
+    // A deposit with a provider other than the one a link referred to is the
+    // depositor's choice: stop preselecting the referred one.
+    clearReferredVaultProviderIfOther(formData.selectedProvider);
     setFeeRate(estimatedFeeRate);
     setIsSplitDeposit(shouldSplit);
     if (shouldSplit && vaultAmounts) {

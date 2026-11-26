@@ -104,3 +104,16 @@ export const RECORDED_DEPOSITOR = {
    */
   ETH_ADDRESS: "0x67158C9891FB47E0Ca719263392f4657b1C75002",
 } as const;
+
+/**
+ * The one vault provider the recording's indexer lists: the only row of the
+ * recorded providers query (`vaultProviders.items`), which is every provider
+ * the deposit picker can show. A spec that links to a provider (`?vp=`) must
+ * name this one, or the link matches nothing and changes nothing.
+ */
+export const RECORDED_VAULT_PROVIDER = {
+  /** The provider's id, as the recording holds it: lowercase. */
+  ETH_ADDRESS: "0xaf8d9d665f4e27f3966a074dce5c50684bfbe358",
+  /** Its registered name, which the picker shows. */
+  NAME: "vault-provider-0",
+} as const;
