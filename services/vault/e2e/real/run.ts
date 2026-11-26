@@ -294,6 +294,20 @@ export async function runE2E(config: RunConfig): Promise<void> {
       });
     });
 
+    // Answer the cookie consent banner before first paint, so its card never covers a control the
+    // actions click. "essential" keeps the wallet's connection cookies and leaves analytics off.
+    // The record mirrors services/vault/src/storage/cookieConsentStorage.ts.
+    await context.addInitScript(() => {
+      try {
+        localStorage.setItem(
+          "tbv-cookie-consent",
+          JSON.stringify({ version: 1, choice: "essential" }),
+        );
+      } catch {
+        // storage unavailable — the banner shows, and analytics stays off without an answer.
+      }
+    });
+
     artifacts.log(`Opening ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
 

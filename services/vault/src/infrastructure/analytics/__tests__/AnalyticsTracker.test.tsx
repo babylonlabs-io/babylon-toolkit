@@ -35,6 +35,14 @@ vi.mock("@babylonlabs-io/wallet-connector/btc-eth", () => ({
   useWalletConnect: () => wallets.session,
 }));
 
+const consent = vi.hoisted(() => ({
+  value: "all" as "all" | "essential" | "denied" | null,
+}));
+
+vi.mock("@/hooks/useCookieConsent", () => ({
+  useCookieConsent: () => consent.value,
+}));
+
 vi.mock("../trackEvent", () => ({
   trackEvent: vi.fn(),
   settleGeofence: vi.fn(),
@@ -65,6 +73,7 @@ beforeEach(() => {
     });
   });
   featureFlagsMock.isExploreEnabled = true;
+  consent.value = "all";
   geoFencing.state = {
     isGeoBlocked: false,
     isLoading: false,
@@ -90,6 +99,21 @@ function trackerAt(path: string) {
 }
 
 describe("AnalyticsTracker", () => {
+  it("sends no page view before the visitor accepts all cookies, then one for the current page on Accept all", () => {
+    consent.value = null;
+    const { rerender } = render(trackerAt("/vaults"));
+    consent.value = "essential";
+    rerender(trackerAt("/vaults"));
+    expect(trackEvent).not.toHaveBeenCalled();
+
+    consent.value = "all";
+    rerender(trackerAt("/vaults"));
+
+    expect(vi.mocked(trackEvent).mock.calls).toEqual([
+      ["$pageview", { $pathname: "/vaults" }],
+    ]);
+  });
+
   it("sends a page view for each route the visitor navigates to", () => {
     render(
       <MemoryRouter initialEntries={["/markets/42"]}>

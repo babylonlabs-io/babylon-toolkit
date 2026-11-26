@@ -34,7 +34,7 @@ initEccLib(ecc);
 reportAnalyticsConfigError();
 
 // Before the first render: a redirect in the router would drop the landing
-// URL's campaign parameters.
+// URL's campaign parameters. Reads no cookie.
 captureAttribution();
 
 // Vite fires this on a dynamic-import preload failure (stale chunk 404 after a

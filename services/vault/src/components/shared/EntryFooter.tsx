@@ -14,7 +14,7 @@ const LINK_CLASS = "transition-colors hover:text-secondary-main";
  */
 export function EntryFooter() {
   return (
-    <footer className="mt-auto border-t border-secondary-strokeLight py-8">
+    <footer className="border-t border-secondary-strokeLight py-8">
       <div
         className={`${ENTRY_CONTENT_CLASS} flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between sm:gap-4`}
       >

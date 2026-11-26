@@ -1013,9 +1013,27 @@ What bounds it:
   anyone can still send fake events through it: treat event data as untrusted for attribution.
   Its abuse must be bounded by edge rate limiting on the route, a deployment control that is not
   yet in place, and by the PostHog project's billing limit.
-- **No third-party script, no storage.** Events are a plain `fetch` with `credentials: "omit"`
-  and no referrer. The visit and session ids live in memory only. The app only reads the
-  website's `bbn_src` cookie, and treats its contents as untrusted input.
+- **Off until the visitor accepts.** The cookie consent banner
+  (`services/vault/src/components/shared/CookieConsentBanner.tsx`) offers _Accept all_,
+  _Essential only_ and _Deny_. `trackEvent` sends nothing unless the answer is _Accept all_; an
+  event before that is dropped, not held. On _Accept all_ the current page view is sent. The answer
+  is kept in `localStorage` (`tbv-cookie-consent`, `cookieConsentStorage.ts`); a missing, unknown or
+  unreadable record means no answer, so analytics stays off. The banner shows only when analytics
+  is configured. There is no in-app setting to change the answer yet (#3021).
+- **No third-party script, no analytics storage.** Events are a plain `fetch` with
+  `credentials: "omit"` and no referrer. The visit and session ids live in memory only. The app only
+  reads the website's `bbn_src` cookie, when it builds the first event after _Accept all_ (the
+  geofence can still drop that event), and treats its contents as untrusted input.
+- **Wallet cookies follow the answer.** wagmi keeps the Ethereum connection in first-party
+  `wagmi.*` cookies, which are essential and are written before the visitor answers. On _Deny_
+  `walletCookieStorage.ts` deletes them, when the answer is given and on every page load after it,
+  and stops writing them; the wallet then connects again on each visit.
+- **Reown AppKit telemetry is outside the gate (known gap).** The wallet modal
+  (`@reown/appkit` 1.8.12) posts its own events to `pulse.walletconnect.org`, each with the page
+  URL and the connected address. Both AppKit initializers turn its analytics off, which stops the
+  optional events, but AppKit still sends `INITIALIZE` and `CONNECT_SUCCESS` (`MANDATORY_EVENTS`
+  in its `EventsController`) whatever the visitor answers. The CSP's `connect-src https:` does not
+  block it. Re-check this on every AppKit bump.
 - **Nothing before the geofence passes.** Every event is held in memory (at most 50) until the
   startup checks, the geofence and then the GraphQL health check, have finished, and is sent if
   the geofence passed. Held and later events are dropped for a geo-blocked visitor, who sees only
@@ -1288,7 +1306,7 @@ only repository-local safeguards.
 | Headers             | D         | App is framed for clickjacking; no HSTS on the prod origin                        | Integrity                                                               | **Known gap** — `X-Frame-Options`/HSTS are dev-server-only and cannot ship via `<meta>`                         | verify CDN configuration                                          |
 | Telemetry           | —         | Re-enabling tracing or replay transmits depositor addresses                       | Confidentiality (PII)                                                   | Both deliberately disabled with documented reasons                                                              | `telemetry.test.ts`                                               |
 | Telemetry           | —         | Refactor renames a secret-bearing field out of the denylist                       | Confidentiality of vault secrets (silent)                               | Exact-field-name denylist; binary and byte-array handling                                                       | `telemetry.test.ts`                                               |
-| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): addresses, sources, vault deposit progress, borrows and withdrawals | Accepted risk: allow-listed fields, off unless configured, GPC opts out                                         | `analytics/__tests__/trackEvent.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts`, `useDepositFlow.test.tsx`, `useBroadcastState.test.ts`, `useVaultActions.test.ts`, `useBorrowTransaction.test.tsx`, `useWithdrawCollateralTransaction.test.tsx` |
+| Telemetry           | —/G       | Analytics links a session, and a connected depositor's visits, to their identity  | Confidentiality (PII): addresses, sources, vault deposit progress, borrows and withdrawals | Accepted risk: allow-listed fields, off unless configured, off until the visitor accepts, GPC opts out          | `analytics/__tests__/trackEvent.test.ts`, `walletCookieStorage.test.ts`, `AnalyticsTracker.test.tsx`, `walletConnections.test.ts`, `useDepositFlow.test.tsx`, `useBroadcastState.test.ts`, `useVaultActions.test.ts`, `useBorrowTransaction.test.tsx`, `useWithdrawCollateralTransaction.test.tsx` |
 | Supply chain        | F         | Malicious npm release lands in the tree                                           | **Total compromise**                                                    | `minimum-release-age=1440`, frozen lockfile, store integrity, `onlyBuiltDependencies`, pinned versions          | `.npmrc`, syncpack in CI                                          |
 | Supply chain        | F         | Known-vulnerable transitive dependency ships                                      | Varies                                                                  | **Known gap** — no `pnpm audit`/SCA gate in `verify.yml`                                                        | add advisory gate                                                 |
 | Supply chain        | F         | Published SDK carries a transaction-construction bug to integrators               | User fund loss, off-repo                                                | Provenance on publish; critical-path review                                                                     | `package-release.yml`                                             |

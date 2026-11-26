@@ -245,8 +245,10 @@ Specific to this component:
   _Discard client IP data_ setting keeps the raw IP off the address. The bounds are in
   [`SECURITY.md` → _Product analytics_](../../SECURITY.md#product-analytics-posthog). Legal has
   approved sending this data, the vault id and the deposit, borrow and withdrawal milestones
-  included. The consent banner and in-app analytics setting that Legal asked for are tracked in
-  [#3009](https://github.com/babylonlabs-io/babylon-toolkit/issues/3009).
+  included. Nothing is sent until the visitor accepts all cookies on the consent banner
+  ([#3009](https://github.com/babylonlabs-io/babylon-toolkit/issues/3009)). The in-app setting to
+  change that answer is tracked in
+  [#3021](https://github.com/babylonlabs-io/babylon-toolkit/issues/3021).
 
 ### Known deviations
 

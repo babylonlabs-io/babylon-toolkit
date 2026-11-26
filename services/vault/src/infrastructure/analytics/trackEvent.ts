@@ -5,6 +5,10 @@
  * Analytics must never affect a deposit, a borrow or a withdrawal: this
  * function never throws, and a failed send is only logged.
  *
+ * Nothing is sent unless the visitor accepted all cookies on the consent
+ * banner; an event before that is dropped, not held. A held event is dropped
+ * too if the answer has changed by the time it would be sent.
+ *
  * Nothing leaves before the geofence outcome is known. Until then events are
  * held; they are sent if the visitor passed, and dropped if the visitor is
  * blocked or the region is unknown (the health check failed or never ran).
@@ -12,6 +16,7 @@
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { analyticsConfigError, ENV, type AnalyticsConfig } from "@/config/env";
+import { getCookieConsent } from "@/storage/cookieConsentStorage";
 import { toCheckedAddress } from "@/utils/addressUtils";
 
 import logger from "../logger";
@@ -154,7 +159,9 @@ export function trackEvent<E extends AnalyticsEventName>(
   config: AnalyticsConfig = ENV.ANALYTICS,
 ): void {
   try {
-    if (!config.enabled || hasOptedOut()) return;
+    if (!config.enabled || hasOptedOut() || getCookieConsent() !== "all") {
+      return;
+    }
     const resolved =
       typeof properties === "function" ? properties() : properties;
     // Built now, so a held event keeps the time and fields it was sent with.
@@ -169,7 +176,10 @@ export function trackEvent<E extends AnalyticsEventName>(
     if (heldSends.length < MAX_HELD_EVENTS) {
       // Released together while the page is open, so without keepalive:
       // browsers cap all in-flight keepalive bodies at 64 KiB together.
-      heldSends.push(() => post(config, event, body, false));
+      // Consent is checked again: another tab may have answered Deny since.
+      heldSends.push(() => {
+        if (getCookieConsent() === "all") post(config, event, body, false);
+      });
       return;
     }
     if (holdOverflowReported) return;

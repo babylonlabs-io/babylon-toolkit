@@ -110,7 +110,9 @@ describe("shared AppKit initialization", () => {
 
       expect(mocks.createAppKit).toHaveBeenCalledTimes(1);
       expect(mocks.createAppKit).toHaveBeenCalledWith(
-        expect.objectContaining({ features: { email: false, socials: false } }),
+        expect.objectContaining({
+          features: { email: false, socials: false, analytics: false },
+        }),
       );
     },
   );
