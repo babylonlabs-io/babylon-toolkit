@@ -49,9 +49,10 @@ export interface AmountSliderProps {
   onAmountChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional - if not provided, input is read-only
   /**
    * Most fraction digits the amount may carry, e.g. the token's decimals. Digits typed past it are
-   * dropped, and slider values are rounded down to it. An `amount` the parent sets (Max, a reset) is
-   * shown as given, so the parent keeps it within the same precision. Unset, input is not limited.
-   * Must be a non-negative integer: any other value throws.
+   * dropped, and slider values are rounded down to it. The slider steps in whole units of it, at
+   * least one, so rounding down never moves the thumb back. An `amount` the parent sets (Max, a
+   * reset) is shown as given, so the parent keeps it within the same precision. Unset, input is not
+   * limited. Must be a non-negative integer: any other value throws.
    */
   maxDecimals?: number;
 
@@ -170,6 +171,13 @@ export function AmountSlider({
     onSliderChange(maxDecimals === undefined ? value : truncateDecimals(value, maxDecimals));
   };
 
+  // A step finer than one unit, or not a whole number of units, lands keyboard steps on values the
+  // round-down above moves back to the previous one, so the thumb would not advance.
+  const effectiveSliderStep =
+    maxDecimals === undefined
+      ? sliderStep
+      : Math.max(truncateDecimals(sliderStep, maxDecimals), 10 ** -maxDecimals);
+
   // Determine the background color
   // If sliderBackgroundColor is explicitly provided, use it
   // Otherwise, if sliderActiveColor is provided, generate a lighter version
@@ -218,7 +226,7 @@ export function AmountSlider({
           value={sliderValue}
           min={sliderMin}
           max={sliderMax}
-          step={sliderStep}
+          step={effectiveSliderStep}
           steps={sliderSteps}
           snapToSteps={sliderSnapToSteps}
           onChange={handleSliderChange}

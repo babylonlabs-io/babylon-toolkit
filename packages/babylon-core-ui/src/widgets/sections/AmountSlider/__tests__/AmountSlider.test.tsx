@@ -49,6 +49,13 @@ describe("AmountSlider maxDecimals", () => {
     expect(onSliderChange).toHaveBeenLastCalledWith(617.283945);
   });
 
+  it("steps the slider by at least one unit of maxDecimals", () => {
+    // renderAmountSlider passes a step of 0.0000001, a tenth of a 6-decimal unit.
+    const { slider } = renderAmountSlider(6);
+
+    expect(slider).toHaveAttribute("step", "0.000001");
+  });
+
   it("rejects a maxDecimals that is not a non-negative integer", () => {
     // React logs the render error before rethrowing it; keep the test output clean.
     vi.spyOn(console, "error").mockImplementation(() => {});
