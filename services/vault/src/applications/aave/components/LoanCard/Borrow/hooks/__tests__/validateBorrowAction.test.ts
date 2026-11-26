@@ -136,39 +136,60 @@ describe("validateBorrowAction", () => {
   });
 
   it("keeps the collateral max when neither cap is known", () => {
-    expect(getBorrowLimit(100, Infinity, Infinity)).toEqual({
+    expect(getBorrowLimit(100, Infinity, Infinity, 6)).toEqual({
       max: 100,
       limitedBy: "collateral",
     });
   });
 
   it("caps at liquidity when the hub holds less than collateral allows", () => {
-    expect(getBorrowLimit(100, 50, Infinity)).toEqual({
+    expect(getBorrowLimit(100, 50, Infinity, 6)).toEqual({
       max: 50,
       limitedBy: "liquidity",
     });
   });
 
   it("caps at the borrow limit when it leaves less than liquidity", () => {
-    expect(getBorrowLimit(100, 50, 40)).toEqual({
+    expect(getBorrowLimit(100, 50, 40, 6)).toEqual({
       max: 40,
       limitedBy: "borrowLimit",
     });
   });
 
   it("caps at zero when the borrow limit is used up", () => {
-    expect(getBorrowLimit(100, 50, 0)).toEqual({
+    expect(getBorrowLimit(100, 50, 0, 6)).toEqual({
       max: 0,
       limitedBy: "borrowLimit",
     });
   });
 
+  it("floors a liquidity-bound max to the token's decimals", () => {
+    expect(getBorrowLimit(20000, 12333.3332229, Infinity, 6)).toEqual({
+      max: 12333.333222,
+      limitedBy: "liquidity",
+    });
+  });
+
+  it("floors an 18-decimal max to SAFE_TOFIXED_PRECISION places", () => {
+    expect(getBorrowLimit(1, 0.12345678901234568, Infinity, 18)).toEqual({
+      max: 0.123456789012345,
+      limitedBy: "liquidity",
+    });
+  });
+
+  it("names collateral when only flooring takes the max below the collateral max", () => {
+    expect(getBorrowLimit(100.1234567, Infinity, Infinity, 6)).toEqual({
+      max: 100.123456,
+      limitedBy: "collateral",
+    });
+  });
+
   it("names the borrow limit when it ties with liquidity, since the hub checks it first", () => {
-    expect(getBorrowLimit(100, 50, 50).limitedBy).toBe("borrowLimit");
+    expect(getBorrowLimit(100, 50, 50, 6).limitedBy).toBe("borrowLimit");
   });
 
   it("names collateral when a cap only equals the collateral max", () => {
-    expect(getBorrowLimit(50, 50, 50).limitedBy).toBe("collateral");
+    expect(getBorrowLimit(50, 50, 50, 6).limitedBy).toBe("collateral");
   });
 
   it("says the borrow limit is reached when it leaves nothing to borrow", () => {

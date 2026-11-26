@@ -56,6 +56,12 @@ import {
   watchAaveWriteRpc,
 } from "./aaveWriteRpc";
 import { installPopupApprover, sweepApprovals } from "./approver";
+import {
+  assertSignedBorrowAmount,
+  buildPrecisionProbe,
+  type PrecisionProbe,
+  typePrecisionProbe,
+} from "./borrowPrecision";
 import { goToSection } from "./navigation";
 import {
   assertAccountSentOnce,
@@ -343,6 +349,21 @@ async function fillBorrowAmount(
   await page.waitForTimeout(FORM_SETTLE_MS);
 }
 
+/**
+ * `--precision-probe`: the probe for a typed amount. The CLI refuses the flag with `--borrow-amount=max`,
+ * so Max here means the CLI check was bypassed.
+ */
+function precisionProbeFor(
+  amount: BorrowAmount,
+  reserve: BorrowReserve,
+): PrecisionProbe {
+  if (amount.mode === "max")
+    throw new Error(
+      "--precision-probe types an amount, so it cannot run with --borrow-amount=max.",
+    );
+  return buildPrecisionProbe(amount.value, reserve);
+}
+
 /** Best-effort: read the validation/availability callout body so a blocked run explains why. */
 async function readCalloutText(page: Page): Promise<string> {
   const callout = page.getByText(CALLOUT_BODY_RX).first();
@@ -555,7 +576,8 @@ async function assertBorrowDebtIncreased(
  * and collateral already present). Wrapped by `runBorrowWithOptionalPegin`, which adds the optional
  * pegin-first phase in front. Returns the reserve it borrowed from and the amount, as resolved before
  * filling the form. With `reorg`, the app's RPC shows the borrow's block reorganized out once it is
- * mined (see actions/aaveWriteRpc.ts).
+ * mined (see actions/aaveWriteRpc.ts). With `--precision-probe`, the amount is typed with one digit past
+ * the token's precision, and the signed amount is checked against the box (see actions/borrowPrecision.ts).
  */
 async function runBorrowFlow(
   ctx: ActionContext,
@@ -588,7 +610,11 @@ async function runBorrowFlow(
     .then((c) => c.currentDebtUsd)
     .catch(() => null);
   const amount = await resolveBorrowAmount(ctx, reserve);
-  await fillBorrowAmount(page, log, amount);
+  const probe = ctx.config.precisionProbe
+    ? precisionProbeFor(amount, reserve)
+    : undefined;
+  if (probe) await typePrecisionProbe(page, log, probe);
+  else await fillBorrowAmount(page, log, amount);
   const cta = await waitForBorrowCta(page, log);
 
   onStep("borrow-submit");
@@ -640,6 +666,15 @@ async function runBorrowFlow(
   }
 
   onStep("borrow-verify");
+  if (probe)
+    await assertSignedBorrowAmount(
+      ctx.config.network,
+      ctx.eth.address,
+      reserve,
+      watch,
+      probe,
+      log,
+    );
   if (injection && countBefore !== undefined) {
     await injection.probe.waitForRefusal();
     injection.probe.assertNotResent();

@@ -187,8 +187,12 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         });
         // Clamp toFixed precision to SAFE_TOFIXED_PRECISION to avoid IEEE 754
         // artifacts (e.g. (0.1).toFixed(18) === "0.100000000000000006"). The
-        // max-borrow floor in calculateMaxBorrowTokens uses the same cap so
-        // the displayed Max never exposes precision this path can't preserve.
+        // Borrow amount box and the max-borrow floor in getBorrowLimit use the
+        // same cap, so the amount carries no digit past it. toFixed is then
+        // exact only while the number holds every digit: for 6- and 8-decimal
+        // tokens at any realistic amount, but not for an 18-decimal amount
+        // with an integer part, where (9.000000000000001).toFixed(15) is
+        // "9.000000000000002".
         // parseUnits handles strings with fewer decimal places than the
         // token's decimals correctly.
         const borrowAmountBigInt = parseUnits(

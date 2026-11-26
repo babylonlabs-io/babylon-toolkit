@@ -1,6 +1,6 @@
 import React from "react";
 
-import { sanitizeNumericInput } from "../../utils/helpers";
+import { sanitizeNumericInput, truncateDecimalInput } from "../../utils/helpers";
 
 export interface BalanceDetails {
   balance: number | string;
@@ -53,11 +53,7 @@ export const AmountItem = ({
     }
 
     if (maxDecimals !== undefined && maxDecimals >= 0) {
-      const [integer, decimal] = value.split(".", 2);
-
-      if (decimal !== undefined && decimal.length > maxDecimals) {
-        value = integer + "." + decimal.slice(0, maxDecimals);
-      }
+      value = truncateDecimalInput(value, maxDecimals);
     }
 
     e.target.value = value;

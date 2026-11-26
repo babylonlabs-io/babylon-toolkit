@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Hint } from "../../../components/Hint/Hint";
 import { Slider, type SliderStep } from "../../../components/Slider";
-import { sanitizeNumericInput } from "../../../utils/helpers";
+import { sanitizeNumericInput, truncateDecimalInput, truncateDecimals } from "../../../utils/helpers";
 
 function toNumber(amount: string | number): number {
   return typeof amount === "number" ? amount : parseFloat(amount);
@@ -47,6 +47,13 @@ export interface AmountSliderProps {
    */
   currencySlot?: React.ReactNode;
   onAmountChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional - if not provided, input is read-only
+  /**
+   * Most fraction digits the amount may carry, e.g. the token's decimals. Digits typed past it are
+   * dropped, and slider values are rounded down to it. An `amount` the parent sets (Max, a reset) is
+   * shown as given, so the parent keeps it within the same precision. Unset, input is not limited.
+   * Must be a non-negative integer: any other value throws.
+   */
+  maxDecimals?: number;
 
   // Balance details
   balanceDetails?: BalanceDetails;
@@ -97,6 +104,7 @@ export function AmountSlider({
   currencyName,
   currencySlot,
   onAmountChange,
+  maxDecimals,
   sliderValue,
   sliderMin,
   sliderMax,
@@ -136,6 +144,10 @@ export function AmountSlider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount]);
 
+  if (maxDecimals !== undefined && !(Number.isInteger(maxDecimals) && maxDecimals >= 0)) {
+    throw new Error(`AmountSlider: maxDecimals must be a non-negative integer (got ${maxDecimals}).`);
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -143,14 +155,19 @@ export function AmountSlider({
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = sanitizeNumericInput(e.target.value);
-    if (value === undefined) {
+    const sanitized = sanitizeNumericInput(e.target.value);
+    if (sanitized === undefined) {
       e.target.value = rawInput;
       return;
     }
+    const value = maxDecimals === undefined ? sanitized : truncateDecimalInput(sanitized, maxDecimals);
     setRawInput(value);
     e.target.value = value;
     onAmountChange?.(e);
+  };
+
+  const handleSliderChange = (value: number) => {
+    onSliderChange(maxDecimals === undefined ? value : truncateDecimals(value, maxDecimals));
   };
 
   // Determine the background color
@@ -204,7 +221,7 @@ export function AmountSlider({
           step={sliderStep}
           steps={sliderSteps}
           snapToSteps={sliderSnapToSteps}
-          onChange={onSliderChange}
+          onChange={handleSliderChange}
           onStepsChange={onSliderStepsChange}
           variant={sliderVariant}
           activeColor={sliderActiveColor}

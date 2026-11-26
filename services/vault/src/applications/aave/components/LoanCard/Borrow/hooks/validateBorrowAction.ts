@@ -4,6 +4,8 @@
  * Validates whether user can perform the borrow action based on amount and health factor.
  */
 
+import { truncateDecimals } from "@babylonlabs-io/core-ui";
+
 import { COPY } from "@/copy";
 
 import {
@@ -25,17 +27,27 @@ export type BorrowLimit = "collateral" | "liquidity" | "borrowLimit";
  * The effective borrow max and what bounds it. Each cap is in token units, or
  * `Infinity` when its read is loading or failed.
  *
+ * The max is rounded down to the token's precision, capped at
+ * SAFE_TOFIXED_PRECISION, so Max and the top of the slider never put more
+ * digits in the amount box than typing allows.
+ *
  * @param collateralMax - What the user's collateral allows
  * @param liquidityCap - What the hub's liquidity allows
  * @param borrowLimitCap - What our spoke's draw cap on the hub still allows
+ * @param tokenDecimals - Native token decimals (e.g., 8 for WBTC, 6 for USDC)
  */
 export function getBorrowLimit(
   collateralMax: number,
   liquidityCap: number,
   borrowLimitCap: number,
+  tokenDecimals: number,
 ): { max: number; limitedBy: BorrowLimit } {
-  const max = Math.min(collateralMax, liquidityCap, borrowLimitCap);
-  if (max >= collateralMax) return { max, limitedBy: "collateral" };
+  const cappedMax = Math.min(collateralMax, liquidityCap, borrowLimitCap);
+  const max = truncateDecimals(
+    cappedMax,
+    Math.min(tokenDecimals, SAFE_TOFIXED_PRECISION),
+  );
+  if (cappedMax >= collateralMax) return { max, limitedBy: "collateral" };
   // The Hub checks the draw cap before liquidity, so the cap wins a tie.
   return {
     max,
