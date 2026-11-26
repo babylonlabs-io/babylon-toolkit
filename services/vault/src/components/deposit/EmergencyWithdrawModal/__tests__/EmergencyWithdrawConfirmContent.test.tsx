@@ -72,6 +72,27 @@ describe("EmergencyWithdrawConfirmContent — body per stuck proof", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the secret-public body, not the plain not-proven one, after a mined revert", () => {
+    renderConfirm("not-proven-secret-public");
+
+    expect(
+      screen.getByText(
+        COPY.deposit.emergencyWithdraw.bodyNotProvenSecretPublic,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.emergencyWithdraw.bodyNotProven),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns about the lost split protection for a secret-public withdraw that removes it", () => {
+    renderConfirm("not-proven-secret-public", true);
+
+    expect(
+      screen.getByText(COPY.deposit.emergencyWithdraw.splitProtectionWarning),
+    ).toBeInTheDocument();
+  });
+
   it("warns about the lost split protection for a not-proven withdraw that removes it", () => {
     renderConfirm("not-proven", true);
 

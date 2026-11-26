@@ -905,12 +905,6 @@ export function VaultsLifecycleSections({
     },
     [allActivities, emergencyWithdrawModal, handleOpenDetails],
   );
-  // From the failure screen nothing is proven: the activation just failed.
-  const { handleWithdrawClick } = emergencyWithdrawModal;
-  const handleFailedActivationWithdraw = useCallback(
-    (activity: VaultActivity) => handleWithdrawClick(activity, "not-proven"),
-    [handleWithdrawClick],
-  );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
 
@@ -1145,7 +1139,7 @@ export function VaultsLifecycleSections({
                   : null
               }
               onClose={handleViewingClose}
-              onWithdraw={handleFailedActivationWithdraw}
+              onWithdraw={emergencyWithdrawModal.handleWithdrawClick}
               withdrawOpen={emergencyWithdrawModal.withdrawing !== null}
             />
           </div>

@@ -870,7 +870,6 @@ export function DepositProgressView(props: DepositProgressViewProps) {
                     onClick={secondaryAction.onClick}
                     disabled={secondaryAction.disabled}
                     aria-describedby={secondaryExplanationId}
-                    data-testid="deposit-progress-secondary-action-button"
                   >
                     {secondaryAction.label}
                   </Button>

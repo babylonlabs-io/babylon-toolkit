@@ -13,6 +13,7 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import type { WithdrawStuckProof } from "@/components/deposit/EmergencyWithdrawModal/stuckProof";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import {
   getOptimisticDepositState,
@@ -1737,7 +1738,10 @@ describe("ResumeActivationContent — Withdraw after a failed activation", () =>
 
   function renderActivation(
     props: {
-      onWithdraw?: (activity: VaultActivity) => void;
+      onWithdraw?: (
+        activity: VaultActivity,
+        stuckProof: WithdrawStuckProof,
+      ) => void;
       withdrawOpen?: boolean;
     } = {},
   ) {
@@ -1824,9 +1828,27 @@ describe("ResumeActivationContent — Withdraw after a failed activation", () =>
 
     fireEvent.click(getByTestId("secondary-action"));
 
-    expect(onWithdraw).toHaveBeenCalledExactlyOnceWith(baseActivity);
+    expect(onWithdraw).toHaveBeenCalledExactlyOnceWith(
+      baseActivity,
+      "not-proven-secret-public",
+    );
     expect(mockHandleActivation).toHaveBeenCalledTimes(activationCalls);
     expect(mockDeriveVaultRoot).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens Withdraw with the secret still private after a pre-send refusal", async () => {
+    failedWith("pre-send-refusal");
+    const onWithdraw = vi.fn();
+
+    const { getByTestId } = renderActivation({ onWithdraw });
+    await waitFor(() => expect(getByTestId("secondary-action")).toBeTruthy());
+
+    fireEvent.click(getByTestId("secondary-action"));
+
+    expect(onWithdraw).toHaveBeenCalledExactlyOnceWith(
+      baseActivity,
+      "not-proven",
+    );
   });
 
   it("holds Withdraw while the Withdraw dialog is open", async () => {

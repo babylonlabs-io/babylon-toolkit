@@ -21,7 +21,6 @@ import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigning
 import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
-import type { VaultActivity } from "@/types/activity";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { FeeRateSelector } from "./DepositProgressView/FeeRateSelector";
@@ -98,12 +97,6 @@ export function DepositSignContent({
     allActivities: activities,
     onSuccess: refetchActivities,
   });
-  const { handleWithdrawClick } = withdrawModal;
-  // Not proven stuck: this vault's activation just failed, nothing more is known.
-  const handleWithdraw = useCallback(
-    (activity: VaultActivity) => handleWithdrawClick(activity, "not-proven"),
-    [handleWithdrawClick],
-  );
 
   const signingNotifier = useSigningNotificationOptional();
 
@@ -243,7 +236,7 @@ export function DepositSignContent({
           warnings={lastWarnings}
           autoStartAction="any"
           onClose={onClose}
-          onWithdraw={handleWithdraw}
+          onWithdraw={withdrawModal.handleWithdrawClick}
           withdrawOpen={withdrawModal.withdrawing !== null}
         />
         {withdrawModal.withdrawing && (

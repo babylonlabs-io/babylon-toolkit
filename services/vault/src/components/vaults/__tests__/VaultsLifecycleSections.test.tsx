@@ -131,13 +131,15 @@ vi.mock("@/components/simple/PostDepositContinuationContent", () => ({
     vaultIds: readonly string[];
     autoStartAction: string | null;
     onClose: () => void;
-    onWithdraw: (activity: { id: string }) => void;
+    onWithdraw: (activity: { id: string }, stuckProof: string) => void;
   }) => (
     <>
       <div data-testid="continuation-vault-ids">{vaultIds.join(",")}</div>
       <button
         data-testid="continuation-withdraw"
-        onClick={() => onWithdraw({ id: vaultIds[0] })}
+        onClick={() =>
+          onWithdraw({ id: vaultIds[0] }, "not-proven-secret-public")
+        }
       />
       <div data-testid="continuation-auto-start-action">
         {String(autoStartAction)}
@@ -780,7 +782,7 @@ describe("VaultsLifecycleSections deposit view", () => {
     );
   });
 
-  it("opens Withdraw from the deposit view's failure screen as not proven stuck", () => {
+  it("opens Withdraw from the deposit view's failure screen with the proof the screen passed", () => {
     const { deposits } = renderPendingRow(pollingResult(PROCESSING_STATE));
 
     fireEvent.click(
@@ -790,7 +792,10 @@ describe("VaultsLifecycleSections deposit view", () => {
 
     expect(
       deposits.emergencyWithdrawModal.handleWithdrawClick,
-    ).toHaveBeenCalledExactlyOnceWith({ id: ACTIVITY_ID }, "not-proven");
+    ).toHaveBeenCalledExactlyOnceWith(
+      { id: ACTIVITY_ID },
+      "not-proven-secret-public",
+    );
   });
 
   it("keeps a vault in the batch it shows while a refetch drops that vault", () => {

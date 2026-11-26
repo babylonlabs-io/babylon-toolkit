@@ -30,6 +30,7 @@ import type { Address, Hex } from "viem";
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { BtcActionGate } from "@/components/Wallet/BtcActionGate";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import type { WithdrawStuckProof } from "@/components/deposit/EmergencyWithdrawModal/stuckProof";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import {
@@ -712,7 +713,7 @@ export interface ResumeActivationContentProps {
   /** Navigates to the dashboard; drives the activated success screen's CTA. */
   onGoToDashboard: () => void;
   /** Opens the Withdraw dialog for this vault after a failed activation. */
-  onWithdraw: (activity: VaultActivity) => void;
+  onWithdraw: (activity: VaultActivity, stuckProof: WithdrawStuckProof) => void;
   /** The Withdraw dialog is open: Retry and Withdraw are held meanwhile. */
   withdrawOpen: boolean;
 }
@@ -907,8 +908,14 @@ function ResumeActivationContentConnected({
   // Opens the dialog only: its checkbox and its own derive come before any reveal.
   const handleWithdraw = useCallback(() => {
     clearStagedSecret();
-    onWithdraw(activity);
-  }, [clearStagedSecret, onWithdraw, activity]);
+    // Nothing is proven here; a mined revert has already published the secret.
+    onWithdraw(
+      activity,
+      shownErrorKind === "mined-revert"
+        ? "not-proven-secret-public"
+        : "not-proven",
+    );
+  }, [clearStagedSecret, onWithdraw, activity, shownErrorKind]);
 
   // Track the live contract status so an activation completed elsewhere
   // (another tab, a previous session) still lands on the success terminal

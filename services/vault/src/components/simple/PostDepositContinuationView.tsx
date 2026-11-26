@@ -10,6 +10,7 @@ import {
 import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
+import type { WithdrawStuckProof } from "@/components/deposit/EmergencyWithdrawModal/stuckProof";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
@@ -70,7 +71,7 @@ interface PostDepositContinuationViewProps {
   autoStartAction: PeginAction | "any" | null;
   onClose: () => void;
   /** Opens the host's Withdraw dialog for a vault whose activation failed. */
-  onWithdraw: (activity: VaultActivity) => void;
+  onWithdraw: (activity: VaultActivity, stuckProof: WithdrawStuckProof) => void;
   /** That dialog is open: the failure screen holds its buttons meanwhile. */
   withdrawOpen: boolean;
 }

@@ -3,8 +3,9 @@
  * self-contained modal (RefundModal pattern): confirmation with an explicit
  * risk acknowledgment, in-place progress on the confirm button, then a
  * terminal success screen. Never opened through the deposit multistepper.
- * Two cases (`stuckProof`): a row proven stuck, where the PegIn spent the
- * HTLC, and a failed activation, where it is not proven and may be refundable.
+ * Three cases (`stuckProof`): a row proven stuck, where the PegIn spent the
+ * HTLC; a failed activation, where it is not proven and may be refundable;
+ * and a mined activation revert, where it is not proven and the secret is public.
  *
  * The reveal path is identical to normal activation: the secret is derived
  * from the BTC wallet (`deriveHtlcSecretHex`, on-chain inputs only, buffers
