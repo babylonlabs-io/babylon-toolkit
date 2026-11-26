@@ -166,11 +166,16 @@ export function assertBuildWithinPinnedLimits(
     );
 
     if (!leg.valid) {
+      // A zero maximum is the contract's "no maximum", so the range has no
+      // upper end to print.
+      const pinnedRange =
+        buildConfig.maxPegInAmount > 0n
+          ? `${buildConfig.minimumPegInAmount} to ${buildConfig.maxPegInAmount} satoshis per BTCVault`
+          : `at least ${buildConfig.minimumPegInAmount} satoshis per BTCVault, with no maximum`;
       throw new BuildLimitsDriftError(
         `Deposit limits changed while preparing this deposit: BTCVault ` +
           `${index + 1} of ${vaultAmounts.length} falls outside the range the ` +
-          `chain now reports, ${buildConfig.minimumPegInAmount} to ` +
-          `${buildConfig.maxPegInAmount} satoshis per BTCVault.`,
+          `chain now reports, ${pinnedRange}.`,
         "amount-bounds",
       );
     }

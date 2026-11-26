@@ -80,6 +80,20 @@ describe("assertBuildWithinPinnedLimits amount bounds", () => {
     expect(message).toMatch(/200000 to 900000 satoshis/);
     expect(message).not.toMatch(/100000|0\.001/);
   });
+
+  it("reports the minimum with no upper bound, and no amount, when the pinned maximum is zero", () => {
+    // A zero maximum means the contract enforces no cap, so no range ends at 0.
+    let message = "";
+    try {
+      assertBuildWithinPinnedLimits([100_000n], config(200_000n, 0n));
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toMatch(
+      /at least 200000 satoshis per BTCVault, with no maximum/,
+    );
+    expect(message).not.toMatch(/100000|0\.001/);
+  });
 });
 
 describe("assertBuildWithinPinnedLimits caller-bug inputs", () => {
