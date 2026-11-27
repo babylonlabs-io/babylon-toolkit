@@ -158,11 +158,6 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
             markIncluded,
           );
         });
-        // "Confirming" holds through the refresh only for a mined withdrawal:
-        // one the lock's watch found after the first wait gave up never
-        // reported its inclusion, and one the user stopped waiting on is not
-        // confirming.
-        setIsConfirming(outcome === "mined");
 
         // Mark vaults as pending withdrawal before indexer updates, only once
         // the withdrawal is known to be mined
@@ -183,9 +178,15 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
 
         // Invalidate vault-related queries to refresh from indexer, also after
         // the user stopped waiting: the withdrawal may still be mined
-        await invalidateVaultQueries(queryClient);
-
+        const refresh = invalidateVaultQueries(queryClient);
+        // The progress step shows the inputs pinned at confirm, nothing the
+        // refresh brings, so a mined withdrawal ends here. Awaiting it held
+        // the step on "Confirming" for as long as a slow indexer took (#2826).
         if (outcome === "mined") return "succeeded";
+        // Stopped: the form stays open, so it shows the chain's answer before
+        // the user decides whether to try again. Not confirming while it waits.
+        setIsConfirming(false);
+        await refresh;
         setNotice(COPY.common.unconfirmedTransaction.stopped);
         return "unknown";
       } catch (error) {

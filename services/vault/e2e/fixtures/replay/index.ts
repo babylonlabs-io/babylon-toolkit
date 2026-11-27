@@ -37,6 +37,7 @@ import {
   type RecordedBackend,
   type RecordedExchange,
 } from "./recording";
+import type { StatedWrite } from "./statedWrite";
 
 /** JSON-RPC error code for `method not found`, per the spec. */
 const JSON_RPC_METHOD_NOT_FOUND = -32601;
@@ -161,6 +162,13 @@ export interface ReplayOptions {
    * name. See {@link StatedMethods}. Each one wins over the recording.
    */
   readonly statedMethods?: StatedMethods;
+  /**
+   * The node behind a transaction the spec sends - see {@link StatedWrite}.
+   * Asked before anything else, so it wins over the stated answers, the
+   * stated methods and the recording; a request it should never see is
+   * recorded in {@link ReplayBackend.misses}.
+   */
+  readonly statedWrite?: StatedWrite;
 }
 
 /** The mempool key of the wallet's UTXO list, after {@link mempoolKey}. */
@@ -278,6 +286,19 @@ export async function installRecordedBackend(
       const body = parseJson<JsonRpcRequest>(route.request().postData() ?? "");
       const id = body?.id ?? 1;
       const method = body?.method ?? "";
+
+      const written = options.statedWrite?.answer(method, body?.params ?? []);
+      if (written !== undefined) {
+        if ("miss" in written) {
+          miss(`stated write: ${written.miss}`);
+          return jsonResponse(route, {
+            jsonrpc: "2.0",
+            id,
+            error: { code: JSON_RPC_METHOD_NOT_FOUND, message: written.miss },
+          });
+        }
+        return jsonResponse(route, { jsonrpc: "2.0", id, ...written });
+      }
 
       if (method === "eth_call") {
         const [call, blockTag] = (body?.params ?? []) as [

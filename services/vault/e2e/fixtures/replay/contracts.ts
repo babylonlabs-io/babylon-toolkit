@@ -39,6 +39,7 @@ export const RECORDED_DEPLOYMENT = {
   AAVE_ADAPTER: profile.contracts.aaveAdapter as Address,
   AAVE_ADAPTER_CONFIG: profile.contracts.aaveAdapterConfig as Address,
   BTC_PRICE_FEED: profile.contracts.btcPriceFeed as Address,
+  AAVE_HUB: profile.contracts.aaveHub as Address,
   ETH_CHAIN_ID: String(profile.ethChainId),
 };
 

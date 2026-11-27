@@ -164,7 +164,24 @@ describe("useWithdrawCollateralTransaction", () => {
     expect(result.current.isConfirming).toBe(false);
   });
 
-  it("reads as confirming while it refreshes after the lock's watch finds an unconfirmed withdrawal mined", async () => {
+  it("resolves succeeded for a withdrawal mined on the first wait while the position refresh is still pending", async () => {
+    const { client, result } = setup();
+    // A refresh that never settles, as behind a stalled indexer.
+    vi.spyOn(client, "invalidateQueries").mockReturnValue(
+      new Promise<never>(() => {}),
+    );
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeWithdraw(SELECTION);
+    });
+
+    expect(resolved).toBe("succeeded");
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.isConfirming).toBe(false);
+  });
+
+  it("resolves succeeded for a withdrawal the lock's watch finds mined while the position refresh is still pending", async () => {
     const hash =
       "0x5555555555555555555555555555555555555555555555555555555555555555";
     let mine!: (receipt: unknown) => void;
@@ -184,11 +201,10 @@ describe("useWithdrawCollateralTransaction", () => {
       }),
     );
     const { client, result } = setup();
-    let refreshed!: () => void;
-    const refresh = new Promise<void>((resolve) => {
-      refreshed = resolve;
-    });
-    vi.spyOn(client, "invalidateQueries").mockImplementation(() => refresh);
+    // A refresh that never settles, as behind a stalled indexer.
+    vi.spyOn(client, "invalidateQueries").mockReturnValue(
+      new Promise<never>(() => {}),
+    );
     let withdrawing!: Promise<string>;
     await act(async () => {
       withdrawing = result.current.executeWithdraw(SELECTION);
@@ -201,21 +217,9 @@ describe("useWithdrawCollateralTransaction", () => {
         from: "0xuser",
         logs: [],
       });
+      await expect(withdrawing).resolves.toBe("succeeded");
     });
-    try {
-      await waitFor(() => {
-        expect(result.current.pendingWrite).toBeNull();
-        expect(result.current.isConfirming).toBe(true);
-      });
-      expect(result.current.isProcessing).toBe(true);
-    } finally {
-      // Ends the write either way, so the account's lock does not outlive
-      // this test.
-      await act(async () => {
-        refreshed();
-        await withdrawing;
-      });
-    }
+    expect(result.current.isProcessing).toBe(false);
     expect(result.current.isConfirming).toBe(false);
   });
 
@@ -373,6 +377,83 @@ describe("useWithdrawCollateralTransaction — transaction outcome", () => {
     );
     expect(result.current.error).toBeNull();
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
+  });
+
+  it("stops reading as confirming while it refreshes, and holds the stopped notice back, after the user stops waiting on a withdrawal seen mined", async () => {
+    vi.useFakeTimers();
+    const hash =
+      "0x5555555555555555555555555555555555555555555555555555555555555555";
+    let mine!: (receipt: unknown) => void;
+    let refreshed!: () => void;
+    const refresh = new Promise<void>((resolve) => {
+      refreshed = resolve;
+    });
+    let withdrawing: Promise<string> | undefined;
+    try {
+      try {
+        // Seen mined, then not deep enough on the chain until the test ends.
+        mockWithdraw.mockImplementation(async (...args: unknown[]) => {
+          const onIncluded = args[args.length - 1] as () => void;
+          onIncluded();
+          throw new UnconfirmedTransactionError(
+            new ContractError("timed out"),
+            {
+              hash,
+              from: "0xuser" as `0x${string}`,
+              to: "0xadapter" as `0x${string}`,
+              data: "0x",
+              nonce: null,
+              sentAtBlock: null,
+            },
+          );
+        });
+        mockWaitReceipt.mockReturnValue(
+          new Promise((resolve) => {
+            mine = resolve;
+          }),
+        );
+        const { client, result } = setup();
+        vi.spyOn(client, "invalidateQueries").mockReturnValue(refresh);
+        await act(async () => {
+          withdrawing = result.current.executeWithdraw(SELECTION);
+        });
+        expect(result.current.isConfirming).toBe(true);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);
+        });
+        const pending = result.current.pendingWrite;
+        if (pending?.phase !== "unconfirmed" || !pending.stopWaiting) {
+          throw new Error("expected the stop-waiting action to be offered");
+        }
+
+        await act(async () => {
+          pending.stopWaiting?.();
+        });
+
+        // Still processing: the withdrawal may still be mined, so it waits
+        // for the position before reporting the outcome.
+        expect(result.current.pendingWrite).toBeNull();
+        expect(result.current.isProcessing).toBe(true);
+        expect(result.current.isConfirming).toBe(false);
+        expect(result.current.notice).toBeNull();
+      } finally {
+        // Ends the withdrawal however far the test got, so the account's lock
+        // does not outlive it: the receipt ends one still waiting on it, and
+        // the refresh one the user stopped waiting on.
+        await act(async () => {
+          mine?.({
+            status: "success",
+            transactionHash: hash,
+            from: "0xuser",
+            logs: [],
+          });
+          refreshed();
+          await withdrawing;
+        });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reports an unknown outcome with the stopped notice, and does not mark the vaults withdrawing, when the user stops waiting", async () => {
