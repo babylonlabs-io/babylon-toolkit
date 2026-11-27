@@ -1,0 +1,18 @@
+{
+  "name": "mainnet",
+  "kind": "production",
+  "registryCommit": "ca9b2dc0f17e9b9d170e44613f99300e9af6f3bd",
+  "btcNetwork": "mainnet",
+  "ethChainId": 1,
+  "ethRpcUrl": "https://ethereum-rpc.publicnode.com",
+  "indexerUrl": "https://babylon-vault-indexer-api.mainnet.babylonlabs.io",
+  "vpProxyUrl": "https://vault-provider-proxy-api.mainnet.babylonlabs.io",
+  "contracts": {
+    "btcVaultRegistry": "0x8fC87a314B34371761a4F9F08cF8A0B4cB051541",
+    "aaveAdapter": "0xadca531564f3B26d0aAF48a044d741fD6cD571Ea",
+    "aaveAdapterConfig": "0xaB6900Dee104781ADFdEa151ccFf8acE47E33C54",
+    "btcPriceFeed": "0xb41E773f507F7a7EA890b1afB7d2b660c30C8B0A",
+    "aaveHub": "0xAd0fd800cbaF41a4Ced1BEa3a4f90aA18CfBC49d",
+    "aaveHubStables": "0xCca852Bc40e560adC3b1Cc58CA5b55638ce826c9"
+  }
+}
