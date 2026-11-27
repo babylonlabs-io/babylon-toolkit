@@ -16,7 +16,6 @@ import { logger } from "../../infrastructure";
 
 export type GraphQLActivityType =
   | "deposit"
-  | "withdrawal"
   | "liquidation"
   | "borrow"
   | "repay"

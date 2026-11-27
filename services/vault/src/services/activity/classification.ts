@@ -36,8 +36,9 @@ export type LiquidationClassification =
  * Classify each liquidation event as Partially / Fully Liquidated by walking
  * activities chronologically and tracking which vaults are still open at the
  * moment the liquidation lands. If any deposited vault remains uncleared
- * (not liquidated, withdrawn, or redeemed) right after this liquidation, it
- * is "Partially Liquidated"; otherwise "Fully Liquidated".
+ * (neither liquidated nor withdrawn from the position, which the indexer
+ * records as `redeem`) right after this liquidation, it is "Partially
+ * Liquidated"; otherwise "Fully Liquidated".
  *
  * This is point-in-time, not the current vault.status snapshot — a liquidation
  * that was partial at the time stays labelled partial even after later events
@@ -67,11 +68,7 @@ export function classifyLiquidations(
       deposited.add(item.vaultId);
       continue;
     }
-    if (
-      item.type === "liquidation" ||
-      item.type === "withdrawal" ||
-      item.type === "redeem"
-    ) {
+    if (item.type === "liquidation" || item.type === "redeem") {
       closed.add(item.vaultId);
     }
     if (item.type === "liquidation") {

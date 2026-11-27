@@ -4,8 +4,9 @@
  * helpers, the BTC-collateral invariant, and the BTC-vs-EVM tx-hash routing.
  *
  * Liquidation grouping lives in `classification.ts`; this file handles the
- * one-row-per-event projections (Deposit, Withdraw, Borrow, Repay, Redeem —
- * including the redemption of an expired vault).
+ * one-row-per-event projections: Deposit, Withdraw (a vault withdrawn from the
+ * Aave position), Borrow, Repay, and Redeem (the redemption of an expired
+ * vault).
  */
 
 import { formatUnits } from "viem";
@@ -84,10 +85,12 @@ export const STANDARD_TYPE_LABEL: Record<
   ActivityType
 > = {
   deposit: "Deposit",
-  withdrawal: "Withdraw",
   borrow: "Borrow",
   repay: "Repay",
-  redeem: "Redeem",
+  // The indexer records `redeem` only for a vault withdrawn from the Aave
+  // position (`withdrawCollaterals`), never for a liquidation or an expired
+  // vault. The depositor pressed Withdraw, so the row says Withdraw.
+  redeem: "Withdraw",
   // An expired vault redeemed with `claimExpiredVault` ends Redeemed like any
   // other, and the BTC goes to the depositor's payout address through the
   // same VP claim — nothing is refunded. The indexer emits no `redeem` for it
