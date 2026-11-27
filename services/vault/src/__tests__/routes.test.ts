@@ -14,9 +14,11 @@ import {
   getHubPickerSearch,
   getMarketDataRoute,
   getReserveDetailSearch,
+  getVaultProviderLink,
   opensLoanFlow,
   parseAssetParam,
   parseReserveId,
+  parseVaultProviderParam,
 } from "../routes";
 
 describe("getReserveDetailSearch", () => {
@@ -119,5 +121,42 @@ describe("parseReserveId", () => {
   it("returns null for a missing param", () => {
     expect(parseReserveId(null)).toBeNull();
     expect(parseReserveId(undefined)).toBeNull();
+  });
+});
+
+describe("parseVaultProviderParam", () => {
+  it("returns a checksummed address in lowercase", () => {
+    expect(
+      parseVaultProviderParam("0xaf8d9D665f4e27F3966a074DCE5c50684BFBE358"),
+    ).toBe("0xaf8d9d665f4e27f3966a074dce5c50684bfbe358");
+  });
+
+  it("returns a lowercase address unchanged", () => {
+    expect(
+      parseVaultProviderParam("0xaf8d9d665f4e27f3966a074dce5c50684bfbe358"),
+    ).toBe("0xaf8d9d665f4e27f3966a074dce5c50684bfbe358");
+  });
+
+  it("rejects a provider name, so a link cannot name a provider by its metadata", () => {
+    expect(parseVaultProviderParam("figment")).toBeNull();
+  });
+
+  it("rejects an absent or empty value", () => {
+    expect(parseVaultProviderParam(null)).toBeNull();
+    expect(parseVaultProviderParam(undefined)).toBeNull();
+    expect(parseVaultProviderParam("")).toBeNull();
+  });
+});
+
+describe("getVaultProviderLink", () => {
+  it("links to the app's overview with the provider in `?vp=`", () => {
+    expect(
+      getVaultProviderLink(
+        "https://btc-vaults.example",
+        "0xaf8d9d665f4e27f3966a074dce5c50684bfbe358",
+      ),
+    ).toBe(
+      "https://btc-vaults.example/?vp=0xaf8d9d665f4e27f3966a074dce5c50684bfbe358",
+    );
   });
 });

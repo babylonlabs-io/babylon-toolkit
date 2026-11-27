@@ -8,18 +8,13 @@
  * affordance.
  */
 
-import {
-  CheckIcon,
-  CopyIcon,
-  useCopy,
-  useIsTouchFirst,
-} from "@babylonlabs-io/core-ui";
+import { useIsTouchFirst } from "@babylonlabs-io/core-ui";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { twJoin } from "tailwind-merge";
 
+import { COPY } from "@/copy";
 import { truncateHash } from "@/utils/addressUtils";
 
-const COPY_ICON_SIZE = 14;
+import { CopyIconButton } from "./CopyIconButton";
 
 export type HashChain = "BTC" | "ETH";
 
@@ -48,18 +43,17 @@ export function CopyableHash({
   showChainBadge = false,
   kind = "tx",
 }: CopyableHashProps) {
-  const { isCopied, copyToClipboard } = useCopy();
   const touchFirst = useIsTouchFirst();
   const displayHash = formatForChain(hash, chain);
   const truncated = truncateHash(displayHash);
-  const copyLabel = `Copy ${chain} ${kind === "address" ? "address" : "transaction hash"} ${truncated}`;
+  const copyLabel = COPY.common.copyHashLabel(chain, kind, truncated);
 
   return (
     <span className="flex items-center gap-1.5 font-mono text-sm">
       {showChainBadge && (
         <span
           className="tracking-wide rounded border border-secondary-strokeLight px-1.5 py-0.5 font-sans text-[10px] font-medium uppercase text-accent-secondary"
-          aria-label={`${chain} chain`}
+          aria-label={COPY.common.chainBadgeLabel(chain)}
         >
           {chain}
         </span>
@@ -80,22 +74,7 @@ export function CopyableHash({
         // identical to the linked siblings sitting next to them.
         <span className="text-accent-secondary">{truncated}</span>
       )}
-      <button
-        type="button"
-        onClick={() => copyToClipboard(hash, displayHash)}
-        aria-label={copyLabel}
-        className={twJoin(
-          "flex cursor-pointer items-center text-accent-secondary transition-colors hover:text-accent-primary",
-          touchFirst &&
-            "relative before:absolute before:-inset-[13px] before:content-['']",
-        )}
-      >
-        {isCopied(hash) ? (
-          <CheckIcon size={COPY_ICON_SIZE} variant="success" />
-        ) : (
-          <CopyIcon size={COPY_ICON_SIZE} />
-        )}
-      </button>
+      <CopyIconButton value={displayHash} label={copyLabel} />
     </span>
   );
 }

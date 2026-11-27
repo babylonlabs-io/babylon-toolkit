@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
+import { useReferredVaultProvider } from "@/hooks/useReferredVaultProvider";
 import { fragmentUtxos, useUtxoFragmentCountOverride } from "@/overrides/utxos";
 import { resolveFundingInputCap } from "@/services/deposit/fundingInputCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
@@ -25,7 +26,11 @@ import {
 import { depositService } from "../../services/deposit";
 import { getVpExplorerProviderUrl } from "../../utils/explorer";
 import { formatProviderDisplayName } from "../../utils/formatting";
-import { sortVaultProviders } from "../../utils/sortVaultProviders";
+import {
+  findPinnableVaultProvider,
+  pinVaultProvider,
+  sortVaultProviders,
+} from "../../utils/sortVaultProviders";
 import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
 import {
   assertMinClaimValue,
@@ -39,6 +44,7 @@ import { usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 import { useVaultProviderCommissions } from "../useVaultProviderCommissions";
 import { useVaultProviderStats } from "../useVaultProviderStats";
+import { useVpHealthSnapshots } from "../useVpHealth";
 
 import { useAllocationPlanning } from "./useAllocationPlanning";
 import { useDepositFormErrors } from "./useDepositFormErrors";
@@ -128,8 +134,9 @@ export interface UseDepositPageFormResult {
   isLoadingApplications: boolean;
   /**
    * Vault providers for the picker — sorted (most recent successful peg-in
-   * first, problematic providers last) and enriched with commission, total
-   * active BTC, health, and explorer link.
+   * first, problematic providers last), with the provider a vault provider
+   * link names pinned first when it is healthy and usable, and enriched with
+   * commission, total active BTC, health, and explorer link.
    */
   providers: VaultProviderListItem[];
   isLoadingProviders: boolean;
@@ -317,6 +324,15 @@ export function useDepositPageForm({
 
   const isLoadingProviders = isLoadingRegistry || isLoadingStats;
 
+  // The provider a vault provider link (`?vp=`) referred this visitor to,
+  // held back until the first `/vp-health` answer: before it every provider
+  // looks healthy and enabled, so the link could pin or preselect one the
+  // answer then shows to be unhealthy or disabled. `fetchVpHealth` resolves
+  // failures to `[]`, so this always settles.
+  const referredProviderId = useReferredVaultProvider();
+  const isVpHealthSettled = useVpHealthSnapshots() !== undefined;
+  const pinnableReferralId = isVpHealthSettled ? referredProviderId : null;
+
   const providers = useMemo<VaultProviderListItem[]>(() => {
     const items: VaultProviderListItem[] = rawProviders.map((p) => {
       const unavailableReason = vaultProviderUnavailableReason(p);
@@ -336,8 +352,21 @@ export function useDepositPageForm({
         explorerUrl: getVpExplorerProviderUrl(p.id),
       };
     });
-    return sortVaultProviders(items);
-  }, [rawProviders, unhealthyVpIds, statsById, commissionsById]);
+    return pinVaultProvider(sortVaultProviders(items), pinnableReferralId);
+  }, [
+    rawProviders,
+    unhealthyVpIds,
+    statsById,
+    commissionsById,
+    pinnableReferralId,
+  ]);
+
+  // The referred provider's id exactly as the list holds it: the picker
+  // matches the selection with `===`, and the link's address may differ in
+  // case. Null while health is unknown, and when the provider is not listed
+  // or is problematic.
+  const preselectedProviderId =
+    findPinnableVaultProvider(providers, pinnableReferralId)?.id ?? null;
 
   // Derive selected VP's BTC pubkey and VK BTC pubkeys for challenger count
   const selectedVpBtcPubkey = useMemo(() => {
@@ -414,6 +443,17 @@ export function useDepositPageForm({
     },
     [clearFieldError],
   );
+
+  // Preselect the referred provider while nothing is selected: on each open
+  // of the form (`resetForm` empties the selection) and whenever the
+  // provider list or the referral resolves later. Never replaces a provider
+  // the depositor chose.
+  useEffect(() => {
+    if (formData.selectedProvider !== "" || preselectedProviderId === null) {
+      return;
+    }
+    setFormData({ selectedProvider: preselectedProviderId });
+  }, [formData.selectedProvider, preselectedProviderId, setFormData]);
 
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;

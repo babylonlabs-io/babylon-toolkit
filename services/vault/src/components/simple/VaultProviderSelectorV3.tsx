@@ -8,16 +8,21 @@ import {
 import { IoCheckmarkCircle, IoChevronUp, IoWarning } from "react-icons/io5";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
-import { ExplorerLink } from "@/components/shared";
+import { CopyIconButton, ExplorerLink } from "@/components/shared";
 import { VAULT_PROVIDER_DOCS_URL } from "@/constants";
 import { COPY } from "@/copy";
+import { useReferredVaultProvider } from "@/hooks/useReferredVaultProvider";
+import { getVaultProviderLink } from "@/routes";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 import {
   formatBasisPointsAsPercent,
   formatBtcFromSats,
   formatTimeAgo,
 } from "@/utils/formatting";
-import { isProblematicVaultProvider } from "@/utils/sortVaultProviders";
+import {
+  findPinnableVaultProvider,
+  isProblematicVaultProvider,
+} from "@/utils/sortVaultProviders";
 
 const FORM_COPY = COPY.deposit.form;
 
@@ -96,6 +101,17 @@ export function VaultProviderSelectorV3({
   // starts. A divider is only meaningful when healthy providers precede it.
   const firstProblematicIndex = providers.findIndex(isProblematicVaultProvider);
 
+  // A vault provider link pins its provider above the sorted list (see
+  // `pinVaultProvider`), once that provider's health is known. The note
+  // follows the list: it says the linked provider comes first only while that
+  // provider is the first row.
+  const pinnedProvider = findPinnableVaultProvider(
+    providers,
+    useReferredVaultProvider(),
+  );
+  const hasPinnedProvider =
+    pinnedProvider !== undefined && providers[0] === pinnedProvider;
+
   return (
     <Accordion expanded={expanded}>
       <Card variant="filled" className="!rounded-lg !p-0">
@@ -142,7 +158,9 @@ export function VaultProviderSelectorV3({
                 )}
               </span>
               <span className="text-xs text-accent-secondary">
-                {FORM_COPY.providerSortNote}
+                {hasPinnedProvider
+                  ? FORM_COPY.providerSortNotePinned
+                  : FORM_COPY.providerSortNote}
               </span>
             </span>
           )}
@@ -172,9 +190,17 @@ export function VaultProviderSelectorV3({
                   {index === firstProblematicIndex && index > 0 && (
                     <div className="h-px w-full bg-secondary-strokeLight" />
                   )}
-                  {/* Keep the selection button and explorer link separate.
-                      Reserve the link column on every row. */}
-                  <div className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[minmax(0,1fr)_16px] items-center gap-2 rounded-md px-2 py-2">
+                  {/* Keep the selection button separate from the explorer
+                      link and copy button, so neither icon selects the row.
+                      Below md the icons stack in the 16px column and 8px gap
+                      the row has always had, so the metric columns keep their
+                      width; from md they sit side by side. The explorer slot
+                      is reserved on every row so the copy icons line up.
+                      Below md the copy button's enlarged touch target extends
+                      only above and below the icon, so it never covers the
+                      selection button beside it; from md the explorer link
+                      sits between them. */}
+                  <div className="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[minmax(0,1fr)_16px] items-center gap-2 rounded-md px-2 py-2 md:grid-cols-[minmax(0,1fr)_46px]">
                     <button
                       type="button"
                       disabled={isDisabled}
@@ -234,12 +260,24 @@ export function VaultProviderSelectorV3({
                         )}
                       </span>
                     </button>
-                    {provider.explorerUrl && (
-                      <ExplorerLink
-                        href={provider.explorerUrl}
-                        label={FORM_COPY.providerExplorerLinkLabel}
+                    <span className="flex flex-col items-center gap-6 md:flex-row md:justify-end md:gap-4">
+                      {provider.explorerUrl ? (
+                        <ExplorerLink
+                          href={provider.explorerUrl}
+                          label={FORM_COPY.providerExplorerLinkLabel}
+                        />
+                      ) : (
+                        <span className="size-4" />
+                      )}
+                      <CopyIconButton
+                        value={getVaultProviderLink(
+                          window.location.origin,
+                          provider.id,
+                        )}
+                        label={FORM_COPY.providerCopyLinkLabel(provider.name)}
+                        touchTarget="verticalBelowMd"
                       />
-                    )}
+                    </span>
                   </div>
                 </div>
               );
