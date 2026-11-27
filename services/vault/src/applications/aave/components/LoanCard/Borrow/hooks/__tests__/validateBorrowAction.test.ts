@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../../constants";
-import { getBorrowLimit, validateBorrowAction } from "../validateBorrowAction";
+import {
+  getBorrowLimit,
+  hasReachedSafeModeLimit,
+  validateBorrowAction,
+} from "../validateBorrowAction";
 
 const HF_TOO_LOW_MESSAGE = `Borrowing this amount would drop your health factor below ${MIN_HEALTH_FACTOR_FOR_BORROW}, risking liquidation. Reduce the amount and try again.`;
 
@@ -239,6 +243,57 @@ describe("validateBorrowAction", () => {
     });
   });
 
+  it("with Safe mode off, blocks a borrow that leaves HF below 1", () => {
+    const result = validateBorrowAction(
+      100,
+      0.99,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+      "collateral",
+      false,
+    );
+
+    expect(result.isDisabled).toBe(true);
+    expect(result.errorMessage).toBe(
+      "Your health factor must stay above 1. Reduce the borrow amount and try again.",
+    );
+  });
+
+  it("with Safe mode off, blocks a borrow that leaves HF at exactly 1", () => {
+    const result = validateBorrowAction(
+      100,
+      1,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+      "collateral",
+      false,
+    );
+
+    expect(result.isDisabled).toBe(true);
+  });
+
+  it("with Safe mode off, allows a borrow that leaves HF above 1 and below 1.05", () => {
+    const result = validateBorrowAction(
+      100,
+      1.01,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+      "collateral",
+      false,
+    );
+
+    expect(result.isDisabled).toBe(false);
+  });
+
   it("enables borrow when amount is valid and HF is safe", () => {
     const result = validateBorrowAction(
       5000,
@@ -372,5 +427,150 @@ describe("validateBorrowAction", () => {
     expect(result.errorMessage).toBe(
       "The maximum borrowable amount is 0.0000099 WBTC on Core Hub. Enter a lower amount and try again.",
     );
+  });
+});
+
+describe("hasReachedSafeModeLimit", () => {
+  it("is reached when Safe mode has no room and Safe mode off has room", () => {
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0,
+        safeModeOffMaxBorrowAmount: 50,
+        liquidityCap: Infinity,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 6,
+        tokenPriceUsd: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("is reached when Safe mode has less than a cent of room", () => {
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0.003,
+        safeModeOffMaxBorrowAmount: 379,
+        liquidityCap: Infinity,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 6,
+        tokenPriceUsd: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("is not reached while Safe mode has exactly a cent of room", () => {
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0.01,
+        safeModeOffMaxBorrowAmount: 105,
+        liquidityCap: Infinity,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 6,
+        tokenPriceUsd: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("is reached when Safe mode off has exactly a cent of room", () => {
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0,
+        safeModeOffMaxBorrowAmount: 0.01,
+        liquidityCap: Infinity,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 6,
+        tokenPriceUsd: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("is not reached while Safe mode has a few dollars of WBTC room", () => {
+    // 0.00005 WBTC at $90,000 is $4.50 of room with Safe mode on.
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0.00005,
+        safeModeOffMaxBorrowAmount: 0.02,
+        liquidityCap: Infinity,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 8,
+        tokenPriceUsd: 90_000,
+      }),
+    ).toBe(false);
+  });
+
+  it("is reached when Safe mode has less than a cent of WBTC room", () => {
+    // 0.0000001 WBTC at $90,000 is $0.009 of room with Safe mode on.
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0.0000001,
+        safeModeOffMaxBorrowAmount: 0.02,
+        liquidityCap: Infinity,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 8,
+        tokenPriceUsd: 90_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("is not reached when truncating a cap to the token's decimals leaves nothing for Safe mode off", () => {
+    // 0.0000009 at $90,000 is $0.081 before truncation, but 0 at 6 decimals.
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0,
+        safeModeOffMaxBorrowAmount: 1,
+        liquidityCap: 0.0000009,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 6,
+        tokenPriceUsd: 90_000,
+      }),
+    ).toBe(false);
+  });
+
+  it("is not reached when the hub has no liquidity for Safe mode off either", () => {
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0,
+        safeModeOffMaxBorrowAmount: 50,
+        liquidityCap: 0,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 6,
+        tokenPriceUsd: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("is not reached when the hub's borrow limit leaves nothing for Safe mode off either", () => {
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: true,
+        maxBorrowAmount: 0,
+        safeModeOffMaxBorrowAmount: 50,
+        liquidityCap: Infinity,
+        borrowLimitCap: 0,
+        tokenDecimals: 6,
+        tokenPriceUsd: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("is not reached with Safe mode off", () => {
+    expect(
+      hasReachedSafeModeLimit({
+        safeMode: false,
+        maxBorrowAmount: 0,
+        safeModeOffMaxBorrowAmount: 50,
+        liquidityCap: Infinity,
+        borrowLimitCap: Infinity,
+        tokenDecimals: 6,
+        tokenPriceUsd: 1,
+      }),
+    ).toBe(false);
   });
 });

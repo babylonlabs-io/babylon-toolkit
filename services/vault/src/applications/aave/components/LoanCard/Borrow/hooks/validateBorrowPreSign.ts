@@ -1,6 +1,7 @@
 /**
  * Refetches every signing input from chain at submit time: CF/LB
- * (audit #260), account position, and the oracle price. Without the
+ * (audit #260), account position, the oracle price, and the Hub's drawn
+ * index. Without the
  * fresh oracle read, the React Query cache was the only input that could
  * stay up to 60s stale through a price move.
  */
@@ -10,17 +11,12 @@ import { COPY } from "@/copy";
 import { ContractError, ErrorCode } from "@/utils/errors";
 import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
 
+import { getAssetDrawnIndex } from "../../../../clients/aaveHub";
 import { getReservesPrices } from "../../../../clients/aaveOracle";
-import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
+import { BPS_SCALE, MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
 import type { VaultSplitParams } from "../../../../hooks/useVaultSplitParams";
 import type { AavePositionWithLiveData } from "../../../../services";
-import {
-  aaveRayValueToUsd,
-  aaveValueToUsd,
-  assertCfUnchanged,
-  calculateHealthFactor,
-  formatHealthFactor,
-} from "../../../../utils";
+import { assertCfUnchanged, formatHealthFactor } from "../../../../utils";
 import {
   BorrowReserveCapUnavailableError,
   isReserveSelectable,
@@ -28,15 +24,22 @@ import {
   type BorrowReserveCap,
 } from "../../../../utils/borrowReserveLimit";
 
-/** Aave oracle base unit (Spoke.ORACLE_DECIMALS = 8). */
-const ORACLE_SCALE = 1e8;
+const WAD = 10n ** 18n;
+const RAY = 10n ** 27n;
+const MIN_SAFE_HEALTH_FACTOR_WAD = BigInt(
+  MIN_HEALTH_FACTOR_FOR_BORROW * Number(WAD),
+);
 
 export interface ValidateBorrowPreSignDeps {
-  borrowAmount: number;
+  borrowAmountRaw: bigint;
+  tokenDecimals: number;
   /** Aave on-chain oracle address (resolved upstream and cached). */
   oracleAddress: Address;
   /** Reserve ID of the borrow asset. */
   reserveId: bigint;
+  hub: Address;
+  assetId: number;
+  safeMode?: boolean;
   /**
    * Liquidation threshold (in BPS) the user saw on the displayed metrics.
    * Compared against the freshly-fetched value to detect on-chain CF moves
@@ -52,18 +55,20 @@ export interface ValidateBorrowPreSignDeps {
   chainMaxBorrowReserves: BorrowReserveCap;
 }
 
-/** Throws if the projected post-borrow HF would fall below MIN_HEALTH_FACTOR_FOR_BORROW, or any input is stale/missing. */
+/** Check fresh data and the amount the wallet will sign. */
 export async function validateBorrowPreSign({
-  borrowAmount,
+  borrowAmountRaw,
+  tokenDecimals,
   oracleAddress,
   reserveId,
+  hub,
+  assetId,
+  safeMode = true,
   liquidationThresholdBps,
   refetchSplitParams,
   refetchPosition,
   chainMaxBorrowReserves,
 }: ValidateBorrowPreSignDeps): Promise<void> {
-  // Ahead of every read and of the first-borrow early return: without the cap
-  // there is no way to tell whether the Spoke would accept this reserve.
   if (chainMaxBorrowReserves.status === "unavailable") {
     throw new BorrowReserveCapUnavailableError({
       cause: chainMaxBorrowReserves.error,
@@ -72,17 +77,29 @@ export async function validateBorrowPreSign({
   const maxBorrowReserves = chainMaxBorrowReserves.limit;
 
   // AaveOracle reverts on missing source or non-positive underlying price
-  // (`InvalidSource` / `InvalidPrice`), so a returned value is always > 0.
-  const [{ freshLiquidationThresholdBps }, freshPosition, freshPriceRaw] =
-    await Promise.all([
-      assertCfUnchanged({ liquidationThresholdBps, refetchSplitParams }),
-      refetchPosition(),
-      getReservesPrices(oracleAddress, [reserveId]).then(([raw]) => raw),
-    ]);
+  // (`InvalidSource` / `InvalidPrice`). The check below still rejects a
+  // missing or non-positive price, and a non-positive drawn index.
+  const [
+    { freshLiquidationThresholdBps },
+    freshPosition,
+    freshPriceRaw,
+    drawnIndex,
+  ] = await Promise.all([
+    assertCfUnchanged({ liquidationThresholdBps, refetchSplitParams }),
+    refetchPosition(),
+    getReservesPrices(oracleAddress, [reserveId]).then(([raw]) => raw),
+    getAssetDrawnIndex(hub, assetId),
+  ]);
 
-  const freshTokenPriceUsd = Number(freshPriceRaw) / ORACLE_SCALE;
-
-  if (!freshPosition) return; // No position = first borrow, skip revalidation
+  if (!freshPosition) {
+    throw new Error(COPY.loans.borrowPositionUnavailable);
+  }
+  if (freshPriceRaw === undefined || freshPriceRaw <= 0n || drawnIndex <= 0n) {
+    throw new Error(COPY.loans.borrowMarketDataUnavailable);
+  }
+  if (borrowAmountRaw <= 0n) {
+    throw new Error(COPY.loans.borrow.amountTooSmall);
+  }
 
   // The pickers grey out a reserve the Spoke would reject, but the market
   // page's Borrow action, the in-form asset dropdown and a pasted reserve link
@@ -111,25 +128,27 @@ export async function validateBorrowPreSign({
     );
   }
 
-  const freshCollateralUsd = aaveValueToUsd(
-    freshPosition.accountData.totalCollateralValue,
-  );
-  const freshDebtUsd = aaveRayValueToUsd(
-    freshPosition.accountData.totalDebtValueRay,
-  );
-  const projectedDebtUsd = freshDebtUsd + borrowAmount * freshTokenPriceUsd;
-  const projectedHF = calculateHealthFactor(
-    freshCollateralUsd,
-    projectedDebtUsd,
-    freshLiquidationThresholdBps,
-  );
+  // The Hub rounds new debt shares up. Account values use 26 decimals and
+  // oracle prices use 8. Multiply by WAD to convert the price to account units.
+  const drawnShares = (borrowAmountRaw * RAY + drawnIndex - 1n) / drawnIndex;
+  const tokenScale = 10n ** BigInt(tokenDecimals);
+  const addedDebtValueRay =
+    (drawnShares * drawnIndex * freshPriceRaw * WAD + tokenScale - 1n) /
+    tokenScale;
+  const { totalCollateralValue, totalDebtValueRay } = freshPosition.accountData;
+  const healthFactorWad =
+    (totalCollateralValue * BigInt(freshLiquidationThresholdBps) * RAY * WAD) /
+    (BigInt(BPS_SCALE) * (totalDebtValueRay + addedDebtValueRay));
 
-  if (isFinite(projectedHF) && projectedHF < MIN_HEALTH_FACTOR_FOR_BORROW) {
+  if (safeMode && healthFactorWad < MIN_SAFE_HEALTH_FACTOR_WAD) {
     throw new Error(
       COPY.loans.borrowHealthFactorChangedError(
-        formatHealthFactor(projectedHF),
+        formatHealthFactor(Number(healthFactorWad) / Number(WAD)),
         MIN_HEALTH_FACTOR_FOR_BORROW,
       ),
     );
+  }
+  if (healthFactorWad <= WAD) {
+    throw new Error(COPY.loans.validation.liquidationLimit);
   }
 }

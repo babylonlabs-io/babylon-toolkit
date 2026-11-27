@@ -5,7 +5,7 @@ import {
   type AssetDrawnRateRequest,
   type AssetDrawnRateResult,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import type { Abi, Address } from "viem";
+import { parseAbi, type Abi, type Address } from "viem";
 
 import { logger } from "@/infrastructure";
 import { getHubIdentity } from "@/services/aave/hubRegistry";
@@ -20,6 +20,17 @@ export async function getAssetDrawnRatesSafe(
 }
 
 export type { AssetDrawnRateRequest, AssetDrawnRateResult };
+
+export function getAssetDrawnIndex(hub: Address, assetId: number) {
+  return ethClient.getPublicClient().readContract({
+    address: hub,
+    abi: parseAbi([
+      "function getAssetDrawnIndex(uint256 assetId) view returns (uint256)",
+    ]),
+    functionName: "getAssetDrawnIndex",
+    args: [BigInt(assetId)],
+  });
+}
 
 /** RAY fixed-point scale Aave uses for rates (1e27 = 100%). */
 const RAY = 10n ** 27n;

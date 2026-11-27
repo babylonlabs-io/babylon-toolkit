@@ -79,7 +79,10 @@ export interface UseBorrowTransactionResult {
   executeBorrow: (
     borrowAmount: number,
     reserve: AaveReserveConfig,
-    preSignValidation?: () => Promise<void>,
+    preSignValidation?: (
+      amountRaw: bigint,
+      tokenDecimals: number,
+    ) => Promise<void>,
   ) => Promise<AaveActionResult>;
   /** Whether transaction is currently processing */
   isProcessing: boolean;
@@ -132,7 +135,10 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
   const executeBorrow = async (
     borrowAmount: number,
     reserve: AaveReserveConfig,
-    preSignValidation?: () => Promise<void>,
+    preSignValidation?: (
+      amountRaw: bigint,
+      tokenDecimals: number,
+    ) => Promise<void>,
   ): Promise<AaveActionResult> => {
     if (borrowAmount <= 0) return "failed";
 
@@ -205,7 +211,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         // Pre-sign revalidation: refetch position and recheck health factor
         // before submitting the on-chain transaction. Throws if unsafe.
         if (preSignValidation) {
-          await preSignValidation();
+          await preSignValidation(borrowAmountBigInt, onChainDecimals);
         }
 
         // Adapter resolves borrower's proxy from msg.sender

@@ -5,22 +5,33 @@ import {
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../../../../clients/aaveHub", () => ({
+  getAssetDrawnIndex: vi.fn(),
+}));
 vi.mock("../../../../../clients/aaveOracle", () => ({
   getReservesPrices: vi.fn(),
 }));
 
 import { ContractError } from "@/utils/errors";
 
+import { getAssetDrawnIndex } from "../../../../../clients/aaveHub";
 import { getReservesPrices } from "../../../../../clients/aaveOracle";
 import type { AavePositionWithLiveData } from "../../../../../services";
 import { BorrowReserveCapUnavailableError } from "../../../../../utils/borrowReserveLimit";
 import { validateBorrowPreSign } from "../validateBorrowPreSign";
 
-const ORACLE = "0x0000000000000000000000000000000000000002" as Address;
 const RESERVE_ID = 2n;
+const BORROW_ASSET = {
+  oracleAddress: "0x0000000000000000000000000000000000000002" as Address,
+  reserveId: RESERVE_ID,
+  hub: "0x0000000000000000000000000000000000000003" as Address,
+  assetId: 2,
+  tokenDecimals: 0,
+};
 
 const USD_COLLATERAL = 10n ** BigInt(AAVE_BASE_CURRENCY_DECIMALS);
 const USD_DEBT_RAY = 10n ** BigInt(AAVE_BASE_CURRENCY_RAY_DECIMALS);
+const RAY = USD_DEBT_RAY / USD_COLLATERAL;
 
 /** Aave oracle is 8-decimal. $1 = 100_000_000n. */
 const PRICE_1USD_RAW = 100_000_000n;
@@ -48,6 +59,7 @@ describe("validateBorrowPreSign", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getReservesPrices).mockResolvedValue([PRICE_1USD_RAW]);
+    vi.mocked(getAssetDrawnIndex).mockResolvedValue(RAY);
   });
 
   it("throws when refetchSplitParams returns null", async () => {
@@ -56,9 +68,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -81,9 +92,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -92,7 +102,7 @@ describe("validateBorrowPreSign", () => {
     ).rejects.toThrow("Risk parameters have changed");
   });
 
-  it("skips revalidation when refetchPosition returns null (first borrow)", async () => {
+  it("rejects a borrow when the position is unavailable", async () => {
     const refetchSplitParams = vi.fn().mockResolvedValue({
       THF: 1.1,
       expectedHF: 0.95,
@@ -106,15 +116,14 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
         chainMaxBorrowReserves: { status: "loaded", limit: null },
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow("Could not verify your position");
 
     expect(refetchSplitParams).toHaveBeenCalledTimes(1);
     expect(refetchPosition).toHaveBeenCalledTimes(1);
@@ -136,9 +145,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 1000,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 1000n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -163,9 +171,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 999,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 999n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -192,9 +199,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 715,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 715n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -227,9 +233,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 1,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 1n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -246,9 +251,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -257,10 +261,11 @@ describe("validateBorrowPreSign", () => {
     ).rejects.toThrow("RPC failure");
   });
 
-  it("runs all three refetches in parallel for click-path latency", async () => {
+  it("runs all four refetches in parallel for click-path latency", async () => {
     const splitParamsCallStarted = vi.fn();
     const positionCallStarted = vi.fn();
     const priceCallStarted = vi.fn();
+    const drawnIndexCallStarted = vi.fn();
 
     const refetchSplitParams = vi.fn(async () => {
       splitParamsCallStarted();
@@ -277,17 +282,20 @@ describe("validateBorrowPreSign", () => {
     });
     const refetchPosition = vi.fn(async () => {
       positionCallStarted();
-      return null;
+      return makePosition(1000n * USD_COLLATERAL, 0n);
     });
     vi.mocked(getReservesPrices).mockImplementation(async () => {
       priceCallStarted();
       return [PRICE_1USD_RAW];
     });
+    vi.mocked(getAssetDrawnIndex).mockImplementation(async () => {
+      drawnIndexCallStarted();
+      return RAY;
+    });
 
     await validateBorrowPreSign({
-      borrowAmount: 100,
-      oracleAddress: ORACLE,
-      reserveId: RESERVE_ID,
+      ...BORROW_ASSET,
+      borrowAmountRaw: 100n,
       liquidationThresholdBps: 7500,
       refetchSplitParams,
       refetchPosition,
@@ -297,6 +305,7 @@ describe("validateBorrowPreSign", () => {
     expect(splitParamsCallStarted).toHaveBeenCalledTimes(1);
     expect(positionCallStarted).toHaveBeenCalledTimes(1);
     expect(priceCallStarted).toHaveBeenCalledTimes(1);
+    expect(drawnIndexCallStarted).toHaveBeenCalledTimes(1);
   });
 
   it("uses fresh debt from refetched position, not stale UI state", async () => {
@@ -317,9 +326,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -327,19 +335,16 @@ describe("validateBorrowPreSign", () => {
       }),
     ).rejects.toThrow(/Projected health factor/);
   });
-  it("refuses to sign when the Spoke's cap could not be read, even on a first borrow", async () => {
+  it("refuses to sign when the Spoke's cap could not be read, even when the position is unavailable", async () => {
     const refetchSplitParams = vi
       .fn()
       .mockResolvedValue({ THF: 1.1, CF: 0.75, LB: 1.05 });
-    // No position: without the cap check ahead of the early return, a first
-    // borrow would pass unchecked.
     const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams,
         refetchPosition,
@@ -369,9 +374,8 @@ describe("validateBorrowPreSign", () => {
 
     function validateAtCap(owedReserveId: bigint) {
       return validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams: vi
           .fn()
@@ -412,9 +416,8 @@ describe("validateBorrowPreSign", () => {
 
     await expect(
       validateBorrowPreSign({
-        borrowAmount: 100,
-        oracleAddress: ORACLE,
-        reserveId: RESERVE_ID,
+        ...BORROW_ASSET,
+        borrowAmountRaw: 100n,
         liquidationThresholdBps: 7500,
         refetchSplitParams: vi
           .fn()
@@ -423,5 +426,107 @@ describe("validateBorrowPreSign", () => {
         chainMaxBorrowReserves: { status: "loaded", limit: 2 },
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("allows a borrow that leaves health factor at exactly 1.05", async () => {
+    // $1,050 collateral at LT 75% against a $750 borrow: HF = 787.5 / 750 = 1.05.
+    await expect(
+      validateBorrowPreSign({
+        ...BORROW_ASSET,
+        borrowAmountRaw: 750n,
+        liquidationThresholdBps: 7500,
+        refetchSplitParams: vi.fn().mockResolvedValue({ CF: 0.75 }),
+        refetchPosition: vi
+          .fn()
+          .mockResolvedValue(makePosition(1050n * USD_COLLATERAL, 0n)),
+        chainMaxBorrowReserves: { status: "loaded", limit: null },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  describe("market data and amount checks", () => {
+    // $1,000 collateral at LT 78% with $500 of debt: a $100 borrow leaves
+    // HF = 780 / 600 = 1.3, so only the check under test can reject it.
+    function validateBorrow(borrowAmountRaw: bigint) {
+      return validateBorrowPreSign({
+        ...BORROW_ASSET,
+        borrowAmountRaw,
+        liquidationThresholdBps: 7800,
+        refetchSplitParams: vi.fn().mockResolvedValue({ CF: 0.78 }),
+        refetchPosition: vi
+          .fn()
+          .mockResolvedValue(
+            makePosition(1000n * USD_COLLATERAL, 500n * USD_DEBT_RAY),
+          ),
+        chainMaxBorrowReserves: { status: "loaded", limit: null },
+      });
+    }
+
+    it("rejects a borrow when the oracle returns no price", async () => {
+      vi.mocked(getReservesPrices).mockResolvedValueOnce([]);
+
+      await expect(validateBorrow(100n)).rejects.toThrow(
+        "Could not read the current market data for this asset",
+      );
+    });
+
+    it("rejects a borrow when the oracle price is zero", async () => {
+      vi.mocked(getReservesPrices).mockResolvedValueOnce([0n]);
+
+      await expect(validateBorrow(100n)).rejects.toThrow(
+        "Could not read the current market data for this asset",
+      );
+    });
+
+    it("rejects a borrow when the drawn index is zero", async () => {
+      vi.mocked(getAssetDrawnIndex).mockResolvedValueOnce(0n);
+
+      await expect(validateBorrow(100n)).rejects.toThrow(
+        "Could not read the current market data for this asset",
+      );
+    });
+
+    it("rejects a zero borrow amount", async () => {
+      await expect(validateBorrow(0n)).rejects.toThrow("Amount too small");
+    });
+  });
+
+  describe("with Safe mode off", () => {
+    function validateBorrow(borrowAmountRaw: bigint, tokenDecimals = 0) {
+      return validateBorrowPreSign({
+        ...BORROW_ASSET,
+        borrowAmountRaw,
+        tokenDecimals,
+        safeMode: false,
+        liquidationThresholdBps: 7800,
+        refetchSplitParams: vi.fn().mockResolvedValue({ CF: 0.78 }),
+        refetchPosition: vi
+          .fn()
+          .mockResolvedValue(makePosition(1000n * USD_COLLATERAL, 0n)),
+        chainMaxBorrowReserves: { status: "loaded", limit: null },
+      });
+    }
+
+    it("allows a borrow that leaves health factor above 1", async () => {
+      await expect(validateBorrow(779_999_999n, 6)).resolves.toBeUndefined();
+      expect(getAssetDrawnIndex).toHaveBeenCalledWith(
+        BORROW_ASSET.hub,
+        BORROW_ASSET.assetId,
+      );
+    });
+
+    it("rejects a borrow that leaves health factor at exactly 1", async () => {
+      await expect(validateBorrow(780n)).rejects.toThrow(/health factor/i);
+    });
+
+    it("rejects a borrow that leaves health factor below 1", async () => {
+      await expect(validateBorrow(781n)).rejects.toThrow(/health factor/i);
+    });
+
+    it("rejects a borrow when rounded debt shares leave health factor at 1", async () => {
+      vi.mocked(getAssetDrawnIndex).mockResolvedValueOnce(2n * RAY);
+
+      await expect(validateBorrow(779n)).rejects.toThrow(/health factor/i);
+    });
   });
 });

@@ -25,6 +25,20 @@ describe("calculateMaxBorrowTokens", () => {
     expect(result).toBe(Math.floor(expectedUsd * 1e6) / 1e6);
   });
 
+  it("caps max borrow at the liquidation limit with Safe mode off", () => {
+    // $10,000 collateral, 80% LT, no existing debt, $1 token: 8000 * 0.995
+    const result = calculateMaxBorrowTokens({
+      collateralValueUsd: 10000,
+      currentDebtUsd: 0,
+      liquidationThresholdBps: 8000,
+      tokenPriceUsd: 1,
+      tokenDecimals: 6,
+      safeMode: false,
+    });
+
+    expect(result).toBe(7960);
+  });
+
   it("subtracts existing debt from borrowing capacity", () => {
     // $10,000 collateral, 80% LT, $2000 existing debt, $1 token
     const result = calculateMaxBorrowTokens({

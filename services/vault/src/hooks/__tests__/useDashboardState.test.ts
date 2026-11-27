@@ -692,7 +692,7 @@ describe("useDashboardState", () => {
     BPS_SCALE /
     MIN_HEALTH_FACTOR_FOR_BORROW;
 
-  it("disables borrow when remaining capacity is sub-cent dust (fully borrowed)", () => {
+  it("enables borrow at the Safe mode limit while Safe mode off has capacity", () => {
     mockCollateralBtc = 1;
     mockCollateralValueUsd = 10000;
     mockSplitParams = {
@@ -704,8 +704,6 @@ describe("useDashboardState", () => {
       lbUnavailableReason: null,
       maxLB: 1.05,
     };
-    // Borrowed to within a fraction of a cent of the max — the float/HF-buffer
-    // residual a fully-borrowed position leaves behind.
     mockDebtValueUsd = fixtureMaxTotalDebtUsd - 0.003;
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
@@ -713,6 +711,27 @@ describe("useDashboardState", () => {
     expect(result.current.availableToBorrowUsd).toBeLessThan(
       MIN_BORROWABLE_USD,
     );
+    expect(result.current.canBorrow).toBe(true);
+  });
+
+  it("disables borrow when Safe mode off capacity is sub-cent dust (fully borrowed)", () => {
+    mockCollateralBtc = 1;
+    mockCollateralValueUsd = 10000;
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      bonusCurve: FLAT_BONUS_CURVE,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
+    // Borrowed to within a fraction of a cent of the Safe mode off max — the
+    // float residual a fully-borrowed position leaves behind.
+    mockDebtValueUsd = 10000 * 0.8 * (1 - BORROW_CAPACITY_HEADROOM) - 0.003;
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
     expect(result.current.canBorrow).toBe(false);
   });
 

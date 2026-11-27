@@ -11,8 +11,11 @@ vi.mock("../useLandingBorrowAprs", () => ({
     wbtc: undefined,
   }),
 }));
+const splitParamsMock = vi.hoisted(() => ({
+  params: { CF: 0.78 } as { CF: number } | null,
+}));
 vi.mock("@/applications/aave/hooks", () => ({
-  useVaultSplitParams: () => ({ params: { CF: 0.78 } }),
+  useVaultSplitParams: () => splitParamsMock,
 }));
 const priceMock = vi.hoisted(() => ({
   prices: { BTC: 93_000 } as Record<string, number>,
@@ -49,31 +52,35 @@ function renderOverview(
 
 describe("DisconnectedOverview", () => {
   beforeEach(() => {
+    splitParamsMock.params = { CF: 0.78 };
     priceMock.prices = { BTC: 93_000 };
     priceMock.metadata = { BTC: { isStale: false, fetchFailed: false } };
   });
 
-  it("renders the TVL, deposit-cap and borrow-up-to chips ahead of the headline", () => {
+  it("shows the TVL, deposit cap, and collateral factor before the headline", () => {
     const { container } = renderOverview();
 
     const tvlChip = screen.getByText(COPY_OVERVIEW.stats.tvlLabel);
     const capChip = screen.getByText(COPY_OVERVIEW.stats.capLabel);
-    const borrowChip = screen.getByText(COPY_OVERVIEW.stats.maxBorrowLabel);
+    const factorChip = screen.getByText(
+      COPY_OVERVIEW.stats.collateralFactorLabel,
+    );
     const headline = screen.getByRole("heading", { level: 1 });
 
     // 90 BTC locked at $93k prices the protocol at $8.4M.
     expect(tvlChip.nextElementSibling).toHaveTextContent("$8.4M");
     expect(capChip.nextElementSibling).toHaveTextContent("90/100 BTC");
-    // CF 78% ÷ 1.05, less 0.5% headroom, is 73.9%, floored to 73%: the share
-    // the Borrow form allows, not the raw collateral factor.
-    expect(borrowChip.nextElementSibling).toHaveTextContent("73%");
+    expect(factorChip.nextElementSibling).toHaveTextContent("78%");
+    expect(
+      factorChip.parentElement?.querySelector("[data-tooltip-content]"),
+    ).toHaveAttribute("data-tooltip-content", COPY.tooltips.collateralFactor);
     expect(
       tvlChip.compareDocumentPosition(capChip) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     // Design puts the chip row above the headline, not in a stat box below it.
     expect(
-      capChip.compareDocumentPosition(headline) &
+      factorChip.compareDocumentPosition(headline) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(container.querySelector(".grid-cols-3")).toBeNull();
@@ -156,10 +163,15 @@ describe("DisconnectedOverview", () => {
   });
 
   it("falls back to the empty marker when the cap and split params are absent", () => {
+    splitParamsMock.params = null;
     renderOverview(null);
 
     expect(
       screen.getByText(COPY_OVERVIEW.stats.capLabel).nextElementSibling,
+    ).toHaveTextContent(COPY.common.emptyValue);
+    expect(
+      screen.getByText(COPY_OVERVIEW.stats.collateralFactorLabel)
+        .nextElementSibling,
     ).toHaveTextContent(COPY.common.emptyValue);
   });
 

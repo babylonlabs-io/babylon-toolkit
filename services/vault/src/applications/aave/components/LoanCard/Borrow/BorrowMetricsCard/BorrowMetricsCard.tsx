@@ -1,4 +1,4 @@
-import { Hint, SubSection } from "@babylonlabs-io/core-ui";
+import { Hint, SubSection, Toggle } from "@babylonlabs-io/core-ui";
 
 import {
   getHealthFactorColor,
@@ -9,6 +9,7 @@ import { HeartIcon } from "@/components/shared";
 import { COPY } from "@/copy";
 import type { HubIdentity } from "@/services/aave/hubRegistry";
 
+import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../constants";
 import { HubLabel } from "../../../HubLabel";
 
 interface BorrowMetricsCardProps {
@@ -33,6 +34,9 @@ interface BorrowMetricsCardProps {
   healthFactor: string;
   healthFactorValue: number;
   healthFactorOriginal?: string;
+  safeMode: boolean;
+  safeModeDisabled?: boolean;
+  onSafeModeChange: (enabled: boolean) => void;
 }
 
 const ROW_CLASS = "flex w-full items-center justify-between text-sm";
@@ -41,13 +45,14 @@ const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
 /**
  * Borrow metrics card. Available liquidity and Utilization show live values read
  * from the Aave Hub for the selected reserve, Borrow APR adds the charges a
- * borrower pays to the Hub's live rate, and Health factor uses its real projected
- * value. Once an amount is entered, the Borrow APR and Available liquidity rows
- * render `current → projected` (the new borrow raises the reserve's utilization),
- * as does Health factor. Each figure falls back to the empty placeholder ("–")
- * while its read is loading or unavailable rather than rendering a fabricated
- * value. The Hub row names which hub's market these figures describe, since one
- * token can be borrowed from several.
+ * borrower pays to the Hub's live rate, Health factor uses its real projected
+ * value, and Safe mode sits beneath Health factor to control the borrow health
+ * factor floor. Once an amount is entered, the Borrow APR and Available
+ * liquidity rows render `current → projected` (the new borrow raises the
+ * reserve's utilization), as does Health factor. Each figure falls back to the
+ * empty placeholder ("–") while its read is loading or unavailable rather than
+ * rendering a fabricated value. The Hub row names which hub's market these
+ * figures describe, since one token can be borrowed from several.
  */
 export function BorrowMetricsCard({
   hub,
@@ -59,6 +64,9 @@ export function BorrowMetricsCard({
   healthFactor,
   healthFactorValue,
   healthFactorOriginal,
+  safeMode,
+  safeModeDisabled = false,
+  onSafeModeChange,
 }: BorrowMetricsCardProps) {
   const status = getHealthFactorStatusFromValue(healthFactorValue);
   const color = getHealthFactorColor(status);
@@ -153,6 +161,31 @@ export function BorrowMetricsCard({
             </span>
           )}
         </span>
+      </div>
+
+      <div className={ROW_CLASS}>
+        <div className="flex items-center gap-1 text-accent-secondary">
+          {COPY.loans.borrow.safeMode}
+          <Hint
+            tooltip={COPY.loans.borrow.safeModeTooltip(
+              MIN_HEALTH_FACTOR_FOR_BORROW,
+            )}
+            title={COPY.loans.borrow.safeMode}
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-accent-secondary">
+            {safeMode
+              ? COPY.loans.borrow.safeModeOn
+              : COPY.loans.borrow.safeModeOff}
+          </span>
+          <Toggle
+            aria-label={COPY.loans.borrow.safeMode}
+            value={safeMode}
+            disabled={safeModeDisabled}
+            onChange={onSafeModeChange}
+          />
+        </div>
       </div>
     </SubSection>
   );

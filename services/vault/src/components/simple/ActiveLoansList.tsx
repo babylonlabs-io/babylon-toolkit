@@ -21,7 +21,7 @@ import {
 
 interface ActiveLoansListProps {
   rows: ActiveLoanRow[];
-  /** Whether there is remaining borrow capacity (disables per-row Borrow at 0). */
+  /** Whether there is borrow capacity with Safe mode off (disables per-row Borrow at 0). */
   canBorrow: boolean;
   /** Receives the row's reserve id — the overlay routes by id, not by symbol. */
   onBorrow: (reserveId: string) => void;

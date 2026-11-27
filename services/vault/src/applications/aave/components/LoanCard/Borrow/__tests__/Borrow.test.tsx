@@ -28,7 +28,7 @@ import {
 import { Borrow } from "../index";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
-  AmountSlider: () => null,
+  AmountSlider: () => <div data-testid="amount-slider" />,
   Button: ({
     children,
     onClick,
@@ -80,11 +80,14 @@ const mocks = vi.hoisted(() => ({
   useNewBorrowAprCharges: vi.fn(),
   borrowMetricsCard: vi.fn(),
   isBorrowBlocked: vi.fn(),
+  hasReachedSafeModeLimit: vi.fn(),
+  useAaveReserveDrawHeadroom: vi.fn(),
+  useAaveReserveLiquidity: vi.fn(),
 }));
 
 vi.mock("../../../../hooks", () => ({
-  useAaveReserveDrawHeadroom: () => ({ headroomByReserveId: {} }),
-  useAaveReserveLiquidity: () => ({ liquidityByReserveId: {} }),
+  useAaveReserveDrawHeadroom: mocks.useAaveReserveDrawHeadroom,
+  useAaveReserveLiquidity: mocks.useAaveReserveLiquidity,
   useBorrowTransaction: mocks.useBorrowTransaction,
   useDebtReserves: () => [],
   useHubSpokeConfigs: () => ({}),
@@ -103,9 +106,22 @@ vi.mock("../../../../utils/hubState", () => ({
 
 vi.mock("../../../AssetPill", () => ({ AssetPill: () => null }));
 vi.mock("../BorrowMetricsCard", () => ({
-  BorrowMetricsCard: (props: unknown) => {
+  BorrowMetricsCard: (props: {
+    safeMode: boolean;
+    safeModeDisabled?: boolean;
+    onSafeModeChange: (enabled: boolean) => void;
+  }) => {
     mocks.borrowMetricsCard(props);
-    return null;
+    return (
+      <div data-testid="borrow-metrics-card">
+        <button
+          aria-label={COPY.loans.borrow.safeMode}
+          aria-pressed={props.safeMode}
+          disabled={props.safeModeDisabled}
+          onClick={() => props.onSafeModeChange(!props.safeMode)}
+        />
+      </div>
+    );
   },
 }));
 vi.mock("../LiquidationPreview", () => ({ LiquidationPreview: () => null }));
@@ -118,6 +134,7 @@ vi.mock("../hooks/useBorrowMetrics", () => ({
 }));
 vi.mock("../hooks/validateBorrowAction", () => ({
   getBorrowLimit: (max: number) => ({ max, limitedBy: "collateral" }),
+  hasReachedSafeModeLimit: mocks.hasReachedSafeModeLimit,
   validateBorrowAction: mocks.validateBorrowAction,
 }));
 vi.mock("../hooks/validateBorrowPreSign", () => ({
@@ -165,6 +182,9 @@ function makeLoanContext(
 
 beforeEach(() => {
   mocks.isBorrowBlocked.mockReturnValue(false);
+  mocks.hasReachedSafeModeLimit.mockReturnValue(false);
+  mocks.useAaveReserveDrawHeadroom.mockReturnValue({ headroomByReserveId: {} });
+  mocks.useAaveReserveLiquidity.mockReturnValue({ liquidityByReserveId: {} });
   mocks.useBorrowTransaction.mockReturnValue({
     executeBorrow: mocks.executeBorrow,
     isProcessing: false,
@@ -184,6 +204,7 @@ beforeEach(() => {
     setBorrowAmount: vi.fn(),
     resetBorrowAmount: vi.fn(),
     maxBorrowAmount: 100,
+    safeModeOffMaxBorrowAmount: 105,
   });
   mocks.useBorrowMetrics.mockReturnValue({
     healthFactor: "2.00",
@@ -203,8 +224,13 @@ beforeEach(() => {
 describe("Borrow", () => {
   it("prices and pre-sign checks the borrow under the reserve's current key", async () => {
     mocks.executeBorrow.mockImplementation(
-      async (_amount: number, _reserve: unknown, preSign: () => unknown) => {
-        await preSign();
+      async (
+        _amount: number,
+        _reserve: unknown,
+        preSign: (raw: bigint, decimals: number) => unknown,
+      ) => {
+        // On-chain decimals (8) differ from the indexer's token decimals (6).
+        await preSign(10_000_000_000n, 8);
         return false;
       },
     );
@@ -218,7 +244,10 @@ describe("Borrow", () => {
     fireEvent.click(screen.getByTestId("borrow-submit-button"));
 
     expect(mocks.useBorrowState).toHaveBeenCalledWith(
-      expect.objectContaining({ liquidationThresholdBps: 6000 }),
+      expect.objectContaining({
+        liquidationThresholdBps: 6000,
+        safeMode: true,
+      }),
     );
     expect(mocks.useBorrowMetrics).toHaveBeenCalledWith(
       expect.objectContaining({ liquidationThresholdBps: 6000 }),
@@ -226,11 +255,359 @@ describe("Borrow", () => {
     await waitFor(() =>
       expect(mocks.validateBorrowPreSign).toHaveBeenCalledWith(
         expect.objectContaining({
+          borrowAmountRaw: 10_000_000_000n,
+          tokenDecimals: 8,
           liquidationThresholdBps: 6000,
+          safeMode: true,
           refetchSplitParams: refetchBorrowSplitParams,
         }),
       ),
     );
+  });
+
+  it("shows the warning and passes Safe mode off to both checks", async () => {
+    mocks.executeBorrow.mockImplementation(
+      async (
+        _amount: number,
+        _reserve: unknown,
+        preSign: (raw: bigint, decimals: number) => unknown,
+      ) => {
+        await preSign(10_000_000n, 6);
+        return "failed";
+      },
+    );
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    const toggle = screen.getByRole("button", { name: "Safe mode" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(mocks.validateBorrowAction).toHaveBeenLastCalledWith(
+      10,
+      2,
+      100,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+      "collateral",
+      true,
+    );
+    mocks.clearError.mockClear();
+    fireEvent.click(toggle);
+    expect(mocks.clearError).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert").textContent).toBe(
+      COPY.loans.borrow.safeModeOffWarning,
+    );
+    expect(mocks.useBorrowState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ safeMode: false }),
+    );
+    expect(mocks.validateBorrowAction).toHaveBeenLastCalledWith(
+      10,
+      2,
+      100,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+      "collateral",
+      false,
+    );
+
+    fireEvent.click(screen.getByTestId("borrow-submit-button"));
+    await waitFor(() =>
+      expect(mocks.validateBorrowPreSign).toHaveBeenLastCalledWith(
+        expect.objectContaining({ safeMode: false }),
+      ),
+    );
+
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("renders the Safe mode toggle in the metrics card below the amount slider and warning", () => {
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    const slider = screen.getByTestId("amount-slider");
+    const toggle = screen.getByRole("button", { name: "Safe mode" });
+    expect(
+      slider.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(toggle);
+    const warning = screen.getByRole("alert");
+    expect(
+      slider.compareDocumentPosition(warning) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      warning.compareDocumentPosition(toggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("locks the Safe mode toggle while a borrow is processing", () => {
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: true,
+      isConfirming: false,
+      pendingWrite: null,
+      error: null,
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen
+        .getByRole("button", { name: "Safe mode" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
+  it("locks the Safe mode toggle while another Aave write is pending", () => {
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: false,
+      isConfirming: false,
+      pendingWrite: { phase: "submitting" },
+      error: null,
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen
+        .getByRole("button", { name: "Safe mode" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
+  it("checks the Safe mode limit with the form's Safe mode and limits", () => {
+    mocks.useBorrowState.mockReturnValue({
+      borrowAmount: 0,
+      setBorrowAmount: vi.fn(),
+      resetBorrowAmount: vi.fn(),
+      maxBorrowAmount: 0,
+      safeModeOffMaxBorrowAmount: 50,
+    });
+    mocks.useAaveReserveLiquidity.mockReturnValue({
+      liquidityByReserveId: {
+        "2": { availableLiquidity: 1000, utilizationBps: 5000 },
+      },
+    });
+    mocks.useAaveReserveDrawHeadroom.mockReturnValue({
+      headroomByReserveId: { "2": 500 },
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    // Both caps keep the form's 0.1% margin below the hub's figures.
+    expect(mocks.hasReachedSafeModeLimit).toHaveBeenLastCalledWith({
+      safeMode: true,
+      maxBorrowAmount: 0,
+      safeModeOffMaxBorrowAmount: 50,
+      liquidityCap: expect.closeTo(999),
+      borrowLimitCap: expect.closeTo(499.5),
+      tokenDecimals: 6,
+      tokenPriceUsd: 1,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Safe mode" }));
+    expect(mocks.hasReachedSafeModeLimit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ safeMode: false }),
+    );
+  });
+
+  it("checks the Safe mode limit with no price while the price is stale", () => {
+    render(
+      <LoanProvider value={makeLoanContext({ isPriceStale: true })}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(mocks.hasReachedSafeModeLimit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tokenPriceUsd: null }),
+    );
+  });
+
+  it("does not show the Safe mode limit message while the limit is not reached", () => {
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen.queryByText(COPY.loans.borrow.safeModeLimitReached),
+    ).toBeNull();
+  });
+
+  it("shows the Safe mode limit message in place of a stale transaction error", () => {
+    mocks.hasReachedSafeModeLimit.mockReturnValue(true);
+    mocks.useBorrowState.mockReturnValue({
+      borrowAmount: 10,
+      setBorrowAmount: vi.fn(),
+      resetBorrowAmount: vi.fn(),
+      maxBorrowAmount: 0,
+      safeModeOffMaxBorrowAmount: 50,
+    });
+    mocks.validateBorrowAction.mockReturnValue({
+      isDisabled: true,
+      buttonText: "Amount exceeds maximum",
+      errorMessage:
+        "The maximum borrowable amount is 0 USDC on Core Hub. Enter a lower amount and try again.",
+    });
+    mocks.useBorrowTransaction.mockReturnValue({
+      executeBorrow: mocks.executeBorrow,
+      isProcessing: false,
+      isConfirming: false,
+      pendingWrite: null,
+      error: "Borrow failed: Position data has changed.",
+      notice: null,
+      clearError: mocks.clearError,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen.getByText(COPY.loans.borrow.safeModeLimitReached),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("Borrow failed: Position data has changed."),
+    ).toBeNull();
+  });
+
+  it("shows the Safe mode limit message in place of a max-amount error", () => {
+    mocks.hasReachedSafeModeLimit.mockReturnValue(true);
+    mocks.useBorrowState.mockReturnValue({
+      borrowAmount: 10,
+      setBorrowAmount: vi.fn(),
+      resetBorrowAmount: vi.fn(),
+      maxBorrowAmount: 0,
+      safeModeOffMaxBorrowAmount: 50,
+    });
+    mocks.validateBorrowAction.mockReturnValue({
+      isDisabled: true,
+      buttonText: "Amount exceeds maximum",
+      errorMessage:
+        "The maximum borrowable amount is 0 USDC on Core Hub. Enter a lower amount and try again.",
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen.getByText(COPY.loans.borrow.safeModeLimitReached),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "The maximum borrowable amount is 0 USDC on Core Hub. Enter a lower amount and try again.",
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps the max-amount error while the Safe mode limit is not reached", () => {
+    mocks.useBorrowState.mockReturnValue({
+      borrowAmount: 150,
+      setBorrowAmount: vi.fn(),
+      resetBorrowAmount: vi.fn(),
+      maxBorrowAmount: 100,
+      safeModeOffMaxBorrowAmount: 105,
+    });
+    mocks.validateBorrowAction.mockReturnValue({
+      isDisabled: true,
+      buttonText: "Amount exceeds maximum",
+      errorMessage:
+        "The maximum borrowable amount is 100 USDC on Core Hub. Enter a lower amount and try again.",
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen.getByText(
+        "The maximum borrowable amount is 100 USDC on Core Hub. Enter a lower amount and try again.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(COPY.loans.borrow.safeModeLimitReached),
+    ).toBeNull();
+  });
+
+  it("keeps the minimum-amount error at the Safe mode limit", () => {
+    mocks.hasReachedSafeModeLimit.mockReturnValue(true);
+    mocks.useBorrowState.mockReturnValue({
+      borrowAmount: 0.0000001,
+      setBorrowAmount: vi.fn(),
+      resetBorrowAmount: vi.fn(),
+      maxBorrowAmount: 0,
+      safeModeOffMaxBorrowAmount: 50,
+    });
+    mocks.validateBorrowAction.mockReturnValue({
+      isDisabled: true,
+      buttonText: "Amount too small",
+      errorMessage:
+        "The minimum borrowable amount is 0.000001. Enter a higher amount and try again.",
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen.getByText(
+        "The minimum borrowable amount is 0.000001. Enter a higher amount and try again.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(COPY.loans.borrow.safeModeLimitReached),
+    ).toBeNull();
+  });
+
+  it("shows the Safe mode limit message before an amount is entered", () => {
+    mocks.hasReachedSafeModeLimit.mockReturnValue(true);
+    mocks.useBorrowState.mockReturnValue({
+      borrowAmount: 0,
+      setBorrowAmount: vi.fn(),
+      resetBorrowAmount: vi.fn(),
+      maxBorrowAmount: 0,
+      safeModeOffMaxBorrowAmount: 50,
+    });
+    render(
+      <LoanProvider value={makeLoanContext()}>
+        <Borrow />
+      </LoanProvider>,
+    );
+
+    expect(
+      screen.getByText(COPY.loans.borrow.safeModeLimitReached),
+    ).toBeTruthy();
   });
 
   it("hides the validation error while the borrow is processing", () => {

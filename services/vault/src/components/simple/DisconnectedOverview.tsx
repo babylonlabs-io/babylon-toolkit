@@ -7,15 +7,11 @@
  * feature rows; only one row expands, with single-open accordion behavior.
  */
 
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, Hint } from "@babylonlabs-io/core-ui";
 import { Fragment, useMemo, useState } from "react";
 
 import { BPS_SCALE } from "@/applications/aave/constants";
-import {
-  useVaultSplitParams,
-  type VaultSplitParams,
-} from "@/applications/aave/hooks";
-import { calculateBorrowCapacityUsd } from "@/applications/aave/utils/borrowCapacity";
+import { useVaultSplitParams } from "@/applications/aave/hooks";
 import { Connect } from "@/components/Wallet";
 import { COPY } from "@/copy";
 import { usablePriceUsd } from "@/hooks/priceHealth";
@@ -61,26 +57,6 @@ function capStatValue(
   );
 }
 
-/** Basis points in one percent; "Borrow up to" is floored to a whole percent. */
-const BPS_PER_WHOLE_PERCENT = 100;
-
-// The Borrow form's no-debt capacity per dollar of collateral is the share of
-// a new deposit's value it lets the depositor borrow: the collateral factor
-// less the health-factor floor and headroom, not the raw collateral factor.
-// Floored to a whole percent so the chip never overstates it.
-function maxBorrowStatValue(splitParams: VaultSplitParams | null): string {
-  if (!splitParams) return COPY.common.emptyValue;
-  const { availableToBorrowUsd: borrowableShare } = calculateBorrowCapacityUsd({
-    collateralValueUsd: 1,
-    currentDebtUsd: 0,
-    liquidationThresholdBps: Math.round(splitParams.CF * BPS_SCALE),
-  });
-  const borrowableBps = borrowableShare * BPS_SCALE;
-  return formatBasisPointsAsPercent(
-    Math.floor(borrowableBps / BPS_PER_WHOLE_PERCENT) * BPS_PER_WHOLE_PERCENT,
-  );
-}
-
 // TVL is the BTC locked across the application priced in USD. Suppressed rather
 // than approximated whenever an input is untrustworthy — no usable BTC price
 // (a stale or failed oracle round, or a non-positive answer), or an errored
@@ -103,13 +79,15 @@ function tvlStatValue(
 interface StatChipProps {
   label: string;
   value: string;
+  tooltip?: { title: string; body: string };
 }
 
-function StatChip({ label, value }: StatChipProps) {
+function StatChip({ label, value, tooltip }: StatChipProps) {
   return (
     <span className="inline-flex h-8 items-center gap-1 rounded-lg bg-background-secondary px-3.5 text-sm leading-[1.43] tracking-[0.17px]">
       <span className="text-accent-secondary">{label}</span>
       <span className="text-accent-primary">{value}</span>
+      {tooltip && <Hint title={tooltip.title} tooltip={tooltip.body} />}
     </span>
   );
 }
@@ -210,8 +188,14 @@ export function DisconnectedOverview({
         value: capStatValue(capSnapshot, capError),
       },
       {
-        label: COPY_OVERVIEW.stats.maxBorrowLabel,
-        value: maxBorrowStatValue(splitParams),
+        label: COPY_OVERVIEW.stats.collateralFactorLabel,
+        value: splitParams
+          ? formatBasisPointsAsPercent(splitParams.CF * BPS_SCALE)
+          : COPY.common.emptyValue,
+        tooltip: {
+          title: COPY.risk.collateralFactorLabel,
+          body: COPY.tooltips.collateralFactor,
+        },
       },
     ],
     [capSnapshot, capError, splitParams, usableBtcPriceUsd],
@@ -247,7 +231,7 @@ export function DisconnectedOverview({
     <div className="grid grid-cols-1 items-start md:grid-cols-2 md:gap-x-12">
       <div className="flex flex-wrap gap-4">
         {statChips.map((chip) => (
-          <StatChip key={chip.label} label={chip.label} value={chip.value} />
+          <StatChip key={chip.label} {...chip} />
         ))}
       </div>
 
