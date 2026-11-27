@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Hint } from "../../../components/Hint/Hint";
 import { Slider, type SliderStep } from "../../../components/Slider";
-import { sanitizeNumericInput } from "../../../utils/helpers";
+import { sanitizeNumericInput, truncateDecimalInput, truncateDecimals } from "../../../utils/helpers";
 
 function toNumber(amount: string | number): number {
   return typeof amount === "number" ? amount : parseFloat(amount);
@@ -47,6 +47,14 @@ export interface AmountSliderProps {
    */
   currencySlot?: React.ReactNode;
   onAmountChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional - if not provided, input is read-only
+  /**
+   * Most fraction digits the amount may carry, e.g. the token's decimals. A digit typed into a full
+   * fraction is ignored, a pasted amount is cut to it, and slider values are rounded down to it. The
+   * slider steps in whole units of it, at least one, so rounding down never moves the thumb back. An
+   * `amount` the parent sets (Max, a reset) is shown as given, so the parent keeps it within the same
+   * precision. Unset, input is not limited. Must be a non-negative integer: any other value throws.
+   */
+  maxDecimals?: number;
 
   // Balance details
   balanceDetails?: BalanceDetails;
@@ -97,6 +105,7 @@ export function AmountSlider({
   currencyName,
   currencySlot,
   onAmountChange,
+  maxDecimals,
   sliderValue,
   sliderMin,
   sliderMax,
@@ -136,6 +145,10 @@ export function AmountSlider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount]);
 
+  if (maxDecimals !== undefined && !(Number.isInteger(maxDecimals) && maxDecimals >= 0)) {
+    throw new Error(`AmountSlider: maxDecimals must be a non-negative integer (got ${maxDecimals}).`);
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -143,15 +156,36 @@ export function AmountSlider({
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = sanitizeNumericInput(e.target.value);
-    if (value === undefined) {
+    const sanitized = sanitizeNumericInput(e.target.value);
+    if (sanitized === undefined) {
       e.target.value = rawInput;
+      return;
+    }
+    const value = maxDecimals === undefined ? sanitized : truncateDecimalInput(sanitized, maxDecimals);
+    // One character that would push the fraction past maxDecimals is a keystroke into a full
+    // fraction: ignore it, as a full maxlength field does, rather than drop a digit the user did not
+    // touch. Longer changes (a paste, autofill) are cut to maxDecimals.
+    if (value !== sanitized && sanitized.length === rawInput.length + 1) {
+      const caret = (e.target.selectionStart ?? sanitized.length) - 1;
+      e.target.value = rawInput;
+      e.target.setSelectionRange(caret, caret);
       return;
     }
     setRawInput(value);
     e.target.value = value;
     onAmountChange?.(e);
   };
+
+  const handleSliderChange = (value: number) => {
+    onSliderChange(maxDecimals === undefined ? value : truncateDecimals(value, maxDecimals));
+  };
+
+  // A step finer than one unit, or not a whole number of units, lands keyboard steps on values the
+  // round-down above moves back to the previous one, so the thumb would not advance.
+  const effectiveSliderStep =
+    maxDecimals === undefined
+      ? sliderStep
+      : Math.max(truncateDecimals(sliderStep, maxDecimals), 10 ** -maxDecimals);
 
   // Determine the background color
   // If sliderBackgroundColor is explicitly provided, use it
@@ -201,10 +235,10 @@ export function AmountSlider({
           value={sliderValue}
           min={sliderMin}
           max={sliderMax}
-          step={sliderStep}
+          step={effectiveSliderStep}
           steps={sliderSteps}
           snapToSteps={sliderSnapToSteps}
-          onChange={onSliderChange}
+          onChange={handleSliderChange}
           onStepsChange={onSliderStepsChange}
           variant={sliderVariant}
           activeColor={sliderActiveColor}

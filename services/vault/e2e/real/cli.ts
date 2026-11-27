@@ -104,6 +104,15 @@
  * Every mode checks on chain that the account sent exactly one transaction. Run it on
  * `--target=localhost` to test local app code (see actions/nonceTooLow.ts).
  *
+ * Borrow also accepts `--precision-probe`, which types the borrow amount key by key with one digit past
+ * the token's on-chain precision (`1.5` USDC is typed as `1.5000009`). The box must drop that digit
+ * before anything is signed, and the mined borrow must sign exactly the amount the box shows, in the
+ * token's base units. It needs a plain decimal amount (not `--borrow-amount=max`, not `1e-3`) within the
+ * token's precision, and cannot be combined with `--inject-nonce-too-low` or `--inject-reorg`. The CLI
+ * checks the amount before the browser opens when it can read the reserve list; otherwise the borrow
+ * action checks it, after any `--pegin-first` peg-in. Run it on
+ * `--target=localhost` to test local app code (see actions/borrowPrecision.ts).
+ *
  * Every borrow and repay checks that the app reports the write only once it is three blocks deep: the
  * app reads the chain at that depth before the success screen, and the button reads "Confirming..."
  * whenever the app had to wait for it. Borrow and repay also accept `--inject-reorg=<mode>`, which makes the app's RPC show the
@@ -178,6 +187,7 @@
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
+import { buildPrecisionProbe } from "./actions/borrowPrecision";
 import {
   PEGIN_PSBT_EXTRAS_WALLET_LABELS,
   supportsPeginPsbtExtras,
@@ -927,6 +937,21 @@ async function resolveConfig(
         );
       injectReorg = reorgFlag;
     }
+    // Borrow extra: type the amount with one digit past the token's precision, then check the box
+    // dropped it and the borrow signed exactly the box's amount (see actions/borrowPrecision.ts).
+    const precisionProbe = flagBool(flags["precision-probe"]);
+    if (precisionProbe) {
+      if (action !== "borrow")
+        throw new Error("--precision-probe only applies to --action=borrow.");
+      if (borrowAmount?.toLowerCase() === "max")
+        throw new Error(
+          "--precision-probe types an amount, so it cannot run with --borrow-amount=max.",
+        );
+      if (injectNonceTooLow !== undefined || injectReorg !== undefined)
+        throw new Error(
+          "--precision-probe cannot be combined with --inject-nonce-too-low or --inject-reorg: it checks the amount of a borrow that went through once.",
+        );
+    }
     // Pegin extra: the wallet answers the PegIn signing request with fields the dApp never built beside
     // its signature (see actions/peginWalletPsbtInjection.ts).
     const injectPeginPsbtExtras = flagBool(flags["inject-pegin-psbt-extras"]);
@@ -1007,6 +1032,10 @@ async function resolveConfig(
         });
         borrowToken = reserve.symbol;
         borrowReserveId = reserve.reserveId.toString();
+        // --precision-probe: check the typed amount against this reserve's decimals now, so a bad
+        // amount fails before a --pegin-first peg-in rather than after it.
+        if (precisionProbe && borrowAmount !== undefined)
+          buildPrecisionProbe(borrowAmount, reserve);
       }
     }
 
@@ -1258,6 +1287,7 @@ async function resolveConfig(
       forgedStuckActivate,
       injectNonceTooLow,
       injectReorg,
+      precisionProbe,
       injectPeginPsbtExtras,
       injectPositionFull,
       injectNotAllowListed,

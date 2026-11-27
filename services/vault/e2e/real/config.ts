@@ -368,6 +368,12 @@ export interface RunConfig {
    */
   injectReorg?: ReorgInjection;
   /**
+   * Borrow only (`--precision-probe`): type the borrow amount with one digit past the token's on-chain
+   * precision. The form must drop that digit before anything is signed, and the mined borrow must sign
+   * exactly the amount the box shows, in the token's base units.
+   */
+  precisionProbe?: boolean;
+  /**
    * Pegin only, UniSat or OKX: make the BTC wallet answer the PegIn signing request with a key-path
    * signature, its own final witness, a scriptSig and a relabelled leaf hash beside its genuine
    * signature (`--inject-pegin-psbt-extras`). The deposit must still activate, and the PegIn it registers must

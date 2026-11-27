@@ -82,6 +82,32 @@ export const maxDecimals = (value: number, maxDecimals: number, rm?: number): nu
   return new Decimal(value).toDecimalPlaces(maxDecimals, rm).toNumber();
 };
 
+/**
+ * Drops the digits of a number past `decimals` places, never rounding up. Exact on the number's
+ * decimal form, unlike `Math.floor(value * 10 ** decimals) / 10 ** decimals`, which cuts a unit off
+ * values such as 0.000249 at 6 places. Throws on a non-finite value.
+ *
+ * @example
+ * truncateDecimals(617.2839455, 6); // 617.283945
+ * truncateDecimals(0.000249, 6);    // 0.000249
+ */
+export const truncateDecimals = (value: number, decimals: number): number =>
+  maxDecimals(value, decimals, Decimal.ROUND_DOWN);
+
+/**
+ * Drops the fraction digits of a sanitized numeric input string past `maxDecimals`. The string is
+ * cut, not parsed, so the digits that remain are not re-rounded.
+ *
+ * @example
+ * truncateDecimalInput("1.0000009", 6); // "1.000000"
+ * truncateDecimalInput("12.5", 6);      // "12.5"
+ */
+export function truncateDecimalInput(value: string, maxDecimals: number): string {
+  const [integer, decimal] = value.split(".", 2);
+  if (decimal === undefined || decimal.length <= maxDecimals) return value;
+  return integer + "." + decimal.slice(0, maxDecimals);
+}
+
 
 /**
  * Converts a string to kebab-case for use as unique or semantic keys.

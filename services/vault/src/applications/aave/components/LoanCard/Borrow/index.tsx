@@ -145,13 +145,16 @@ export function Borrow() {
   // You can't borrow more than the reserve holds or than the hub's borrow limit
   // leaves, so cap the collateral-based max by both (less a safety margin) when
   // known. Additive: a loading or failed read skips its cap, so a best-effort
-  // display read can never block an otherwise-fundable borrow.
+  // display read can never block an otherwise-fundable borrow. The result is
+  // rounded down to the token's precision, the same limit the amount box
+  // applies to typing.
   const { max: effectiveMaxBorrowAmount, limitedBy } = getBorrowLimit(
     maxBorrowAmount,
     reserveLiquidity == null
       ? Infinity
       : reserveLiquidity.availableLiquidity * MAX_BORROWABLE_FRACTION,
     drawHeadroom == null ? Infinity : drawHeadroom * MAX_BORROWABLE_FRACTION,
+    tokenIdentity.decimals,
   );
 
   // A hub that would reject this borrow: the reserve's own hub halted or
@@ -403,6 +406,7 @@ export function Borrow() {
             onAmountChange={(e) =>
               handleAmountChange(parseFloat(e.target.value) || 0)
             }
+            maxDecimals={displayDecimals}
             sliderValue={borrowAmount}
             sliderMin={0}
             sliderMax={sliderTrackMax}
