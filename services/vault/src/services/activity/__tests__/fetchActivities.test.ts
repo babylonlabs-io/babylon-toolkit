@@ -175,7 +175,7 @@ describe("fetchUserActivities type mapping", () => {
         vaultId: VAULT_A,
       }),
       activity({
-        type: "withdrawal",
+        type: "claim_expired",
         logIndex: 0,
         transactionHash: "0x" + "b".repeat(64),
         vaultId: VAULT_A,
@@ -329,7 +329,7 @@ describe("fetchUserActivities type mapping", () => {
     );
 
     const redeemRow = asStandard(result[0]);
-    expect(redeemRow.type).toBe("Redeem");
+    expect(redeemRow.type).toBe("Withdraw");
     expect(redeemRow.chain).toBe("BTC");
     expect(redeemRow.transactionHash).toBe("claimBtcTxid123");
 
@@ -372,7 +372,7 @@ describe("fetchUserActivities type mapping", () => {
     );
 
     const redeemRow = asStandard(result[0]);
-    expect(redeemRow.type).toBe("Redeem");
+    expect(redeemRow.type).toBe("Withdraw");
     expect(redeemRow.chain).toBe("BTC");
     expect(redeemRow.transactionHash).toBe("");
   });
@@ -496,18 +496,12 @@ describe("fetchUserActivities position-scoped enrichment", () => {
 });
 
 describe("fetchUserActivities tokenIcon", () => {
-  it("uses the BTC icon for native-type rows (deposit, withdrawal, redeem, claim_expired)", async () => {
+  it("uses the BTC icon for native-type rows (deposit, redeem, claim_expired)", async () => {
     const rows: RawActivity[] = [
       activity({
         type: "deposit",
         logIndex: 0,
         transactionHash: "0x" + "a".repeat(64),
-        vaultId: VAULT_A,
-      }),
-      activity({
-        type: "withdrawal",
-        logIndex: 0,
-        transactionHash: "0x" + "b".repeat(64),
         vaultId: VAULT_A,
       }),
       activity({
@@ -530,7 +524,7 @@ describe("fetchUserActivities tokenIcon", () => {
       buildDeps(),
     );
 
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(3);
     for (const row of result) {
       expect(asStandard(row).tokenIcon).toBe("/images/btc.svg");
     }
@@ -637,7 +631,7 @@ describe("fetchUserActivities GraphQL request shape", () => {
     ];
     const pageTwo: RawActivity[] = [
       activity({
-        type: "withdrawal",
+        type: "redeem",
         logIndex: 0,
         transactionHash: "0xwithdraw",
         vaultId: VAULT_A,
@@ -893,6 +887,49 @@ describe("fetchUserActivities liquidation grouping", () => {
     const group = result.find((r) => r.kind === "liquidationGroup");
     if (!group) throw new Error("expected a liquidation group");
     expect(asGroup(group).type).toBe("Partially Liquidated");
+  });
+
+  it("classifies as 'Fully Liquidated' when the depositor's other vault was withdrawn before the liquidation", async () => {
+    const rows: RawActivity[] = [
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: TX_DEPOSIT,
+        vaultId: VAULT_A,
+        timestamp: "1700000000",
+      }),
+      activity({
+        type: "deposit",
+        logIndex: 0,
+        transactionHash: "0x" + "2".repeat(64),
+        vaultId: VAULT_B,
+        timestamp: "1700000010",
+      }),
+      activity({
+        type: "redeem",
+        logIndex: 0,
+        transactionHash: "0x" + "3".repeat(64),
+        vaultId: VAULT_A,
+        timestamp: "1700000050",
+      }),
+      activity({
+        type: "liquidation",
+        logIndex: 0,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: VAULT_B,
+        timestamp: "1700000100",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    const group = result.find((r) => r.kind === "liquidationGroup");
+    if (!group) throw new Error("expected a liquidation group");
+    expect(asGroup(group).type).toBe("Fully Liquidated");
   });
 
   it("consumes every repay in a multi-reserve liquidation tx, not just one", async () => {

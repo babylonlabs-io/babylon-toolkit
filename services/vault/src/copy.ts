@@ -3211,9 +3211,9 @@ export const COPY = {
     filterAll: "Show All",
     searchPlaceholder: "Search tx hash or type of transaction",
     searchLabel: "Search activity",
-    // Visible filter options in dropdown order
-    // Redeem / Pending Deposit rows still render but are not filterable —
-    // they don't appear here on purpose.
+    // Visible filter options in dropdown order. Redeem and Pending Deposit
+    // have no option of their own on purpose: Redeem rows list under
+    // Withdrawals and Pending Deposit rows under Deposits (see ActivityList).
     filterTypes: {
       Deposit: "Deposits",
       Withdraw: "Withdrawals",

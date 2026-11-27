@@ -54,9 +54,10 @@ function groupByDate(
 }
 
 // Only the ActivityTypes that appear as filter options in the Figma menu.
-// `Redeem` rows still render in the list but are not directly filterable.
-// `Pending Deposit` rows aren't a separate option here either — they fall
-// under the `Deposit` filter, matching how they render (see typeLabels).
+// Two row types have no option of their own and list under another:
+// `Pending Deposit` under `Deposit`, matching how it renders (see
+// typeLabels), and an expired vault's `Redeem` under `Withdraw`, since both
+// return a vault's BTC to the depositor.
 const FILTER_OPTIONS = (
   Object.entries(COPY.activity.filterTypes) as Array<[ActivityType, string]>
 ).map(([value, label]) => ({ value, label }));
@@ -112,7 +113,8 @@ export function ActivityList({
         (row) =>
           (filter === null ||
             row.type === filter ||
-            (filter === "Deposit" && row.type === PENDING_DEPOSIT_TYPE)) &&
+            (filter === "Deposit" && row.type === PENDING_DEPOSIT_TYPE) ||
+            (filter === "Withdraw" && row.type === "Redeem")) &&
           activityRowMatchesSearch(row, normalizedQuery),
       ),
     [activities, filter, normalizedQuery],
