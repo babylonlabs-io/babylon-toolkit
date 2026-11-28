@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       ENVIRONMENT:
-        description: 'Environment to publish. "all" (the push/tag default) publishes every environment below; vault-real-money-devnet is published from main only.'
+        description: 'Environment to publish. "all" (the push/tag default) publishes every environment below; vault-real-money-devnet is published from main only; vault-mainnet only by a pushed final vault/vX.Y.Z tag.'
         required: false
         default: all
         type: choice
@@ -82,7 +82,8 @@ jobs:
   # Resolve which environments this run publishes. A workflow_dispatch run may
   # scope to a single environment (ENVIRONMENT input); push/tag runs and the
   # "all" choice publish every environment, except that a main_only entry is
-  # published from refs/heads/main alone.
+  # published from refs/heads/main alone and a final_tag_only entry from a
+  # pushed final vault/vX.Y.Z tag alone.
   setup:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -100,17 +101,23 @@ jobs:
             {"environment":"vault-devnet","network":"devnet","expected_kind":"test","aws_account":"537927626649"},
             {"environment":"vault-staging-devnet","network":"staging","expected_kind":"test","aws_account":"537927626649"},
             {"environment":"vault-testnet-3","network":"testnet","expected_kind":"test","aws_account":"615368094160","prod":true},
-            {"environment":"vault-real-money-devnet","network":"real-money-devnet","expected_kind":"production","aws_account":"537927626649","role":"gha-s3-frontend-push-real-money-devnet","main_only":true}
+            {"environment":"vault-real-money-devnet","network":"real-money-devnet","expected_kind":"production","aws_account":"537927626649","role":"gha-s3-frontend-push-real-money-devnet","main_only":true},
+            {"environment":"vault-mainnet","network":"mainnet","expected_kind":"production","aws_account":"490721144737","prod":true,"role":"gha-s3-frontend-push-vault-mainnet","checksum_role":"gha-s3-frontend-push-vault-mainnet","final_tag_only":true,"mempool_api":"https://mempool.babylonlabs.io","utils_api":"https://utils-api.mainnet.babylonlabs.io","ordinals_api":"https://utils-api.mainnet.babylonlabs.io","canonical":"https://tbv.babylonlabs.io"}
           ]'
           # "role" names a dedicated AWS role for that environment (default: gha-s3-frontend-push).
           # A "main_only" entry publishes with a role that trusts refs/heads/main alone, so off main
           # it is left out of the all-environment run and refused when asked for by name.
           # "network" names the profile in services/vault/networks that the build inlines; "expected_kind" is asserted against that profile before the build, so a profile edit cannot change a deployment's class unnoticed. "prod" is the AWS/manifest flag and is independent of kind.
+          FINAL_TAG_RE='^refs/tags/vault/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          FINAL_TAG=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [[ "$GITHUB_REF" =~ $FINAL_TAG_RE ]]; then
+            FINAL_TAG=true
+          fi
           if [ -z "${ENVIRONMENT:-}" ] || [ "$ENVIRONMENT" = "all" ]; then
-            SELECTED=$(echo "$ALL" | jq -c --arg ref "$GITHUB_REF" '[.[] | select(.main_only != true or $ref == "refs/heads/main")]')
+            SELECTED=$(echo "$ALL" | jq -c --arg ref "$GITHUB_REF" --argjson final "$FINAL_TAG" '[.[] | select((.main_only != true or $ref == "refs/heads/main") and (.final_tag_only != true or $final))]')
             SKIPPED=$(echo "$ALL" | jq -r --argjson selected "$SELECTED" '[.[].environment] - [$selected[].environment] | join(", ")')
             if [ -n "$SKIPPED" ]; then
-              echo "::notice::Not published by this run (main only): $SKIPPED."
+              echo "::notice::Not published by this run (main only, or final vault/vX.Y.Z tag push only): $SKIPPED."
             fi
           else
             SELECTED=$(echo "$ALL" | jq -c --arg e "$ENVIRONMENT" '[.[] | select(.environment == $e)]')
@@ -121,6 +128,10 @@ jobs:
             fi
             if [ "$GITHUB_REF" != "refs/heads/main" ] && [ "$(echo "$SELECTED" | jq 'any(.[]; .main_only == true)')" = "true" ]; then
               echo "::error::$ENVIRONMENT publishes from main only: its AWS role trusts refs/heads/main alone."
+              exit 1
+            fi
+            if [ "$FINAL_TAG" != "true" ] && [ "$(echo "$SELECTED" | jq 'any(.[]; .final_tag_only == true)')" = "true" ]; then
+              echo "::error::$ENVIRONMENT publishes only from a pushed final vault/vX.Y.Z tag."
               exit 1
             fi
           fi
@@ -165,6 +176,62 @@ jobs:
       cancel-in-progress: false
     environment: ${{ matrix.environment }}
     steps:
+      - name: Refuse a production build that would fall back to unsafe defaults
+        if: matrix.expected_kind == 'production'
+        env:
+          NEXT_PUBLIC_TBV_UTILS_API: ${{ vars.NEXT_PUBLIC_TBV_UTILS_API }}
+          NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
+          NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
+          NEXT_PUBLIC_REOWN_PROJECT_ID: ${{ vars.NEXT_PUBLIC_REOWN_PROJECT_ID }}
+          S3_PUBLIC_BUCKET_NEW: ${{ vars.S3_PUBLIC_BUCKET_NEW }}
+          S3_CHECKSUM_BUCKET_NEW: ${{ vars.S3_CHECKSUM_BUCKET_NEW }}
+          NEXT_PUBLIC_TBV_ORDINALS_API_URL: ${{ vars.NEXT_PUBLIC_TBV_ORDINALS_API_URL }}
+          EXPECTED_CANONICAL: ${{ matrix.canonical }}
+          EXPECTED_MEMPOOL_API: ${{ matrix.mempool_api }}
+          EXPECTED_UTILS_API: ${{ matrix.utils_api }}
+          EXPECTED_ORDINALS_API: ${{ matrix.ordinals_api }}
+        run: |
+          set -euo pipefail
+          shopt -s nocasematch
+          https_url_re='^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?(/[^[:space:]]*)?$'
+          problems=()
+          for name in NEXT_PUBLIC_TBV_UTILS_API NEXT_PUBLIC_MEMPOOL_API NEXT_PUBLIC_CANONICAL NEXT_PUBLIC_REOWN_PROJECT_ID S3_PUBLIC_BUCKET_NEW S3_CHECKSUM_BUCKET_NEW; do
+            value="${!name:-}"
+            if [ -z "${value//[[:space:]]/}" ]; then
+              problems+=("$name is empty")
+            fi
+          done
+          for name in NEXT_PUBLIC_MEMPOOL_API NEXT_PUBLIC_TBV_UTILS_API NEXT_PUBLIC_TBV_ORDINALS_API_URL; do
+            value="${!name:-}"
+            if [ -n "${value//[[:space:]]/}" ]; then
+              if [[ ! "$value" =~ $https_url_re || "$value" == *signet* || "$value" == *testnet* ]]; then
+                problems+=("$name must be an https Bitcoin mainnet URL with a host, not a signet or testnet one")
+              fi
+            fi
+          done
+          if [ -n "$EXPECTED_MEMPOOL_API" ] && [ "${NEXT_PUBLIC_MEMPOOL_API:-}" != "$EXPECTED_MEMPOOL_API" ]; then
+            problems+=("NEXT_PUBLIC_MEMPOOL_API must be exactly $EXPECTED_MEMPOOL_API for this environment")
+          fi
+          if [ -n "$EXPECTED_UTILS_API" ] && [ "${NEXT_PUBLIC_TBV_UTILS_API:-}" != "$EXPECTED_UTILS_API" ]; then
+            problems+=("NEXT_PUBLIC_TBV_UTILS_API must be exactly $EXPECTED_UTILS_API for this environment")
+          fi
+          if [ -n "$EXPECTED_ORDINALS_API" ] && [ "${NEXT_PUBLIC_TBV_ORDINALS_API_URL:-}" != "$EXPECTED_ORDINALS_API" ]; then
+            problems+=("NEXT_PUBLIC_TBV_ORDINALS_API_URL must be exactly $EXPECTED_ORDINALS_API for this environment")
+          fi
+          if [ -n "${NEXT_PUBLIC_CANONICAL:-}" ] && [ -n "${NEXT_PUBLIC_CANONICAL//[[:space:]]/}" ]; then
+            if [[ ! "$NEXT_PUBLIC_CANONICAL" =~ $https_url_re || "$NEXT_PUBLIC_CANONICAL" == *testnet* ]]; then
+              problems+=("NEXT_PUBLIC_CANONICAL must be an https origin that is not a testnet host")
+            elif [ -n "$EXPECTED_CANONICAL" ] && [ "${NEXT_PUBLIC_CANONICAL%/}" != "$EXPECTED_CANONICAL" ]; then
+              problems+=("NEXT_PUBLIC_CANONICAL must be $EXPECTED_CANONICAL for this environment")
+            fi
+          fi
+          if [ "${#problems[@]}" -gt 0 ]; then
+            for problem in "${problems[@]}"; do
+              echo "::error::$problem"
+            done
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
         with:
