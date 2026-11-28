@@ -666,8 +666,8 @@ JSON-RPC client casts responses without inspection. `VpResponseValidationError` 
 a safe user-facing `.message` from a technical `.detail` for logs; keep that separation, and keep
 `VP_ERROR_PREVIEW_MAX_LEN` bounded so a hostile VP cannot flood logs through an error path.
 
-`JsonRpcClient` caps every response at 2 MiB by default and retries only read methods. **Write
-methods are not retried by default** — preserve that; a retried write is a duplicate submission.
+`JsonRpcClient` caps each response at 2 MiB by default. Timeout and caller cancellation cover the full response body read.
+Only read methods retry by default. **Write methods do not retry by default** - a repeated write can duplicate a submission.
 
 ### Indexer (GraphQL)
 
