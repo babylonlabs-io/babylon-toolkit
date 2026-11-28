@@ -289,9 +289,9 @@ async function executeTx(
   // A cancel in the wallet comes back as the cancel's own successful receipt.
   await assertReceiptIsForSentCall({ publicClient, receipt, sent: broadcast });
 
-  // Before the flow asks the wallet for its next transaction (a repay's
-  // approve is followed straight away by the repay), let the wallet's own
-  // node count this one, so it does not reuse the nonce.
+  // Before the account's next write, which the user can start straight after
+  // this one ends, let the wallet's own node count this one, so it does not
+  // reuse the nonce. (A repay's approve has its own wait, in executeWrite.)
   await waitForWalletToCountTransaction({
     walletClient,
     publicClient,

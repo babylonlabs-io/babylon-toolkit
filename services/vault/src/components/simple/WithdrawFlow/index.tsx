@@ -102,9 +102,10 @@ function WithdrawFlowContent({
     [withdrawableVaults, selectedVaultIds],
   );
 
-  // The withdraw marks its vaults pending AND awaits a position refetch before
-  // `goToProgress()` runs, so both the selection and the position props move
-  // while Review is still on screen. Pin every Review input at confirm time —
+  // The withdraw marks its vaults pending AND starts a position refetch, and
+  // the position can also refresh on its own poll while the withdrawal
+  // confirms, so both the selection and the position props move while Review
+  // is still on screen. Pin every Review input at confirm time —
   // otherwise the amounts flash to zero under the spinner, the projected health
   // factor is computed against an already-reduced position (a false blocking
   // warning), and the Progress view loses its payout addresses. A failed submit

@@ -151,6 +151,9 @@ function unconfirmedBorrow(): UnconfirmedTransactionError {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` keeps implementations, so a refresh one test holds open
+  // would otherwise hold every later one too.
+  mockInvalidateQueries.mockReset();
   gateMock.value = { protocol: null, aave: null };
   mockAssertNoTransactionInFlight.mockResolvedValue(undefined);
   mockAssertReserve.mockResolvedValue(undefined);
@@ -201,7 +204,23 @@ describe("useBorrowTransaction — confirming", () => {
     expect(result.current.isConfirming).toBe(false);
   });
 
-  it("reads as confirming while it refreshes after the lock's watch finds an unconfirmed borrow mined", async () => {
+  it("resolves succeeded for a borrow mined on the first wait while the position refresh is still pending", async () => {
+    mockBorrow.mockResolvedValue({ transactionHash: "0xhash" });
+    // A refresh that never settles, as behind a stalled indexer.
+    mockInvalidateQueries.mockReturnValue(new Promise<never>(() => {}));
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(resolved).toBe("succeeded");
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.isConfirming).toBe(false);
+  });
+
+  it("resolves succeeded for a borrow the lock's watch finds mined while the position refresh is still pending", async () => {
     let mine!: (receipt: unknown) => void;
     mockWaitReceipt.mockReturnValue(
       new Promise((resolve) => {
@@ -209,11 +228,8 @@ describe("useBorrowTransaction — confirming", () => {
       }),
     );
     mockBorrow.mockRejectedValue(unconfirmedBorrow());
-    let refreshed!: () => void;
-    const refresh = new Promise<void>((resolve) => {
-      refreshed = resolve;
-    });
-    mockInvalidateQueries.mockImplementation(() => refresh);
+    // A refresh that never settles, as behind a stalled indexer.
+    mockInvalidateQueries.mockReturnValue(new Promise<never>(() => {}));
     const { result } = renderHook(() => useBorrowTransaction());
     let borrowing!: Promise<string>;
     await act(async () => {
@@ -227,21 +243,9 @@ describe("useBorrowTransaction — confirming", () => {
         from: "0xuser",
         logs: [],
       });
+      await expect(borrowing).resolves.toBe("succeeded");
     });
-    try {
-      await waitFor(() => {
-        expect(result.current.pendingWrite).toBeNull();
-        expect(result.current.isConfirming).toBe(true);
-      });
-      expect(result.current.isProcessing).toBe(true);
-    } finally {
-      // Ends the write either way, so the account's lock does not outlive
-      // this test.
-      await act(async () => {
-        refreshed();
-        await borrowing;
-      });
-    }
+    expect(result.current.isProcessing).toBe(false);
     expect(result.current.isConfirming).toBe(false);
   });
 });

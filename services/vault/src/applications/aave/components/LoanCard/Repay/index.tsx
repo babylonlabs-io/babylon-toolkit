@@ -278,7 +278,7 @@ export function Repay() {
   // priority first: why repaying is unavailable (so it matches the button),
   // then a current input/validation error (only once the balance is known, so
   // we never surface a misleading verdict computed against a still-loading 0,
-  // and not while a repay is in flight: the debt refreshes before the amount
+  // and not while a repay is in flight: the debt can refresh before the amount
   // clears, so the verdict is stale),
   // then the last failed transaction or the last outcome that is not a
   // failure, the submit-time refetch failure, a

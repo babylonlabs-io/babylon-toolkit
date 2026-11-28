@@ -231,10 +231,6 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
           markIncluded,
         );
       });
-      // "Confirming" holds through the refresh only for a mined borrow: one
-      // the lock's watch found after the first wait gave up never reported
-      // its inclusion, and one the user stopped waiting on is not confirming.
-      setIsConfirming(outcome === "mined");
       if (outcome === "mined") {
         trackEvent(ANALYTICS_EVENT.BORROW_SUCCEEDED, () =>
           borrowAnalyticsFields(reserve, account),
@@ -244,12 +240,20 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // Invalidate position queries to refresh data, and the hub reads behind
       // the loan forms (liquidity, our spoke's borrow limit and hub state).
       // Also after the user stopped waiting: the borrow may still be mined.
-      await Promise.all([
+      const refresh = Promise.all([
         invalidateVaultQueries(queryClient),
         invalidateHubQueries(queryClient),
       ]);
-
-      return outcome === "mined" ? "succeeded" : "unknown";
+      // The success step shows nothing the refresh brings, so a mined borrow
+      // ends here and the page behind picks up the new position when the
+      // refetch lands. Awaiting it held the dialog on "Confirming" for as long
+      // as a slow indexer or RPC took (#2826).
+      if (outcome === "mined") return "succeeded";
+      // Stopped: the form stays open, so it shows the chain's answer before
+      // the user decides whether to try again. Not confirming while it waits.
+      setIsConfirming(false);
+      await refresh;
+      return "unknown";
     } catch (error) {
       // The wallet replaced the transaction, or refused as "nonce too low" a
       // send it may have broadcast. Either may still have done the borrow, so

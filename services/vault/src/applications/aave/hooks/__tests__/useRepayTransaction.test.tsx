@@ -77,6 +77,7 @@ import {
   UnconfirmedTransactionError,
 } from "@/utils/errors";
 
+import { STOP_WAITING_AVAILABLE_AFTER_MS } from "../../constants";
 import { ProxyMismatchError } from "../../services";
 import { useRepayTransaction } from "../useRepayTransaction";
 
@@ -92,6 +93,9 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` keeps implementations, so a refresh one test holds open
+  // would otherwise hold every later one too.
+  mockInvalidateQueries.mockReset();
   gateMock.value = { protocol: null, aave: null };
   mockAssertNoTransactionInFlight.mockResolvedValue(undefined);
 });
@@ -209,7 +213,26 @@ describe("useRepayTransaction — max mode wiring", () => {
     expect(result.current.isConfirming).toBe(false);
   });
 
-  it("reads as confirming while it refreshes after the lock's watch finds an unconfirmed repay mined", async () => {
+  it("resolves succeeded for a repay mined on the first wait while the position refresh is still pending", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockRepayAll.mockResolvedValue({ transactionHash: "0xhash" });
+    // A refresh that never settles, as behind a stalled indexer.
+    mockInvalidateQueries.mockReturnValue(new Promise<never>(() => {}));
+    const { result } = setup();
+
+    let resolved: string | undefined;
+    await act(async () => {
+      resolved = await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(resolved).toBe("succeeded");
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.isConfirming).toBe(false);
+  });
+
+  it("resolves succeeded for a repay the lock's watch finds mined while the position refresh is still pending", async () => {
     const hash =
       "0x5555555555555555555555555555555555555555555555555555555555555555";
     let mine!: (receipt: unknown) => void;
@@ -229,11 +252,8 @@ describe("useRepayTransaction — max mode wiring", () => {
       }),
     );
     mockAssertReserve.mockResolvedValue(undefined);
-    let refreshed!: () => void;
-    const refresh = new Promise<void>((resolve) => {
-      refreshed = resolve;
-    });
-    mockInvalidateQueries.mockImplementation(() => refresh);
+    // A refresh that never settles, as behind a stalled indexer.
+    mockInvalidateQueries.mockReturnValue(new Promise<never>(() => {}));
     const { result } = setup();
     let repaying!: Promise<unknown>;
     await act(async () => {
@@ -249,22 +269,94 @@ describe("useRepayTransaction — max mode wiring", () => {
         from: "0xuser",
         logs: [],
       });
+      await expect(repaying).resolves.toBe("succeeded");
     });
-    try {
-      await waitFor(() => {
-        expect(result.current.pendingWrite).toBeNull();
-        expect(result.current.isConfirming).toBe(true);
-      });
-      expect(result.current.isProcessing).toBe(true);
-    } finally {
-      // Ends the write either way, so the account's lock does not outlive
-      // this test.
-      await act(async () => {
-        refreshed();
-        await repaying;
-      });
-    }
+    expect(result.current.isProcessing).toBe(false);
     expect(result.current.isConfirming).toBe(false);
+  });
+
+  it("stops reading as confirming while it refreshes, then reports unknown, after the user stops waiting on a repay seen mined", async () => {
+    vi.useFakeTimers();
+    const hash =
+      "0x5555555555555555555555555555555555555555555555555555555555555555";
+    let mine!: (receipt: unknown) => void;
+    let refreshed!: () => void;
+    const refresh = new Promise<void>((resolve) => {
+      refreshed = resolve;
+    });
+    let repaying: Promise<string> | undefined;
+    try {
+      try {
+        // Seen mined, then not deep enough on the chain until the test ends.
+        mockAssertReserve.mockResolvedValue(undefined);
+        mockRepayAll.mockImplementation(async (...args: unknown[]) => {
+          const onIncluded = args[args.length - 1] as () => void;
+          onIncluded();
+          throw new UnconfirmedTransactionError(
+            new ContractError("timed out"),
+            {
+              hash,
+              from: "0xuser" as `0x${string}`,
+              to: "0xadapter" as `0x${string}`,
+              data: "0x",
+              nonce: null,
+              sentAtBlock: null,
+            },
+          );
+        });
+        mockWaitReceipt.mockReturnValue(
+          new Promise((resolve) => {
+            mine = resolve;
+          }),
+        );
+        mockInvalidateQueries.mockReturnValue(refresh);
+        const { result } = setup();
+        await act(async () => {
+          repaying = result.current.executeRepay(100, RESERVE, "max", {
+            repayAmountRaw: 123n,
+          });
+        });
+        expect(result.current.isConfirming).toBe(true);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(STOP_WAITING_AVAILABLE_AFTER_MS);
+        });
+        const pending = result.current.pendingWrite;
+        if (pending?.phase !== "unconfirmed" || !pending.stopWaiting) {
+          throw new Error("expected the stop-waiting action to be offered");
+        }
+
+        await act(async () => {
+          pending.stopWaiting?.();
+        });
+
+        // Still processing: the repay may still be mined, so it waits for
+        // the position before reporting the outcome.
+        expect(result.current.pendingWrite).toBeNull();
+        expect(result.current.isProcessing).toBe(true);
+        expect(result.current.isConfirming).toBe(false);
+
+        await act(async () => {
+          refreshed();
+          await expect(repaying).resolves.toBe("unknown");
+        });
+      } finally {
+        // Ends the repay however far the test got, so the account's lock does
+        // not outlive it: the receipt ends one still waiting on it, and the
+        // refresh one the user stopped waiting on.
+        await act(async () => {
+          mine?.({
+            status: "success",
+            transactionHash: hash,
+            from: "0xuser",
+            logs: [],
+          });
+          refreshed();
+          await repaying;
+        });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

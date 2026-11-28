@@ -1,7 +1,7 @@
 /**
  * The Repay form must not show an amount validation error while a repayment
- * is in flight: the debt refreshes before the submitted amount clears, so the
- * verdict is stale. The data hooks and the form's sub-components are mocked;
+ * is in flight: the debt can refresh before the submitted amount clears, so
+ * the verdict is stale. The data hooks and the form's sub-components are mocked;
  * the assertion is whether the validation callout body is on screen.
  */
 

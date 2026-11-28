@@ -24,10 +24,13 @@
  *    account, so AppKit's modal - which fetches its wallet catalogue from
  *    api.web3modal.org, a host the capture blocks - never opens.
  *
- * These providers connect and read. They do not sign: every signing method
- * throws, so a test that walks into a signing step fails there rather than
- * appearing to succeed. Captures stop at the pre-sign entry for exactly that
- * reason.
+ * These providers connect and read. They never sign. UniSat's signing methods
+ * throw, so a test that walks into a Bitcoin signing step fails there rather
+ * than appearing to succeed; captures stop at the pre-sign entry for exactly
+ * that reason. The ETH provider forwards every method it does not answer
+ * itself to the replayed endpoint, `eth_sendTransaction` included, as a
+ * wallet hands a transaction to its node. A send fails there unless the spec
+ * states the node's answer (`replay/statedWrite.ts`).
  */
 
 import { expect, type Page } from "@playwright/test";
@@ -199,7 +202,8 @@ export async function injectPageWallets(
             // Reads the app routes through the wallet rather than through its
             // own transport still have to be answered, and the replayed
             // endpoint is the only thing that can answer them. Signing methods
-            // land here too and fail, which is intended.
+            // land here too and fail, which is intended, unless a spec states
+            // the node's answer to a send (`replay/statedWrite.ts`).
             const response = await fetch(walletConfig.ethRpcUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
